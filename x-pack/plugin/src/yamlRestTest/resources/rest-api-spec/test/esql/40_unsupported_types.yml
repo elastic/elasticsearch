@@ -13,7 +13,7 @@ setup:
             properties:
               aggregate_metric_double:
                 type: aggregate_metric_double
-                metrics: [ min, max ]
+                metrics: [ min, max, sum, value_count ]
                 default_metric: max
               binary:
                 type: binary
@@ -26,6 +26,7 @@ setup:
                 format: "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
               dense_vector:
                 type: dense_vector
+                similarity: l2_norm
                 dims: 3
               double_range:
                 type: double_range
@@ -81,7 +82,7 @@ setup:
         body:
           - { "index": { } }
           - {
-            "aggregate_metric_double": { "min": 1.0, "max": 3.0 },
+            "aggregate_metric_double": { "min": 1.0, "max": 3.0, "sum": 10.1, "value_count": 5 },
             "binary": "U29tZSBiaW5hcnkgYmxvYg==",
             "completion": "foo bar",
             "date_nanos": "2015-01-01T12:10:30.123456789Z",
@@ -107,20 +108,45 @@ setup:
             "some_doc": { "foo": "xy", "bar": 12 }
           }
 
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+              find_me:
+                type: long
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+            "find_me": 1,
+            "nested": {
+              "foo": 1,
+              "bar": "bar",
+              "baz": 1.9
+            }
+          }
 ---
 unsupported:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: "Latest types supported in ESQL as of 8.13.0"
-
-  - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [capabilities, contains]
       capabilities:
         - method: POST
           path: /_query
-          parameters: [ ]
-          capabilities: [ date_nanos_type ]
-      reason: "support for date nanos type"
+          parameters: []
+          capabilities: [dense_vector_agg_metric_double_if_version]
+      reason: "fetches dense_vector"
 
   - do:
       allowed_warnings_regex:
@@ -131,17 +157,20 @@ unsupported:
           query: 'from test'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
-  - match: { columns.5.type: unsupported }
+  - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
   - match: { columns.6.type: unsupported }
   - match: { columns.7.name: float_range }
@@ -190,12 +219,14 @@ unsupported:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
   - match: { values.0.4: null }
-  - match: { values.0.5: null }
+  - match: { values.0.5.0: 0.5 }
+  - match: { values.0.5.1: 10.0 }
+  - match: { values.0.5.2: 6.0 }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
   - match: { values.0.8: "POINT (10.0 12.0)" }
@@ -227,17 +258,20 @@ unsupported:
         body:
           query: 'from test | limit 0'
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
+  - is_false: columns.0.original_types
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
+  - match: { columns.1.original_types: [binary] }
   - match: { columns.2.name: completion }
   - match: { columns.2.type: unsupported }
+  - match: { columns.2.original_types: [completion] }
   - match: { columns.3.name: date_nanos }
   - match: { columns.3.type: date_nanos }
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
-  - match: { columns.5.type: unsupported }
+  - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
   - match: { columns.6.type: unsupported }
   - match: { columns.7.name: float_range }
@@ -308,8 +342,8 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ date_nanos_type ]
-      reason: "support for date nanos type"
+          capabilities: [ dense_vector_agg_metric_double_if_version ]
+      reason: "support for sorting when dense_vector_field_type present"
 
   - do:
       allowed_warnings_regex:
@@ -320,7 +354,7 @@ unsupported with sort:
           query: 'from test | sort some_doc.bar'
 
   - match: { columns.0.name: aggregate_metric_double }
-  - match: { columns.0.type: unsupported }
+  - match: { columns.0.type: aggregate_metric_double }
   - match: { columns.1.name: binary }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: completion }
@@ -330,7 +364,7 @@ unsupported with sort:
   - match: { columns.4.name: date_range }
   - match: { columns.4.type: unsupported }
   - match: { columns.5.name: dense_vector }
-  - match: { columns.5.type: unsupported }
+  - match: { columns.5.type: dense_vector }
   - match: { columns.6.name: double_range }
   - match: { columns.6.type: unsupported }
   - match: { columns.7.name: float_range }
@@ -379,12 +413,14 @@ unsupported with sort:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }
   - match: { values.0.4: null }
-  - match: { values.0.5: null }
+  - match: { values.0.5.0: 0.5 }
+  - match: { values.0.5.1: 10.0 }
+  - match: { values.0.5.2: 6.0 }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
   - match: { values.0.8: "POINT (10.0 12.0)" }
@@ -412,27 +448,12 @@ unsupported with sort:
 ---
 nested declared inline:
   - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - { "index": { } }
-          - {
-            "find_me": 1,
-            "nested": {
-              "foo": 1,
-              "bar": "bar",
-              "baz": 1.9
-            }
-          }
-
-  - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE find_me == 1 | KEEP n*'
+          query: 'FROM test2 | WHERE find_me == 1 | KEEP n*'
 
   # The `nested` field is not visible, nor are any of it's subfields.
   - match: { columns: [{name: name, type: keyword}] }
@@ -504,52 +525,3 @@ double nested declared in mapping:
 
   # The `nested` field is not visible, nor are any of it's subfields.
   - match: { columns: [{name: name, type: keyword}] }
-
----
-semantic_text declared in mapping:
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [ ]
-          capabilities: [ semantic_text_type ]
-      reason: "support for semantic_text type"
-  - do:
-      indices.create:
-        index: test_semantic_text
-        body:
-          settings:
-            number_of_shards: 5
-          mappings:
-            properties:
-              semantic_text_field:
-                type: semantic_text
-                inference_id: my_inference_id
-  - do:
-      bulk:
-        index: test_semantic_text
-        refresh: true
-        body:
-          - { "index": { } }
-          - {
-              "semantic_text_field": {
-                "text": "be excellent to each other",
-                "inference": {
-                  "inference_id": "my_inference_id",
-                  "model_settings": {
-                    "task_type": "sparse_embedding"
-                  },
-                  "chunks": [{ "text": "be excellent to each other", "embeddings": { "a": 1,"b": 2 } }]
-              }
-            }
-          }
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM test_semantic_text'
-  - match: { columns: [{name: semantic_text_field, type: semantic_text}] }
-  - length: { values: 1 }
-  - match: { values.0: ["be excellent to each other"] }

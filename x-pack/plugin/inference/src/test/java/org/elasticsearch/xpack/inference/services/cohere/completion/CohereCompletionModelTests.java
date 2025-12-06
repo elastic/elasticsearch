@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.inference.services.cohere.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.HashMap;
@@ -24,24 +24,20 @@ public class CohereCompletionModelTests extends ESTestCase {
 
     public void testCreateModel_AlwaysWithEmptyTaskSettings() {
         var model = new CohereCompletionModel(
-            "model",
-            TaskType.COMPLETION,
-            "service",
-            new HashMap<>(Map.of()),
-            new HashMap<>(Map.of("model", "overridden model")),
+            "inference_id",
+            new HashMap<>(Map.of("model_id", "cohere completion model")),
             null,
             ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+        assertThat(model.getServiceSettings().modelId(), is("cohere completion model"));
     }
 
     public static CohereCompletionModel createModel(String url, String apiKey, @Nullable String model) {
         return new CohereCompletionModel(
             "id",
-            TaskType.COMPLETION,
-            "service",
-            new CohereCompletionServiceSettings(url, model, null),
+            new CohereCompletionServiceSettings(url, model, null, CohereServiceSettings.CohereApiVersion.V2),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

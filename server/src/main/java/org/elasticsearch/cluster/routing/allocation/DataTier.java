@@ -12,7 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import java.time.Instant;
@@ -65,12 +66,6 @@ public class DataTier {
     );
 
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";
-
-    private static final Settings DATA_CONTENT_TIER_PREFERENCE_SETTINGS = Settings.builder().put(TIER_PREFERENCE, DATA_CONTENT).build();
-
-    private static final Settings DATA_HOT_TIER_PREFERENCE_SETTINGS = Settings.builder().put(TIER_PREFERENCE, DATA_HOT).build();
-
-    private static final Settings NULL_TIER_PREFERENCE_SETTINGS = Settings.builder().putNull(TIER_PREFERENCE).build();
 
     public static final Setting<String> TIER_PREFERENCE_SETTING = new Setting<>(
         TIER_PREFERENCE,
@@ -224,33 +219,34 @@ public class DataTier {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
 
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void provideAdditionalSettings(
             String indexName,
             @Nullable String dataStreamName,
             IndexMode templateIndexMode,
-            Metadata metadata,
+            ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
-            List<CompressedXContent> combinedTemplateMappings
+            List<CompressedXContent> combinedTemplateMappings,
+            IndexVersion indexVersion,
+            Settings.Builder additionalSettings
         ) {
             Set<String> settings = indexTemplateAndCreateRequestSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {
                 // just a marker -- this null value will be removed or overridden by the template/request settings
-                return NULL_TIER_PREFERENCE_SETTINGS;
+                additionalSettings.putNull(TIER_PREFERENCE);
             } else if (settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "."))
                 || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "."))
                 || settings.stream().anyMatch(s -> s.startsWith(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "."))) {
                     // A different index level require, include, or exclude has been specified, so don't put the setting
                     logger.debug("index [{}] specifies custom index level routing filtering, skipping tier allocation", indexName);
-                    return Settings.EMPTY;
                 } else {
                     // Otherwise, put the setting in place by default, the "hot"
                     // tier if the index is part of a data stream, the "content"
                     // tier if it is not.
                     if (dataStreamName != null) {
-                        return DATA_HOT_TIER_PREFERENCE_SETTINGS;
+                        additionalSettings.put(TIER_PREFERENCE, DATA_HOT);
                     } else {
-                        return DATA_CONTENT_TIER_PREFERENCE_SETTINGS;
+                        additionalSettings.put(TIER_PREFERENCE, DATA_CONTENT);
                     }
                 }
         }

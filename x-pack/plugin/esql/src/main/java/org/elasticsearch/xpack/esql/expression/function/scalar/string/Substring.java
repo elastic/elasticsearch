@@ -52,7 +52,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
             @Example(file = "docs", tag = "substring", description = "This example returns the first three characters of every last name:"),
             @Example(file = "docs", tag = "substringEnd", description = """
                 A negative start position is interpreted as being relative to the end of the string.
-                This example returns the last three characters of of every last name:"""),
+                This example returns the last three characters of every last name:"""),
             @Example(file = "docs", tag = "substringRemainder", description = """
                 If length is omitted, substring returns the remainder of the string.
                 This example returns all characters except for the first:""") }

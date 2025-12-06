@@ -16,6 +16,8 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -23,7 +25,6 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
@@ -49,10 +50,6 @@ import static org.hamcrest.Matchers.startsWith;
  * threads that wait on a phaser. This lets us verify that operations on system indices
  * are being directed to other thread pools.</p>
  */
-@TestLogging(
-    reason = "investigate",
-    value = "org.elasticsearch.kibana.KibanaThreadPoolIT:DEBUG,org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor:TRACE"
-)
 public class KibanaThreadPoolIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(KibanaThreadPoolIT.class);
 
@@ -68,6 +65,8 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
             .put("thread_pool.write.queue_size", 1)
             .put("thread_pool.get.size", 1)
             .put("thread_pool.get.queue_size", 1)
+            // a rejected GET may retry on an INITIALIZING shard (the target of a relocation) and unexpectedly succeed, so block rebalancing
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
     }
 
@@ -112,7 +111,12 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     }
 
     public void testBlockedThreadPoolsRejectUserRequests() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(USER_INDEX)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)) // avoid retrying rejected actions
+        );
 
         runWithBlockedThreadPools(this::assertThreadPoolsBlocked);
 
@@ -229,7 +233,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     private static void fillThreadPoolQueues(String threadPoolName, ThreadPool threadPool) {
         ThreadPool.Info info = threadPool.info(threadPoolName);
 
-        for (int i = 0; i < info.getQueueSize().singles(); i++) {
+        for (int i = 0; i < info.getQueueSize(); i++) {
             try {
                 threadPool.executor(threadPoolName).execute(() -> {});
             } catch (EsRejectedExecutionException e) {

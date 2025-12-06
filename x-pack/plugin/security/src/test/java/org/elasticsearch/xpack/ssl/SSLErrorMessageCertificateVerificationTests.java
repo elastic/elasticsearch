@@ -19,7 +19,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
@@ -29,6 +28,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,7 +39,6 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -104,7 +103,6 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings settings = getPemSSLSettings(
             HTTP_SERVER_SSL,
             "not-this-host.crt",
@@ -114,8 +112,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             null
         ).putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt")).build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        final SslConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
-        final SSLSocketFactory clientSocketFactory = sslService.sslSocketFactory(clientSslConfig);
+        final SslProfile clientSslProfile = sslService.profile(HTTP_CLIENT_SSL);
+        final SSLSocketFactory clientSocketFactory = clientSslProfile.socketFactory();
 
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)
@@ -133,7 +131,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                     DiagnosticTrustManager.class.getName(),
                     Level.WARN,
                     "failed to establish trust with server at \\["
-                        + Pattern.quote(webServer.getHostName())
+                        + (inFipsJvm() ? "<unknown host>" : Pattern.quote(webServer.getHostName()))
                         + "\\];"
                         + " the server provided a certificate with subject name \\[CN=not-this-host\\],"
                         + " fingerprint \\[[0-9a-f]{40}\\], no keyUsage and no extendedKeyUsage;"
@@ -154,13 +152,12 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             enableHttpsHostnameChecking(clientSocket);
             connect(clientSocket, webServer);
             assertThat(clientSocket.isConnected(), is(true));
-            final SSLHandshakeException handshakeException = expectThrows(
-                SSLHandshakeException.class,
-                () -> clientSocket.getInputStream().read()
-            );
-            assertThat(handshakeException, throwableWithMessage(containsStringIgnoringCase("subject alternative names")));
-            assertThat(handshakeException, throwableWithMessage(containsString(webServer.getHostName())));
-
+            final Exception handshakeException = expectThrows(Exception.class, () -> clientSocket.getInputStream().read());
+            // Bouncy Castle throws a different exception message
+            if (inFipsJvm() == false) {
+                assertThat(handshakeException, throwableWithMessage(containsStringIgnoringCase("subject alternative names")));
+                assertThat(handshakeException, throwableWithMessage(containsString(webServer.getHostName())));
+            }
             // Logging message failures are tricky to debug because you just get a "didn't find match" assertion failure.
             // You should be able to check the log output for the text that was logged and compare to the regex above.
             mockLog.assertAllExpectationsMatched();
@@ -173,18 +170,18 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private CloseableHttpClient buildHttpClient(SSLService sslService) {
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
-        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        final SSLSocketFactory socketFactory = sslService.sslSocketFactory(sslConfiguration);
+        final SslProfile profile = sslService.profile(HTTP_CLIENT_SSL);
+        final HostnameVerifier verifier = profile.hostnameVerifier();
+        final SSLSocketFactory socketFactory = profile.socketFactory();
         final SSLConnectionSocketFactory connectionSocketFactory = new SSLConnectionSocketFactory(socketFactory, verifier);
         return HttpClientBuilder.create().setSSLSocketFactory(connectionSocketFactory).build();
     }
 
     private RestClient buildRestClient(SSLService sslService, MockWebServer webServer) {
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslProfile profile = sslService.profile(HTTP_CLIENT_SSL);
         final HttpHost httpHost = new HttpHost(webServer.getHostName(), webServer.getPort(), "https");
         return RestClient.builder(httpHost)
-            .setHttpClientConfigCallback(client -> client.setSSLStrategy(sslService.sslIOSessionStrategy(sslConfiguration)))
+            .setHttpClientConfigCallback(client -> client.setSSLStrategy(profile.ioSessionStrategy()))
             .build();
     }
 
@@ -230,8 +227,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private MockWebServer initWebServer(SSLService sslService) throws IOException {
-        final SslConfiguration httpSslConfig = sslService.getSSLConfiguration(HTTP_SERVER_SSL);
-        final MockWebServer webServer = new MockWebServer(sslService.sslContext(httpSslConfig), false);
+        final SslProfile httpSslProfile = sslService.profile(HTTP_SERVER_SSL);
+        final MockWebServer webServer = new MockWebServer(httpSslProfile.sslContext(), false);
 
         webServer.enqueue(new MockResponse().setBody("{}").setResponseCode(200));
         webServer.start();

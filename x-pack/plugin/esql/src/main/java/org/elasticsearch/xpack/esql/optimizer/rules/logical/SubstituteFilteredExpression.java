@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.OptimizerExpressionRule;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection;
 
@@ -21,7 +22,7 @@ public class SubstituteFilteredExpression extends OptimizerExpressionRule<Filter
     }
 
     @Override
-    protected Expression rule(FilteredExpression filteredExpression) {
+    protected Expression rule(FilteredExpression filteredExpression, LogicalOptimizerContext ctx) {
         return filteredExpression.surrogate();
     }
 }

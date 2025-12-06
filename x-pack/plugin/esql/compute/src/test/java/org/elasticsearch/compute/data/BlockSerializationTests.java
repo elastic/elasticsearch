@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,9 +18,13 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +35,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
+
+    private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName(
+        "esql_aggregate_metric_double_block"
+    );
 
     public void testConstantIntBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantIntBlockWith(randomInt(), randomIntBetween(1, 8192)));
@@ -115,6 +124,13 @@ public class BlockSerializationTests extends SerializationTestCase {
         assertEmptyBlock(blockFactory.newBytesRefVectorBuilder(0).build().asBlock());
         try (BytesRefVector toFilter = blockFactory.newBytesRefVectorBuilder(0).appendBytesRef(randomBytesRef()).build()) {
             assertEmptyBlock(toFilter.filter().asBlock());
+        }
+    }
+
+    public void testEmptyAggregateMetricDoubleBlock() throws IOException {
+        assertEmptyBlock(blockFactory.newAggregateMetricDoubleBlockBuilder(0).build());
+        try (AggregateMetricDoubleBlock toFilter = blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build()) {
+            assertEmptyBlock(toFilter.filter());
         }
     }
 
@@ -213,6 +229,35 @@ public class BlockSerializationTests extends SerializationTestCase {
                 .build()
         ) {
             assertFilterBlock(toFilter.asBlock().filter(randomIntBetween(0, 1)));
+        }
+    }
+
+    public void testFilterAggregateMetricDoubleBlock() throws IOException {
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
+        }
+
+        {
+            var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
+            builder.min().appendDouble(randomDouble());
+            builder.max().appendDouble(randomDouble());
+            builder.sum().appendDouble(randomDouble());
+            builder.count().appendInt(randomInt());
+            builder.appendNull();
+            try (AggregateMetricDoubleBlock toFilter = builder.build()) {
+                assertFilterBlock(toFilter.filter(randomIntBetween(0, 1)));
+            }
         }
     }
 
@@ -374,19 +419,86 @@ public class BlockSerializationTests extends SerializationTestCase {
         final Block[] blocks = new Block[numBlocks];
         for (int b = 0; b < numBlocks; b++) {
             ElementType elementType = randomFrom(ElementType.LONG, ElementType.DOUBLE, ElementType.BOOLEAN, ElementType.NULL);
-            blocks[b] = BasicBlockTests.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2))
-                .block();
+            blocks[b] = RandomBlock.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2)).block();
         }
         try (CompositeBlock origBlock = new CompositeBlock(blocks)) {
             assertThat(origBlock.getBlockCount(), equalTo(numBlocks));
             for (int b = 0; b < numBlocks; b++) {
                 assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
             }
-            try (CompositeBlock deserBlock = serializeDeserializeBlock(origBlock)) {
+            try (
+                CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionBetween(random(), ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                )
+            ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
                 for (int b = 0; b < numBlocks; b++) {
                     assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));
                 }
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+            }
+        }
+    }
+
+    public void testAggregateMetricDouble() throws IOException {
+        final int positionCount = randomIntBetween(1, 1000);
+        DoubleBlock minBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock maxBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock suBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        IntBlock countBlock = (IntBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.INT, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        try (var origBlock = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, suBlock, countBlock)) {
+            try (
+                AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                        TransportVersion.current()
+                    )
+                )
+            ) {
+                assertThat(deserBlock, equalTo(origBlock));
                 EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }

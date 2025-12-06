@@ -13,13 +13,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -81,7 +81,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosedAllowSelectors();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
@@ -125,12 +125,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var selector = indicesOptions.selectorOptions().defaultSelector();
-        if (selector == IndexComponentSelector.ALL_APPLICABLE) {
-            validationException = addValidationError(
-                "rollover cannot be applied to both regular and failure indices at the same time",
-                validationException
-            );
+        // Ensure we have a valid selector in the request
+        if (rolloverTarget != null) {
+            try {
+                SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
+            } catch (InvalidIndexNameException exception) {
+                validationException = addValidationError(exception.getMessage(), validationException);
+            }
         }
 
         return validationException;
@@ -160,13 +161,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
-    }
-
-    /**
-     * @return true of the rollover request targets the failure store, false otherwise.
-     */
-    public boolean targetsFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
     }
 
     public void setIndicesOptions(IndicesOptions indicesOptions) {

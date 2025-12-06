@@ -48,7 +48,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -139,7 +138,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var metadata = metadataBuilder.build();
 
         final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (final var indexMetadata : metadata) {
+        for (final var indexMetadata : metadata.getProject()) {
             routingTableBuilder.addAsNew(indexMetadata);
         }
 
@@ -217,7 +216,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
 
-        final var settings = Settings.EMPTY;
+        final var settings = Settings.builder()
+            // disable thread watchdog to avoid infinitely repeating task
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+            .build();
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         final var masterService = new MasterService(
@@ -322,11 +324,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var unassignedIterator = routingNodes.unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
-                    final var badNodes = routingAllocation.routingTable()
-                        .index(shardRouting.index())
-                        .shard(shardRouting.id())
-                        .assignedShards()
+                    final var badNodes = routingAllocation.globalRoutingTable()
+                        .routingTables()
+                        .values()
                         .stream()
+                        .filter(table -> table.hasIndex(shardRouting.index()))
+                        .flatMap(table -> table.index(shardRouting.index()).shard(shardRouting.id()).assignedShards().stream())
                         .map(ShardRouting::currentNodeId)
                         .collect(Collectors.toSet());
                     unassignedIterator.initialize(
@@ -388,8 +391,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 for (ShardRouting shardRouting : routingNode) {
                     shards += 1;
                     totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
-                        .orElseThrow(() -> new AssertionError("missing write load"));
+                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(
+                        clusterState.metadata().getProject().index(shardRouting.index())
+                    ).orElseThrow(() -> new AssertionError("missing write load"));
                 }
 
                 results.startObject();
@@ -482,15 +486,15 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             createBuiltInClusterSettings(),
-            new BalancedShardsAllocator(
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                TEST_WRITE_LOAD_FORECASTER
-            ),
+            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
             threadPool,
             clusterService,
             (clusterState, routingAllocationAction) -> strategyRef.get()
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction),
-            TelemetryProvider.NOOP
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
@@ -561,7 +565,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 dataPath.put(new ClusterInfo.NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId()), "/data");
             }
 
-            return new ClusterInfo(diskSpaceUsage, diskSpaceUsage, shardSizes, Map.of(), dataPath, Map.of());
+            return ClusterInfo.builder()
+                .leastAvailableSpaceUsage(diskSpaceUsage)
+                .mostAvailableSpaceUsage(diskSpaceUsage)
+                .shardSizes(shardSizes)
+                .dataPath(dataPath)
+                .build();
         }
 
     }

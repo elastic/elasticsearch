@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;
@@ -51,7 +52,8 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             blockFactory.newConstantBooleanBlockWith(randomBoolean(), 0),
             blockFactory.newBooleanBlockBuilder(0).build(),
             blockFactory.newBooleanBlockBuilder(0).appendBoolean(randomBoolean()).build().filter(),
-            blockFactory.newBooleanBlockBuilder(0).appendNull().build().filter()
+            blockFactory.newBooleanBlockBuilder(0).appendNull().build().filter(),
+            (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
         assertAllEquals(blocks);
     }
@@ -249,6 +251,28 @@ public class BooleanBlockEqualityTests extends ESTestCase {
                 .build()
         );
         assertAllNotEquals(notEqualBlocks);
+    }
+
+    public void testSimpleBlockWithManyNulls() {
+        int positions = randomIntBetween(1, 256);
+        boolean grow = randomBoolean();
+        BooleanBlock.Builder builder1 = blockFactory.newBooleanBlockBuilder(grow ? 0 : positions);
+        BooleanBlock.Builder builder2 = blockFactory.newBooleanBlockBuilder(grow ? 0 : positions);
+        ConstantNullBlock.Builder builder3 = new ConstantNullBlock.Builder(blockFactory);
+        for (int p = 0; p < positions; p++) {
+            builder1.appendNull();
+            builder2.appendNull();
+            builder3.appendNull();
+        }
+        BooleanBlock block1 = builder1.build();
+        BooleanBlock block2 = builder2.build();
+        Block block3 = builder3.build();
+        assertEquals(positions, block1.getPositionCount());
+        assertTrue(block1.mayHaveNulls());
+        assertTrue(block1.isNull(0));
+
+        List<Block> blocks = List.of(block1, block2, block3);
+        assertAllEquals(blocks);
     }
 
     static void assertAllEquals(List<?> objs) {

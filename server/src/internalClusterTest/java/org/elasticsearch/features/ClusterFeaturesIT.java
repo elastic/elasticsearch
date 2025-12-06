@@ -30,7 +30,6 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
 
         FeatureService service = internalCluster().getCurrentMasterNodeInstance(FeatureService.class);
 
-        assertThat(service.getNodeFeatures(), hasKey(FeatureService.FEATURES_SUPPORTED.id()));
         assertThat(service.getNodeFeatures(), hasKey(FeatureService.TEST_FEATURES_ENABLED.id()));
 
         // check the nodes all have a feature in their cluster state (there should always be features_supported)
@@ -38,7 +37,7 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
         var features = response.getState().clusterFeatures().nodeFeatures();
         Set<String> missing = features.entrySet()
             .stream()
-            .filter(e -> e.getValue().contains(FeatureService.FEATURES_SUPPORTED.id()) == false)
+            .filter(e -> e.getValue().contains(FeatureService.TEST_FEATURES_ENABLED.id()) == false)
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         assertThat(missing + " out of " + features.keySet() + " does not have the required feature", missing, empty());

@@ -77,7 +77,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         // view all indices, including restricted ones
         final GetIndexResponse getIndexResponse = client.admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(randomFrom("_all", "*"))
             .setIndicesOptions(IndicesOptions.strictExpandHidden())
             .get();

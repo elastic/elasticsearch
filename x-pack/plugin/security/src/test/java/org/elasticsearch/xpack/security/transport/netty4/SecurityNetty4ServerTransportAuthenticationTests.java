@@ -38,13 +38,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.EmptyRequest;
-import org.elasticsearch.transport.ProxyConnectionStrategy;
+import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.SniffConnectionStrategy;
-import org.elasticsearch.transport.TestOutboundRequestMessage;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -70,6 +67,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -116,7 +115,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 ((ActionListener<Void>) invocation.getArguments()[1]).onResponse(null);
             }
             return null;
-        }).when(remoteCrossClusterAccessAuthenticationService).tryAuthenticate(any(Map.class), anyActionListener());
+        }).when(remoteCrossClusterAccessAuthenticationService).authenticateHeaders(any(Map.class), anyActionListener());
         remoteSecurityNetty4ServerTransport = new SecurityNetty4ServerTransport(
             remoteSettings,
             TransportVersion.current(),
@@ -331,18 +330,19 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
         InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
         try (Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort())) {
-            TestOutboundRequestMessage message = new TestOutboundRequestMessage(
-                threadPool.getThreadContext(),
-                new EmptyRequest(),
-                TransportVersion.current(),
+            Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+            BytesReference bytesReference = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 "internal:whatever",
                 randomNonNegativeLong(),
                 false,
-                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null)
+                TransportVersion.current(),
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
+                new EmptyRequest(),
+                threadPool.getThreadContext(),
+                out
             );
-            Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-            BytesReference bytesReference = message.serialize(out);
             socket.getOutputStream().write(Arrays.copyOfRange(bytesReference.array(), 0, bytesReference.length()));
             socket.getOutputStream().flush();
 
@@ -356,24 +356,24 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     private Settings sniffLocalTransportSettings() {
         Settings localSettings = Settings.builder()
             .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "sniff")
+            .put(RemoteClusterSettings.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "sniff")
             .put(
-                SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 remoteTransportService.boundRemoteAccessAddress().publishAddress().toString()
             )
             .put(
-                SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(),
+                SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(),
                 randomIntBetween(1, 3) // easier to debug with just 1 connection
             )
             .put(
-                SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomIntBetween(1, 3) // easier to debug with just 1 connection
             )
             .build();
         {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomAlphaOfLength(20)
             );
             return Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
@@ -383,20 +383,20 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     private Settings proxyLocalTransportSettings() {
         Settings localSettings = Settings.builder()
             .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "proxy")
+            .put(RemoteClusterSettings.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "proxy")
             .put(
-                ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 remoteTransportService.boundRemoteAccessAddress().publishAddress().toString()
             )
             .put(
-                ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomIntBetween(1, 3) // easier to debug with just 1 connection
             )
             .build();
         {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomAlphaOfLength(20)
             );
             return Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();

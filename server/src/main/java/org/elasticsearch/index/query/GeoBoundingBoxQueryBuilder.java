@@ -13,7 +13,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -44,10 +42,6 @@ import java.util.Objects;
  * */
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
     public static final String NAME = "geo_bounding_box";
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoBoundingBoxQueryBuilder.class);
-
-    private static final String TYPE_PARAMETER_DEPRECATION_MESSAGE = "Deprecated parameter [type] used, it should no longer be specified.";
 
     /**
      * The default value for ignore_unmapped.
@@ -83,9 +77,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         super(in);
         fieldName = in.readString();
         geoBoundingBox = new GeoBoundingBox(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readVInt(); // ignore value
-        }
         validationMethod = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
     }
@@ -94,9 +85,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         geoBoundingBox.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeVInt(0);
-        }
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }
@@ -204,13 +192,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         return this;
     }
 
-    /**
-     * Returns geo coordinate validation method to use.
-     * */
-    public GeoValidationMethod getValidationMethod() {
-        return this.validationMethod;
-    }
-
     /** Returns the name of the field to base the bounding box computation on. */
     public String fieldName() {
         return this.fieldName;
@@ -224,15 +205,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public GeoBoundingBoxQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
         return this;
-    }
-
-    /**
-     * Gets whether the query builder will ignore unmapped fields (and run a
-     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
-     * the field is unmapped.
-     */
-    public boolean ignoreUnmapped() {
-        return ignoreUnmapped;
     }
 
     QueryValidationException checkLatLon() {
@@ -403,6 +375,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

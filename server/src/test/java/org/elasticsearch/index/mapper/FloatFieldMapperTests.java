@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 public class FloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -51,21 +51,31 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::floatValue, ignoreMalformed);
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> {
-            // The test converts the float into a string so we do do
-            Number n = (Number) v;
-            return Double.parseDouble(Float.toString(n.floatValue()));
-        };
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(Number::floatValue, ignoreMalformed, sourceKeepMode);
+
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(this::minimalMapping, this::writeField, true),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
     }
 }

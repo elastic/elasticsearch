@@ -59,6 +59,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -69,6 +70,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -91,7 +93,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -180,8 +182,8 @@ public class Node implements Closeable {
      *
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
-    public Node(Environment environment) {
-        this(NodeConstruction.prepareConstruction(environment, new NodeServiceProvider(), true));
+    public Node(Environment environment, PluginsLoader pluginsLoader) {
+        this(NodeConstruction.prepareConstruction(environment, pluginsLoader, new NodeServiceProvider(), true));
     }
 
     /**
@@ -218,7 +220,7 @@ public class Node implements Closeable {
                     "\\" + File.separator,
                     ".*modules",
                     "apm",
-                    "elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar"
+                    "elastic-apm-agent-java8-\\d+\\.\\d+\\.\\d+\\.jar"
                 );
                 if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
@@ -276,9 +278,6 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
-        if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).start();
-        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -287,6 +286,10 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
+        injector.getInstance(SamplingService.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -406,7 +409,12 @@ public class Node implements Closeable {
             }
         }
 
+        // ------- DO NOT ADD NEW START CALLS BELOW HERE -------
+
         injector.getInstance(HttpServerTransport.class).start();
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
@@ -423,11 +431,6 @@ public class Node implements Closeable {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
-
-        injector.getInstance(NodeMetrics.class).start();
-        injector.getInstance(IndicesMetrics.class).start();
-        injector.getInstance(HealthPeriodicLogger.class).start();
-
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -453,6 +456,7 @@ public class Node implements Closeable {
         }
         // We stop the health periodic logger first since certain checks won't be possible anyway
         stopIfStarted(HealthPeriodicLogger.class);
+        stopIfStarted(SamplingService.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
@@ -550,6 +554,7 @@ public class Node implements Closeable {
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
         toClose.add(injector.getInstance(HealthPeriodicLogger.class));
+        toClose.add(injector.getInstance(SamplingService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
@@ -651,8 +656,8 @@ public class Node implements Closeable {
      * Writes a file to the logs dir containing the ports for the given transport type
      */
     private void writePortsFile(String type, BoundTransportAddress boundAddress) {
-        Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
-        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
+        Path tmpPortsFile = environment.logsDir().resolve(type + ".ports.tmp");
+        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, StandardCharsets.UTF_8)) {
             for (TransportAddress address : boundAddress.boundAddresses()) {
                 InetAddress inetAddress = InetAddress.getByName(address.getAddress());
                 writer.write(NetworkAddress.format(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
@@ -660,7 +665,7 @@ public class Node implements Closeable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to write ports file", e);
         }
-        Path portsFile = environment.logsFile().resolve(type + ".ports");
+        Path portsFile = environment.logsDir().resolve(type + ".ports");
         try {
             Files.move(tmpPortsFile, portsFile, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {

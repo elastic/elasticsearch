@@ -7,41 +7,25 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
  * This avoids ulterior look-ups between attributes and its source across nodes.
  */
-public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan, LogicalPlan, LogicalOptimizerContext> {
 
     @Override
-    public LogicalPlan apply(LogicalPlan plan) {
-        var collectRefs = new AttributeMap<Expression>();
-
-        java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
-
-        // collect aliases bottom-up
-        plan.forEachExpressionUp(Alias.class, a -> {
-            var c = a.child();
-            boolean shouldCollect = c.foldable();
-            // try to resolve the expression based on an existing foldables
-            if (shouldCollect == false) {
-                c = c.transformUp(ReferenceAttribute.class, replaceReference);
-                shouldCollect = c.foldable();
-            }
-            if (shouldCollect) {
-                collectRefs.put(a.toAttribute(), Literal.of(c));
-            }
-        });
+    public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
+        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(plan, ctx);
         if (collectRefs.isEmpty()) {
             return plan;
         }
@@ -51,7 +35,7 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
             // TODO: also allow aggregates once aggs on constants are supported.
             // C.f. https://github.com/elastic/elasticsearch/issues/100634
             if (p instanceof Filter || p instanceof Eval) {
-                p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                p = p.transformExpressionsOnly(ReferenceAttribute.class, r -> collectRefs.resolve(r, r));
             }
             return p;
         });

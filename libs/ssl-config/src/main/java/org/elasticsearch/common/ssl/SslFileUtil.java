@@ -9,12 +9,13 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.UnrecoverableKeyException;
 import java.util.List;
@@ -78,7 +79,15 @@ final class SslFileUtil {
         return new SslConfigException(message, cause);
     }
 
-    static SslConfigException accessControlFailure(String fileType, List<Path> paths, AccessControlException cause, Path basePath) {
+    static SslConfigException notEntitledFailure(String fileType, List<Path> paths, NotEntitledException cause, Path basePath) {
+        return innerAccessControlFailure(fileType, paths, cause, basePath);
+    }
+
+    static SslConfigException accessControlFailure(String fileType, List<Path> paths, SecurityException cause, Path basePath) {
+        return innerAccessControlFailure(fileType, paths, cause, basePath);
+    }
+
+    private static SslConfigException innerAccessControlFailure(String fileType, List<Path> paths, Exception cause, Path basePath) {
         String message = "cannot read configured " + fileType + " [" + pathsToString(paths) + "] because ";
         if (paths.size() == 1) {
             message += "access to read the file is blocked";

@@ -26,7 +26,6 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
     private final List<SimulateDocumentResult> results;
 
     public SimulatePipelineResponse(StreamInput in) throws IOException {
-        super(in);
         this.pipelineId = in.readOptionalString();
         boolean verbose = in.readBoolean();
         int responsesLength = in.readVInt();

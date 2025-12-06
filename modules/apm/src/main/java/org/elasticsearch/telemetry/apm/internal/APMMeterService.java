@@ -18,8 +18,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
 public class APMMeterService extends AbstractLifecycleComponent {
@@ -74,7 +72,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     protected Meter createOtelMeter() {
         assert this.enabled;
-        return AccessController.doPrivileged((PrivilegedAction<Meter>) otelMeterSupplier::get);
+        return otelMeterSupplier.get();
     }
 
     protected Meter createNoopMeter() {

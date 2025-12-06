@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -50,7 +52,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
 import static org.elasticsearch.index.IndexSettings.same;
 
 /**
@@ -178,23 +182,35 @@ public class MetadataUpdateSettingsService {
             final Settings openSettings = settingsForOpenIndices.build();
             final boolean preserveExisting = request.onExisting() == UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE;
 
+            final var currentRoutingTable = currentState.routingTable(request.projectId());
             RoutingTable.Builder routingTableBuilder = null;
-            Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+            final Metadata currentMetadata = currentState.metadata();
+            final ProjectMetadata currentProject = currentMetadata.getProject(request.projectId());
+            ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(currentProject);
+            final var minSupportedIndexVersion = currentState.nodes().getMinSupportedIndexVersion();
 
             // allow to change any settings to a closed index, and only allow dynamic settings to be changed
             // on an open index
             Set<Index> openIndices = new HashSet<>();
             Set<Index> closedIndices = new HashSet<>();
+            Set<Index> readOnlyIndices = null;
+
             final String[] actualIndices = new String[request.indices().length];
             for (int i = 0; i < request.indices().length; i++) {
                 Index index = request.indices()[i];
                 actualIndices[i] = index.getName();
-                final IndexMetadata metadata = currentState.metadata().getIndexSafe(index);
+                final IndexMetadata metadata = currentProject.getIndexSafe(index);
 
                 if (metadata.getState() == IndexMetadata.State.OPEN) {
                     openIndices.add(index);
                 } else {
                     closedIndices.add(index);
+                }
+                if (metadata.getCompatibilityVersion().before(minSupportedIndexVersion)) {
+                    if (readOnlyIndices == null) {
+                        readOnlyIndices = new HashSet<>();
+                    }
+                    readOnlyIndices.add(index);
                 }
             }
 
@@ -202,13 +218,10 @@ public class MetadataUpdateSettingsService {
                 if (request.onStaticSetting() == UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES) {
                     // We have non-dynamic settings and open indices. We will unassign all of the shards in these indices so that the new
                     // changed settings are applied when the shards are re-assigned.
-                    routingTableBuilder = RoutingTable.builder(
-                        allocationService.getShardRoutingRoleStrategy(),
-                        currentState.routingTable()
-                    );
-                    for (Index index : openIndices) {
+                    routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentRoutingTable);
+                    for (Index index : new HashSet<>(openIndices)) {
                         // We only want to take on the expense of reopening all shards for an index if the setting is really changing
-                        Settings existingSettings = currentState.getMetadata().index(index).getSettings();
+                        Settings existingSettings = currentProject.index(index).getSettings();
                         boolean needToReopenIndex = false;
                         for (String setting : skippedSettings) {
                             String newValue = request.settings().get(setting);
@@ -218,7 +231,7 @@ public class MetadataUpdateSettingsService {
                             }
                         }
                         if (needToReopenIndex) {
-                            List<ShardRouting> shardRoutingList = currentState.routingTable().allShards(index.getName());
+                            List<ShardRouting> shardRoutingList = currentRoutingTable.allShards(index.getName());
                             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
                             for (ShardRouting shardRouting : shardRoutingList) {
                                 if (ShardRoutingState.UNASSIGNED.equals(shardRouting.state()) == false) {
@@ -258,7 +271,7 @@ public class MetadataUpdateSettingsService {
                     // Verify that this won't take us over the cluster shard limit.
                     shardLimitValidator.validateShardLimitOnReplicaUpdate(
                         currentState.nodes(),
-                        currentState.metadata(),
+                        currentMetadata,
                         request.indices(),
                         updatedNumberOfReplicas
                     );
@@ -270,10 +283,7 @@ public class MetadataUpdateSettingsService {
                      * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                      */
                     if (routingTableBuilder == null) {
-                        routingTableBuilder = RoutingTable.builder(
-                            allocationService.getShardRoutingRoleStrategy(),
-                            currentState.routingTable()
-                        );
+                        routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentRoutingTable);
                     }
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
@@ -318,7 +328,7 @@ public class MetadataUpdateSettingsService {
             boolean changed = false;
             // increment settings versions
             for (final String index : actualIndices) {
-                if (same(currentState.metadata().index(index).getSettings(), metadataBuilder.get(index).getSettings()) == false) {
+                if (same(currentProject.index(index).getSettings(), metadataBuilder.get(index).getSettings()) == false) {
                     changed = true;
                     final IndexMetadata.Builder builder = IndexMetadata.builder(metadataBuilder.get(index));
                     builder.settingsVersion(1 + builder.settingsVersion());
@@ -326,10 +336,22 @@ public class MetadataUpdateSettingsService {
                 }
             }
 
+            final Function<String, Boolean> verifiedReadOnly = indexName -> VERIFIED_READ_ONLY_SETTING.get(
+                currentProject.index(indexName).getSettings()
+            );
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean changedBlocks = false;
             for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
-                changedBlocks |= maybeUpdateClusterBlock(actualIndices, blocks, block.block, block.setting, openSettings);
+                changedBlocks |= maybeUpdateClusterBlock(
+                    request.projectId(),
+                    actualIndices,
+                    blocks,
+                    block.block,
+                    block.setting,
+                    openSettings,
+                    metadataBuilder,
+                    verifiedReadOnly
+                );
             }
             changed |= changedBlocks;
 
@@ -338,26 +360,28 @@ public class MetadataUpdateSettingsService {
             }
 
             ClusterState updatedState = ClusterState.builder(currentState)
-                .metadata(metadataBuilder)
-                .routingTable(routingTableBuilder == null ? currentState.routingTable() : routingTableBuilder.build())
+                .putProjectMetadata(metadataBuilder)
+                .putRoutingTable(request.projectId(), routingTableBuilder == null ? currentRoutingTable : routingTableBuilder.build())
                 .blocks(changedBlocks ? blocks.build() : currentState.blocks())
                 .build();
 
             try {
+                final var updatedProject = updatedState.metadata().getProject(request.projectId());
                 for (Index index : openIndices) {
-                    final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
-                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
+                    final IndexMetadata currentIndexMetadata = currentProject.getIndexSafe(index);
+                    final IndexMetadata updatedIndexMetadata = updatedProject.getIndexSafe(index);
+                    indicesService.verifyIndexMetadata(currentIndexMetadata, updatedIndexMetadata);
                 }
                 for (Index index : closedIndices) {
-                    final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
-                    final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
+                    final IndexMetadata currentIndexMetadata = currentProject.getIndexSafe(index);
+                    final IndexMetadata updatedIndexMetadata = updatedProject.getIndexSafe(index);
                     // Verifies that the current index settings can be updated with the updated dynamic settings.
-                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
+                    indicesService.verifyIndexMetadata(currentIndexMetadata, updatedIndexMetadata);
                     // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
                     // This step is mandatory since we allow to update non-dynamic settings on closed indices.
-                    indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata);
+                    indicesService.verifyIndexMetadata(updatedIndexMetadata, updatedIndexMetadata);
                 }
+                verifyReadOnlyIndices(request.projectId(), readOnlyIndices, updatedState.blocks());
             } catch (IOException ex) {
                 throw ExceptionsHelper.convertToElastic(ex);
             }
@@ -381,7 +405,7 @@ public class MetadataUpdateSettingsService {
 
     public static void updateIndexSettings(
         Set<Index> indices,
-        Metadata.Builder metadataBuilder,
+        ProjectMetadata.Builder metadataBuilder,
         BiFunction<Index, Settings.Builder, Boolean> settingUpdater,
         Boolean preserveExisting,
         IndexScopedSettings indexScopedSettings
@@ -417,28 +441,72 @@ public class MetadataUpdateSettingsService {
     }
 
     /**
+     * Verifies that read-only compatible indices always have a write block.
+     *
+     * @param projectId the project ID
+     * @param readOnlyIndices the read-only compatible indices
+     * @param blocks the updated cluster state blocks
+     */
+    private static void verifyReadOnlyIndices(ProjectId projectId, @Nullable Set<Index> readOnlyIndices, ClusterBlocks blocks) {
+        if (readOnlyIndices != null) {
+            for (Index readOnlyIndex : readOnlyIndices) {
+                if (blocks.hasIndexBlockLevel(projectId, readOnlyIndex.getName(), ClusterBlockLevel.WRITE) == false) {
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "Can't remove the write block on read-only compatible index %s", readOnlyIndex)
+                    );
+                }
+            }
+        }
+    }
+
+    /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
     private static boolean maybeUpdateClusterBlock(
+        ProjectId projectId,
         String[] actualIndices,
         ClusterBlocks.Builder blocks,
         ClusterBlock block,
         Setting<Boolean> setting,
-        Settings openSettings
+        Settings openSettings,
+        ProjectMetadata.Builder metadataBuilder,
+        Function<String, Boolean> verifiedReadOnlyBeforeBlockChanges
     ) {
         boolean changed = false;
         if (setting.exists(openSettings)) {
             final boolean updateBlock = setting.get(openSettings);
             for (String index : actualIndices) {
                 if (updateBlock) {
-                    if (blocks.hasIndexBlock(index, block) == false) {
-                        blocks.addIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(projectId, index, block) == false) {
+                        blocks.addIndexBlock(projectId, index, block);
                         changed = true;
+                        if (block.contains(ClusterBlockLevel.WRITE)) {
+                            var isVerifiedReadOnly = verifiedReadOnlyBeforeBlockChanges.apply(index);
+                            if (isVerifiedReadOnly) {
+                                var indexMetadata = metadataBuilder.get(index);
+                                metadataBuilder.put(
+                                    IndexMetadata.builder(indexMetadata)
+                                        .settings(
+                                            Settings.builder()
+                                                .put(indexMetadata.getSettings())
+                                                .put(VERIFIED_READ_ONLY_SETTING.getKey(), true)
+                                        )
+                                );
+                            }
+                        }
                     }
                 } else {
-                    if (blocks.hasIndexBlock(index, block)) {
-                        blocks.removeIndexBlock(index, block);
+                    if (blocks.hasIndexBlock(projectId, index, block)) {
+                        blocks.removeIndexBlock(projectId, index, block);
                         changed = true;
+                        if (block.contains(ClusterBlockLevel.WRITE)) {
+                            if (blocks.hasIndexBlockLevel(projectId, index, ClusterBlockLevel.WRITE) == false) {
+                                var indexMetadata = metadataBuilder.get(index);
+                                var indexSettings = Settings.builder().put(indexMetadata.getSettings());
+                                indexSettings.remove(VERIFIED_READ_ONLY_SETTING.getKey());
+                                metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(indexSettings));
+                            }
+                        }
                     }
                 }
             }

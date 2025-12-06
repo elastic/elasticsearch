@@ -119,7 +119,7 @@ java.time.zone.ZoneRules#getStandardOffset(java.time.Instant)
 java.time.zone.ZoneRules#getDaylightSavings(java.time.Instant)
 java.time.zone.ZoneRules#isDaylightSavings(java.time.Instant)
 
-@defaultMessage Use logger methods with non-Object parameter
+@defaultMessage The first parameter to a log4j log statement should be a String, a log4j Supplier (not java.util.function.Supplier), or another object that log4j supports.
 org.apache.logging.log4j.Logger#trace(java.lang.Object)
 org.apache.logging.log4j.Logger#trace(java.lang.Object, java.lang.Throwable)
 org.apache.logging.log4j.Logger#debug(java.lang.Object)
@@ -155,14 +155,12 @@ org.elasticsearch.cluster.ClusterState#compatibilityVersions()
 
 @defaultMessage ClusterFeatures#nodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
 org.elasticsearch.cluster.ClusterFeatures#nodeFeatures()
-@defaultMessage ClusterFeatures#allNodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
-org.elasticsearch.cluster.ClusterFeatures#allNodeFeatures()
 @defaultMessage ClusterFeatures#clusterHasFeature is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
-org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.features.NodeFeature)
+org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.cluster.node.DiscoveryNodes, org.elasticsearch.features.NodeFeature)
 
 @defaultMessage Do not construct this records outside the source files they are declared in
 org.elasticsearch.cluster.SnapshotsInProgress$ShardSnapshotStatus#<init>(java.lang.String, org.elasticsearch.cluster.SnapshotsInProgress$ShardState, org.elasticsearch.repositories.ShardGeneration, java.lang.String, org.elasticsearch.repositories.ShardSnapshotResult)
-org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(java.lang.String, java.util.List, long, long, org.elasticsearch.cluster.SnapshotDeletionsInProgress$State, java.lang.String)
+org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(org.elasticsearch.cluster.metadata.ProjectId, java.lang.String, java.util.List, long, long, org.elasticsearch.cluster.SnapshotDeletionsInProgress$State, java.lang.String)
 
 @defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
 java.lang.Thread#<init>(java.lang.Runnable)

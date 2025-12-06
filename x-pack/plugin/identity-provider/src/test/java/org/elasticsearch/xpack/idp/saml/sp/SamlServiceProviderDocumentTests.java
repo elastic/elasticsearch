@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -32,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -39,6 +39,14 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
+
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
+        "idp_custom_saml_attributes_allow_list"
+    );
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH = IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST
+        .nextPatchVersion();
+    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = TransportVersion.fromName("stored_script_content_length");
+    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_PATCH = STORED_SCRIPT_CONTENT_LENGTH.nextPatchVersion();
 
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
@@ -90,6 +98,31 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         assertThat(assertSerializationRoundTrip(doc2), equalTo(doc1));
     }
 
+    public void testSerializationBeforeExtensionAttributes() throws Exception {
+        final SamlServiceProviderDocument original = createFullDocument();
+        final TransportVersion version = randomBoolean()
+            ? TransportVersionUtils.randomVersionBetween(
+                random(),
+                STORED_SCRIPT_CONTENT_LENGTH_PATCH,
+                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
+            )
+            : TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.minimumCompatible(),
+                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH)
+            );
+        final SamlServiceProviderDocument copy = copyWriteable(
+            original,
+            new NamedWriteableRegistry(List.of()),
+            SamlServiceProviderDocument::new,
+            version
+        );
+        assertThat(copy.attributeNames.extensions, empty());
+
+        copy.attributeNames.setExtensions(original.attributeNames.extensions);
+        assertThat(copy, equalTo(original));
+    }
+
     private SamlServiceProviderDocument createFullDocument() throws GeneralSecurityException, IOException {
         final List<X509Credential> credentials = readCredentials();
         final List<X509Certificate> certificates = credentials.stream().map(X509Credential::getEntityCertificate).toList();
@@ -121,6 +154,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.attributeNames.setEmail("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setName("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setRoles("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.attributeNames.setExtensions(List.of("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8)));
         return doc1;
     }
 
@@ -162,7 +196,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_7_0,
+            IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
             TransportVersion.current()
         );
         final SamlServiceProviderDocument read = copyWriteable(

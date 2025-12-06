@@ -11,11 +11,12 @@ package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ParsedScrollId;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -206,11 +208,17 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 0);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 0);
+        assertHitCount(
+            500,
+            prepareSearch().setSize(0).setQuery(matchAllQuery()),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "test"))
+        );
+        assertHitCount(
+            0,
+            prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
+        );
 
         SearchResponse searchResponse = prepareSearch().setQuery(queryStringQuery("user:kimchy"))
             .setSize(35)
@@ -229,11 +237,17 @@ public class SearchScrollIT extends ESIntegTestCase {
             } while (searchResponse.getHits().getHits().length > 0);
 
             indicesAdmin().prepareRefresh().get();
-            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 500);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 0);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 0);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 500);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 500);
+            assertHitCount(
+                500,
+                prepareSearch().setSize(0).setQuery(matchAllQuery()),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
+            );
+            assertHitCount(
+                0,
+                prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "test"))
+            );
         } finally {
             clearScroll(searchResponse.getScrollId());
             searchResponse.decRef();
@@ -691,13 +705,15 @@ public class SearchScrollIT extends ESIntegTestCase {
         } finally {
             respFromProdIndex.decRef();
         }
-        SearchPhaseExecutionException error = expectThrows(
-            SearchPhaseExecutionException.class,
-            client().prepareSearchScroll(respFromDemoIndexScrollId)
+        SearchScrollRequestBuilder searchScrollRequestBuilder = client().prepareSearchScroll(respFromDemoIndexScrollId);
+        SearchPhaseExecutionException error = expectThrows(SearchPhaseExecutionException.class, searchScrollRequestBuilder);
+        assertEquals(1, error.shardFailures().length);
+        ParsedScrollId parsedScrollId = searchScrollRequestBuilder.request().parseScrollId();
+        ShardSearchContextId shardSearchContextId = parsedScrollId.getContext()[0].getSearchContextId();
+        assertThat(
+            error.shardFailures()[0].getCause().getMessage(),
+            containsString("No search context found for id [" + shardSearchContextId + "]")
         );
-        for (ShardSearchFailure shardSearchFailure : error.shardFailures()) {
-            assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));
-        }
         client().prepareSearchScroll(respFromProdIndexScrollId).get().decRef();
     }
 

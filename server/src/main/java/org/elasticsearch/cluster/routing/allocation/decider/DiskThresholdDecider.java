@@ -15,9 +15,10 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -25,9 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Map;
@@ -72,25 +71,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE = Setting.boolSetting(
-        "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
-        true,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean value) {
-                if (value == Boolean.FALSE) {
-                    throw new SettingsException(
-                        "setting [{}=false] is not allowed, only true is valid",
-                        ENABLE_FOR_SINGLE_DATA_NODE.getKey()
-                    );
-                }
-            }
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.DeprecatedWarning
-    );
-
     public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS = Setting.boolSetting(
         "index.routing.allocation.disk.watermark.ignore",
         false,
@@ -102,9 +82,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        // get deprecation warnings.
-        boolean enabledForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
-        assert enabledForSingleDataNode;
     }
 
     /**
@@ -121,7 +98,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo,
         Metadata metadata,
-        RoutingTable routingTable,
+        GlobalRoutingTable routingTable,
         long sizeOfUnaccountableSearchableSnapshotShards
     ) {
         // Account for reserved space wherever it is available
@@ -139,9 +116,17 @@ public class DiskThresholdDecider extends AllocationDecider {
                 // if we don't yet know the actual path of the incoming shard then conservatively assume
                 // it's going to the path with the least free space
                 if (actualPath == null || actualPath.equals(dataPath)) {
+                    final ProjectMetadata project = metadata.projectFor(routing.index());
                     totalSize += Math.max(
                         routing.getExpectedShardSize(),
-                        getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable)
+                        getExpectedShardSize(
+                            routing,
+                            0L,
+                            clusterInfo,
+                            snapshotShardSizeInfo,
+                            project,
+                            routingTable.routingTable(project.id())
+                        )
                     );
                 }
             }
@@ -152,7 +137,15 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable);
+                    ProjectMetadata project = metadata.projectFor(routing.index());
+                    totalSize -= getExpectedShardSize(
+                        routing,
+                        0L,
+                        clusterInfo,
+                        snapshotShardSizeInfo,
+                        project,
+                        routingTable.routingTable(project.id())
+                    );
                 }
             }
         }
@@ -180,7 +173,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.metadata().indexMetadata(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -199,7 +192,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
@@ -226,10 +219,11 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // flag that determines whether the low threshold checks below can be skipped. We use this for a primary shard that is freshly
-        // allocated and empty.
-        boolean skipLowThresholdChecks = shardRouting.primary()
+        // allocated and either empty or the result of cloning another shard.
+        final var isNewCloneTarget = isNewCloneTarget(shardRouting, allocation);
+        final var skipLowThresholdChecks = shardRouting.primary()
             && shardRouting.active() == false
-            && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
+            && (isNewCloneTarget || shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE);
 
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLowStage(total).getBytes()) {
             if (skipLowThresholdChecks == false) {
@@ -290,6 +284,18 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
+
+        if (isNewCloneTarget) {
+            // The clone will be a hard-linked copy of the original shard so will not meaningfully increase disk usage
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "enough disk for freshly-cloned shard on node, free: [%s], used: [%s]",
+                freeBytesValue,
+                Strings.format1Decimals(usedDiskPercentage, "%")
+            );
+        }
+
         final long shardSize = getExpectedShardSize(shardRouting, 0L, allocation);
         assert shardSize >= 0 : shardSize;
         long freeBytesAfterShard = freeBytes - shardSize;
@@ -333,6 +339,23 @@ public class DiskThresholdDecider extends AllocationDecider {
         );
     }
 
+    private static boolean isNewCloneTarget(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (shardRouting.unassigned() == false
+            || shardRouting.primary() == false
+            || shardRouting.recoverySource() != RecoverySource.LocalShardsRecoverySource.INSTANCE) {
+            return false;
+        }
+
+        final var targetMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        final var sourceIndex = targetMetadata.getResizeSourceIndex();
+        if (sourceIndex == null) {
+            return false;
+        }
+
+        final var sourceMetadata = allocation.metadata().indexMetadata(sourceIndex);
+        return sourceMetadata != null && sourceMetadata.getNumberOfShards() == targetMetadata.getNumberOfShards();
+    }
+
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Map<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
@@ -341,7 +364,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.metadata().indexMetadata(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -408,7 +431,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
@@ -488,7 +511,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             )
         );

@@ -15,9 +15,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.ServiceConfigurationError;
@@ -97,10 +94,9 @@ public final class ProviderLocator<T> implements Supplier<T> {
     @Override
     public T get() {
         try {
-            PrivilegedExceptionAction<T> pa = this::load;
-            return AccessController.doPrivileged(pa);
-        } catch (PrivilegedActionException e) {
-            throw new UncheckedIOException((IOException) e.getCause());
+            return load();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

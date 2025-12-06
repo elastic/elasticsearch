@@ -1,16 +1,18 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
 ---
 object param - store complex object:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -64,17 +66,14 @@ object param - store complex object:
 
 ---
 object param - object array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -128,17 +127,14 @@ object param - object array:
 
 ---
 object param - object array within array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 synthetic_source_keep: arrays
@@ -171,17 +167,14 @@ object param - object array within array:
 
 ---
 object param - no object array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 synthetic_source_keep: arrays
@@ -213,17 +206,14 @@ object param - no object array:
 
 ---
 object param - field ordering in object array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -262,17 +252,14 @@ object param - field ordering in object array:
 
 ---
 object param - nested object array next to other fields:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -319,16 +306,17 @@ object param - nested object array next to other fields:
 ---
 object param - nested object with stored array:
   - requires:
-      cluster_features: ["mapper.ignored_source.always_store_object_arrays_in_nested", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.ignored_source.always_store_object_arrays_in_nested"]
       reason: requires fix to object array handling
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -356,11 +344,8 @@ object param - nested object with stored array:
         sort: name
   - match:  { hits.total.value: 2 }
   - match:  { hits.hits.0._source.name: A }
-    # due to a workaround for #115261
-  - match: { hits.hits.0._source.nested_array_regular.0.b.0.c: 10 }
-  - match: { hits.hits.0._source.nested_array_regular.0.b.1.c: 100 }
-  - match: { hits.hits.0._source.nested_array_regular.1.b.0.c: 20 }
-  - match: { hits.hits.0._source.nested_array_regular.1.b.1.c: 200 }
+  - match: { hits.hits.0._source.nested_array_regular.0.b.c: [ 10, 100 ] }
+  - match: { hits.hits.0._source.nested_array_regular.1.b.c: [ 20, 200 ] }
   - match: { hits.hits.1._source.name: B }
   - match: { hits.hits.1._source.nested_array_stored.0.b.0.c: 10 }
   - match: { hits.hits.1._source.nested_array_stored.0.b.1.c: 100 }
@@ -370,17 +355,14 @@ object param - nested object with stored array:
 
 ---
 index param - nested array within array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -415,61 +397,8 @@ index param - nested array within array:
 
 
 ---
-index param - nested array within array - disabled second pass:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
-  - do:
-      indices.create:
-        index: test
-        body:
-          settings:
-            index:
-              synthetic_source:
-                enable_second_doc_parsing_pass: false
-          mappings:
-            _source:
-              mode: synthetic
-            properties:
-              name:
-                type: keyword
-              path:
-                properties:
-                  to:
-                    properties:
-                      some:
-                        synthetic_source_keep: arrays
-                        properties:
-                          id:
-                            type: integer
-
-  - do:
-      bulk:
-        index: test
-        refresh: true
-        body:
-          - '{ "create": { } }'
-          - '{ "name": "A", "path": [ { "to": [ { "some" : [ { "id": 10 }, { "id": [1, 3, 2] } ] }, { "some": { "id": 100 } } ] }, { "to": { "some": { "id": [1000, 2000] } } } ] }'
-  - match: { errors: false }
-
-  - do:
-      search:
-        index: test
-        sort: name
-  - match:  { hits.hits.0._source.name: A }
-  - length: { hits.hits.0._source.path.to.some: 2}
-  - match: { hits.hits.0._source.path.to.some.0.id: 10 }
-  - match: { hits.hits.0._source.path.to.some.1.id: [ 1, 3, 2] }
-
-
----
 # 112156
 stored field under object with store_array_source:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix", "mapper.bwc_workaround_9_0"]
-      reason: requires bug fix to be implemented
-
   - do:
       indices.create:
         index: test
@@ -478,9 +407,8 @@ stored field under object with store_array_source:
             index:
               sort.field: "name"
               sort.order: "asc"
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -517,17 +445,14 @@ stored field under object with store_array_source:
 
 ---
 field param - keep root array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -574,17 +499,14 @@ field param - keep root array:
 
 ---
 field param - keep nested array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -643,16 +565,16 @@ field param - keep nested array:
 field param - keep root singleton fields:
   - requires:
       test_runner_features: close_to
-      cluster_features: ["mapper.synthetic_source_keep"]
       reason: requires keeping singleton source
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -732,16 +654,16 @@ field param - keep root singleton fields:
 field param - keep nested singleton fields:
   - requires:
       test_runner_features: close_to
-      cluster_features: ["mapper.synthetic_source_keep"]
       reason: requires keeping singleton source
 
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -812,17 +734,14 @@ field param - keep nested singleton fields:
 
 ---
 field param - nested array within array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -855,10 +774,6 @@ field param - nested array within array:
 
 ---
 index param - root arrays:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -866,10 +781,9 @@ index param - root arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -928,16 +842,14 @@ index param - root arrays:
   - match: { hits.hits.1._source.obj.1.span.id: "2" }
 
   - match: { hits.hits.2._source.id: 3 }
-  - match: { hits.hits.2._source.obj_default.trace.id: [aa, bb] }
-  - match: { hits.hits.2._source.obj_default.span.id: "2" }
+  - match: { hits.hits.2._source.obj_default.trace.0.id: bb }
+  - match: { hits.hits.2._source.obj_default.trace.1.id: aa }
+  - match: { hits.hits.2._source.obj_default.span.0.id: "2" }
+  - match: { hits.hits.2._source.obj_default.span.1.id: "2" }
 
 
 ---
 index param - dynamic root arrays:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -945,10 +857,9 @@ index param - dynamic root arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -987,10 +898,6 @@ index param - dynamic root arrays:
 
 ---
 index param - object array within array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -998,10 +905,9 @@ index param - object array within array:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 properties:
@@ -1037,10 +943,6 @@ index param - object array within array:
 
 ---
 index param - no object array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1048,10 +950,9 @@ index param - no object array:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 properties:
@@ -1082,10 +983,6 @@ index param - no object array:
 
 ---
 index param - field ordering:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1093,10 +990,9 @@ index param - field ordering:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -1128,15 +1024,11 @@ index param - field ordering:
         index: test
 
   - length: { hits.hits.0._source: 4 }
-  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": [30, 20, 10], "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
+  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": ["30", "20", "10"], "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
 
 
 ---
 index param - nested arrays:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1144,10 +1036,9 @@ index param - nested arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -1201,10 +1092,6 @@ index param - nested arrays:
 
 ---
 index param - nested object with stored array:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires keeping array source
-
   - do:
       indices.create:
         index: test
@@ -1212,10 +1099,9 @@ index param - nested object with stored array:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1249,3 +1135,47 @@ index param - nested object with stored array:
   - match: { hits.hits.1._source.nested.0.b.1.c: 300 }
   - match: { hits.hits.1._source.nested.1.b.0.c: 40 }
   - match: { hits.hits.1._source.nested.1.b.1.c: 400 }
+
+
+---
+index param - flattened fields:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                source.mode: synthetic
+                synthetic_source_keep: arrays
+          mappings:
+            properties:
+              name:
+                type: keyword
+              outer:
+                properties:
+                  inner:
+                    type: object
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "A", "outer": { "inner": [ { "a.b": "AA", "a.c": "AAA" } ] } }'
+          - '{ "create": { } }'
+          - '{ "name": "B", "outer": { "inner": [ { "a.x.y.z": "BB", "a.z.y.x": "BBB" } ] } }'
+
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.outer.inner: [{ a.b: AA, a.c: AAA }] }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.outer.inner: [{ a.x.y.z: BB, a.z.y.x: BBB }] }

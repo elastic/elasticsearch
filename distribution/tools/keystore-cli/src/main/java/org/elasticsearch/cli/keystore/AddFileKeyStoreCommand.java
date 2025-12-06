@@ -74,7 +74,7 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
             keyStore.setFile(setting, Files.readAllBytes(file));
         }
 
-        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
+        keyStore.save(env.configDir(), getKeyStorePassword().getChars());
     }
 
     @SuppressForbidden(reason = "file arg for cli")

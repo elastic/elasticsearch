@@ -16,11 +16,13 @@ import java.util.Map;
 /**
  * A script used by {@link org.elasticsearch.ingest.ConditionalProcessor}.
  */
-public abstract class IngestConditionalScript {
+public abstract class IngestConditionalScript extends SourceMapFieldScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = {};
 
-    /** The context used to compile {@link IngestConditionalScript} factories. */
+    /**
+     * The context used to compile {@link IngestConditionalScript} factories.
+     * */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
         "processor_conditional",
         Factory.class,
@@ -30,21 +32,35 @@ public abstract class IngestConditionalScript {
         true
     );
 
-    /** The generic runtime parameters for the script. */
+    /**
+     * The generic runtime parameters for the script.
+     */
     private final Map<String, Object> params;
 
-    public IngestConditionalScript(Map<String, Object> params) {
+    public IngestConditionalScript(Map<String, Object> params, Map<String, Object> ctxMap) {
+        super(ctxMap);
         this.params = params;
     }
 
-    /** Return the parameters for this script. */
+    /**
+     * Provides backwards compatibility access to ctx
+     * @return the context map containing the source data
+     */
+    public Map<String, Object> getCtx() {
+        return ctxMap;
+    }
+
+    /**
+     * Return the parameters for this script.
+     * @return a map of parameters
+     */
     public Map<String, Object> getParams() {
         return params;
     }
 
-    public abstract boolean execute(Map<String, Object> ctx);
+    public abstract boolean execute();
 
     public interface Factory {
-        IngestConditionalScript newInstance(Map<String, Object> params);
+        IngestConditionalScript newInstance(Map<String, Object> params, Map<String, Object> ctxMap);
     }
 }

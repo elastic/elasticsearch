@@ -17,22 +17,27 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
+    public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -43,22 +48,33 @@ public class IncrementalBulkService {
     private final Client client;
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
-    private final ThreadContext threadContext;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, ThreadContext threadContext) {
+    /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
+    private final LongHistogram chunkWaitTimeMillisHistogram;
+
+    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, MeterRegistry meterRegistry) {
         this.client = client;
         this.indexingPressure = indexingPressure;
-        this.threadContext = threadContext;
+        this.chunkWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
+            CHUNK_WAIT_TIME_HISTOGRAM_NAME,
+            "Total time in millis spent waiting for next chunk of a bulk request",
+            "ms"
+        );
     }
 
     public Handler newBulkRequest() {
         ensureEnabled();
-        return newBulkRequest(null, null, null);
+        return newBulkRequest(null, null, null, emptySet());
     }
 
-    public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
+    public Handler newBulkRequest(
+        @Nullable String waitForActiveShards,
+        @Nullable TimeValue timeout,
+        @Nullable String refresh,
+        Set<String> paramsUsed
+    ) {
         ensureEnabled();
-        return new Handler(client, threadContext, indexingPressure, waitForActiveShards, timeout, refresh);
+        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
     }
 
     private void ensureEnabled() {
@@ -94,39 +110,48 @@ public class IncrementalBulkService {
         public static final BulkRequest.IncrementalState EMPTY_STATE = new BulkRequest.IncrementalState(Collections.emptyMap(), true);
 
         private final Client client;
-        private final ThreadContext threadContext;
-        private final IndexingPressure indexingPressure;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
+        private final Set<String> paramsUsed;
         private final String refresh;
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
+        private final IndexingPressure.Incremental incrementalOperation;
+        // Ideally this should be in RestBulkAction, but it's harder to inject the metric registry there
+        private final LongHistogram chunkWaitTimeMillisHistogram;
         private boolean closed = false;
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
         private boolean bulkInProgress = false;
-        private ThreadContext.StoredContext requestContext;
         private Exception bulkActionLevelFailure = null;
-        private long currentBulkSize = 0L;
         private BulkRequest bulkRequest = null;
 
         protected Handler(
             Client client,
-            ThreadContext threadContext,
             IndexingPressure indexingPressure,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
-            @Nullable String refresh
+            @Nullable String refresh,
+            LongHistogram chunkWaitTimeMillisHistogram,
+            Set<String> paramsUsed
         ) {
             this.client = client;
-            this.threadContext = threadContext;
-            this.requestContext = threadContext.newStoredContext();
-            this.indexingPressure = indexingPressure;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
+            this.paramsUsed = paramsUsed;
+            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
+        }
+
+        public IndexingPressure.Incremental getIncrementalOperation() {
+            return incrementalOperation;
+        }
+
+        public void updateWaitForChunkMetrics(long chunkWaitTimeInMillis) {
+            chunkWaitTimeMillisHistogram.record(chunkWaitTimeInMillis);
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
@@ -138,34 +163,34 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    if (shouldBackOff()) {
+                    Optional<Releasable> maybeSplit = incrementalOperation.maybeSplit();
+                    if (maybeSplit.isPresent()) {
+                        Releasable coordinating = maybeSplit.get();
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
-                        try (var ignored = threadContext.restoreExistingContext(requestContext)) {
-                            final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
-                            releasables.clear();
-                            bulkInProgress = true;
-                            client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                        final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                        releasables.clear();
+                        bulkInProgress = true;
+                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
-                                @Override
-                                public void onResponse(BulkResponse bulkResponse) {
-                                    handleBulkSuccess(bulkResponse);
-                                    createNewBulkRequest(
-                                        new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
-                                    );
-                                }
+                            @Override
+                            public void onResponse(BulkResponse bulkResponse) {
+                                handleBulkSuccess(bulkResponse);
+                                createNewBulkRequest(
+                                    new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
+                                );
+                            }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    handleBulkFailure(isFirstRequest, e);
-                                }
-                            }, () -> {
-                                bulkInProgress = false;
-                                requestContext = threadContext.newStoredContext();
-                                toRelease.forEach(Releasable::close);
-                                nextItems.run();
-                            }));
-                        }
+                            @Override
+                            public void onFailure(Exception e) {
+                                handleBulkFailure(isFirstRequest, e);
+                            }
+                        }, () -> {
+                            bulkInProgress = false;
+                            toRelease.forEach(Releasable::close);
+                            coordinating.close();
+                            nextItems.run();
+                        }));
                     } else {
                         nextItems.run();
                     }
@@ -173,10 +198,6 @@ public class IncrementalBulkService {
                     nextItems.run();
                 }
             }
-        }
-
-        private boolean shouldBackOff() {
-            return indexingPressure.shouldSplitBulk(currentBulkSize);
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
@@ -187,28 +208,30 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    try (var ignored = threadContext.restoreExistingContext(requestContext)) {
-                        final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
-                        releasables.clear();
-                        // We do not need to set this back to false as this will be the last request.
-                        bulkInProgress = true;
-                        client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
+                    Releasable coordinating = incrementalOperation.split();
+                    final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                    releasables.clear();
+                    // We do not need to set this back to false as this will be the last request.
+                    bulkInProgress = true;
+                    client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
-                            private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+                        private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 
-                            @Override
-                            public void onResponse(BulkResponse bulkResponse) {
-                                handleBulkSuccess(bulkResponse);
-                                listener.onResponse(combineResponses());
-                            }
+                        @Override
+                        public void onResponse(BulkResponse bulkResponse) {
+                            handleBulkSuccess(bulkResponse);
+                            listener.onResponse(BulkResponse.combine(responses));
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                handleBulkFailure(isFirstRequest, e);
-                                errorResponse(listener);
-                            }
-                        }, () -> toRelease.forEach(Releasable::close)));
-                    }
+                        @Override
+                        public void onFailure(Exception e) {
+                            handleBulkFailure(isFirstRequest, e);
+                            errorResponse(listener);
+                        }
+                    }, () -> {
+                        toRelease.forEach(Releasable::close);
+                        coordinating.close();
+                    }));
                 } else {
                     errorResponse(listener);
                 }
@@ -217,13 +240,17 @@ public class IncrementalBulkService {
 
         @Override
         public void close() {
-            closed = true;
-            releasables.forEach(Releasable::close);
-            releasables.clear();
+            if (closed == false) {
+                closed = true;
+                incrementalOperation.close();
+                releasables.forEach(Releasable::close);
+                releasables.clear();
+            }
         }
 
         private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items, Releasable releasable) {
             assert releasables.isEmpty();
+            assert incrementalOperation.currentOperationsSize() == 0;
             assert bulkRequest == null;
             if (globalFailure == false) {
                 addItemLevelFailures(items);
@@ -235,13 +262,12 @@ public class IncrementalBulkService {
             if (globalFailure) {
                 listener.onFailure(bulkActionLevelFailure);
             } else {
-                listener.onResponse(combineResponses());
+                listener.onResponse(BulkResponse.combine(responses));
             }
         }
 
         private void handleBulkSuccess(BulkResponse bulkResponse) {
             responses.add(bulkResponse);
-            currentBulkSize = 0L;
             bulkRequest = null;
         }
 
@@ -250,7 +276,6 @@ public class IncrementalBulkService {
             globalFailure = isFirstRequest;
             bulkActionLevelFailure = e;
             addItemLevelFailures(bulkRequest.requests());
-            currentBulkSize = 0;
             bulkRequest = null;
         }
 
@@ -270,11 +295,11 @@ public class IncrementalBulkService {
                 bulkRequest.add(items);
                 releasables.add(releasable);
                 long size = items.stream().mapToLong(Accountable::ramBytesUsed).sum();
-                releasables.add(indexingPressure.markCoordinatingOperationStarted(items.size(), size, false));
-                currentBulkSize += size;
+                incrementalOperation.increment(items.size(), size);
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
+                incrementalOperation.split().close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 return false;
@@ -282,7 +307,6 @@ public class IncrementalBulkService {
         }
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
-            assert currentBulkSize == 0L;
             assert bulkRequest == null;
             bulkRequest = new BulkRequest();
             bulkRequest.incrementalState(incrementalState);
@@ -296,26 +320,7 @@ public class IncrementalBulkService {
             if (refresh != null) {
                 bulkRequest.setRefreshPolicy(refresh);
             }
-        }
-
-        private BulkResponse combineResponses() {
-            long tookInMillis = 0;
-            long ingestTookInMillis = 0;
-            int itemResponseCount = 0;
-            for (BulkResponse response : responses) {
-                tookInMillis += response.getTookInMillis();
-                ingestTookInMillis += response.getIngestTookInMillis();
-                itemResponseCount += response.getItems().length;
-            }
-            BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemResponseCount];
-            int i = 0;
-            for (BulkResponse response : responses) {
-                for (BulkItemResponse itemResponse : response.getItems()) {
-                    bulkItemResponses[i++] = itemResponse;
-                }
-            }
-
-            return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
+            bulkRequest.requestParamsUsed(paramsUsed);
         }
     }
 }

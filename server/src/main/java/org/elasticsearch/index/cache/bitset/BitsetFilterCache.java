@@ -24,7 +24,6 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.cache.Cache;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -57,8 +57,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 /**
  * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
@@ -105,10 +103,7 @@ public final class BitsetFilterCache
         boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
         boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
         if (isStateless) {
-            return loadFiltersEagerlySetting
-                && (DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE)
-                    || (DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE)
-                        && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings())));
+            return loadFiltersEagerlySetting && DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
         } else {
             return loadFiltersEagerlySetting;
         }
@@ -241,7 +236,7 @@ public final class BitsetFilterCache
             try {
                 return getAndLoadIfNotPresent(query, context);
             } catch (ExecutionException e) {
-                throw ExceptionsHelper.convertToElastic(e);
+                throw FutureUtils.rethrowExecutionException(e);
             }
         }
 
@@ -341,5 +336,13 @@ public final class BitsetFilterCache
          * @param accountable the bitsets ram representation
          */
         void onRemoval(ShardId shardId, Accountable accountable);
+
+        Listener NOOP = new Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        };
     }
 }

@@ -21,9 +21,4 @@ public class MvDedupeSerializationTests extends AbstractExpressionSerializationT
     protected MvDedupe mutateInstance(MvDedupe instance) throws IOException {
         return new MvDedupe(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

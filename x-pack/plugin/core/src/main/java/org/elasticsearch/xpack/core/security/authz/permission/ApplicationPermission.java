@@ -53,7 +53,7 @@ public final class ApplicationPermission {
                 return new PermissionEntry(
                     appPriv,
                     Sets.union(existing.resourceNames, resourceNames),
-                    Automatons.unionAndDeterminize(Arrays.asList(existing.resourceAutomaton, patterns))
+                    Automatons.unionAndMinimize(Arrays.asList(existing.resourceAutomaton, patterns))
                 );
             }
         }));
@@ -197,7 +197,7 @@ public final class ApplicationPermission {
             if (this.application.test(other.getApplication()) == false) {
                 return false;
             }
-            if (Operations.isTotal(privilege.getAutomaton())) {
+            if (privilege.grantsAll()) {
                 return true;
             }
             return Operations.isEmpty(privilege.getAutomaton()) == false

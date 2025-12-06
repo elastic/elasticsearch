@@ -51,7 +51,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             // Expect the default values
             assertNull(request.getIndices());
             assertNull(request.getStackTraceIdsField());
-            assertFalse(request.isLegacyAggregationField());
             assertNull(request.getAggregationFields());
             assertNull(request.getAwsCostFactor());
             assertNull(request.getAzureCostFactor());
@@ -92,7 +91,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
             // Expect the default values
             assertNull(request.getRequestedDuration());
-            assertFalse(request.isLegacyAggregationField());
             assertNull(request.getAggregationFields());
             assertNull(request.getAwsCostFactor());
             assertNull(request.getAzureCostFactor());
@@ -111,7 +109,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
                 .field("sample_size", 2000)
                 .field("indices", new String[] {"my-traces"})
                 .field("stacktrace_ids_field", "stacktraces")
-                .field("aggregation_field", "service")
+                .field("aggregation_fields", new String[] {"service"})
                 .startObject("query")
                     .startObject("range")
                         .startObject("@timestamp")
@@ -130,7 +128,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             assertArrayEquals(new String[] { "my-traces" }, request.getIndices());
             assertEquals("stacktraces", request.getStackTraceIdsField());
             assertArrayEquals(new String[] { "service" }, request.getAggregationFields());
-            assertTrue(request.isLegacyAggregationField());
             // a basic check suffices here
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
 
@@ -177,7 +174,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
             // Expect the default values
             assertNull(request.getRequestedDuration());
-            assertFalse(request.isLegacyAggregationField());
             assertNull(request.getAwsCostFactor());
             assertNull(request.getAzureCostFactor());
             assertNull(request.getCustomCO2PerKWH());
@@ -231,7 +227,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             // Expect the default values
             assertNull(request.getIndices());
             assertNull(request.getStackTraceIdsField());
-            assertFalse(request.isLegacyAggregationField());
             assertNull(request.getAggregationFields());
         }
     }
@@ -345,7 +340,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         List<String> validationErrors = request.validate().validationErrors();
@@ -367,7 +361,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         assertNull("Expecting no validation errors", request.validate());
@@ -382,7 +375,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             randomAlphaOfLength(3),
-            null,
             null,
             null,
             null,
@@ -409,56 +401,11 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
         assertEquals("[stacktrace_ids_field] is mandatory", validationErrors.get(0));
-    }
-
-    public void testValidateEmptyAggregationField() {
-        GetStackTracesRequest request = new GetStackTracesRequest(
-            null,
-            1.0d,
-            1.0d,
-            1.0d,
-            null,
-            new String[] { randomAlphaOfLength(5) },
-            randomAlphaOfLength(5),
-            "",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        List<String> validationErrors = request.validate().validationErrors();
-        assertEquals(1, validationErrors.size());
-        assertEquals("[aggregation_field] must be non-empty", validationErrors.get(0));
-    }
-
-    public void testValidateAggregationFieldAndAggregationFields() {
-        GetStackTracesRequest request = new GetStackTracesRequest(
-            null,
-            1.0d,
-            1.0d,
-            1.0d,
-            null,
-            new String[] { randomAlphaOfLength(5) },
-            randomAlphaOfLength(5),
-            "transaction.name",
-            new String[] { "transaction.name", "service.name" },
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        List<String> validationErrors = request.validate().validationErrors();
-        assertEquals(1, validationErrors.size());
-        assertEquals("[aggregation_field] must not be set when [aggregation_fields] is also set", validationErrors.get(0));
     }
 
     public void testValidateAggregationFieldsContainsTooFewElements() {
@@ -470,7 +417,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             new String[] { randomAlphaOfLength(5) },
             randomAlphaOfLength(5),
-            null,
             new String[] {},
             null,
             null,
@@ -492,7 +438,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             new String[] { randomAlphaOfLength(5) },
             randomAlphaOfLength(5),
-            null,
             new String[] { "application", "service", "transaction" },
             null,
             null,
@@ -514,7 +459,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             new String[] { randomAlphaOfLength(5) },
             randomAlphaOfLength(5),
-            null,
             new String[] { "service", "service" },
             null,
             null,
@@ -540,7 +484,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         String[] indices = request.indices();
@@ -554,7 +497,6 @@ public class GetStackTracesRequestTests extends ESTestCase {
             1.0d,
             1.0d,
             1.0d,
-            null,
             null,
             null,
             null,

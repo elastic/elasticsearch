@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -26,11 +24,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.ID;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetDatafeedsAction extends BaseRestHandler {
@@ -51,16 +47,8 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         if (datafeedId == null) {
             datafeedId = GetDatafeedsAction.ALL;
         }
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
         Request request = new Request(datafeedId);
-        checkAndSetDeprecatedParam(
-            DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM,
-            GetDatafeedsStatsAction.Request.ALLOW_NO_MATCH,
-            RestApiVersion.V_7,
-            restRequest,
-            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
-            request::setAllowNoMatch
-        );
+        request.setAllowNoMatch(restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_MATCH, request.allowNoMatch()));
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetDatafeedsAction.INSTANCE,
             request,

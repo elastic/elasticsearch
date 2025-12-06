@@ -43,12 +43,16 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -167,7 +171,7 @@ public final class IndexModule {
     private final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
-    private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
+    private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
@@ -175,6 +179,9 @@ public final class IndexModule {
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
+    private final IndexingStatsSettings indexingStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -184,6 +191,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
+     * @param mergeMetrics
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -194,18 +202,28 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final SlowLogFieldProvider slowLogFieldProvider,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final List<SearchOperationListener> searchOperationListeners,
+        final IndexingStatsSettings indexingStatsSettings,
+        final SearchStatsSettings searchStatsSettings,
+        final MergeMetrics mergeMetrics
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
+        // Need to have a mutable arraylist for plugins to add listeners to it
+        this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
+        SlowLogFields slowLogFields = slowLogFieldProvider.create(indexSettings);
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFields));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFields));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
         this.mapperMetrics = mapperMetrics;
+        this.indexingStatsSettings = indexingStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
+        this.mergeMetrics = mergeMetrics;
     }
 
     /**
@@ -465,6 +483,7 @@ public final class IndexModule {
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
         ThreadPool threadPool,
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
         Client client,
@@ -517,6 +536,7 @@ public final class IndexModule {
                 circuitBreakerService,
                 bigArrays,
                 threadPool,
+                threadPoolMergeExecutorService,
                 scriptService,
                 clusterService,
                 client,
@@ -537,7 +557,10 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                mapperMetrics
+                mapperMetrics,
+                indexingStatsSettings,
+                searchStatsSettings,
+                mergeMetrics
             );
             success = true;
             return indexService;

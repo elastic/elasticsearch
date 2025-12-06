@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,14 +18,6 @@ import java.util.Objects;
  * (by converting to an attribute).
  */
 public abstract class NamedExpression extends Expression implements NamedWriteable {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        for (NamedWriteableRegistry.Entry e : Attribute.getNamedWriteables()) {
-            entries.add(new NamedWriteableRegistry.Entry(NamedExpression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
-        }
-        entries.add(Alias.ENTRY);
-        return entries;
-    }
 
     private final String name;
     private final NameId id;
@@ -37,6 +27,9 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         this(source, name, children, id, false);
     }
 
+    /**
+     * Assigns a new id if null is passed for {@code id}.
+     */
     public NamedExpression(Source source, String name, List<Expression> children, @Nullable NameId id, boolean synthetic) {
         super(source, children);
         this.name = name;
@@ -67,27 +60,53 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
     public abstract Attribute toAttribute();
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), name, synthetic);
+    public final int hashCode() {
+        return hashCode(false);
+    }
+
+    public final int hashCode(boolean ignoreIds) {
+        return innerHashCode(ignoreIds);
+    }
+
+    protected int innerHashCode(boolean ignoreIds) {
+        return ignoreIds ? Objects.hash(super.hashCode(), name, synthetic) : Objects.hash(super.hashCode(), id, name, synthetic);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
+    public final boolean equals(Object o) {
+        return equals(o, false);
+    }
+
+    /**
+     * Polymorphic equality is a pain and can be slow.
+     * This shortcuts {@code this == o} and class checks (important when we expect only a few non-equal objects).
+     * <p>
+     * For the actual equality check override {@link #innerEquals(Object, boolean)} instead.
+     * <p>
+     * We also provide the option to ignore NameIds in the equality check, which helps e.g. when creating named expressions
+     * while avoiding duplicates, or when attaching failures to unresolved attributes (see Failure.equals).
+     * Some classes will always ignore ids, irrespective of the parameter passed here.
+     */
+    public final boolean equals(Object o, boolean ignoreIds) {
+        if (this == o) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
+        return innerEquals(o, ignoreIds);
+    }
 
-        NamedExpression other = (NamedExpression) obj;
-        return Objects.equals(synthetic, other.synthetic)
-            /*
-             * It is important that the line below be `name`
-             * and not `name()` because subclasses might override
-             * `name()` in ways that are not compatible with
-             * equality. Specifically the `Unresolved` subclasses.
-             */
+    /**
+     * The actual equality check, after shortcutting {@code this == o} and class checks.
+     */
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
+        var other = (NamedExpression) o;
+        return (ignoreIds || Objects.equals(id, other.id)) && synthetic == other.synthetic
+        // It is important that the line below be `name`
+        // and not `name()` because subclasses might override
+        // `name()` in ways that are not compatible with
+        // equality. Specifically the `Unresolved` subclasses.
             && Objects.equals(name, other.name)
             && Objects.equals(children(), other.children());
     }

@@ -28,7 +28,6 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     private final Map<String, AliasFilter> indicesAndFilters;
 
     public ClusterSearchShardsResponse(StreamInput in) throws IOException {
-        super(in);
         groups = in.readArray(ClusterSearchShardsGroup::new, ClusterSearchShardsGroup[]::new);
         nodes = in.readArray(DiscoveryNode::new, DiscoveryNode[]::new);
         indicesAndFilters = in.readMap(AliasFilter::readFrom);

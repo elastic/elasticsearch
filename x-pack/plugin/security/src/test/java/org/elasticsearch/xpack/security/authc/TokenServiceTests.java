@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -86,6 +85,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.TokenService.RefreshTokenStatus;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -105,6 +105,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import javax.crypto.SecretKey;
 
@@ -117,7 +118,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_BYTES_TOTAL_LENGTH;
 import static org.elasticsearch.xpack.security.authc.TokenService.RAW_TOKEN_DOC_ID_BYTES_LENGTH;
-import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_CLIENT_AUTH_FOR_REFRESH;
 import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_GET_TOKEN_DOC_FOR_REFRESH;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -234,10 +234,6 @@ public class TokenServiceTests extends ESTestCase {
             // tokens docs on a separate index)
             pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
-        if (randomBoolean()) {
-            // before refresh tokens used GET, i.e. TokenService#VERSION_GET_TOKEN_DOC_FOR_REFRESH
-            pre8500040OldNode = addAnotherPre8500DataNode(this.clusterService);
-        }
     }
 
     private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {
@@ -245,23 +241,10 @@ public class TokenServiceTests extends ESTestCase {
         TransportVersion transportVersion;
         if (randomBoolean()) {
             version = Version.V_7_0_0;
-            transportVersion = TransportVersions.V_7_0_0;
+            transportVersion = TransportVersion.fromId(7_00_00_99);
         } else {
             version = Version.V_7_1_0;
-            transportVersion = TransportVersions.V_7_1_0;
-        }
-        return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
-    }
-
-    private static DiscoveryNode addAnotherPre8500DataNode(ClusterService clusterService) {
-        Version version;
-        TransportVersion transportVersion;
-        if (randomBoolean()) {
-            version = Version.V_8_8_1;
-            transportVersion = TransportVersions.V_8_8_1;
-        } else {
-            version = Version.V_8_9_0;
-            transportVersion = TransportVersions.V_8_9_X;
+            transportVersion = TransportVersion.fromId(7_01_00_99);
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -448,7 +431,8 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testAuthnWithInvalidatedToken() throws Exception {
-        when(securityMainIndex.indexExists()).thenReturn(true);
+        IndexState projectIndex = securityMainIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -470,14 +454,15 @@ public class TokenServiceTests extends ESTestCase {
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-            final String headerValue = e.getHeader("WWW-Authenticate").get(0);
+            final String headerValue = e.getBodyHeader("WWW-Authenticate").get(0);
             assertThat(headerValue, containsString("Bearer realm="));
             assertThat(headerValue, containsString("expired"));
         }
     }
 
     public void testInvalidateRefreshToken() throws Exception {
-        when(securityMainIndex.indexExists()).thenReturn(true);
+        IndexState projectIndex = securityMainIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("joe", "admin"))
@@ -486,8 +471,9 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
         tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, Map.of(), tokenFuture);
-        final String accessToken = tokenFuture.get().getAccessToken();
-        final String clientRefreshToken = tokenFuture.get().getRefreshToken();
+        final TokenService.CreateTokenResult tokenResult = tokenFuture.get(180, TimeUnit.SECONDS);
+        final String accessToken = tokenResult.getAccessToken();
+        final String clientRefreshToken = tokenResult.getRefreshToken();
         assertNotNull(accessToken);
         assertNotNull(clientRefreshToken);
         mockTokenForRefreshToken(newTokenBytes.v1(), newTokenBytes.v2(), tokenService, authentication, null);
@@ -511,7 +497,8 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testInvalidateRefreshTokenThatIsAlreadyInvalidated() throws Exception {
-        when(securityMainIndex.indexExists()).thenReturn(true);
+        IndexState projectIndex = securityMainIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         Authentication authentication = AuthenticationTests.randomAuthentication(null, null);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
@@ -551,20 +538,7 @@ public class TokenServiceTests extends ESTestCase {
         String iv,
         String salt
     ) {
-        if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
-            return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
-        } else {
-            return new RefreshTokenStatus(
-                invalidated,
-                authentication.getEffectiveSubject().getUser().principal(),
-                authentication.getAuthenticatingSubject().getRealm().getName(),
-                refreshed,
-                refreshInstant,
-                supersedingTokens,
-                iv,
-                salt
-            );
-        }
+        return new RefreshTokenStatus(invalidated, authentication, refreshed, refreshInstant, supersedingTokens, iv, salt);
     }
 
     private void storeTokenHeader(ThreadContext requestContext, String tokenString) {
@@ -668,7 +642,7 @@ public class TokenServiceTests extends ESTestCase {
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken, future);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-            final String headerValue = e.getHeader("WWW-Authenticate").get(0);
+            final String headerValue = e.getBodyHeader("WWW-Authenticate").get(0);
             assertThat(headerValue, containsString("Bearer realm="));
             assertThat(headerValue, containsString("expired"));
         }
@@ -832,8 +806,8 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersions.V_7_1_0,
-                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
+                TransportVersion.fromId(7_01_00_99),
+                tokenService.getRandomTokenBytes(TransportVersion.fromId(7_01_00_99), randomBoolean()).v1()
             )
         );
 
@@ -854,7 +828,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromAccessTokenBytes(tokenService, tokenService.getRandomTokenBytes(randomBoolean()).v1(), authentication, false, null);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        TransportVersion uuidTokenVersion = randomFrom(TransportVersions.V_7_2_0, TransportVersions.V_7_3_2);
+        TransportVersion uuidTokenVersion = randomFrom(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS, TransportVersion.fromId(7_03_02_99));
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(
@@ -928,39 +902,41 @@ public class TokenServiceTests extends ESTestCase {
         final SecurityIndexManager tokensIndex;
         if (pre72OldNode != null) {
             tokensIndex = securityMainIndex;
-            when(securityTokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-            when(securityTokensIndex.indexExists()).thenReturn(false);
-            when(securityTokensIndex.defensiveCopy()).thenReturn(securityTokensIndex);
+            final IndexState projectTokenIndex = securityTokensIndex.forCurrentProject();
+            when(projectTokenIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+            when(projectTokenIndex.indexExists()).thenReturn(false);
         } else {
             tokensIndex = securityTokensIndex;
-            when(securityMainIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-            when(securityMainIndex.indexExists()).thenReturn(false);
-            when(securityMainIndex.defensiveCopy()).thenReturn(securityMainIndex);
+            final IndexState projectMainIndex = securityMainIndex.forCurrentProject();
+            when(projectMainIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+            when(projectMainIndex.indexExists()).thenReturn(false);
         }
+
+        IndexState projectIndex = tokensIndex.forCurrentProject();
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             final SecureString bearerToken3 = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken3, future);
             assertNull(future.get());
 
-            when(tokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-            when(tokensIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
+            when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+            when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
                 new UnavailableShardsException(null, "unavailable")
             );
-            when(tokensIndex.indexExists()).thenReturn(true);
+            when(projectIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             final SecureString bearerToken2 = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken2, future);
             assertNull(future.get());
 
-            when(tokensIndex.indexExists()).thenReturn(false);
+            when(projectIndex.indexExists()).thenReturn(false);
             future = new PlainActionFuture<>();
             final SecureString bearerToken1 = Authenticator.extractBearerTokenFromHeader(requestContext);
             tokenService.tryAuthenticateToken(bearerToken1, future);
             assertNull(future.get());
 
-            when(tokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-            when(tokensIndex.indexExists()).thenReturn(true);
+            when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+            when(projectIndex.indexExists()).thenReturn(true);
             mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, false, null);
             future = new PlainActionFuture<>();
             final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);

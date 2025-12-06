@@ -35,7 +35,7 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stopw
     private final StopwordAnalyzerBase analyzer;
 
     PersianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
             // since Lucene 10 this analyzer contains stemming by default
             analyzer = new PersianAnalyzer(Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet()));

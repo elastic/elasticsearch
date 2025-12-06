@@ -20,10 +20,12 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Strings;
@@ -55,7 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /**
  * An integration test that verifies how different paths/scenarios affect the APM metrics for failure stores.
  */
-@ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
 
     private static final List<String> METRICS = List.of(
@@ -193,9 +195,9 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         createDataStream();
 
         // Initialize failure store.
-        var rolloverRequest = new RolloverRequest(dataStream, null);
-        rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
+        var rolloverRequest = new RolloverRequest(
+            IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES),
+            null
         );
         var rolloverResponse = client().execute(RolloverAction.INSTANCE, rolloverRequest).actionGet();
         var failureStoreIndex = rolloverResponse.getNewIndex();
@@ -263,7 +265,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     public void testDataStreamAlias() throws IOException {
         putComposableIndexTemplate(false);
         createDataStream();
-        var indicesAliasesRequest = new IndicesAliasesRequest();
+        var indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         indicesAliasesRequest.addAliasAction(
             IndicesAliasesRequest.AliasActions.add().alias("some-alias").index(dataStream).writeIndex(true)
         );
@@ -283,8 +285,8 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStream + "*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, failureStore))
-                .template(new Template(null, new CompressedXContent("""
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(Template.builder().mappings(new CompressedXContent("""
                     {
                       "dynamic": false,
                       "properties": {
@@ -295,7 +297,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
                             "type": "long"
                         }
                       }
-                    }"""), null))
+                    }""")).dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(failureStore)))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
@@ -401,9 +403,9 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             Map<String, Processor.Factory> processors = new HashMap<>();
             processors.put(
                 "drop",
-                (factories, tag, description, config) -> new TestProcessor(tag, "drop", description, ingestDocument -> null)
+                (factories, tag, description, config, projectId) -> new TestProcessor(tag, "drop", description, ingestDocument -> null)
             );
-            processors.put("reroute", (factories, tag, description, config) -> {
+            processors.put("reroute", (factories, tag, description, config, projectId) -> {
                 String destination = (String) config.remove("destination");
                 return new TestProcessor(
                     tag,
@@ -414,7 +416,12 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             });
             processors.put(
                 "fail",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, new RuntimeException())
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "fail",
+                    description,
+                    new RuntimeException()
+                )
             );
             return processors;
         }

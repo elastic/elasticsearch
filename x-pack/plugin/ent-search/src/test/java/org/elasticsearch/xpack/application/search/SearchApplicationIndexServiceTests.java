@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.search;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -117,8 +118,9 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     private void checkAliases(SearchApplication searchApp) {
         Metadata metadata = clusterService.state().metadata();
         final String aliasName = searchApp.name();
-        assertTrue(metadata.hasAlias(aliasName));
-        final Set<String> aliasedIndices = metadata.aliasedIndices(aliasName)
+        assertTrue(metadata.getProject().hasAlias(aliasName));
+        final Set<String> aliasedIndices = metadata.getProject()
+            .aliasedIndices(aliasName)
             .stream()
             .map(index -> index.getName())
             .collect(Collectors.toSet());
@@ -246,7 +248,10 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         DeleteResponse resp = awaitDeleteSearchApplication("my_search_app_4");
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetSearchApplication("my_search_app_4"));
-        GetAliasesResponse response = searchAppService.getAlias("my_search_app_4");
+        GetAliasesResponse response = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "my_search_app_4"))
+            .actionGet();
         assertTrue(response.getAliases().isEmpty());
 
         {

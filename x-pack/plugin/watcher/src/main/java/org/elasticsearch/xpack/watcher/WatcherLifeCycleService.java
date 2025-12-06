@@ -13,12 +13,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -153,8 +156,11 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         // also check if non local shards have changed, as loosing a shard on a
         // remote node or adding a replica on a remote node needs to trigger a reload too
         Set<ShardId> localShardIds = localShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet());
-        List<ShardRouting> allShards = event.state().routingTable().index(watchIndex).shardsWithState(STARTED);
-        allShards.addAll(event.state().routingTable().index(watchIndex).shardsWithState(RELOCATING));
+
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        IndexRoutingTable routingTable = event.state().routingTable(ProjectId.DEFAULT).index(watchIndex);
+        List<ShardRouting> allShards = routingTable.shardsWithState(STARTED);
+        allShards.addAll(routingTable.shardsWithState(RELOCATING));
         List<ShardRouting> localAffectedShardRoutings = allShards.stream()
             .filter(shardRouting -> localShardIds.contains(shardRouting.shardId()))
             // shardrouting is not comparable, so we need some order mechanism
@@ -192,8 +198,9 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     /**
      * check if watcher has been stopped manually via the stop API
      */
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     private static boolean isWatcherStoppedManually(ClusterState state) {
-        WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
+        WatcherMetadata watcherMetadata = state.getMetadata().getProject(ProjectId.DEFAULT).custom(WatcherMetadata.TYPE);
         return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 

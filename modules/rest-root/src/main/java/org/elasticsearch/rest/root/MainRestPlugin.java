@@ -9,8 +9,6 @@
 
 package org.elasticsearch.rest.root;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,7 +47,7 @@ public class MainRestPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(MAIN_ACTION, TransportMainAction.class));
+    public List<ActionHandler> getActions() {
+        return List.of(new ActionHandler(MAIN_ACTION, TransportMainAction.class));
     }
 }

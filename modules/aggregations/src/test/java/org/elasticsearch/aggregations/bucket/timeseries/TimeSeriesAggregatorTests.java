@@ -23,15 +23,14 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.aggregations.bucket.AggregationTestCase;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -79,10 +78,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).value(), equalTo(22.0));
 
         },
-            new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim1", defaultIndexSettings()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType(),
-            new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim2", defaultIndexSettings()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType(),
             new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
@@ -93,10 +92,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
+        RoutingPathFields routingPathFields = new RoutingPathFields(null);
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1] instanceof Number n) {
-                builder.addLong(dimensions[i].toString(), n.longValue());
+                routingPathFields.addLong(dimensions[i].toString(), n.longValue());
                 if (dimensions[i + 1] instanceof Integer || dimensions[i + 1] instanceof Long) {
                     fields.add(new NumericDocValuesField(dimensions[i].toString(), ((Number) dimensions[i + 1]).longValue()));
                 } else if (dimensions[i + 1] instanceof Float) {
@@ -105,7 +104,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                     fields.add(new DoubleDocValuesField(dimensions[i].toString(), (double) dimensions[i + 1]));
                 }
             } else {
-                builder.addString(dimensions[i].toString(), dimensions[i + 1].toString());
+                routingPathFields.addString(dimensions[i].toString(), dimensions[i + 1].toString());
                 fields.add(new SortedSetDocValuesField(dimensions[i].toString(), new BytesRef(dimensions[i + 1].toString())));
             }
         }
@@ -118,7 +117,9 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 fields.add(new DoubleDocValuesField(metrics[i].toString(), (double) metrics[i + 1]));
             }
         }
-        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.buildLegacyTsid().toBytesRef()));
+        fields.add(
+            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef())
+        );
         iw.addDocument(fields);
     }
 
@@ -147,7 +148,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 aggregationBuilder,
                 TimeSeriesIdFieldMapper.FIELD_TYPE,
                 new DateFieldMapper.DateFieldType("@timestamp"),
-                new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("dim1", defaultIndexSettings()).dimension(true)
                     .build(MapperBuilderContext.root(true, true))
                     .fieldType(),
                 new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
@@ -174,19 +175,19 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             InternalDateHistogram byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=xxx}").getAggregations().get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
-                contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
+                contains(new InternalDateHistogram.Bucket(startTime, 2, null, InternalAggregations.EMPTY))
             );
             assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L));
             byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=yyy}").getAggregations().get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
-                contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
+                contains(new InternalDateHistogram.Bucket(startTime, 2, null, InternalAggregations.EMPTY))
             );
             assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(4L));
             byTimeStampBucket = ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
-                contains(new InternalDateHistogram.Bucket(startTime, 4, false, null, InternalAggregations.EMPTY))
+                contains(new InternalDateHistogram.Bucket(startTime, 4, null, InternalAggregations.EMPTY))
             );
         };
 
@@ -200,10 +201,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             new MatchAllDocsQuery(),
             buildIndex,
             verifier,
-            new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim1", defaultIndexSettings()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType(),
-            new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+            new KeywordFieldMapper.Builder("dim2", defaultIndexSettings()).dimension(true)
                 .build(MapperBuilderContext.root(true, true))
                 .fieldType()
         );
@@ -235,10 +236,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 new MatchAllDocsQuery(),
                 buildIndex,
                 limitedVerifier,
-                new KeywordFieldMapper.Builder("dim1", IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("dim1", defaultIndexSettings()).dimension(true)
                     .build(MapperBuilderContext.root(true, true))
                     .fieldType(),
-                new KeywordFieldMapper.Builder("dim2", IndexVersion.current()).dimension(true)
+                new KeywordFieldMapper.Builder("dim2", defaultIndexSettings()).dimension(true)
                     .build(MapperBuilderContext.root(true, true))
                     .fieldType()
             );

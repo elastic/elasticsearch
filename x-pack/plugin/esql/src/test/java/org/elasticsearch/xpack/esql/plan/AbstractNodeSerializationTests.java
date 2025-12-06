@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.AbstractWireTestCase;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,8 +28,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Superclass for serialization tests for all {@link Node} subclasses
- * @param <T>
+ * Superclass for serialization tests for all {@link Node} subclasses.
+ * Useful because it provides a {@link #configuration()} method to access a random
+ * {@link Configuration} and respects {@link org.elasticsearch.xpack.esql.core.expression.NameId}s.
  */
 public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> extends AbstractWireTestCase<T> {
     /**
@@ -51,13 +53,18 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
     }
 
     @Override
-    protected final T copyInstance(T instance, TransportVersion version) throws IOException {
+    protected T copyInstance(T instance, TransportVersion version) throws IOException {
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
             (out, v) -> new PlanStreamOutput(out, configuration()).writeNamedWriteable(v),
             in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration());
+                PlanStreamInput pin = new PlanStreamInput(
+                    in,
+                    in.namedWriteableRegistry(),
+                    configuration(),
+                    new SerializationTestUtils.TestNameIdMapper()
+                );
                 @SuppressWarnings("unchecked")
                 T deser = (T) pin.readNamedWriteable(categoryClass());
                 if (alwaysEmptySource()) {

@@ -9,12 +9,13 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.collect.Iterators.single;
+import static org.elasticsearch.script.ScriptContextStats.Fields.CACHE_EVICTIONS_HISTORY;
 import static org.elasticsearch.script.ScriptContextStats.Fields.COMPILATIONS_HISTORY;
 import static org.elasticsearch.script.ScriptStats.Fields.CACHE_EVICTIONS;
 import static org.elasticsearch.script.ScriptStats.Fields.COMPILATIONS;
@@ -126,17 +129,10 @@ public record ScriptStats(
         TimeSeries cacheEvictionsHistory;
         long compilations;
         long cacheEvictions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            compilationsHistory = new TimeSeries(in);
-            cacheEvictionsHistory = new TimeSeries(in);
-            compilations = compilationsHistory.total;
-            cacheEvictions = cacheEvictionsHistory.total;
-        } else {
-            compilations = in.readVLong();
-            cacheEvictions = in.readVLong();
-            compilationsHistory = new TimeSeries(compilations);
-            cacheEvictionsHistory = new TimeSeries(cacheEvictions);
-        }
+        compilationsHistory = new TimeSeries(in);
+        cacheEvictionsHistory = new TimeSeries(in);
+        compilations = compilationsHistory.total;
+        cacheEvictions = cacheEvictionsHistory.total;
         var compilationLimitTriggered = in.readVLong();
         var contextStats = in.readCollectionAsList(ScriptContextStats::read);
         return new ScriptStats(
@@ -151,13 +147,8 @@ public record ScriptStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            compilationsHistory.writeTo(out);
-            cacheEvictionsHistory.writeTo(out);
-        } else {
-            out.writeVLong(compilations);
-            out.writeVLong(cacheEvictions);
-        }
+        compilationsHistory.writeTo(out);
+        cacheEvictionsHistory.writeTo(out);
         out.writeVLong(compilationLimitTriggered);
         out.writeCollection(contextStats);
     }
@@ -190,19 +181,24 @@ public record ScriptStats(
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(SCRIPT_STATS, ob -> {
-            ob.field(COMPILATIONS, compilations);
-            ob.field(CACHE_EVICTIONS, cacheEvictions);
-            ob.field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(single((builder, params) -> {
+            builder.startObject(SCRIPT_STATS)
+                .field(COMPILATIONS, compilations)
+                .field(CACHE_EVICTIONS, cacheEvictions)
+                .field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
             if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
-                ob.xContentObject(COMPILATIONS_HISTORY, compilationsHistory);
+                builder.startObject(COMPILATIONS_HISTORY);
+                compilationsHistory.toXContent(builder, params);
+                builder.endObject();
             }
             if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
-                ob.xContentObject(COMPILATIONS_HISTORY, cacheEvictionsHistory);
+                builder.startObject(CACHE_EVICTIONS_HISTORY);
+                cacheEvictionsHistory.toXContent(builder, params);
+                builder.endObject();
             }
-            ob.array(CONTEXTS, contextStats.iterator());
-        });
+            return builder;
+        }), ChunkedToXContentHelper.array(CONTEXTS, contextStats.iterator()), ChunkedToXContentHelper.endObject());
     }
 
     static final class Fields {

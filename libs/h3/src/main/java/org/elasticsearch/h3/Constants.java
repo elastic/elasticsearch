@@ -29,7 +29,7 @@ final class Constants {
     /**
      * sqrt(3) / 2.0
      */
-    public static double M_SQRT3_2 = 0.8660254037844386467637231707529361834714;
+    public static final double M_SQRT3_2 = 0.8660254037844386467637231707529361834714;
     /**
      * 2.0 * PI
      */
@@ -37,19 +37,19 @@ final class Constants {
     /**
      * The number of H3 base cells
      */
-    public static int NUM_BASE_CELLS = 122;
+    public static final int NUM_BASE_CELLS = 122;
     /**
      * The number of vertices in a hexagon
      */
-    public static int NUM_HEX_VERTS = 6;
+    public static final int NUM_HEX_VERTS = 6;
     /**
      * The number of vertices in a pentagon
      */
-    public static int NUM_PENT_VERTS = 5;
+    public static final int NUM_PENT_VERTS = 5;
     /**
      * H3 index modes
      */
-    public static int H3_CELL_MODE = 1;
+    public static final int H3_CELL_MODE = 1;
     /**
      * square root of 7
      */
@@ -64,14 +64,14 @@ final class Constants {
      * (or distance between adjacent cell center points
      * on the plane) to gnomonic unit length.
      */
-    public static double RES0_U_GNOMONIC = 0.38196601125010500003;
+    public static final double RES0_U_GNOMONIC = 0.38196601125010500003;
     /**
      * rotation angle between Class II and Class III resolution axes
      * (asin(sqrt(3.0 / 28.0)))
      */
-    public static double M_AP7_ROT_RADS = 0.333473172251832115336090755351601070065900389;
+    public static final double M_AP7_ROT_RADS = 0.333473172251832115336090755351601070065900389;
     /**
      * threshold epsilon
      */
-    public static double EPSILON = 0.0000000000000001;
+    public static final double EPSILON = 0.0000000000000001;
 }

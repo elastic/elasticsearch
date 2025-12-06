@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -71,6 +72,7 @@ public class OsProbe {
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
     private static final Method getSystemCpuLoad;
+    private static final Method getAvailableProcessors;
 
     static {
         getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
@@ -79,6 +81,7 @@ public class OsProbe {
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
         getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getAvailableProcessors = getMethod("getAvailableProcessors");
     }
 
     /**
@@ -258,6 +261,24 @@ public class OsProbe {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
+    public static int getAvailableProcessors() {
+        if (getAvailableProcessors == null) {
+            logger.warn("getAvailableProcessors is not available");
+            return 0;
+        }
+        try {
+            int availableProcessors = (int) getAvailableProcessors.invoke(osMxBean);
+            if (availableProcessors <= 0) {
+                logger.debug("OS reported a non-positive number of available processors [{}]", availableProcessors);
+                return 0;
+            }
+            return availableProcessors;
+        } catch (Exception e) {
+            logger.warn("exception retrieving available processors", e);
+            return 0;
+        }
+    }
+
     /**
      * Reads a file containing a single line.
      *
@@ -341,8 +362,8 @@ public class OsProbe {
      * @return the total CPU time in nanoseconds
      * @throws IOException if an I/O exception occurs reading {@code cpuacct.usage} for the control group
      */
-    private long getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
-        return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
+    private BigInteger getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
+        return new BigInteger(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
     }
 
     /**
@@ -435,21 +456,22 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
+        final var SENTINEL_VALUE = BigInteger.valueOf(-1);
         final List<String> lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);
-        long numberOfPeriods = -1;
-        long numberOfTimesThrottled = -1;
-        long timeThrottledNanos = -1;
+        var numberOfPeriods = SENTINEL_VALUE;
+        var numberOfTimesThrottled = SENTINEL_VALUE;
+        var timeThrottledNanos = SENTINEL_VALUE;
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
-                case "nr_periods" -> numberOfPeriods = Long.parseLong(fields[1]);
-                case "nr_throttled" -> numberOfTimesThrottled = Long.parseLong(fields[1]);
-                case "throttled_time" -> timeThrottledNanos = Long.parseLong(fields[1]);
+                case "nr_periods" -> numberOfPeriods = new BigInteger(fields[1]);
+                case "nr_throttled" -> numberOfTimesThrottled = new BigInteger(fields[1]);
+                case "throttled_time" -> timeThrottledNanos = new BigInteger(fields[1]);
             }
         }
-        assert numberOfPeriods != -1;
-        assert numberOfTimesThrottled != -1;
-        assert timeThrottledNanos != -1;
+        assert numberOfPeriods.equals(SENTINEL_VALUE) == false;
+        assert numberOfTimesThrottled.equals(SENTINEL_VALUE) == false;
+        assert timeThrottledNanos.equals(SENTINEL_VALUE) == false;
         return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
@@ -635,28 +657,30 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     @SuppressForbidden(reason = "Uses PathUtils.get to generate meaningful assertion messages")
-    private Map<String, Long> getCgroupV2CpuStats(String controlGroup) throws IOException {
+    private Map<String, BigInteger> getCgroupV2CpuStats(String controlGroup) throws IOException {
         final List<String> lines = readCgroupV2CpuStats(controlGroup);
-        final Map<String, Long> stats = new HashMap<>();
+        final Map<String, BigInteger> stats = new HashMap<>();
+        final BigInteger SENTINEL_VALUE = BigInteger.valueOf(-1);
 
         for (String line : lines) {
             String[] parts = line.split("\\s+");
             assert parts.length == 2 : "Corrupt cpu.stat line: [" + line + "]";
-            stats.put(parts[0], Long.parseLong(parts[1]));
+            stats.put(parts[0], new BigInteger(parts[1]));
         }
 
         final List<String> expectedKeys = List.of("system_usec", "usage_usec", "user_usec");
         expectedKeys.forEach(key -> {
             assert stats.containsKey(key) : "[" + key + "] missing from " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat");
-            assert stats.get(key) != -1 : stats.get(key);
+            assert stats.get(key).compareTo(SENTINEL_VALUE) != 0 : stats.get(key).toString();
         });
 
         final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
         optionalKeys.forEach(key -> {
             if (stats.containsKey(key) == false) {
-                stats.put(key, 0L);
+                stats.put(key, BigInteger.ZERO);
             }
-            assert stats.get(key) != -1L : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
+            assert stats.get(key).compareTo(SENTINEL_VALUE) != 0
+                : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
         });
 
         return stats;
@@ -682,7 +706,7 @@ public class OsProbe {
             assert controllerMap.isEmpty() == false;
 
             final String cpuAcctControlGroup;
-            final long cgroupCpuAcctUsageNanos;
+            final BigInteger cgroupCpuAcctUsageNanos;
             final long cgroupCpuAcctCpuCfsPeriodMicros;
             final long cgroupCpuAcctCpuCfsQuotaMicros;
             final String cpuControlGroup;
@@ -696,9 +720,11 @@ public class OsProbe {
                 cpuControlGroup = cpuAcctControlGroup = memoryControlGroup = controllerMap.get("");
 
                 // `cpuacct` was merged with `cpu` in v2
-                final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
+                final Map<String, BigInteger> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
 
-                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec") * 1000; // convert from micros to nanos
+                final BigInteger THOUSAND = BigInteger.valueOf(1000);
+
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
@@ -707,7 +733,7 @@ public class OsProbe {
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),
                     cpuStatsMap.get("nr_throttled"),
-                    cpuStatsMap.get("throttled_usec") * 1000
+                    cpuStatsMap.get("throttled_usec").multiply(THOUSAND)
                 );
 
                 cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);
@@ -767,7 +793,7 @@ public class OsProbe {
 
     }
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(OsProbe.class);
 
     OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
@@ -896,7 +922,7 @@ public class OsProbe {
     }
 
     public OsStats osStats() {
-        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
+        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage(), getAvailableProcessors());
         final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getAdjustedTotalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
@@ -907,10 +933,12 @@ public class OsProbe {
      * Returns a given method of the OperatingSystemMXBean, or null if the method is not found or unavailable.
      */
     private static Method getMethod(String methodName) {
+        String className = "com.sun.management.OperatingSystemMXBean";
         try {
-            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
+            return Class.forName(className).getMethod(methodName);
         } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }

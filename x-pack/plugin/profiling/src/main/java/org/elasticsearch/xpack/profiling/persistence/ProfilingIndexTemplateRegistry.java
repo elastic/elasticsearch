@@ -54,10 +54,13 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 11: Added 'profiling.agent.protocol' keyword mapping to profiling-hosts
     // version 12: Added 'profiling.agent.env_https_proxy' keyword mapping to profiling-hosts
     // version 13: Added 'container.id' keyword mapping to profiling-events
-    public static final int INDEX_TEMPLATE_VERSION = 13;
+    // version 14: Stop using using _source.mode attribute in index templates
+    // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
+    // version 16: Added 'profiling.executable.name' keyword mapping to profiling-events
+    public static final int INDEX_TEMPLATE_VERSION = 15;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
-    public static final int PROFILING_EVENTS_VERSION = 5;
+    public static final int PROFILING_EVENTS_VERSION = 6;
     public static final int PROFILING_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_METRICS_VERSION = 2;
     public static final int PROFILING_HOSTS_VERSION = 2;
@@ -313,19 +316,19 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
      */
     public static boolean isAllResourcesCreated(ClusterState state, Settings settings) {
         for (String name : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
-            ComponentTemplate componentTemplate = state.metadata().componentTemplates().get(name);
+            ComponentTemplate componentTemplate = state.metadata().getProject().componentTemplates().get(name);
             if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
         for (String name : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
-            ComposableIndexTemplate composableIndexTemplate = state.metadata().templatesV2().get(name);
+            ComposableIndexTemplate composableIndexTemplate = state.metadata().getProject().templatesV2().get(name);
             if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
         if (isDataStreamsLifecycleOnlyMode(settings) == false) {
-            IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata ilmMetadata = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
             if (ilmMetadata == null) {
                 return false;
             }

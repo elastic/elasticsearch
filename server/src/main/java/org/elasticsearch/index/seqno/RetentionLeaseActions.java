@@ -17,8 +17,9 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -66,6 +67,7 @@ public class RetentionLeaseActions {
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
+            final ProjectResolver projectResolver,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final IndicesService indicesService,
             final Writeable.Reader<T> requestSupplier
@@ -76,6 +78,7 @@ public class RetentionLeaseActions {
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 requestSupplier,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
@@ -84,7 +87,7 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected ShardsIterator shards(final ClusterState state, final InternalRequest request) {
+        protected ShardsIterator shards(final ProjectState state, final InternalRequest request) {
             return state.routingTable().shardRoutingTable(request.concreteIndex(), request.request().getShardId().id()).primaryShardIt();
         }
 
@@ -126,6 +129,7 @@ public class RetentionLeaseActions {
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
+            final ProjectResolver projectResolver,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final IndicesService indicesService
         ) {
@@ -135,6 +139,7 @@ public class RetentionLeaseActions {
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 indicesService,
                 AddRequest::new
@@ -164,6 +169,7 @@ public class RetentionLeaseActions {
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
+            final ProjectResolver projectResolver,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final IndicesService indicesService
         ) {
@@ -173,6 +179,7 @@ public class RetentionLeaseActions {
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 indicesService,
                 RenewRequest::new
@@ -199,6 +206,7 @@ public class RetentionLeaseActions {
             final ClusterService clusterService,
             final TransportService transportService,
             final ActionFilters actionFilters,
+            final ProjectResolver projectResolver,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final IndicesService indicesService
         ) {
@@ -208,6 +216,7 @@ public class RetentionLeaseActions {
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 indicesService,
                 RemoveRequest::new

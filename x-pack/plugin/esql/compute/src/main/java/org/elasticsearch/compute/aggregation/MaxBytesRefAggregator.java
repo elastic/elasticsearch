@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -63,15 +62,11 @@ class MaxBytesRefAggregator {
         }
     }
 
-    public static void combineStates(GroupingState state, int groupId, GroupingState otherState, int otherGroupId) {
-        state.combine(groupId, otherState, otherGroupId);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(selected, ctx.driverContext());
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(selected, driverContext);
-    }
-
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
         private final BytesRefArrayState internalState;
 
         private GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
@@ -84,13 +79,8 @@ class MaxBytesRefAggregator {
             }
         }
 
-        public void combine(int groupId, GroupingState otherState, int otherGroupId) {
-            if (otherState.internalState.hasValue(otherGroupId)) {
-                add(groupId, otherState.internalState.get(otherGroupId));
-            }
-        }
-
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             internalState.toIntermediate(blocks, offset, selected, driverContext);
         }
 
@@ -98,7 +88,8 @@ class MaxBytesRefAggregator {
             return internalState.toValuesBlock(selected, driverContext);
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             internalState.enableGroupIdTracking(seen);
         }
 
@@ -108,7 +99,7 @@ class MaxBytesRefAggregator {
         }
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private final BreakingBytesRefBuilder internalState;
         private boolean seen;
 
@@ -128,7 +119,8 @@ class MaxBytesRefAggregator {
             }
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(internalState.bytesRefView(), 1);
             blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
         }

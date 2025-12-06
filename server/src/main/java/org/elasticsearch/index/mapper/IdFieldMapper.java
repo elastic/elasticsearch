@@ -78,10 +78,17 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
     }
 
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime.
+     */
+    public static Field syntheticIdField(String id) {
+        return new SyntheticIdField(Uid.encodeId(id));
+    }
+
     protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override

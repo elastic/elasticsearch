@@ -7,20 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'resource.reload.interval.high', '100ms'
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
-}
-
-tasks.named("javaRestTest").configure {
-  systemProperty 'tests.security.manager', 'false' // Allows the test the add databases to config directory.
-  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("javaRestTest").map(c -> c.singleNode().getConfigDir())
-}
-
-tasks.named("forbiddenPatterns").configure {
-  exclude '**/*.mmdb'
+dependencies {
+  clusterModules project(':modules:ingest-geoip')
 }

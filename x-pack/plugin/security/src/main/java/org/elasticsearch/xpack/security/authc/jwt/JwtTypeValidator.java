@@ -17,14 +17,17 @@ import com.nimbusds.jwt.JWTClaimsSet;
 
 public class JwtTypeValidator implements JwtFieldValidator {
 
-    private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
-        JOSEObjectType.JWT,
-        null
-    );
+    private final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER;
+    private static final JOSEObjectType AT_PLUS_JWT = new JOSEObjectType("at+jwt");
 
-    public static final JwtTypeValidator INSTANCE = new JwtTypeValidator();
+    public static final JwtTypeValidator ID_TOKEN_INSTANCE = new JwtTypeValidator(JOSEObjectType.JWT, null);
 
-    private JwtTypeValidator() {}
+    // strictly speaking, this should only permit `at+jwt`, but removing the other two options is a breaking change
+    public static final JwtTypeValidator ACCESS_TOKEN_INSTANCE = new JwtTypeValidator(JOSEObjectType.JWT, AT_PLUS_JWT, null);
+
+    private JwtTypeValidator(JOSEObjectType... allowedTypes) {
+        JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(allowedTypes);
+    }
 
     public void validate(JWSHeader jwsHeader, JWTClaimsSet jwtClaimsSet) {
         final JOSEObjectType jwtHeaderType = jwsHeader.getType();

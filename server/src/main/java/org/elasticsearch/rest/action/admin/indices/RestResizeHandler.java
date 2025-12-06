@@ -11,9 +11,9 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,7 +27,6 @@ import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestResizeHandler.class);
 
     RestResizeHandler() {}
 
@@ -38,13 +37,16 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     @Override
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
-        resizeRequest.setResizeType(getResizeType());
+        final ResizeRequest resizeRequest = new ResizeRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
+            getResizeType(),
+            request.param("index"),
+            request.param("target")
+        );
         request.applyContentParser(resizeRequest::fromXContent);
-        resizeRequest.ackTimeout(getAckTimeout(request));
-        resizeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         resizeRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportResizeAction.TYPE, resizeRequest, new RestToXContentListener<>(channel));
     }
 
     // no @ServerlessScope on purpose, not available

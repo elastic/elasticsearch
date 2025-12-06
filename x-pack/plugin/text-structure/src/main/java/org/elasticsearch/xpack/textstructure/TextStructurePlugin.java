@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.textstructure;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -68,12 +66,12 @@ public class TextStructurePlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(FindFieldStructureAction.INSTANCE, TransportFindFieldStructureAction.class),
-            new ActionHandler<>(FindMessageStructureAction.INSTANCE, TransportFindMessageStructureAction.class),
-            new ActionHandler<>(FindStructureAction.INSTANCE, TransportFindStructureAction.class),
-            new ActionHandler<>(TestGrokPatternAction.INSTANCE, TransportTestGrokPatternAction.class)
+            new ActionHandler(FindFieldStructureAction.INSTANCE, TransportFindFieldStructureAction.class),
+            new ActionHandler(FindMessageStructureAction.INSTANCE, TransportFindMessageStructureAction.class),
+            new ActionHandler(FindStructureAction.INSTANCE, TransportFindStructureAction.class),
+            new ActionHandler(TestGrokPatternAction.INSTANCE, TransportTestGrokPatternAction.class)
         );
     }
 }

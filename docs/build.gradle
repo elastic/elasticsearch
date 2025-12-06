@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
@@ -29,7 +29,7 @@ ext.docsFileTree = fileTree(projectDir) {
   // These files simply don't pass yet. We should figure out how to fix them.
   exclude 'reference/watcher/reference/actions.asciidoc'
   exclude 'reference/rest-api/security/ssl.asciidoc'
-  if (BuildParams.inFipsJvm) {
+  if (buildParams.inFipsJvm) {
     // We don't support this component in FIPS 140
     exclude 'reference/ingest/processors/attachment.asciidoc'
     // We can't conditionally control output, this would be missing the ingest-attachment component
@@ -38,7 +38,8 @@ ext.docsFileTree = fileTree(projectDir) {
 }
 
 tasks.named("yamlRestTest") {
-  if (BuildParams.isSnapshotBuild() == false) {
+  enabled = false
+  if (buildParams.snapshotBuild == false) {
     // LOOKUP is not available in snapshots
     systemProperty 'tests.rest.blacklist', [
       "reference/esql/processing-commands/lookup/esql-lookup-example"
@@ -48,6 +49,7 @@ tasks.named("yamlRestTest") {
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
+  enabled = false
   getExpectedUnconvertedCandidates().addAll(
           'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
           'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
@@ -83,9 +85,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (BuildParams.isSnapshotBuild() == false) {
-      requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
-    }
   }
 
   // debug ccr test failures:
@@ -120,9 +119,10 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
 
   // TODO Rene: clean up this kind of cross project file references
   extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
@@ -131,8 +131,9 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
-  // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
+  // disable the ILM and SLM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
   setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'slm.history_index_enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.authc.realms.file.file.order', '0'
   setting 'xpack.security.authc.realms.native.native.order', '1'
@@ -170,7 +171,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
       return
     }
     // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
+    if (subproj.path.startsWith(':modules:ingest-attachment') && buildParams.inFipsJvm) {
       return
     }
     plugin subproj.path
@@ -178,8 +179,9 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 }
 
 tasks.named("yamlRestTest").configure {
+  def repoFolder = "${layout.buildDirectory.asFile.get()}/cluster/shared/repo"
   doFirst {
-    delete("${buildDir}/cluster/shared/repo")
+    delete(repoFolder)
   }
 }
 
@@ -853,6 +855,9 @@ buildRestTests.setups['library'] = '''
 
 '''
 buildRestTests.setups['sensor_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   - do:
       indices.create:
         index: dummy-rollup-index
@@ -883,9 +888,10 @@ buildRestTests.setups['sensor_rollup_job'] = '''
               node:
                 type: keyword
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -915,6 +921,9 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   - do:
       indices.create:
         index: dummy-rollup-index
@@ -964,9 +973,10 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -995,9 +1005,10 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      raw:
-        method: POST
-        path: _rollup/job/sensor/_start
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.start_job:
+        id: sensor
 '''
 
 buildRestTests.setups['sensor_index'] = '''
@@ -2044,4 +2055,30 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
     setups['atomic_red_regsvr32'] =
     setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
   }
+}
+
+tasks.register('verifyDocsLuceneVersion') {
+  doFirst {
+    File docsVersionsFile = file('Versions.asciidoc')
+    List<String> versionLines = docsVersionsFile.readLines('UTF-8')
+    String docsLuceneVersion = null
+    for (String line : versionLines) {
+      if (line.startsWith(':lucene_version:')) {
+        docsLuceneVersion = line.split()[1]
+      }
+    }
+    if (docsLuceneVersion == null) {
+      throw new GradleException('Could not find lucene version in docs version file')
+    }
+    String expectedLuceneVersion = VersionProperties.lucene
+    // remove potential -snapshot-{gitrev} suffix
+    expectedLuceneVersion -= ~/-snapshot-[0-9a-f]+$/
+    if (docsLuceneVersion != expectedLuceneVersion) {
+      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
+    }
+  }
+}
+
+tasks.named('check') {
+  dependsOn 'verifyDocsLuceneVersion'
 }

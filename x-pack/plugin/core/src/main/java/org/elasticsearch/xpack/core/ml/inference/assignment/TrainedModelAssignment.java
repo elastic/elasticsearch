@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
@@ -107,10 +106,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private final int maxAssignedAllocations;
     private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
-    public static boolean useNewMemoryFields(TransportVersion minClusterVersion) {
-        return minClusterVersion.onOrAfter(TransportVersions.V_8_11_X);
-    }
-
     public static TrainedModelAssignment fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
@@ -144,7 +139,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
      * @param assignmentState used to track the state of the assignment for rebalancing, autoscaling, and more
      * @param reason may contain a human-readable explanation for the current state
      * @param startTime the time when the assignment was created
-     * @param maxAssignedAllocations used for adaptive allocations
+     * @param maxAssignedAllocations keeps track of the maximum number of allocations used for this assignment
      * @param adaptiveAllocationsSettings how the assignment should scale based on usage
      */
     TrainedModelAssignment(
@@ -173,12 +168,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         this.assignmentState = in.readEnum(AssignmentState.class);
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            this.maxAssignedAllocations = in.readVInt();
-        } else {
-            this.maxAssignedAllocations = totalCurrentAllocations();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        this.maxAssignedAllocations = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         } else {
             this.adaptiveAllocationsSettings = null;
@@ -379,10 +370,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         out.writeEnum(assignmentState);
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeVInt(maxAssignedAllocations);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        out.writeVInt(maxAssignedAllocations);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
     }
@@ -532,6 +521,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         public AssignmentState calculateAssignmentState() {
             if (assignmentState.equals(AssignmentState.STOPPING)) {
                 return assignmentState;
+            }
+            if (taskParams.getNumberOfAllocations() == 0) {
+                return AssignmentState.STARTED;
             }
             if (nodeRoutingTable.values().stream().anyMatch(r -> r.getState().equals(RoutingState.STARTED))) {
                 return AssignmentState.STARTED;

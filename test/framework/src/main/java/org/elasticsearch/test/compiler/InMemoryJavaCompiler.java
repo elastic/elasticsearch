@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.compiler;
 
-import org.elasticsearch.test.PrivilegedOperations;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -137,7 +135,7 @@ public class InMemoryJavaCompiler {
         try (FileManagerWrapper wrapper = new FileManagerWrapper(files)) {
             CompilationTask task = getCompilationTask(wrapper, options);
 
-            boolean result = PrivilegedOperations.compilationTaskCall(task);
+            boolean result = task.call();
             if (result == false) {
                 throw new RuntimeException("Could not compile " + sources.entrySet().stream().toList());
             }
@@ -162,7 +160,7 @@ public class InMemoryJavaCompiler {
         try (FileManagerWrapper wrapper = new FileManagerWrapper(file)) {
             CompilationTask task = getCompilationTask(wrapper, options);
 
-            boolean result = PrivilegedOperations.compilationTaskCall(task);
+            boolean result = task.call();
             if (result == false) {
                 throw new RuntimeException("Could not compile " + className + " with source code " + sourceCode);
             }

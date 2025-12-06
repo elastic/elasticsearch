@@ -8,11 +8,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -21,6 +23,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.BucketAndOrd;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -73,12 +76,12 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     @Override
     public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
         throws IOException {
-        final SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        final SortedNumericLongValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    private LeafBucketCollector getLeafCollector(final NumericDocValues values, final LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(final LongValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -96,7 +99,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
         };
     }
 
-    private LeafBucketCollector getLeafCollector(final SortedNumericDocValues values, final LeafBucketCollector sub) {
+    private LeafBucketCollector getLeafCollector(final SortedNumericLongValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -132,39 +135,58 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected abstract InternalGeoGridBucket newEmptyBucket();
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalGeoGridBucket[][] topBucketsPerOrd = new InternalGeoGridBucket[owningBucketOrds.length][];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]), shardSize);
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
 
-            try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, bigArrays())) {
-                InternalGeoGridBucket spare = null;
-                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
-                    if (spare == null) {
-                        spare = newEmptyBucket();
-                    }
-
-                    // need a special function to keep the source bucket
-                    // up-to-date so it can get the appropriate key
-                    spare.hashAsLong = ordsEnum.value();
-                    spare.docCount = bucketDocCount(ordsEnum.ord());
-                    spare.bucketOrd = ordsEnum.ord();
-                    spare = ordered.insertWithOverflow(spare);
+        try (ObjectArray<InternalGeoGridBucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())) {
+            try (IntArray bucketsSizePerOrd = bigArrays().newIntArray(owningBucketOrds.size())) {
+                long ordsToCollect = 0;
+                for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                    int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx)), shardSize);
+                    ordsToCollect += size;
+                    bucketsSizePerOrd.set(ordIdx, size);
                 }
+                try (LongArray ordsArray = bigArrays().newLongArray(ordsToCollect)) {
+                    long ordsCollected = 0;
+                    for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
+                        try (
+                            BucketPriorityQueue<BucketAndOrd<InternalGeoGridBucket>, InternalGeoGridBucket> ordered =
+                                new BucketPriorityQueue<>(bucketsSizePerOrd.get(ordIdx), bigArrays(), b -> b.bucket)
+                        ) {
+                            BucketAndOrd<InternalGeoGridBucket> spare = null;
+                            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
+                            while (ordsEnum.next()) {
+                                if (spare == null) {
+                                    checkRealMemoryCBForInternalBucket();
+                                    spare = new BucketAndOrd<>(newEmptyBucket());
+                                }
 
-                topBucketsPerOrd[ordIdx] = new InternalGeoGridBucket[(int) ordered.size()];
-                for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPerOrd[ordIdx][i] = ordered.pop();
+                                // need a special function to keep the source bucket
+                                // up-to-date so it can get the appropriate key
+                                spare.bucket.hashAsLong = ordsEnum.value();
+                                spare.bucket.docCount = bucketDocCount(ordsEnum.ord());
+                                spare.ord = ordsEnum.ord();
+                                spare = ordered.insertWithOverflow(spare);
+                            }
+                            final int orderedSize = (int) ordered.size();
+                            final InternalGeoGridBucket[] buckets = new InternalGeoGridBucket[orderedSize];
+                            for (int i = orderedSize - 1; i >= 0; --i) {
+                                BucketAndOrd<InternalGeoGridBucket> bucketBucketAndOrd = ordered.pop();
+                                buckets[i] = bucketBucketAndOrd.bucket;
+                                ordsArray.set(ordsCollected + i, bucketBucketAndOrd.ord);
+                            }
+                            topBucketsPerOrd.set(ordIdx, buckets);
+                            ordsCollected += orderedSize;
+                        }
+                    }
+                    assert ordsCollected == ordsArray.size();
+                    buildSubAggsForAllBuckets(topBucketsPerOrd, ordsArray, (b, aggs) -> b.aggregations = aggs);
                 }
             }
+            return buildAggregations(
+                Math.toIntExact(owningBucketOrds.size()),
+                ordIdx -> buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd.get(ordIdx)), metadata())
+            );
         }
-        buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd[ordIdx]), metadata());
-        }
-        return results;
     }
 
     @Override

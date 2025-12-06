@@ -125,7 +125,9 @@ import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
@@ -306,11 +308,17 @@ public class JobResultsProvider {
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String tempIndexName = job.getInitialResultsIndexName();
 
+        // Ensure the index name is valid
+        tempIndexName = MlIndexAndAlias.ensureValidResultsIndexName(tempIndexName);
+
+        // Find all indices starting with this name and pick the latest one
+        tempIndexName = MlIndexAndAlias.latestIndexMatchingBaseName(tempIndexName, resolver, state);
+
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
-        if (state.getMetadata().hasAlias(tempIndexName)) {
-            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
+        if (state.getMetadata().getProject().hasAlias(tempIndexName)) {
 
+            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
             // if it is closed, we bailout and return an error
             if (concreteIndices.length == 0) {
@@ -323,14 +331,17 @@ public class JobResultsProvider {
                 );
                 return;
             }
-            tempIndexName = concreteIndices[0];
         }
+
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+                )
                 .addAliasAction(
                     IndicesAliasesRequest.AliasActions.add()
                         .index(indexName)
@@ -351,7 +362,7 @@ public class JobResultsProvider {
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
-        if (state.getMetadata().hasIndex(indexName) == false) {
+        if (state.getMetadata().getProject().hasIndex(indexName) == false) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             executeAsyncWithOrigin(
@@ -377,7 +388,7 @@ public class JobResultsProvider {
                 client.admin().indices()::create
             );
         } else {
-            MappingMetadata indexMappings = state.metadata().index(indexName).mapping();
+            MappingMetadata indexMappings = state.metadata().getProject().index(indexName).mapping();
             addTermsMapping(indexMappings, indexName, termFields, indexAndMappingsListener);
         }
     }
@@ -392,7 +403,10 @@ public class JobResultsProvider {
             addTermsMapping(indexMappings, indexName, termFields, listener);
         }, listener::onFailure);
 
-        GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(indexName).request();
+        GetMappingsRequest getMappingsRequest = client.admin()
+            .indices()
+            .prepareGetMappings(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT, indexName)
+            .request();
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
@@ -514,10 +528,7 @@ public class JobResultsProvider {
             .addAggregation(
                 AggregationBuilders.filters(
                     results,
-                    new FiltersAggregator.KeyedFilter(
-                        dataCounts,
-                        QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId))
-                    ),
+                    new FiltersAggregator.KeyedFilter(dataCounts, QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
                     new FiltersAggregator.KeyedFilter(timingStats, QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId))),
                     new FiltersAggregator.KeyedFilter(
                         modelSizeStats,
@@ -576,7 +587,7 @@ public class JobResultsProvider {
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             // look for both old and new formats
-            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
+            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
             // We want to sort on log_time. However, this was added a long time later and before that we used to
             // sort on latest_record_time. Thus we handle older data counts where no log_time exists and we fall back
             // to the prior behaviour.
@@ -693,6 +704,7 @@ public class JobResultsProvider {
             .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)))
             .addSort(
                 SortBuilders.fieldSort(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
+                    .setNumericType("double")
                     .unmappedType("double")
                     .order(SortOrder.DESC)
             );

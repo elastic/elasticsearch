@@ -10,25 +10,63 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene100.Lucene100Codec;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.junit.Before;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class ES815HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCase {
 
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES815HnswBitVectorsFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene100Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES815HnswBitVectorsFormat();
-            }
-        };
+        return codec;
     }
 
     @Before
     public void init() {
         similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
+    }
+
+    public void testSimpleOffHeapSize() throws IOException {
+        byte[] vector = randomVector(random().nextInt(12, 500));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            Document doc = new Document();
+            doc.add(new KnnByteVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                if (r instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    var fieldInfo = r.getFieldInfos().fieldInfo("f");
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+
+                    assertThat(offHeap, aMapWithSize(2));
+                    assertThat(offHeap, hasEntry("vex", 1L));
+                    assertThat(offHeap, hasEntry(equalTo("vec"), greaterThan(0L)));
+                }
+            }
+        }
     }
 }

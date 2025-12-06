@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -38,7 +37,6 @@ public class TransportExecuteSnapshotRetentionAction extends AcknowledgedTranspo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SnapshotRetentionService retentionService
     ) {
         super(
@@ -48,7 +46,6 @@ public class TransportExecuteSnapshotRetentionAction extends AcknowledgedTranspo
             threadPool,
             actionFilters,
             ExecuteSnapshotRetentionAction.Request::new,
-            indexNameExpressionResolver,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.retentionService = retentionService;

@@ -27,7 +27,7 @@ import java.io.IOException;
  */
 public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeValues.CartesianShapeValue> {
 
-    public static CartesianShapeValues EMPTY = new CartesianShapeValues() {
+    public static final CartesianShapeValues EMPTY = new CartesianShapeValues() {
         private final CartesianShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = CartesianShapeValuesSourceType.instance();
 
         @Override

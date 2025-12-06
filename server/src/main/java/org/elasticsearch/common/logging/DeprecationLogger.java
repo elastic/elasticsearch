@@ -15,8 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,7 +37,7 @@ public class DeprecationLogger {
      * Deprecation messages are logged at this level.
      * More serious that WARN by 1, but less serious than ERROR
      */
-    public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
+    public static final Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
     private static volatile List<String> skipTheseDeprecations = Collections.emptyList();
     private final Logger logger;
 
@@ -119,16 +117,9 @@ public class DeprecationLogger {
             String opaqueId = HeaderWarning.getXOpaqueId();
             String productOrigin = HeaderWarning.getProductOrigin();
             ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, opaqueId, productOrigin, msg, params);
-            doPrivilegedLog(level, deprecationMessage);
+            logger.log(level, deprecationMessage);
         }
         return this;
-    }
-
-    private void doPrivilegedLog(Level level, ESLogMessage deprecationMessage) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            logger.log(level, deprecationMessage);
-            return null;
-        });
     }
 
     /**

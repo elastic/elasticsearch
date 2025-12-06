@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -18,9 +17,11 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
@@ -31,7 +32,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    static final Version bwcVersion = Version.fromString(
+        System.getProperty("tests.old_cluster_version") != null
+            ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
+            : null
+    );
 
     private static TestFeatureService oldClusterTestFeatureService = null;
 
@@ -40,15 +45,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         if (oldClusterTestFeatureService == null) {
             oldClusterTestFeatureService = testFeatureService;
         }
-    }
-
-    protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterTestFeatureService != null;
-        return oldClusterTestFeatureService.clusterHasFeature(featureId);
-    }
-
-    protected static boolean oldClusterHasFeature(NodeFeature feature) {
-        return oldClusterHasFeature(feature.id());
     }
 
     @AfterClass
@@ -62,24 +58,15 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
-        if (mode == ASYNC) {
-            assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
-        }
-    }
-
-    @Override
-    protected boolean supportsAsync() {
-        return oldClusterHasFeature(ASYNC_QUERY_FEATURE_ID);
     }
 
     @Override
@@ -90,5 +77,26 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsInferenceTestService() {
         return false;
+    }
+
+    @Override
+    protected boolean supportsIndexModeLookup() {
+        return hasCapabilities(adminClient(), List.of(JOIN_LOOKUP_V12.capabilityName()));
+    }
+
+    @Override
+    protected boolean supportsSourceFieldMapping() {
+        return false;
+    }
+
+    @Override
+    protected boolean deduplicateExactWarnings() {
+        /*
+         * In ESQL's main tests we shouldn't have to deduplicate but in
+         * serverless, where we reuse this test case exactly with *slightly*
+         * different configuration, we must deduplicate. So we do it here.
+         * It's a bit of a loss of precision, but that's ok.
+         */
+        return true;
     }
 }

@@ -9,8 +9,8 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.http.HttpMethodName;
-import com.amazonaws.services.ec2.model.Instance;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.services.ec2.model.Instance;
 
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
@@ -25,7 +25,6 @@ import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matchers;
@@ -47,8 +46,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     @Override
     protected MockTransportService createTransportService() {
-        return new MockTransportService(
-            Settings.EMPTY,
+        return MockTransportService.createMockTransportService(
             new Netty4Transport(
                 Settings.EMPTY,
                 TransportVersion.current(),
@@ -59,9 +57,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                 new NoneCircuitBreakerService(),
                 new SharedGroupFactory(Settings.EMPTY)
             ),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
+            threadPool
         );
     }
 
@@ -72,7 +68,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
         // retry the same request 5 times at most
         final int maxRetries = randomIntBetween(1, 5);
         httpServer.createContext("/", exchange -> {
-            if (exchange.getRequestMethod().equals(HttpMethodName.POST.name())) {
+            if (SdkHttpMethod.POST.name().equals(exchange.getRequestMethod())) {
                 final String request = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
                 final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
                 if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {
@@ -92,7 +88,9 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     for (NameValuePair parse : URLEncodedUtils.parse(request, UTF_8)) {
                         if ("Action".equals(parse.getName())) {
                             responseBody = generateDescribeInstancesResponse(
-                                hosts.stream().map(address -> new Instance().withPublicIpAddress(address)).collect(Collectors.toList())
+                                hosts.stream()
+                                    .map(address -> Instance.builder().publicIpAddress(address).build())
+                                    .collect(Collectors.toList())
                             );
                             break;
                         }

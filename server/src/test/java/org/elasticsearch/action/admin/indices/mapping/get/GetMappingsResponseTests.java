@@ -10,10 +10,9 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.HashMap;
@@ -23,16 +22,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<GetMappingsResponse> {
+public class GetMappingsResponseTests extends ESTestCase {
 
     public void testCheckEqualsAndHashCode() {
         GetMappingsResponse resp = createTestInstance();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(resp, r -> new GetMappingsResponse(r.mappings()), GetMappingsResponseTests::mutate);
-    }
-
-    @Override
-    protected Writeable.Reader<GetMappingsResponse> instanceReader() {
-        return GetMappingsResponse::new;
     }
 
     private static GetMappingsResponse mutate(GetMappingsResponse original) {
@@ -40,11 +34,6 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
         String indexKey = original.mappings().keySet().iterator().next();
         builder.put(indexKey + "1", createMappingsForIndex());
         return new GetMappingsResponse(builder);
-    }
-
-    @Override
-    protected GetMappingsResponse mutateInstance(GetMappingsResponse instance) {
-        return mutate(instance);
     }
 
     public static MappingMetadata createMappingsForIndex() {
@@ -60,7 +49,6 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
         return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
     }
 
-    @Override
     protected GetMappingsResponse createTestInstance() {
         GetMappingsResponse resp = new GetMappingsResponse(Map.of("index-" + randomAlphaOfLength(5), createMappingsForIndex()));
         logger.debug("--> created: {}", resp);

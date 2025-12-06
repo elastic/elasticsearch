@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -322,8 +321,10 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         // be indexed in the follower index:
         replicatedSettings.add(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -332,11 +333,11 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
+        replicatedSettings.add(IndexMetadata.INDEX_DIMENSIONS);
         replicatedSettings.add(IndexSettings.PREFER_ILM_SETTING);
-        replicatedSettings.add(IndexSettings.SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
-        replicatedSettings.add(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING);
+        replicatedSettings.add(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             // removed settings have no effect, they are only there for BWC

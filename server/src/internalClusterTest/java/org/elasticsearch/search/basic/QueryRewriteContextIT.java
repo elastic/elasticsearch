@@ -133,7 +133,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
 
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias"));
         assertResolvedIndices(prepareSearch(indices), Set.of(indices), Set.of(indices), r -> {});
         assertResolvedIndices(prepareSearch("test*"), Set.of("test*"), Set.of(indices), r -> {});
         assertResolvedIndices(prepareSearch("alias"), Set.of("alias"), Set.of(indices), r -> {});
@@ -154,8 +154,10 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     public void testResolvedIndices_TransportExplainAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
-        assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "alias1"));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias2"));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "alias1"),
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias2")
+        );
 
         assertResolvedIndices(client().prepareExplain("test1", "1"), Set.of("test1"), Set.of("test1"), r -> {});
         assertResolvedIndices(client().prepareExplain("alias1", "1"), Set.of("alias1"), Set.of("test1"), r -> {});
@@ -165,7 +167,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     public void testResolvedIndices_TransportValidateQueryAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias"));
 
         Consumer<ValidateQueryResponse> responseAssertions = r -> {
             assertThat(r.getStatus(), equalTo(RestStatus.OK));

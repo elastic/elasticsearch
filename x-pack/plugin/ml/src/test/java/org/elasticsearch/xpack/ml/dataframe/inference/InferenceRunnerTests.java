@@ -15,7 +15,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,8 +28,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +54,6 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
@@ -253,39 +249,12 @@ public class InferenceRunnerTests extends ESTestCase {
         when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadpool);
 
-        Supplier<SearchResponse> withHits = () -> new SearchResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))),
-            new Suggest(new ArrayList<>()),
-            false,
-            false,
-            new SearchProfileResults(Map.of()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
-        Supplier<SearchResponse> withNoHits = () -> new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            // Simulate completely null aggs
-            null,
-            new Suggest(new ArrayList<>()),
-            false,
-            false,
-            new SearchProfileResults(Map.of()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        Supplier<SearchResponse> withHits = () -> SearchResponseUtils.response(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
+        )
+            .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
+            .build();
+        Supplier<SearchResponse> withNoHits = () -> SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
 
         when(client.search(any())).thenReturn(response(withHits)).thenReturn(response(withNoHits));
         return client;

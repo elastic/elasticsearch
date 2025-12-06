@@ -9,6 +9,7 @@
 
 package org.elasticsearch.datastreams.lifecycle.health;
 
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -20,6 +21,7 @@ import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -54,6 +56,12 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         DSL_EXPLAIN_HELP_URL
     );
 
+    private final ProjectResolver projectResolver;
+
+    public DataStreamLifecycleHealthIndicatorService(ProjectResolver projectResolver) {
+        this.projectResolver = projectResolver;
+    }
+
     @Override
     public String name() {
         return NAME;
@@ -79,20 +87,20 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
             return createIndicator(
                 HealthStatus.GREEN,
                 "Data streams are executing their lifecycles without issues",
-                createDetails(verbose, dataStreamLifecycleHealthInfo),
+                createDetails(verbose, dataStreamLifecycleHealthInfo, projectResolver.supportsMultipleProjects()),
                 List.of(),
                 List.of()
             );
         } else {
             List<String> affectedIndices = stagnatingBackingIndices.stream()
-                .map(DslErrorInfo::indexName)
+                .map(dslErrorInfo -> indexDisplayName(dslErrorInfo, projectResolver.supportsMultipleProjects()))
                 .limit(Math.min(maxAffectedResourcesCount, stagnatingBackingIndices.size()))
                 .collect(toList());
             return createIndicator(
                 HealthStatus.YELLOW,
                 (stagnatingBackingIndices.size() > 1 ? stagnatingBackingIndices.size() + " backing indices have" : "A backing index has")
                     + " repeatedly encountered errors whilst trying to advance in its lifecycle",
-                createDetails(verbose, dataStreamLifecycleHealthInfo),
+                createDetails(verbose, dataStreamLifecycleHealthInfo, projectResolver.supportsMultipleProjects()),
                 STAGNATING_INDEX_IMPACT,
                 verbose
                     ? List.of(
@@ -106,7 +114,11 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean verbose, DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo) {
+    private static HealthIndicatorDetails createDetails(
+        boolean verbose,
+        DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo,
+        boolean supportsMultipleProjects
+    ) {
         if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
         }
@@ -117,12 +129,16 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         if (dataStreamLifecycleHealthInfo.dslErrorsInfo().isEmpty() == false) {
             details.put("stagnating_backing_indices", dataStreamLifecycleHealthInfo.dslErrorsInfo().stream().map(dslError -> {
                 LinkedHashMap<String, Object> errorDetails = new LinkedHashMap<>(3, 1L);
-                errorDetails.put("index_name", dslError.indexName());
+                errorDetails.put("index_name", indexDisplayName(dslError, supportsMultipleProjects));
                 errorDetails.put("first_occurrence_timestamp", dslError.firstOccurrence());
                 errorDetails.put("retry_count", dslError.retryCount());
                 return errorDetails;
             }).toList());
         }
         return new SimpleHealthIndicatorDetails(details);
+    }
+
+    private static String indexDisplayName(DslErrorInfo dslErrorInfo, boolean supportsMultipleProjects) {
+        return new ProjectIndexName(dslErrorInfo.projectId(), dslErrorInfo.indexName()).toString(supportsMultipleProjects);
     }
 }

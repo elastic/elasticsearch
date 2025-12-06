@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -31,19 +30,23 @@ public class ResolveClusterActionRequestTests extends AbstractWireSerializingTes
 
     @Override
     protected ResolveClusterActionRequest createTestInstance() {
-        String[] names = generateRandomStringArray(1, 7, false);
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean(),
-            randomBoolean()
-        );
-        return new ResolveClusterActionRequest(names, indicesOptions);
+        if (randomInt(5) == 3) {
+            return new ResolveClusterActionRequest(new String[0], IndicesOptions.DEFAULT, true, randomBoolean());
+        } else {
+            String[] names = generateRandomStringArray(1, 7, false);
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            return new ResolveClusterActionRequest(names, indicesOptions, false, randomBoolean());
+        }
     }
 
     @Override
@@ -69,12 +72,6 @@ public class ResolveClusterActionRequestTests extends AbstractWireSerializingTes
         Consumer<ResolveClusterActionRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
-    }
-
-    public void testValidation() {
-        ResolveClusterActionRequest request = new ResolveClusterActionRequest(new String[0]);
-        ActionRequestValidationException exception = request.validate();
-        assertNotNull(exception);
     }
 
     public void testLocalIndicesPresent() {

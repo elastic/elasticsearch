@@ -22,7 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctFloatAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class CountDistinctFloatAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -62,69 +62,79 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      FloatBlock block = page.getBlock(channels.get(0));
-      FloatVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    FloatBlock block = page.getBlock(channels.get(0));
-    FloatVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(FloatVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      CountDistinctFloatAggregator.combine(state, vector.getFloat(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    FloatBlock vBlock = page.getBlock(channels.get(0));
+    FloatVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    FloatBlock vBlock = page.getBlock(channels.get(0));
+    FloatVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(FloatVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      float vValue = vVector.getFloat(valuesPosition);
+      CountDistinctFloatAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(FloatVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(FloatVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      CountDistinctFloatAggregator.combine(state, vector.getFloat(i));
+      float vValue = vVector.getFloat(valuesPosition);
+      CountDistinctFloatAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(FloatBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(FloatBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        CountDistinctFloatAggregator.combine(state, block.getFloat(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        float vValue = vBlock.getFloat(vOffset);
+        CountDistinctFloatAggregator.combine(state, vValue);
       }
     }
   }
 
-  private void addRawBlock(FloatBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(FloatBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        CountDistinctFloatAggregator.combine(state, block.getFloat(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        float vValue = vBlock.getFloat(vOffset);
+        CountDistinctFloatAggregator.combine(state, vValue);
       }
     }
   }
@@ -139,8 +149,8 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctFloatAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctFloatAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

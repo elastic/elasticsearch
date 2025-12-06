@@ -833,6 +833,72 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         merge(mapperService, MergeReason.MAPPING_RECOVERY, mapping.apply("_doc"));
     }
 
+    public void testLimitOfNestedParentsPerIndex() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "nested1": {
+                            "type": "nested",
+                            "properties": {
+                                "nested2": {
+                                    "type": "nested"
+                                }
+                            }
+                        },
+                        "nested3": {
+                            "type": "nested"
+                        }
+                    }
+                }
+            }
+            """;
+        // default limit allows at least two nested fields
+        createMapperService(mapping);
+
+        // explicitly setting limit to 0 prevents nested fields
+        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING.getKey(), 0).build();
+            createMapperService(settings, mapping);
+        });
+        assertThat(e.getMessage(), containsString("Limit of nested parents [0] has been exceeded"));
+
+        // setting limit to 1 with 2 nested parent fails
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING.getKey(), 1).build();
+            createMapperService(settings, mapping);
+        });
+        assertThat(e.getMessage(), containsString("Limit of nested parents [1] has been exceeded"));
+
+        {
+            Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING.getKey(), 2).build();
+            var mapperService = createMapperService(settings, mapping);
+            merge(mapperService, mapping(b -> b.startObject("nested3").field("type", "nested")).endObject());
+            var iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> merge(
+                    mapperService,
+                    mapping(
+                        b -> b.startObject("nested3")
+                            .field("type", "nested")
+                            .startObject("properties")
+                            .startObject("nested4")
+                            .field("type", "nested")
+                            .endObject()
+                            .endObject()
+                            .endObject()
+                    )
+                )
+            );
+            assertThat(iae.getMessage(), containsString("Limit of nested parents [2] has been exceeded"));
+        }
+
+        // do not check nested fields limit if mapping is not updated
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING.getKey(), 0).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        merge(mapperService, MergeReason.MAPPING_RECOVERY, mapping);
+    }
+
     public void testLimitNestedDocsDefaultSettings() throws Exception {
         Settings settings = Settings.builder().build();
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
@@ -1570,9 +1636,9 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("o").field("type", "nested").field("synthetic_source_keep", "all").endObject();
-        }));
+        })).documentMapper();
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
@@ -1584,7 +1650,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithObject() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1605,7 +1671,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithArray() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1630,7 +1696,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithSubObjects() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("boolean_value").field("type", "boolean").endObject();
             b.startObject("path");
             {
@@ -1670,7 +1736,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithSubArrays() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("boolean_value").field("type", "boolean").endObject();
             b.startObject("path");
             {
@@ -1718,7 +1784,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithIncludeInRoot() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested").field("include_in_root", true);
             {
                 b.startObject("properties");
@@ -1739,7 +1805,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithEmptyObject() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1756,7 +1822,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithEmptySubObject() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1783,7 +1849,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithArrayContainingEmptyObject() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1807,7 +1873,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticNestedWithArrayContainingOnlyEmptyObject() throws IOException {
-        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").field("type", "nested");
             {
                 b.startObject("properties");
@@ -1933,5 +1999,35 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         MapperBuilderContext childContext = context.createChildContext("child", false, Dynamic.FALSE);
         assertTrue(childContext.isInNestedContext());
+    }
+
+    public void testNestedLimitDefaults() throws IOException {
+        // current defaults
+        {
+            var version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.NESTED_PATH_LIMIT, IndexVersion.current());
+            var mapperService = createMapperService(version, Settings.builder().build(), mapping(b -> {}));
+            assertThat(
+                MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),
+                equalTo(100L)
+            );
+            assertThat(
+                MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),
+                equalTo(50L)
+            );
+        }
+
+        // defaults previous to IndexVersions.NESTED_PATH_LIMIT
+        {
+            var version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.NESTED_PATH_LIMIT);
+            var mapperService = createMapperService(version, Settings.builder().build(), mapping(b -> {}));
+            assertThat(
+                MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),
+                equalTo(50L)
+            );
+            assertThat(
+                MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING.get(mapperService.getIndexSettings().getSettings()),
+                equalTo((long) Integer.MAX_VALUE)
+            );
+        }
     }
 }

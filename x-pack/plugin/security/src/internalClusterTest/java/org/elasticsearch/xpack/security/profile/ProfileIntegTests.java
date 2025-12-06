@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -99,13 +100,29 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
+    protected static final String ANONYMOUS_ROLE = "anonymous_role";
+
+    @Override
+    protected String configRoles() {
+        return super.configRoles()
+            + "\n"
+            + ANONYMOUS_ROLE
+            + ":\n"
+            + "  cluster:\n"
+            + "    - 'manage_own_api_key'\n"
+            + "    - 'manage_token'\n"
+            + "    - 'manage_service_account'\n"
+            + "    - 'monitor'\n";
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // This setting tests that the setting is registered
         builder.put("xpack.security.authc.domains.my_domain.realms", "file");
+        builder.put("xpack.security.profile.max_size", "1kb");
         // enable anonymous
-        builder.putList(AnonymousUser.ROLES_SETTING.getKey(), RAC_ROLE);
+        builder.putList(AnonymousUser.ROLES_SETTING.getKey(), ANONYMOUS_ROLE);
         return builder.build();
     }
 
@@ -321,6 +338,37 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             DocumentMissingException.class,
             () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet()
         );
+    }
+
+    public void testUpdateProfileDataHitStorageQuota() {
+        Profile profile1 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+
+        char[] buf = new char[512]; // half of the 1,024 quota
+        Arrays.fill(buf, 'a');
+        String largeValue = new String(buf);
+
+        var repeatable = new UpdateProfileDataRequest(
+            profile1.uid(),
+            Map.of(),
+            Map.of("app1", Map.of("key1", largeValue)),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+
+        client().execute(UpdateProfileDataAction.INSTANCE, repeatable).actionGet(); // occupy half of the quota
+        client().execute(UpdateProfileDataAction.INSTANCE, repeatable).actionGet(); // in-place change, still half quota
+
+        var overflow = new UpdateProfileDataRequest(
+            profile1.uid(),
+            Map.of(),
+            Map.of("app1", Map.of("key2", largeValue)),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+
+        assertThrows(ElasticsearchException.class, () -> client().execute(UpdateProfileDataAction.INSTANCE, overflow).actionGet());
     }
 
     public void testSuggestProfilesWithName() {
@@ -557,8 +605,11 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             equalTo(profileHits4.subList(2, profileHits4.size()))
         );
 
+        // Exclude profile for "*" space since that can match _all_ profiles, if the full name is a substring of "user" or the name of
+        // another profile
+        final List<Profile> nonWildcardProfiles = profiles.stream().filter(p -> false == p.user().fullName().endsWith("*")).toList();
         // A record will not be included if name does not match even when it has matching hint
-        final Profile hintedProfile5 = randomFrom(profiles);
+        final Profile hintedProfile5 = randomFrom(nonWildcardProfiles);
         final List<Profile> profileHits5 = Arrays.stream(
             doSuggest(
                 Set.of(),
@@ -869,7 +920,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
     }
 
     private GetIndexResponse getProfileIndexResponse() {
-        final GetIndexRequest getIndexRequest = new GetIndexRequest();
+        final GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(".*");
         return client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
     }

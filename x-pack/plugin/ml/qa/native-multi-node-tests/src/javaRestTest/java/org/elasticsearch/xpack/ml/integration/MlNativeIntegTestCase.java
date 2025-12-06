@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -37,6 +39,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseSettings;
+import org.elasticsearch.multiproject.TestOnlyMultiProjectPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
@@ -54,6 +57,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -79,6 +83,7 @@ import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
@@ -95,11 +100,14 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
+import org.junit.After;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -159,7 +167,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             DataStreamsPlugin.class,
             // ESQL and its dependency needed for node features
             EsqlCorePlugin.class,
-            EsqlPlugin.class
+            EsqlPlugin.class,
+            // basic multi-project functionality
+            TestOnlyMultiProjectPlugin.class
         );
     }
 
@@ -269,12 +279,14 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     }
 
     protected void cleanUpResources() {
-        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
     }
 
     protected void setUpgradeModeTo(boolean enabled) {
-        AcknowledgedResponse response = client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(enabled))
-            .actionGet();
+        AcknowledgedResponse response = client().execute(
+            SetUpgradeModeAction.INSTANCE,
+            new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, enabled)
+        ).actionGet();
         assertThat(response.isAcknowledged(), is(true));
         assertThat(upgradeMode(), is(enabled));
     }
@@ -311,6 +323,13 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
+    protected PutFilterAction.Response updateMlFilter(String filterId, List<String> addItems, List<String> removeItems) {
+        UpdateFilterAction.Request request = new UpdateFilterAction.Request(filterId);
+        request.setAddItems(addItems);
+        request.setRemoveItems(removeItems);
+        return client().execute(UpdateFilterAction.INSTANCE, request).actionGet();
+    }
+
     protected static List<String> fetchAllAuditMessages(String jobId) throws Exception {
         RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
         BroadcastResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
@@ -331,14 +350,17 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return messages;
     }
 
-    @Override
-    protected void ensureClusterStateConsistency() throws IOException {
+    /**
+     * Asserts that all ML named writeables pass a cluster state round-trip (de)serialization.
+     */
+    @After
+    protected void assertClusterRoundTrip() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
             entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
             entries.add(
                 new NamedWriteableRegistry.Entry(
-                    Metadata.Custom.class,
+                    Metadata.ProjectCustom.class,
                     TrainedModelAssignmentMetadata.NAME,
                     TrainedModelAssignmentMetadata::fromStream
                 )
@@ -350,16 +372,22 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     TrainedModelAssignmentMetadata::readDiffFrom
                 )
             );
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
             entries.add(
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    TrainedModelCacheMetadata.NAME,
+                    TrainedModelCacheMetadata::new
+                )
             );
             entries.add(
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
             );
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, "ml", MlMetadata::new));
+            entries.add(
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new)
+            );
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
@@ -396,7 +424,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 )
             );
             entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new));
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.ClusterCustom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new));
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     NamedDiff.class,
@@ -407,7 +435,53 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(
                 new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
             );
-            doEnsureClusterStateConsistency(new NamedWriteableRegistry(entries));
+
+            entries.add(
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new)
+            );
+            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::new
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                    in -> AbstractNamedDiffable.readDiffFrom(
+                        Metadata.ProjectCustom.class,
+                        ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                        in
+                    )
+                )
+            );
+
+            // Retrieve the cluster state from a random node, and serialize and deserialize it.
+            final ClusterStateResponse clusterStateResponse = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .all()
+                .get(TEST_REQUEST_TIMEOUT);
+            byte[] clusterStateBytes = ClusterState.Builder.toBytes(clusterStateResponse.getState());
+            final ClusterState parsedClusterState = ClusterState.Builder.fromBytes(
+                clusterStateBytes,
+                clusterStateResponse.getState().nodes().getLocalNode(),
+                new NamedWriteableRegistry(entries)
+            );
+            final var responseMap = XContentTestUtils.convertToMap(clusterStateResponse.getState());
+            final var parsedMap = XContentTestUtils.convertToMap(parsedClusterState);
+            final var diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(responseMap, parsedMap);
+            if (diff != null) {
+                logger.error(
+                    "Cluster state response:\n{}\nParsed cluster state:\n{}",
+                    clusterStateResponse.getState().toString(),
+                    parsedClusterState.toString()
+                );
+                assertNull("cluster state JSON serialization does not match", diff);
+            }
         }
     }
 

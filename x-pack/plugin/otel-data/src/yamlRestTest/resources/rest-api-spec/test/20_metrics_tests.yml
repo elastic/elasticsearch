@@ -10,8 +10,6 @@ setup:
           template:
             settings:
               index:
-                routing_path: [unit, attributes.*, resource.attributes.*]
-                mode: time_series
                 time_series:
                   start_time: 2024-07-01T13:03:08.138Z
 ---
@@ -148,9 +146,6 @@ setup:
   - match: { .$idx0name.mappings.properties.attributes.properties.foo.type: "keyword" }
 ---
 IP dimensions:
-  - requires:
-      cluster_features: ["routing.multi_value_routing_path"]
-      reason: support for multi-value dimensions
   - do:
       bulk:
         index: metrics-generic.otel-default
@@ -279,3 +274,133 @@ Empty IP field:
           fields: ["*"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._ignored: ["resource.attributes.host.ip"] }
+---
+Metrics with different scope names are not duplicates:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: foo
+            resource:
+              attributes:
+                service.name: foo
+            metrics:
+              foo.bar: 42
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: bar
+            resource:
+              attributes:
+                service.name: foo
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+
+---
+Metrics with different metric name hashes are not duplicates:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            attributes:
+              foo: bar
+            metrics:
+              foo: 42
+            _metric_names_hash: a9f37ed7
+          - create: {"dynamic_templates":{"metrics.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            attributes:
+              foo: bar
+            metrics:
+              bar: 42
+            _metric_names_hash: 76b77d1a
+  - is_false: errors
+---
+host.name pass-through:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: foo
+            resource:
+              attributes:
+                host.name: localhost
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          query:
+            term:
+              host.name: localhost
+          fields: [ "*" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
+  - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }
+
+---
+data stream settings ilm:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            resource:
+              attributes:
+                host.name: localhost
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+  - do:
+      indices.put_data_stream_settings:
+        name: metrics-generic.otel-default
+        body:
+          index:
+            number_of_shards: 2
+  - match: { data_streams.0.name: metrics-generic.otel-default }
+  - match: { data_streams.0.applied_to_data_stream: true }
+
+---
+unit metadata:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - {"create": {"dynamic_templates":{"metrics.foo.bar":"gauge_double"},"dynamic_template_params":{"metrics.foo.bar":{"unit": "{percent}"}}}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: foo
+            resource:
+              attributes:
+                host.name: localhost
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.metrics.properties.foo\.bar.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.foo\.bar.meta.unit: '{percent}' }

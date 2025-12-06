@@ -26,7 +26,6 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -53,6 +52,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -140,12 +141,18 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final Settings settings = Settings.builder()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ENTITY_ID), SamlRealmTestHelper.SP_ENTITY_ID)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SamlRealmTestHelper.SP_ACS_URL)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_LOGOUT), SamlRealmTestHelper.SP_LOGOUT_URL)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
+            .put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID),
+                SamlRealmTests.TEST_IDP_ENTITY_ID
+            )
+            .put(getFullSettingKey(REALM_NAME, SingleSpSamlRealmSettings.SP_ENTITY_ID), SamlRealmTestHelper.SP_ENTITY_ID)
+            .put(getFullSettingKey(REALM_NAME, SingleSpSamlRealmSettings.SP_ACS), SamlRealmTestHelper.SP_ACS_URL)
+            .put(getFullSettingKey(REALM_NAME, SingleSpSamlRealmSettings.SP_LOGOUT), SamlRealmTestHelper.SP_LOGOUT_URL)
+            .put(
+                getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute()),
+                "uid"
+            )
             .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
@@ -203,22 +210,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     try {
                         ActionListener.respondAndRelease(
                             listener,
-                            (Response) new SearchResponse(
-                                searchHits,
-                                null,
-                                null,
-                                false,
-                                false,
-                                null,
-                                1,
-                                "_scrollId1",
-                                1,
-                                1,
-                                0,
-                                1,
-                                null,
-                                null
-                            )
+                            (Response) SearchResponseUtils.response(searchHits).scrollId("_scrollId1").build()
                         );
                     } finally {
                         searchHits.decRef();
@@ -227,22 +219,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
-                            SearchHits.EMPTY_WITH_TOTAL_HITS,
-                            null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            1,
-                            "_scrollId1",
-                            1,
-                            1,
-                            0,
-                            1,
-                            null,
-                            null
-                        )
+                        (Response) SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).scrollId("_scrollId1").build()
                     );
                 } else if (TransportClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));
@@ -260,21 +237,22 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         };
 
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isIndexUpToDate()).thenReturn(true);
-        when(securityIndex.getCreationTime()).thenReturn(Clock.systemUTC().instant());
-        when(securityIndex.aliasName()).thenReturn(".security");
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isIndexUpToDate()).thenReturn(true);
+        when(projectIndex.getCreationTime()).thenReturn(Clock.systemUTC().instant());
+        when(projectIndex.aliasName()).thenReturn(".security");
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);

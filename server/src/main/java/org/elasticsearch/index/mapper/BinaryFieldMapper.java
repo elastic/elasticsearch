@@ -83,7 +83,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     public static final class BinaryFieldType extends MappedFieldType {
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
+            super(name, hasDocValues ? IndexType.docValuesOnly() : IndexType.NONE, isStored, meta);
         }
 
         public BinaryFieldType(String name) {
@@ -195,7 +195,7 @@ public class BinaryFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+            return new SyntheticSourceSupport.Native(() -> new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
                 @Override
                 protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                     var in = new ByteArrayStreamInput();
@@ -221,9 +221,7 @@ public class BinaryFieldMapper extends FieldMapper {
                         b.endArray();
                     }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            });
         }
 
         return super.syntheticSourceSupport();

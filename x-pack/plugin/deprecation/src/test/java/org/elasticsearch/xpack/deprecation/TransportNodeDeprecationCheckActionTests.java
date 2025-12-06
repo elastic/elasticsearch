@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,7 +29,6 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,7 +57,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         Settings nodeSettings = settingsBuilder.build();
@@ -73,7 +69,10 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of(DeprecationChecks.SKIP_DEPRECATIONS_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Set.of(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING)
+        );
         when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
         DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
         when(node.getId()).thenReturn("mock-node");
@@ -82,9 +81,6 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         when(transportService.getLocalNode()).thenReturn(node);
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
-        ClusterInfoService clusterInfoService = Mockito.mock(ClusterInfoService.class);
-        ClusterInfo clusterInfo = ClusterInfo.EMPTY;
-        when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
         TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
             nodeSettings,
             threadPool,
@@ -92,13 +88,11 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             clusterService,
             transportService,
             pluginsService,
-            actionFilters,
-            clusterInfoService
+            actionFilters
         );
-        NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
         AtomicReference<Settings> visibleNodeSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleClusterStateMetadataSettings = new AtomicReference<>();
-        DeprecationChecks.NodeDeprecationCheck<
+        NodeDeprecationChecks.NodeDeprecationCheck<
             Settings,
             PluginsAndModules,
             ClusterState,
@@ -109,18 +103,18 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
                 return null;
             };
         java.util.List<
-            DeprecationChecks.NodeDeprecationCheck<
+            NodeDeprecationChecks.NodeDeprecationCheck<
                 Settings,
                 PluginsAndModules,
                 ClusterState,
                 XPackLicenseState,
                 DeprecationIssue>> nodeSettingsChecks = List.of(nodeSettingCheck);
-        transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
+        transportNodeDeprecationCheckAction.nodeOperation(nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         Settings expectedSettings = settingsBuilder.build();
@@ -131,17 +125,17 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
 
         // Testing that the setting is dynamically updatable:
         Settings newSettings = Settings.builder()
-            .putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
+            .putList(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
             .build();
         clusterSettings.applySettings(newSettings);
-        transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
+        transportNodeDeprecationCheckAction.nodeOperation(nodeSettingsChecks);
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.deprecated.property", "someValue1");
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         // This is the node setting (since this is the node deprecation check), not the cluster setting:
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         expectedSettings = settingsBuilder.build();
@@ -152,57 +146,5 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             Settings.builder().put("some.bad.dynamic.property", "someValue1").build(),
             visibleClusterStateMetadataSettings.get()
         );
-    }
-
-    public void testCheckDiskLowWatermark() {
-        Settings nodeSettings = Settings.EMPTY;
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put("cluster.routing.allocation.disk.watermark.low", "10%");
-        Settings settingsWithLowWatermark = settingsBuilder.build();
-        Settings dynamicSettings = settingsWithLowWatermark;
-        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        String nodeId = "123";
-        long totalBytesOnMachine = 100;
-        long totalBytesFree = 70;
-        ClusterInfo clusterInfo = new ClusterInfo(
-            Map.of(),
-            Map.of(nodeId, new DiskUsage(nodeId, "", "", totalBytesOnMachine, totalBytesFree)),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
-        DeprecationIssue issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
-            nodeSettings,
-            dynamicSettings,
-            clusterInfo,
-            clusterSettings,
-            nodeId
-        );
-        assertNotNull(issue);
-        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
-
-        // Making sure there's no warning when we clear out the cluster settings:
-        dynamicSettings = Settings.EMPTY;
-        issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
-            nodeSettings,
-            dynamicSettings,
-            clusterInfo,
-            clusterSettings,
-            nodeId
-        );
-        assertNull(issue);
-
-        // And make sure there is a warning when the setting is in the node settings but not the cluster settings:
-        nodeSettings = settingsWithLowWatermark;
-        issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
-            nodeSettings,
-            dynamicSettings,
-            clusterInfo,
-            clusterSettings,
-            nodeId
-        );
-        assertNotNull(issue);
-        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
     }
 }

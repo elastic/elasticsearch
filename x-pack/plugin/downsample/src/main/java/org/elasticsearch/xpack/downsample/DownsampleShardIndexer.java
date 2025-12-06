@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -32,7 +33,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -80,9 +80,10 @@ import static org.elasticsearch.core.Strings.format;
 class DownsampleShardIndexer {
 
     private static final Logger logger = LogManager.getLogger(DownsampleShardIndexer.class);
+    private static final int DOCID_BUFFER_SIZE = 8096;
     public static final int DOWNSAMPLE_BULK_ACTIONS = 10000;
-    public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
-    public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = new ByteSizeValue(50, ByteSizeUnit.MB);
+    public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = ByteSizeValue.of(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = ByteSizeValue.of(50, ByteSizeUnit.MB);
     private final IndexShard indexShard;
     private final Client client;
     private final DownsampleMetrics downsampleMetrics;
@@ -111,6 +112,7 @@ class DownsampleShardIndexer {
         final String[] metrics,
         final String[] labels,
         final String[] dimensions,
+        final Map<String, String> multiFieldSources,
         final DownsampleShardPersistentTaskState state
     ) {
         this.task = task;
@@ -134,11 +136,15 @@ class DownsampleShardIndexer {
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
+            var samplingMethod = config.getSamplingMethodOrDefault();
 
             List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length + dimensions.length);
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics));
-            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels));
-            fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions));
+            fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics, multiFieldSources, samplingMethod));
+            // Labels are downsampled using the last value, they are not influenced by the requested sampling method
+            fetchers.addAll(
+                FieldValueFetcher.create(searchExecutionContext, labels, multiFieldSources, DownsampleConfig.SamplingMethod.LAST_VALUE)
+            );
+            fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions, multiFieldSources));
             this.fieldValueFetchers = Collections.unmodifiableList(fetchers);
             toClose = null;
         } finally {
@@ -338,6 +344,7 @@ class DownsampleShardIndexer {
     private class TimeSeriesBucketCollector extends BucketCollector {
         private final BulkProcessor2 bulkProcessor;
         private final DownsampleBucketBuilder downsampleBucketBuilder;
+        private final List<LeafDownsampleCollector> leafBucketCollectors = new ArrayList<>();
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
@@ -345,7 +352,7 @@ class DownsampleShardIndexer {
 
         TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor, String[] dimensions) {
             this.bulkProcessor = bulkProcessor;
-            AbstractDownsampleFieldProducer[] fieldProducers = fieldValueFetchers.stream()
+            AbstractDownsampleFieldProducer<?>[] fieldProducers = fieldValueFetchers.stream()
                 .map(FieldValueFetcher::fieldProducer)
                 .toArray(AbstractDownsampleFieldProducer[]::new);
             this.downsampleBucketBuilder = new DownsampleBucketBuilder(fieldProducers, dimensions);
@@ -358,90 +365,168 @@ class DownsampleShardIndexer {
             docCountProvider.setLeafReaderContext(ctx);
 
             // For each field, return a tuple with the downsample field producer and the field value leaf
-            final AbstractDownsampleFieldProducer[] fieldProducers = new AbstractDownsampleFieldProducer[fieldValueFetchers.size()];
-            final FormattedDocValues[] formattedDocValues = new FormattedDocValues[fieldValueFetchers.size()];
-            for (int i = 0; i < fieldProducers.length; i++) {
-                fieldProducers[i] = fieldValueFetchers.get(i).fieldProducer();
-                formattedDocValues[i] = fieldValueFetchers.get(i).getLeaf(ctx);
+            final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors = new LeafDownsampleCollector.FieldCollector<
+                ?>[fieldValueFetchers.size()];
+            for (int i = 0; i < fieldValueFetchers.size(); i++) {
+                var fieldValueFetcher = fieldValueFetchers.get(i);
+                var fieldProducer = fieldValueFetcher.fieldProducer();
+                if (fieldProducer instanceof NumericMetricFieldProducer metricFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        metricFieldProducer,
+                        fieldValueFetcher.getNumericLeaf(ctx)
+                    );
+                } else if (fieldProducer instanceof ExponentialHistogramMetricFieldProducer exponentialHistogramProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        exponentialHistogramProducer,
+                        fieldValueFetcher.getExponentialHistogramLeaf(ctx)
+                    );
+                } else if (fieldProducer instanceof LastValueFieldProducer lastValueFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        lastValueFieldProducer,
+                        fieldValueFetcher.getLeaf(ctx)
+                    );
+                }
             }
 
-            return new LeafBucketCollector() {
-                @Override
-                public void collect(int docId, long owningBucketOrd) throws IOException {
-                    task.addNumReceived(1);
-                    final BytesRef tsidHash = aggCtx.getTsidHash();
-                    assert tsidHash != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
-                    final int tsidHashOrd = aggCtx.getTsidHashOrd();
-                    final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
+            var leafBucketCollector = new LeafDownsampleCollector(aggCtx, docCountProvider, fieldCollectors);
+            leafBucketCollectors.add(leafBucketCollector);
+            return leafBucketCollector;
+        }
 
-                    boolean tsidChanged = tsidHashOrd != downsampleBucketBuilder.tsidOrd();
-                    if (tsidChanged || timestamp < lastHistoTimestamp) {
-                        lastHistoTimestamp = Math.max(
-                            rounding.round(timestamp),
-                            searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
-                        );
-                    }
-                    task.setLastSourceTimestamp(timestamp);
-                    task.setLastTargetTimestamp(lastHistoTimestamp);
+        void bulkCollection() throws IOException {
+            // The leaf bucket collectors with newer timestamp go first, to correctly capture the last value for counters and labels.
+            leafBucketCollectors.sort((o1, o2) -> -Long.compare(o1.firstTimeStampForBulkCollection, o2.firstTimeStampForBulkCollection));
+            for (LeafDownsampleCollector leafBucketCollector : leafBucketCollectors) {
+                leafBucketCollector.leafBulkCollection();
+            }
+        }
 
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> downsample bucket ts: [{}]",
-                            docId,
-                            DocValueFormat.TIME_SERIES_ID.format(tsidHash),
-                            timestampFormat.format(timestamp),
-                            timestampFormat.format(lastHistoTimestamp)
-                        );
-                    }
+        class LeafDownsampleCollector extends LeafBucketCollector {
 
-                    /*
-                     * Sanity checks to ensure that we receive documents in the correct order
-                     * - _tsid must be sorted in ascending order
-                     * - @timestamp must be sorted in descending order within the same _tsid
-                     */
-                    BytesRef lastTsid = downsampleBucketBuilder.tsid();
-                    assert lastTsid == null || lastTsid.compareTo(tsidHash) <= 0
-                        : "_tsid is not sorted in ascending order: ["
-                            + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
-                            + "] -> ["
-                            + DocValueFormat.TIME_SERIES_ID.format(tsidHash)
-                            + "]";
-                    assert tsidHash.equals(lastTsid) == false || lastTimestamp >= timestamp
-                        : "@timestamp is not sorted in descending order: ["
-                            + timestampFormat.format(lastTimestamp)
-                            + "] -> ["
-                            + timestampFormat.format(timestamp)
-                            + "]";
-                    lastTimestamp = timestamp;
+            final AggregationExecutionContext aggCtx;
+            final DocCountProvider docCountProvider;
+            final LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors;
 
-                    if (tsidChanged || downsampleBucketBuilder.timestamp() != lastHistoTimestamp) {
-                        // Flush downsample doc if not empty
-                        if (downsampleBucketBuilder.isEmpty() == false) {
-                            XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
-                            indexBucket(doc);
-                        }
+            // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
+            long firstTimeStampForBulkCollection;
+            final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
+            final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
-                        // Create new downsample bucket
-                        if (tsidChanged) {
-                            downsampleBucketBuilder.resetTsid(tsidHash, tsidHashOrd, lastHistoTimestamp);
-                        } else {
-                            downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp);
-                        }
-                        bucketsCreated++;
-                    }
+            LeafDownsampleCollector(
+                AggregationExecutionContext aggCtx,
+                DocCountProvider docCountProvider,
+                LeafDownsampleCollector.FieldCollector<?>[] fieldCollectors
+            ) {
 
-                    final int docCount = docCountProvider.getDocCount(docId);
-                    downsampleBucketBuilder.collectDocCount(docCount);
-                    // Iterate over all field values and collect the doc_values for this docId
-                    for (int i = 0; i < fieldProducers.length; i++) {
-                        AbstractDownsampleFieldProducer fieldProducer = fieldProducers[i];
-                        FormattedDocValues docValues = formattedDocValues[i];
-                        fieldProducer.collect(docValues, docId);
-                    }
-                    docsProcessed++;
-                    task.setDocsProcessed(docsProcessed);
+                this.aggCtx = aggCtx;
+                this.docCountProvider = docCountProvider;
+                this.fieldCollectors = fieldCollectors;
+            }
+
+            @Override
+            public void collect(int docId, long owningBucketOrd) throws IOException {
+                task.addNumReceived(1);
+                final BytesRef tsidHash = aggCtx.getTsidHash();
+                assert tsidHash != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
+                final int tsidHashOrd = aggCtx.getTsidHashOrd();
+                final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
+
+                boolean tsidChanged = tsidHashOrd != downsampleBucketBuilder.tsidOrd();
+                if (tsidChanged || timestamp < lastHistoTimestamp) {
+                    lastHistoTimestamp = Math.max(rounding.round(timestamp), timestampBoundStartTime);
                 }
-            };
+                task.setLastSourceTimestamp(timestamp);
+                task.setLastTargetTimestamp(lastHistoTimestamp);
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "Doc: [{}] - _tsid: [{}], @timestamp: [{}] -> downsample bucket ts: [{}]",
+                        docId,
+                        DocValueFormat.TIME_SERIES_ID.format(tsidHash),
+                        timestampFormat.format(timestamp),
+                        timestampFormat.format(lastHistoTimestamp)
+                    );
+                }
+
+                assert assertTsidAndTimestamp(tsidHash, timestamp);
+                lastTimestamp = timestamp;
+
+                if (tsidChanged || downsampleBucketBuilder.timestamp() != lastHistoTimestamp) {
+                    bulkCollection();
+                    // Flush downsample doc if not empty
+                    if (downsampleBucketBuilder.isEmpty() == false) {
+                        XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
+                        indexBucket(doc);
+                    }
+
+                    // Create new downsample bucket
+                    if (tsidChanged) {
+                        downsampleBucketBuilder.resetTsid(tsidHash, tsidHashOrd, lastHistoTimestamp);
+                    } else {
+                        downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp);
+                    }
+                    bucketsCreated++;
+                }
+
+                if (docIdBuffer.isEmpty()) {
+                    firstTimeStampForBulkCollection = aggCtx.getTimestamp();
+                }
+                // buffer.add() always delegates to system.arraycopy() and checks buffer size for resizing purposes:
+                docIdBuffer.buffer[docIdBuffer.elementsCount++] = docId;
+                if (docIdBuffer.size() == DOCID_BUFFER_SIZE) {
+                    bulkCollection();
+                }
+            }
+
+            void leafBulkCollection() throws IOException {
+                if (docIdBuffer.isEmpty()) {
+                    return;
+                }
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug("buffered {} docids", docIdBuffer.size());
+                }
+
+                downsampleBucketBuilder.collectDocCount(docIdBuffer, docCountProvider);
+                // Iterate over all field values and collect the doc_values for this docId
+                for (int i = 0; i < fieldCollectors.length; i++) {
+                    fieldCollectors[i].collect(docIdBuffer);
+                }
+
+                docsProcessed += docIdBuffer.size();
+                task.setDocsProcessed(docsProcessed);
+
+                // buffer.clean() also overwrites all slots with zeros
+                docIdBuffer.elementsCount = 0;
+            }
+
+            record FieldCollector<T>(AbstractDownsampleFieldProducer<T> fieldProducer, T docValues) {
+                void collect(IntArrayList docIdBuffer) throws IOException {
+                    fieldProducer.collect(docValues, docIdBuffer);
+                }
+            }
+
+            /**
+             * Sanity checks to ensure that we receive documents in the correct order
+             * - _tsid must be sorted in ascending order
+             * - @timestamp must be sorted in descending order within the same _tsid
+             */
+            boolean assertTsidAndTimestamp(BytesRef tsidHash, long timestamp) {
+                BytesRef lastTsid = downsampleBucketBuilder.tsid();
+                assert lastTsid == null || lastTsid.compareTo(tsidHash) <= 0
+                    : "_tsid is not sorted in ascending order: ["
+                        + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
+                        + "] -> ["
+                        + DocValueFormat.TIME_SERIES_ID.format(tsidHash)
+                        + "]";
+                assert tsidHash.equals(lastTsid) == false || lastTimestamp >= timestamp
+                    : "@timestamp is not sorted in descending order: ["
+                        + timestampFormat.format(lastTimestamp)
+                        + "] -> ["
+                        + timestampFormat.format(timestamp)
+                        + "]";
+                return true;
+            }
         }
 
         private void indexBucket(XContentBuilder doc) {
@@ -464,6 +549,7 @@ class DownsampleShardIndexer {
         @Override
         public void postCollection() throws IOException {
             // Flush downsample doc if not empty
+            bulkCollection();
             if (downsampleBucketBuilder.isEmpty() == false) {
                 XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
                 indexBucket(doc);
@@ -491,11 +577,11 @@ class DownsampleShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private final AbstractDownsampleFieldProducer[] fieldProducers;
+        private final AbstractDownsampleFieldProducer<?>[] fieldProducers;
         private final DownsampleFieldSerializer[] groupedProducers;
         private final String[] dimensions;
 
-        DownsampleBucketBuilder(AbstractDownsampleFieldProducer[] fieldProducers, String[] dimensions) {
+        DownsampleBucketBuilder(AbstractDownsampleFieldProducer<?>[] fieldProducers, String[] dimensions) {
             this.fieldProducers = fieldProducers;
             this.dimensions = dimensions;
             /*
@@ -533,7 +619,7 @@ class DownsampleShardIndexer {
         public void resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            for (AbstractDownsampleFieldProducer producer : fieldProducers) {
+            for (AbstractDownsampleFieldProducer<?> producer : fieldProducers) {
                 producer.reset();
             }
             if (logger.isTraceEnabled()) {
@@ -545,8 +631,15 @@ class DownsampleShardIndexer {
             }
         }
 
-        public void collectDocCount(int docCount) {
-            this.docCount += docCount;
+        public void collectDocCount(IntArrayList buffer, DocCountProvider docCountProvider) throws IOException {
+            if (docCountProvider.alwaysOne()) {
+                this.docCount += buffer.size();
+            } else {
+                for (int i = 0; i < buffer.size(); i++) {
+                    int docId = buffer.get(i);
+                    this.docCount += docCountProvider.getDocCount(docId);
+                }
+            }
         }
 
         public XContentBuilder buildDownsampleDocument() throws IOException {

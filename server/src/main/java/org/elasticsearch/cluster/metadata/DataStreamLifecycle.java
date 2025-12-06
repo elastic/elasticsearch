@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.Diff;
@@ -31,7 +30,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -45,16 +43,16 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Holds the data stream lifecycle metadata that are configuring how a data stream is managed. Currently, it supports the following
- * configurations:
- * - enabled
- * - data retention
- * - downsampling
+ * Holds the data stream lifecycle configuration that defines how the data stream indices of a data stream are managed. The lifecycle also
+ * has a type that determines the type of index component it can manage. Currently, we support data and failures.
+ * Lifecycle supports the following configurations:
+ * - enabled, applicable to data and failures
+ * - data retention, applicable to data and failures
+ * - downsampling and downsampling method, applicable only to data
  */
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
-    // Versions over the wire
-    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
+    public static final TransportVersion ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM = TransportVersion.fromName("add_sample_method_downsample_dlm");
     public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
@@ -67,6 +65,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         "true"
     );
     public static final Tuple<TimeValue, RetentionSource> INFINITE_RETENTION = Tuple.tuple(null, RetentionSource.DATA_STREAM_CONFIGURATION);
+    private static final String DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE =
+        "Failure store lifecycle does not support downsampling, please remove the downsampling configuration.";
+
+    private static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = TransportVersion.fromName("introduce_lifecycle_template");
+    public static final String DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR =
+        "Downsampling method can only be set when there is at least one downsampling round.";
 
     /**
      * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
@@ -87,7 +91,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
-    public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
+    public static final DataStreamLifecycle DEFAULT_DATA_LIFECYCLE = dataLifecycleBuilder().build();
+    public static final DataStreamLifecycle DEFAULT_FAILURE_LIFECYCLE = failuresLifecycleBuilder().build();
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -96,54 +101,102 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final ParseField EFFECTIVE_RETENTION_FIELD = new ParseField("effective_retention");
     public static final ParseField RETENTION_SOURCE_FIELD = new ParseField("retention_determined_by");
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
+    public static final ParseField DOWNSAMPLING_METHOD_FIELD = new ParseField("downsampling_method");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
-    public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<DataStreamLifecycle, LifecycleType> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (Boolean) args[2])
+        (args, lt) -> new DataStreamLifecycle(
+            lt,
+            (Boolean) args[0],
+            (TimeValue) args[1],
+            (List<DownsamplingRound>) args[2],
+            (DownsampleConfig.SamplingMethod) args[3]
+        )
     );
 
     static {
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
+        // For the retention and the downsampling, there was a bug that would allow an explicit null value to be
+        // stored in the data stream when the lifecycle was not composed with another one. We need to be able to read
+        // from a previous cluster state so we allow here explicit null values also to be parsed.
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             String value = p.textOrNull();
             if (value == null) {
-                return Retention.NULL;
+                return null;
             } else {
-                return new Retention(TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName()));
+                return TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName());
             }
         }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return Downsampling.NULL;
+                return null;
             } else {
-                return new Downsampling(AbstractObjectParser.parseArray(p, c, Downsampling.Round::fromXContent));
+                return AbstractObjectParser.parseArray(p, null, DownsamplingRound::fromXContent);
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DownsampleConfig.SamplingMethod.fromString(p.text()),
+            DOWNSAMPLING_METHOD_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
-    @Nullable
-    private final Retention dataRetention;
-    @Nullable
-    private final Downsampling downsampling;
+    private static final TransportVersion INTRODUCE_FAILURES_LIFECYCLE = TransportVersion.fromName("introduce_failures_lifecycle");
+
+    private final LifecycleType lifecycleType;
     private final boolean enabled;
+    @Nullable
+    private final TimeValue dataRetention;
+    @Nullable
+    private final List<DownsamplingRound> downsamplingRounds;
+    @Nullable
+    private final DownsampleConfig.SamplingMethod downsamplingMethod;
 
-    public DataStreamLifecycle() {
-        this(null, null, null);
-    }
-
-    public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling, @Nullable Boolean enabled) {
+    /**
+     * This constructor is visible for testing, please use {@link DataStreamLifecycle#dataLifecycleBuilder()} or
+     * {@link DataStreamLifecycle#failuresLifecycleBuilder()}.
+     */
+    DataStreamLifecycle(
+        LifecycleType lifecycleType,
+        @Nullable Boolean enabled,
+        @Nullable TimeValue dataRetention,
+        @Nullable List<DownsamplingRound> downsamplingRounds,
+        @Nullable DownsampleConfig.SamplingMethod downsamplingMethod
+    ) {
+        this.lifecycleType = lifecycleType;
         this.enabled = enabled == null || enabled;
         this.dataRetention = dataRetention;
-        this.downsampling = downsampling;
+        if (lifecycleType == LifecycleType.FAILURES && downsamplingRounds != null) {
+            throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
+        }
+        DownsamplingRound.validateRounds(downsamplingRounds);
+        this.downsamplingRounds = downsamplingRounds;
+        if (downsamplingMethod != null && downsamplingRounds == null) {
+            throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
+        }
+        this.downsamplingMethod = downsamplingMethod;
     }
 
     /**
-     * Returns true, if this data stream lifecycle configuration is enabled and false otherwise
+     * Returns true, if this data stream lifecycle configuration is enabled, false otherwise
      */
-    public boolean isEnabled() {
+    public boolean enabled() {
         return enabled;
+    }
+
+    /**
+     * @return true if the lifecycle manages the failure store, false otherwise
+     */
+    public boolean targetsFailureStore() {
+        return lifecycleType == LifecycleType.FAILURES;
+    }
+
+    public String getLifecycleType() {
+        return lifecycleType.label;
     }
 
     /**
@@ -173,22 +226,24 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         boolean isInternalDataStream
     ) {
         // If lifecycle is disabled there is no effective retention
-        if (enabled == false) {
+        if (enabled() == false) {
             return INFINITE_RETENTION;
         }
-        var dataStreamRetention = getDataStreamRetention();
         if (globalRetention == null || isInternalDataStream) {
-            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return Tuple.tuple(dataRetention(), RetentionSource.DATA_STREAM_CONFIGURATION);
         }
-        if (dataStreamRetention == null) {
+        if (dataRetention() == null) {
             return globalRetention.defaultRetention() != null
-                ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
+                ? Tuple.tuple(
+                    globalRetention.defaultRetention(),
+                    targetsFailureStore() ? RetentionSource.DEFAULT_FAILURES_RETENTION : RetentionSource.DEFAULT_GLOBAL_RETENTION
+                )
                 : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         }
-        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataStreamRetention.getMillis()) {
+        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataRetention().getMillis()) {
             return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         } else {
-            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return Tuple.tuple(dataRetention(), RetentionSource.DATA_STREAM_CONFIGURATION);
         }
     }
 
@@ -198,8 +253,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public TimeValue getDataStreamRetention() {
-        return dataRetention == null ? null : dataRetention.value;
+    public TimeValue dataRetention() {
+        return dataRetention;
     }
 
     /**
@@ -228,10 +283,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                     + "] will be applied."
             );
             case MAX_GLOBAL_RETENTION -> {
-                String retentionProvidedPart = getDataStreamRetention() == null
+                String retentionProvidedPart = dataRetention() == null
                     ? "Not providing a retention is not allowed for this project."
                     : "The retention provided ["
-                        + (getDataStreamRetention() == null ? "infinite" : getDataStreamRetention().getStringRep())
+                        + (dataRetention() == null ? "infinite" : dataRetention().getStringRep())
                         + "] is exceeding the max allowed data retention of this project ["
                         + effectiveRetentionStringRep
                         + "].";
@@ -245,35 +300,20 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The configuration as provided by the user about the least amount of time data should be kept by elasticsearch.
-     * This method differentiates between a missing retention and a nullified retention and this is useful for template
-     * composition.
-     * @return one of the following:
-     * - `null`, represents that the user did not provide data retention, this represents the user has no opinion about retention
-     * - `Retention{value = null}`, represents that the user explicitly wants to have infinite retention
-     * - `Retention{value = "10d"}`, represents that the user has requested the data to be kept at least 10d.
-     */
-    @Nullable
-    Retention getDataRetention() {
-        return dataRetention;
-    }
-
-    /**
      * The configured downsampling rounds with the `after` and the `fixed_interval` per round. If downsampling is
-     * not configured then it returns null.
+     * not configured, then it returns null.
      */
     @Nullable
-    public List<Downsampling.Round> getDownsamplingRounds() {
-        return downsampling == null ? null : downsampling.rounds();
+    public List<DownsamplingRound> downsamplingRounds() {
+        return downsamplingRounds;
     }
 
     /**
-     * Returns the configured wrapper object as it was defined in the template. This should be used only during
-     * template composition.
+     * The configured downsampling method. If downsampling is not configured, then it returns null.
      */
     @Nullable
-    Downsampling getDownsampling() {
-        return downsampling;
+    public DownsampleConfig.SamplingMethod downsamplingMethod() {
+        return downsamplingMethod;
     }
 
     @Override
@@ -282,40 +322,92 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (o == null || getClass() != o.getClass()) return false;
 
         final DataStreamLifecycle that = (DataStreamLifecycle) o;
-        return Objects.equals(dataRetention, that.dataRetention)
-            && Objects.equals(downsampling, that.downsampling)
+        return lifecycleType == that.lifecycleType
+            && Objects.equals(dataRetention, that.dataRetention)
+            && Objects.equals(downsamplingRounds, that.downsamplingRounds)
+            && Objects.equals(downsamplingMethod, that.downsamplingMethod)
             && enabled == that.enabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataRetention, downsampling, enabled);
+        return Objects.hash(lifecycleType, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(dataRetention);
+        if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            out.writeOptionalTimeValue(dataRetention);
+        } else {
+            writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
         }
-        if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            out.writeOptionalWriteable(downsampling);
-            out.writeBoolean(enabled);
+        if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            out.writeOptionalCollection(downsamplingRounds);
+        } else {
+            writeLegacyOptionalValue(downsamplingRounds, out, StreamOutput::writeCollection);
+        }
+        out.writeBoolean(enabled());
+        if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
+            lifecycleType.writeTo(out);
+        }
+        if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
+            out.writeOptionalWriteable(downsamplingMethod);
         }
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            dataRetention = in.readOptionalWriteable(Retention::read);
+        if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            dataRetention = in.readOptionalTimeValue();
         } else {
-            dataRetention = null;
+            dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
         }
-        if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            downsampling = in.readOptionalWriteable(Downsampling::read);
-            enabled = in.readBoolean();
+        if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+            downsamplingRounds = in.readOptionalCollectionAsList(DownsamplingRound::read);
         } else {
-            downsampling = null;
-            enabled = true;
+            downsamplingRounds = readLegacyOptionalValue(in, is -> is.readCollectionAsList(DownsamplingRound::read));
         }
+        enabled = in.readBoolean();
+        lifecycleType = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? LifecycleType.read(in) : LifecycleType.DATA;
+        downsamplingMethod = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
+            ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
+            : null;
+    }
+
+    /**
+     * Previous versions were serialising <code>value</code> in way that also captures an explicit null. Meaning, first they serialise
+     * a boolean flag signaling if this value is defined, and then another boolean flag if the value is non-null. We do not need explicit
+     * null values anymore, so we treat them the same as non defined, but for bwc reasons we still need to write all the flags.
+     * @param value value to be serialised that used to be explicitly nullable.
+     * @param writer the writer of the value, it should NOT be an optional writer
+     * @throws IOException
+     */
+    private static <T> void writeLegacyOptionalValue(T value, StreamOutput out, Writer<T> writer) throws IOException {
+        boolean isDefined = value != null;
+        out.writeBoolean(isDefined);
+        if (isDefined) {
+            // There are no explicit null values anymore, so it's always true
+            out.writeBoolean(true);
+            writer.write(out, value);
+        }
+    }
+
+    /**
+     * Previous versions were de-serialising <code>value</code> in way that also captures an explicit null. Meaning, first they de-serialise
+     * a boolean flag signaling if this value is defined, and then another boolean flag if the value is non-null. We do not need explicit
+     * null values anymore, so we treat them the same as non defined, but for bwc reasons we still need to read all the flags.
+     * @param reader the reader of the value, it should NOT be an optional reader
+     * @throws IOException
+     */
+    private static <T> T readLegacyOptionalValue(StreamInput in, Reader<T> reader) throws IOException {
+        T value = null;
+        boolean isDefined = in.readBoolean();
+        if (isDefined) {
+            boolean isNotNull = in.readBoolean();
+            if (isNotNull) {
+                value = reader.read(in);
+            }
+        }
+        return value;
     }
 
     public static Diff<DataStreamLifecycle> readDiffFrom(StreamInput in) throws IOException {
@@ -324,7 +416,18 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return "DataStreamLifecycle{"
+            + "lifecycleTarget="
+            + lifecycleType
+            + ", enabled="
+            + enabled
+            + ", dataRetention="
+            + dataRetention
+            + ", downsamplingRounds="
+            + downsamplingRounds
+            + ", downsamplingMethod="
+            + downsamplingMethod
+            + '}';
     }
 
     @Override
@@ -349,11 +452,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (dataRetention != null) {
-            if (dataRetention.value() == null) {
-                builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
-            } else {
-                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
-            }
+            builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
         }
         Tuple<TimeValue, RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
             globalRetention,
@@ -366,9 +465,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }
 
-        if (downsampling != null) {
-            builder.field(DOWNSAMPLING_FIELD.getPreferredName());
-            downsampling.toXContent(builder, params);
+        if (downsamplingRounds != null) {
+            builder.field(DOWNSAMPLING_FIELD.getPreferredName(), downsamplingRounds);
+        }
+        if (downsamplingMethod != null) {
+            builder.field(DOWNSAMPLING_METHOD_FIELD.getPreferredName(), downsamplingMethod.toString());
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
@@ -379,13 +480,23 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * This method deserialises XContent format as it was generated ONLY by {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}.
-     * It does not support the output of
+     * This method de-serialises a data lifecycle as it was generated ONLY by
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}. It does not support the output of
      * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention, boolean)} because
-     * this output is enriched with derived fields we do not handle in this deserialisation.
+     * this output is enriched with derived fields we do not handle in this de-serialisation.
      */
-    public static DataStreamLifecycle fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static DataStreamLifecycle dataLifecycleFromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, LifecycleType.DATA);
+    }
+
+    /**
+     * This method de-serialises a failures lifecycle as it was generated ONLY by
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params)}. It does not support the output of
+     * {@link DataStreamLifecycle#toXContent(XContentBuilder, Params, RolloverConfiguration, DataStreamGlobalRetention, boolean)} because
+     * this output is enriched with derived fields we do not handle in this de-serialisation.
+     */
+    public static DataStreamLifecycle failureLifecycleFromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, LifecycleType.FAILURES);
     }
 
     /**
@@ -397,218 +508,458 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return new DelegatingMapParams(INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
     }
 
-    public static Builder newBuilder(DataStreamLifecycle lifecycle) {
-        return new Builder().dataRetention(lifecycle.getDataRetention())
-            .downsampling(lifecycle.getDownsampling())
-            .enabled(lifecycle.isEnabled());
-    }
-
-    public static Builder newBuilder() {
-        return new Builder();
-    }
-
-    /**
-     * This builder helps during the composition of the data stream lifecycle templates.
-     */
-    public static class Builder {
-        @Nullable
-        private Retention dataRetention = null;
-        @Nullable
-        private Downsampling downsampling = null;
-        private boolean enabled = true;
-
-        public Builder enabled(boolean value) {
-            enabled = value;
-            return this;
-        }
-
-        public Builder dataRetention(@Nullable Retention value) {
-            dataRetention = value;
-            return this;
-        }
-
-        public Builder dataRetention(@Nullable TimeValue value) {
-            dataRetention = value == null ? null : new Retention(value);
-            return this;
-        }
-
-        public Builder dataRetention(long value) {
-            dataRetention = new Retention(TimeValue.timeValueMillis(value));
-            return this;
-        }
-
-        public Builder downsampling(@Nullable Downsampling value) {
-            downsampling = value;
-            return this;
-        }
-
-        public DataStreamLifecycle build() {
-            return new DataStreamLifecycle(dataRetention, downsampling, enabled);
-        }
-    }
-
-    /**
-     * Retention is the least amount of time that the data will be kept by elasticsearch. Public for testing.
-     * @param value is a time period or null. Null represents an explicitly set infinite retention period
-     */
-    public record Retention(@Nullable TimeValue value) implements Writeable {
-
-        // For testing
-        public static final Retention NULL = new Retention(null);
-
-        public static Retention read(StreamInput in) throws IOException {
-            return new Retention(in.readOptionalTimeValue());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalTimeValue(value);
-        }
-    }
-
-    /**
-     * Downsampling holds the configuration about when should elasticsearch downsample a backing index.
-     * @param rounds is a list of downsampling configuration which instructs when a backing index should be downsampled (`after`) and at
-     *               which interval (`fixed_interval`). Null represents an explicit no downsampling during template composition.
-     */
-    public record Downsampling(@Nullable List<Round> rounds) implements Writeable, ToXContentFragment {
-
-        public static final long FIVE_MINUTES_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
-
-        /**
-         * A round represents the configuration for when and how elasticsearch will downsample a backing index.
-         * @param after is a TimeValue configuring how old (based on generation age) should a backing index be before downsampling
-         * @param config contains the interval that the backing index is going to be downsampled.
-         */
-        public record Round(TimeValue after, DownsampleConfig config) implements Writeable, ToXContentObject {
-
-            public static final ParseField AFTER_FIELD = new ParseField("after");
-            public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
-
-            private static final ConstructingObjectParser<Round, Void> PARSER = new ConstructingObjectParser<>(
-                "downsampling_round",
-                false,
-                (args, unused) -> new Round((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
-            );
-
-            static {
-                PARSER.declareString(
-                    ConstructingObjectParser.optionalConstructorArg(),
-                    value -> TimeValue.parseTimeValue(value, AFTER_FIELD.getPreferredName()),
-                    AFTER_FIELD
-                );
-                PARSER.declareField(
-                    constructorArg(),
-                    p -> new DateHistogramInterval(p.text()),
-                    new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
-                    ObjectParser.ValueType.STRING
-                );
-            }
-
-            public static Round read(StreamInput in) throws IOException {
-                return new Round(in.readTimeValue(), new DownsampleConfig(in));
-            }
-
-            public Round {
-                if (config.getFixedInterval().estimateMillis() < FIVE_MINUTES_MILLIS) {
-                    throw new IllegalArgumentException(
-                        "A downsampling round must have a fixed interval of at least five minutes but found: " + config.getFixedInterval()
-                    );
-                }
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeTimeValue(after);
-                out.writeWriteable(config);
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
-                config.toXContentFragment(builder);
-                builder.endObject();
-                return builder;
-            }
-
-            public static Round fromXContent(XContentParser parser, Void context) throws IOException {
-                return PARSER.parse(parser, context);
-            }
-
-            @Override
-            public String toString() {
-                return Strings.toString(this, true, true);
-            }
-        }
-
-        // For testing
-        public static final Downsampling NULL = new Downsampling(null);
-
-        public Downsampling {
-            if (rounds != null) {
-                if (rounds.isEmpty()) {
-                    throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
-                }
-                if (rounds.size() > 10) {
-                    throw new IllegalArgumentException(
-                        "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
-                    );
-                }
-                Round previous = null;
-                for (Round round : rounds) {
-                    if (previous == null) {
-                        previous = round;
-                    } else {
-                        if (round.after.compareTo(previous.after) < 0) {
-                            throw new IllegalArgumentException(
-                                "A downsampling round must have a later 'after' value than the proceeding, "
-                                    + round.after.getStringRep()
-                                    + " is not after "
-                                    + previous.after.getStringRep()
-                                    + "."
-                            );
-                        }
-                        DownsampleConfig.validateSourceAndTargetIntervals(previous.config(), round.config());
-                    }
-                }
-            }
-        }
-
-        public static Downsampling read(StreamInput in) throws IOException {
-            return new Downsampling(in.readOptionalCollectionAsList(Round::read));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalCollection(rounds, StreamOutput::writeWriteable);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (rounds == null) {
-                builder.nullValue();
-            } else {
-                builder.startArray();
-                for (Round round : rounds) {
-                    round.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            return builder;
-        }
-    }
-
     /**
      * This enum represents all configuration sources that can influence the retention of a data stream.
      */
     public enum RetentionSource {
         DATA_STREAM_CONFIGURATION,
         DEFAULT_GLOBAL_RETENTION,
-        MAX_GLOBAL_RETENTION;
+        MAX_GLOBAL_RETENTION,
+        DEFAULT_FAILURES_RETENTION;
 
         public String displayName() {
             return this.toString().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * A round represents the configuration for when and how elasticsearch will downsample a backing index.
+     * @param after is a TimeValue configuring how old (based on generation age) should a backing index be before downsampling
+     * @param fixedInterval contains the interval that the backing index is going to be downsampled.
+     */
+    public record DownsamplingRound(TimeValue after, DateHistogramInterval fixedInterval) implements Writeable, ToXContentObject {
+
+        public static final ParseField AFTER_FIELD = new ParseField("after");
+        public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
+        public static final long FIVE_MINUTES_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
+
+        private static final ConstructingObjectParser<DownsamplingRound, Void> PARSER = new ConstructingObjectParser<>(
+            "downsampling_round",
+            false,
+            (args, unused) -> new DownsamplingRound((TimeValue) args[0], (DateHistogramInterval) args[1])
+        );
+
+        static {
+            PARSER.declareString(
+                ConstructingObjectParser.optionalConstructorArg(),
+                value -> TimeValue.parseTimeValue(value, AFTER_FIELD.getPreferredName()),
+                AFTER_FIELD
+            );
+            PARSER.declareField(
+                constructorArg(),
+                p -> new DateHistogramInterval(p.text()),
+                FIXED_INTERVAL_FIELD,
+                ObjectParser.ValueType.STRING
+            );
+        }
+
+        static void validateRounds(List<DownsamplingRound> rounds) {
+            if (rounds == null) {
+                return;
+            }
+            if (rounds.isEmpty()) {
+                throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
+            }
+            if (rounds.size() > 10) {
+                throw new IllegalArgumentException(
+                    "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
+                );
+            }
+            DownsamplingRound previous = null;
+            for (DownsamplingRound round : rounds) {
+                if (previous == null) {
+                    previous = round;
+                } else {
+                    if (round.after.compareTo(previous.after) < 0) {
+                        throw new IllegalArgumentException(
+                            "A downsampling round must have a later 'after' value than the proceeding, "
+                                + round.after.getStringRep()
+                                + " is not after "
+                                + previous.after.getStringRep()
+                                + "."
+                        );
+                    }
+                    DownsampleConfig.validateSourceAndTargetIntervals(previous.fixedInterval(), round.fixedInterval());
+                }
+            }
+        }
+
+        public static DownsamplingRound read(StreamInput in) throws IOException {
+            TimeValue after = in.readTimeValue();
+            DateHistogramInterval fixedInterval = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
+                ? new DateHistogramInterval(in)
+                : new DownsampleConfig(in).getFixedInterval();
+            return new DownsamplingRound(after, fixedInterval);
+        }
+
+        public DownsamplingRound {
+            if (fixedInterval.estimateMillis() < FIVE_MINUTES_MILLIS) {
+                throw new IllegalArgumentException(
+                    "A downsampling round must have a fixed interval of at least five minutes but found: " + fixedInterval
+                );
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeTimeValue(after);
+            if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
+                out.writeWriteable(fixedInterval);
+            } else {
+                out.writeWriteable(new DownsampleConfig(fixedInterval, null));
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
+            builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval().toString());
+            builder.endObject();
+            return builder;
+        }
+
+        public static DownsamplingRound fromXContent(XContentParser parser, Void context) throws IOException {
+            return PARSER.parse(parser, context);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
+    }
+
+    /**
+     * Represents the template configuration of a lifecycle. It supports explicitly resettable values
+     * to allow value reset during template composition.
+     */
+    public record Template(
+        LifecycleType lifecycleType,
+        boolean enabled,
+        ResettableValue<TimeValue> dataRetention,
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds,
+        ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod
+    ) implements ToXContentObject, Writeable {
+
+        public Template {
+            if (lifecycleType == LifecycleType.FAILURES && downsamplingRounds.get() != null) {
+                throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
+            }
+            if (downsamplingRounds.isDefined() && downsamplingRounds.get() != null) {
+                DownsamplingRound.validateRounds(downsamplingRounds.get());
+            } else if (downsamplingMethod.isDefined() && downsamplingMethod.get() != null) {
+                throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
+            }
+        }
+
+        public static final DataStreamLifecycle.Template DATA_DEFAULT = dataLifecycleBuilder().enabled(true).buildTemplate();
+
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<DataStreamLifecycle.Template, LifecycleType> PARSER = new ConstructingObjectParser<>(
+            "lifecycle_template",
+            false,
+            (args, lt) -> new DataStreamLifecycle.Template(
+                lt,
+                args[0] == null || (boolean) args[0],
+                args[1] == null ? ResettableValue.undefined() : (ResettableValue<TimeValue>) args[1],
+                args[2] == null ? ResettableValue.undefined() : (ResettableValue<List<DataStreamLifecycle.DownsamplingRound>>) args[2],
+                args[3] == null ? ResettableValue.undefined() : (ResettableValue<DownsampleConfig.SamplingMethod>) args[3]
+            )
+        );
+
+        static {
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                String value = p.textOrNull();
+                return value == null
+                    ? ResettableValue.reset()
+                    : ResettableValue.create(TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName()));
+            }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+                    return ResettableValue.reset();
+                } else {
+                    return ResettableValue.create(AbstractObjectParser.parseArray(p, null, DownsamplingRound::fromXContent));
+                }
+            }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                String value = p.textOrNull();
+                return value == null ? ResettableValue.reset() : ResettableValue.create(DownsampleConfig.SamplingMethod.fromString(value));
+            }, DOWNSAMPLING_METHOD_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            // The order of the fields is like this for bwc reasons
+            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
+            } else {
+                writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
+            }
+            if (out.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                ResettableValue.write(out, downsamplingRounds, StreamOutput::writeCollection);
+            } else {
+                writeLegacyValue(out, downsamplingRounds, StreamOutput::writeCollection);
+            }
+            out.writeBoolean(enabled);
+            if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
+                lifecycleType.writeTo(out);
+            }
+            if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
+                ResettableValue.write(out, downsamplingMethod, StreamOutput::writeWriteable);
+            }
+        }
+
+        /**
+         * Before the introduction of the ResettableValues we used to serialise the explicit nulls differently. Legacy codes defines the
+         * two boolean flags as "isDefined" and "hasValue" while the ResettableValue, "isDefined" and "shouldReset". This inverts the
+         * semantics of the second flag and that's why we use this method.
+         */
+        private static <T> void writeLegacyValue(StreamOutput out, ResettableValue<T> value, Writeable.Writer<T> writer)
+            throws IOException {
+            out.writeBoolean(value.isDefined());
+            if (value.isDefined()) {
+                out.writeBoolean(value.shouldReset() == false);
+                if (value.shouldReset() == false) {
+                    writer.write(out, value.get());
+                }
+            }
+        }
+
+        /**
+         * Before the introduction of the ResettableValues we used to serialise the explicit nulls differently. Legacy codes defines the
+         * two boolean flags as "isDefined" and "hasValue" while the ResettableValue, "isDefined" and "shouldReset". This inverts the
+         * semantics of the second flag and that's why we use this method.
+         */
+        static <T> ResettableValue<T> readLegacyValues(StreamInput in, Writeable.Reader<T> reader) throws IOException {
+            boolean isDefined = in.readBoolean();
+            if (isDefined == false) {
+                return ResettableValue.undefined();
+            }
+            boolean hasNonNullValue = in.readBoolean();
+            if (hasNonNullValue == false) {
+                return ResettableValue.reset();
+            }
+            T value = reader.read(in);
+            return ResettableValue.create(value);
+        }
+
+        public static Template read(StreamInput in) throws IOException {
+            boolean enabled = true;
+            ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
+            ResettableValue<List<DownsamplingRound>> downsamplingRounds = ResettableValue.undefined();
+
+            // The order of the fields is like this for bwc reasons
+            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
+            } else {
+                dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
+            }
+            if (in.getTransportVersion().supports(INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                downsamplingRounds = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+            } else {
+                downsamplingRounds = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+            }
+            enabled = in.readBoolean();
+            var lifecycleTarget = in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
+                ? LifecycleType.read(in)
+                : LifecycleType.DATA;
+            ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod = in.getTransportVersion()
+                .supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
+                    ? ResettableValue.read(in, DownsampleConfig.SamplingMethod::read)
+                    : ResettableValue.undefined();
+            return new Template(lifecycleTarget, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
+        }
+
+        public static Template dataLifecycleTemplatefromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, LifecycleType.DATA);
+        }
+
+        public static Template failuresLifecycleTemplatefromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, LifecycleType.FAILURES);
+        }
+
+        /**
+         * Converts the template to XContent, depending on the {@param params} set by {@link ResettableValue#hideResetValues(Params)}
+         * it may or may not display any explicit nulls when the value is to be reset.
+         */
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return toXContent(builder, params, null, null, false);
+        }
+
+        /**
+         * Converts the template to XContent, depending on the {@param params} set by {@link ResettableValue#hideResetValues(Params)}
+         * it may or may not display any explicit nulls when the value is to be reset.
+         */
+        public XContentBuilder toXContent(
+            XContentBuilder builder,
+            Params params,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention,
+            boolean isInternalDataStream
+        ) throws IOException {
+            builder.startObject();
+            builder.field(ENABLED_FIELD.getPreferredName(), enabled);
+            dataRetention.toXContent(builder, params, DATA_RETENTION_FIELD.getPreferredName(), TimeValue::getStringRep);
+            downsamplingRounds.toXContent(builder, params, DOWNSAMPLING_FIELD.getPreferredName());
+            downsamplingMethod.toXContent(
+                builder,
+                params,
+                DOWNSAMPLING_METHOD_FIELD.getPreferredName(),
+                DownsampleConfig.SamplingMethod::toString
+            );
+            if (rolloverConfiguration != null) {
+                builder.field(ROLLOVER_FIELD.getPreferredName());
+                rolloverConfiguration.evaluateAndConvertToXContent(
+                    builder,
+                    params,
+                    toDataStreamLifecycle().getEffectiveDataRetention(globalRetention, isInternalDataStream)
+                );
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public DataStreamLifecycle toDataStreamLifecycle() {
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention.get(), downsamplingRounds.get(), downsamplingMethod.get());
+        }
+    }
+
+    public static Builder builder(DataStreamLifecycle lifecycle) {
+        return new Builder(lifecycle);
+    }
+
+    public static Builder builder(Template template) {
+        return new Builder(template);
+    }
+
+    /**
+     * This builder factory initialises a builder of a data lifecycle, meaning when it builds we will either get a data lifecycle or a
+     * data lifecycle template.
+     */
+    public static Builder dataLifecycleBuilder() {
+        return new Builder(LifecycleType.DATA);
+    }
+
+    /**
+     * This builder factory initialises a builder of a failures lifecycle, meaning when it builds we will either get a failures lifecycle or
+     * a failures lifecycle template, if downsampling is not null the final "building" will throw an exception.
+     */
+    public static Builder failuresLifecycleBuilder() {
+        return new Builder(LifecycleType.FAILURES);
+    }
+
+    /**
+     * Builds and composes the data stream lifecycle or the respective template.
+     */
+    public static class Builder {
+        private final LifecycleType lifecycleType;
+        private boolean enabled = true;
+        private ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
+        private ResettableValue<List<DownsamplingRound>> downsamplingRounds = ResettableValue.undefined();
+        private ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod = ResettableValue.undefined();
+
+        private Builder(LifecycleType lifecycleType) {
+            this.lifecycleType = lifecycleType;
+        }
+
+        private Builder(DataStreamLifecycle.Template template) {
+            lifecycleType = template.lifecycleType();
+            enabled = template.enabled();
+            dataRetention = template.dataRetention();
+            downsamplingRounds = template.downsamplingRounds();
+            downsamplingMethod = template.downsamplingMethod();
+        }
+
+        private Builder(DataStreamLifecycle lifecycle) {
+            lifecycleType = lifecycle.lifecycleType;
+            enabled = lifecycle.enabled();
+            dataRetention = ResettableValue.create(lifecycle.dataRetention());
+            downsamplingRounds = ResettableValue.create(lifecycle.downsamplingRounds());
+            downsamplingMethod = ResettableValue.create(lifecycle.downsamplingMethod());
+        }
+
+        public Builder composeTemplate(DataStreamLifecycle.Template template) {
+            assert lifecycleType == template.lifecycleType() : "Trying to compose templates with different lifecycle types";
+            enabled(template.enabled());
+            dataRetention(template.dataRetention());
+            downsamplingRounds(template.downsamplingRounds());
+            downsamplingMethod(template.downsamplingMethod());
+            return this;
+        }
+
+        public Builder enabled(boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
+
+        public Builder dataRetention(ResettableValue<TimeValue> dataRetention) {
+            if (dataRetention.isDefined()) {
+                this.dataRetention = dataRetention;
+            }
+            return this;
+        }
+
+        public Builder dataRetention(@Nullable TimeValue dataRetention) {
+            this.dataRetention = ResettableValue.create(dataRetention);
+            return this;
+        }
+
+        public Builder downsamplingRounds(ResettableValue<List<DownsamplingRound>> downsampling) {
+            if (downsampling.isDefined()) {
+                this.downsamplingRounds = downsampling;
+            }
+            return this;
+        }
+
+        public Builder downsamplingRounds(@Nullable List<DownsamplingRound> downsampling) {
+            this.downsamplingRounds = ResettableValue.create(downsampling);
+            return this;
+        }
+
+        public Builder downsamplingMethod(ResettableValue<DownsampleConfig.SamplingMethod> downsamplingMethod) {
+            if (downsamplingMethod.isDefined()) {
+                this.downsamplingMethod = downsamplingMethod;
+            }
+            return this;
+        }
+
+        public Builder downsamplingMethod(@Nullable DownsampleConfig.SamplingMethod downsamplingMethod) {
+            this.downsamplingMethod = ResettableValue.create(downsamplingMethod);
+            return this;
+        }
+
+        public DataStreamLifecycle build() {
+            return new DataStreamLifecycle(lifecycleType, enabled, dataRetention.get(), downsamplingRounds.get(), downsamplingMethod.get());
+        }
+
+        public Template buildTemplate() {
+            return new Template(lifecycleType, enabled, dataRetention, downsamplingRounds, downsamplingMethod);
+        }
+    }
+
+    /**
+     * Defines the target index component managed by the lifecycle. Currently, it supports data and failures.
+     * Visible for testing
+     */
+    enum LifecycleType implements Writeable {
+        DATA("data"),
+        FAILURES("failures");
+
+        private final String label;
+
+        LifecycleType(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        public static LifecycleType read(StreamInput in) throws IOException {
+            return in.readEnum(LifecycleType.class);
         }
     }
 }

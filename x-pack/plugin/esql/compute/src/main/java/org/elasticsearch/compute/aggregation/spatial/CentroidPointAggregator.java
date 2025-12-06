@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.aggregation.AggregatorState;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorState;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -32,13 +33,16 @@ import java.nio.ByteOrder;
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 abstract class CentroidPointAggregator {
+    public static CentroidState initSingle() {
+        return new CentroidState();
+    }
+
+    public static GroupingCentroidState initGrouping(BigArrays bigArrays) {
+        return new GroupingCentroidState(bigArrays);
+    }
 
     public static void combine(CentroidState current, double xVal, double xDel, double yVal, double yDel, long count) {
         current.add(xVal, xDel, yVal, yDel, count);
-    }
-
-    public static void combineStates(CentroidState current, CentroidState state) {
-        current.add(state);
     }
 
     public static void combineIntermediate(CentroidState state, double xIn, double dx, double yIn, double dy, long count) {
@@ -59,19 +63,6 @@ abstract class CentroidPointAggregator {
 
     public static Block evaluateFinal(CentroidState state, DriverContext driverContext) {
         return state.toBlock(driverContext.blockFactory());
-    }
-
-    public static void combineStates(GroupingCentroidState current, int groupId, GroupingCentroidState state, int statePosition) {
-        if (state.hasValue(statePosition)) {
-            current.add(
-                state.xValues.get(statePosition),
-                state.xDeltas.get(statePosition),
-                state.yValues.get(statePosition),
-                state.yDeltas.get(statePosition),
-                state.counts.get(statePosition),
-                groupId
-            );
-        }
     }
 
     public static void combineIntermediate(
@@ -127,8 +118,8 @@ abstract class CentroidPointAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingCentroidState state, IntVector selected, DriverContext driverContext) {
-        try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(GroupingCentroidState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (BytesRefBlock.Builder builder = ctx.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.xValues.size()) {
@@ -161,12 +152,6 @@ abstract class CentroidPointAggregator {
 
         public void count(long count) {
             this.count = count;
-        }
-
-        public void add(CentroidState other) {
-            xSum.add(other.xSum.value(), other.xSum.delta());
-            ySum.add(other.ySum.value(), other.ySum.delta());
-            count += other.count;
         }
 
         public void add(double x, double y) {
@@ -253,7 +238,8 @@ abstract class CentroidPointAggregator {
         }
 
         /** Needed for generated code that does null tracking, which we do not need because we use count */
-        final void enableGroupIdTracking(SeenGroupIds ignore) {}
+        @Override
+        public final void enableGroupIdTracking(SeenGroupIds ignore) {}
 
         private void ensureCapacity(int groupId) {
             if (groupId >= xValues.size()) {

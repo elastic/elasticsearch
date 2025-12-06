@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,7 +30,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
@@ -49,11 +49,13 @@ public class MvLast extends AbstractMultivalueFunction {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """
@@ -62,9 +64,9 @@ public class MvLast extends AbstractMultivalueFunction {
             columns in a known order like <<esql-split>>.""",
         detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
-            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
             rely on that. If you need the maximum value use <<esql-mv_max>> instead of
-            `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a
+            `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn’t a
             performance benefit to `MV_LAST`.""",
         examples = @Example(file = "string", tag = "mv_last")
     )
@@ -81,6 +83,9 @@ public class MvLast extends AbstractMultivalueFunction {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -105,7 +110,7 @@ public class MvLast extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), DataType::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override

@@ -1,0 +1,79 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ query_monitoring ]
+      reason: "uses query monitoring"
+
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2023-10-23T13:55:01.543Z", "message": "" }
+          - { "index": { } }
+          - { "@timestamp": "2023-10-23T13:55:01.544Z" }
+          - { "index": { } }
+          - { "@timestamp": "2023-10-23T13:55:01.545Z", "message": "a" }
+
+---
+keyword equals empty string:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE message.keyword == "" | SORT @timestamp ASC | KEEP @timestamp | LIMIT 10'
+
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - length: { values: 1 }
+  - match: { values.0.0: 2023-10-23T13:55:01.543Z }
+
+---
+keyword to_lower equals empty string:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE TO_LOWER(message.keyword) == "" | SORT @timestamp ASC | KEEP @timestamp | LIMIT 10'
+
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - length: { values: 1 }
+  - match: { values.0.0: 2023-10-23T13:55:01.543Z }
+
+---
+text equals empty string:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE message == "" | SORT @timestamp ASC | KEEP @timestamp | LIMIT 10'
+
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - length: { values: 1 }
+  - match: { values.0.0: 2023-10-23T13:55:01.543Z }
+
+---
+text to_lower equals empty string:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ to_lower_empty_string ]
+      reason: "bug"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE TO_LOWER(message) == "" | SORT @timestamp ASC | KEEP @timestamp | LIMIT 10'
+
+  - match: { columns.0.name: "@timestamp" }
+  - match: { columns.0.type: "date" }
+  - length: { values: 1 }
+  - match: { values.0.0: 2023-10-23T13:55:01.543Z }

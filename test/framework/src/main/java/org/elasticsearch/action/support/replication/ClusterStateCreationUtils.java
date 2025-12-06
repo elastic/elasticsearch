@@ -10,23 +10,27 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable.Builder;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
@@ -34,12 +38,14 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -70,7 +76,27 @@ public class ClusterStateCreationUtils {
         ShardRoutingState primaryState,
         ShardRoutingState... replicaStates
     ) {
+        return state(Metadata.DEFAULT_PROJECT_ID, index, activePrimaryLocal, primaryState, replicaStates);
+    }
+
+    /**
+     * Creates cluster state with an index that has one shard and #(replicaStates) replicas
+     *
+     * @param projectId          project to create index in
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param primaryState       state of primary
+     * @param replicaStates      states of the replicas. length of this array determines also the number of replicas
+     */
+    public static ClusterState state(
+        ProjectId projectId,
+        String index,
+        boolean activePrimaryLocal,
+        ShardRoutingState primaryState,
+        ShardRoutingState... replicaStates
+    ) {
         return state(
+            projectId,
             index,
             activePrimaryLocal,
             primaryState,
@@ -96,7 +122,26 @@ public class ClusterStateCreationUtils {
     }
 
     /**
-     * Creates cluster state with and index that has one shard and #(replicaStates) replicas with given roles
+     * Creates cluster state with an index that has one shard and #(replicaStates) replicas with given roles
+     *
+     * @param projectId          project to create index in
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param primaryState       state of primary
+     * @param replicaStates      states and roles of the replicas. length of this collection determines also the number of replicas
+     */
+    public static ClusterState state(
+        ProjectId projectId,
+        String index,
+        boolean activePrimaryLocal,
+        ShardRoutingState primaryState,
+        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaStates
+    ) {
+        return state(projectId, index, activePrimaryLocal, primaryState, ShardRouting.Role.DEFAULT, replicaStates);
+    }
+
+    /**
+     * Creates cluster state with an index that has one shard and #(replicaStates) replicas with given roles
      *
      * @param index              name of the index
      * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
@@ -111,13 +156,34 @@ public class ClusterStateCreationUtils {
         ShardRouting.Role primaryRole,
         List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaStates
     ) {
+        return state(Metadata.DEFAULT_PROJECT_ID, index, activePrimaryLocal, primaryState, primaryRole, replicaStates);
+    }
+
+    /**
+     * Creates cluster state with an index that has one shard and #(replicaStates) replicas with given roles
+     *
+     * @param projectId          project to create index in
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param primaryState       state of primary
+     * @param primaryRole        role of primary
+     * @param replicaStates      states and roles of the replicas. length of this collection determines also the number of replicas
+     */
+    public static ClusterState state(
+        ProjectId projectId,
+        String index,
+        boolean activePrimaryLocal,
+        ShardRoutingState primaryState,
+        ShardRouting.Role primaryRole,
+        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaStates
+    ) {
         assert primaryState == ShardRoutingState.STARTED
             || primaryState == ShardRoutingState.RELOCATING
             || replicaStates.stream().allMatch(s -> s.v1() == ShardRoutingState.UNASSIGNED)
             : "invalid shard states ["
                 + primaryState
                 + "] vs ["
-                + Arrays.toString(replicaStates.stream().map(t -> t.v1()).toArray(String[]::new))
+                + Arrays.toString(replicaStates.stream().map(Tuple::v1).toArray(String[]::new))
                 + "]";
 
         final int numberOfReplicas = replicaStates.size();
@@ -151,7 +217,7 @@ public class ClusterStateCreationUtils {
             .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
             .timestampRange(timeFieldRange)
-            .eventIngestedRange(timeFieldRange, timeFieldRange == IndexLongFieldRange.UNKNOWN ? null : TransportVersions.V_8_15_0)
+            .eventIngestedRange(timeFieldRange)
             .build();
 
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
@@ -218,9 +284,18 @@ public class ClusterStateCreationUtils {
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        state.metadata(Metadata.builder().put(indexMetadataBuilder.build(), false).generateClusterUuidIfNeeded());
+        state.metadata(
+            Metadata.builder()
+                .put(ProjectMetadata.builder(projectId).put(indexMetadataBuilder.build(), false))
+                .generateClusterUuidIfNeeded()
+        );
         state.routingTable(
-            RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addIndexShard(indexShardRoutingBuilder)).build()
+            GlobalRoutingTable.builder()
+                .put(
+                    projectId,
+                    RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addIndexShard(indexShardRoutingBuilder))
+                )
+                .build()
         );
         return state.build();
     }
@@ -229,7 +304,15 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with an index that has #(numberOfPrimaries) primary shards in the started state and no replicas.
      * The cluster state contains #(numberOfNodes) nodes and assigns primaries to those nodes.
      */
-    public static ClusterState state(String index, final int numberOfNodes, final int numberOfPrimaries) {
+    public static ClusterState state(String index, int numberOfNodes, int numberOfPrimaries) {
+        return state(Metadata.DEFAULT_PROJECT_ID, index, numberOfNodes, numberOfPrimaries);
+    }
+
+    /**
+     * Creates cluster state with an index that has #(numberOfPrimaries) primary shards in the started state and no replicas.
+     * The cluster state contains #(numberOfNodes) nodes and assigns primaries to those nodes.
+     */
+    public static ClusterState state(ProjectId projectId, String indexName, int numberOfNodes, int numberOfPrimaries) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> nodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -239,7 +322,66 @@ public class ClusterStateCreationUtils {
         }
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(randomFrom(nodes));
-        IndexMetadata indexMetadata = IndexMetadata.builder(index)
+        IndexState index = buildIndex(indexName, numberOfPrimaries, nodes);
+
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metadata(
+            Metadata.builder().put(ProjectMetadata.builder(projectId).put(index.indexMetadata, false)).generateClusterUuidIfNeeded()
+        );
+        state.routingTable(GlobalRoutingTable.builder().put(projectId, RoutingTable.builder().add(index.indexRoutingTableBuilder)).build());
+        return state.build();
+    }
+
+    /**
+     * Creates cluster state with an index that has {@code numberOfPrimaries} primary shards in the started state and no replicas. The
+     * cluster state contains {@code numberOfIndexNodes} nodes with {@link DiscoveryNodeRole#INDEX_ROLE}, assigning the primary shards
+     * to those nodes, {@code numberOfSearchNodes} nodes with {@link DiscoveryNodeRole#SEARCH_ROLE}, and {@code numberOfMLNodes} with
+     * {@link DiscoveryNodeRole#ML_ROLE}.
+     */
+    public static ClusterState buildServerlessRoleNodes(
+        String indexName,
+        int numberOfPrimaries,
+        int numberOfIndexNodes,
+        int numberOfSearchNodes,
+        int numberOfMLNodes
+    ) {
+        ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        Set<String> indexNodeIds = new HashSet<>();
+        for (int i = 0; i < numberOfIndexNodes; i++) {
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("index_" + i).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build();
+            discoBuilder = discoBuilder.add(node);
+            indexNodeIds.add(node.getId());
+        }
+        for (int i = 0; i < numberOfSearchNodes; i++) {
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("search_" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
+            discoBuilder = discoBuilder.add(node);
+        }
+        for (int i = 0; i < numberOfMLNodes; i++) {
+            final DiscoveryNode node = DiscoveryNodeUtils.builder("ml_" + i).roles(Set.of(DiscoveryNodeRole.ML_ROLE)).build();
+            discoBuilder = discoBuilder.add(node);
+        }
+
+        String localNodeId = randomFrom(indexNodeIds);
+        discoBuilder.localNodeId(localNodeId);
+        discoBuilder.masterNodeId(localNodeId);
+
+        IndexState index = buildIndex(indexName, numberOfPrimaries, indexNodeIds);
+
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        state.metadata(
+            Metadata.builder().put(ProjectMetadata.builder(projectId).put(index.indexMetadata, false)).generateClusterUuidIfNeeded()
+        );
+        state.routingTable(GlobalRoutingTable.builder().put(projectId, RoutingTable.builder().add(index.indexRoutingTableBuilder)).build());
+        return state.build();
+    }
+
+    private record IndexState(IndexMetadata indexMetadata, IndexRoutingTable.Builder indexRoutingTableBuilder) {}
+
+    private static IndexState buildIndex(String indexName, int numberOfPrimaries, Set<String> nodeIds) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .build();
 
@@ -248,16 +390,11 @@ public class ClusterStateCreationUtils {
             ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             indexShardRoutingBuilder.addShard(
-                TestShardRouting.newShardRouting(shardId, randomFrom(nodes), true, ShardRoutingState.STARTED)
+                TestShardRouting.newShardRouting(shardId, randomFrom(nodeIds), true, ShardRoutingState.STARTED)
             );
             indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
         }
-
-        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
-        state.nodes(discoBuilder);
-        state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
-        state.routingTable(RoutingTable.builder().add(indexRoutingTable).build());
-        return state.build();
+        return new IndexState(indexMetadata, indexRoutingTable);
     }
 
     /**
@@ -265,7 +402,16 @@ public class ClusterStateCreationUtils {
      * started primary shards and no replicas.  The cluster state contains #(numberOfNodes) nodes
      * and assigns primaries to those nodes.
      */
-    public static ClusterState state(final int numberOfNodes, final String[] indices, final int numberOfPrimaries) {
+    public static ClusterState state(int numberOfNodes, String[] indices, int numberOfPrimaries) {
+        return state(Metadata.DEFAULT_PROJECT_ID, numberOfNodes, indices, numberOfPrimaries);
+    }
+
+    /**
+     * Creates cluster state with the given indices, each index containing #(numberOfPrimaries)
+     * started primary shards and no replicas.  The cluster state contains #(numberOfNodes) nodes
+     * and assigns primaries to those nodes.
+     */
+    public static ClusterState state(ProjectId projectId, int numberOfNodes, String[] indices, int numberOfPrimaries) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> nodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -275,7 +421,7 @@ public class ClusterStateCreationUtils {
         }
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(0).getId());
-        Metadata.Builder metadata = Metadata.builder();
+        ProjectMetadata.Builder projectMetadata = ProjectMetadata.builder(projectId);
         RoutingTable.Builder routingTable = RoutingTable.builder();
         List<String> nodesList = new ArrayList<>(nodes);
         int currentNodeToAssign = 0;
@@ -284,7 +430,7 @@ public class ClusterStateCreationUtils {
                 .settings(
                     indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
-                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, randomFrom(TransportVersions.V_8_0_0, TransportVersions.V_8_15_0))
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                 .build();
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -300,13 +446,13 @@ public class ClusterStateCreationUtils {
                 indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
             }
 
-            metadata.put(indexMetadata, false);
+            projectMetadata.put(indexMetadata, false);
             routingTable.add(indexRoutingTable);
         }
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        state.metadata(metadata.generateClusterUuidIfNeeded().build());
-        state.routingTable(routingTable.build());
+        state.metadata(Metadata.builder().put(projectMetadata).generateClusterUuidIfNeeded().build());
+        state.routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build());
         return state.build();
     }
 
@@ -314,6 +460,13 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several shards and one replica and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndOneReplica(String index, int numberOfShards) {
+        return stateWithAssignedPrimariesAndOneReplica(Metadata.DEFAULT_PROJECT_ID, index, numberOfShards);
+    }
+
+    /**
+     * Creates cluster state with several shards and one replica and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndOneReplica(ProjectId projectId, String index, int numberOfShards) {
 
         int numberOfNodes = 2; // we need a non-local master to test shard failures
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
@@ -328,7 +481,7 @@ public class ClusterStateCreationUtils {
             .build();
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
+        state.metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).generateClusterUuidIfNeeded());
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
         for (int i = 0; i < numberOfShards; i++) {
             final ShardId shardId = new ShardId(index, "_na_", i);
@@ -341,7 +494,9 @@ public class ClusterStateCreationUtils {
             );
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
         }
-        state.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
+        state.routingTable(
+            GlobalRoutingTable.builder().put(projectId, RoutingTable.builder().add(indexRoutingTableBuilder.build())).build()
+        );
         return state.build();
     }
 
@@ -349,7 +504,20 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
+        return stateWithAssignedPrimariesAndReplicas(Metadata.DEFAULT_PROJECT_ID, indices, numberOfShards, numberOfReplicas);
+    }
+
+    /**
+     * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas
+    ) {
         return stateWithAssignedPrimariesAndReplicas(
+            projectId,
             indices,
             numberOfShards,
             Collections.nCopies(numberOfReplicas, ShardRouting.Role.DEFAULT)
@@ -360,6 +528,18 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas (with given roles) and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        String[] indices,
+        int numberOfShards,
+        List<ShardRouting.Role> replicaRoles
+    ) {
+        return stateWithAssignedPrimariesAndReplicas(Metadata.DEFAULT_PROJECT_ID, indices, numberOfShards, replicaRoles);
+    }
+
+    /**
+     * Creates cluster state with several indexes, shards and replicas (with given roles) and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
         String[] indices,
         int numberOfShards,
         List<ShardRouting.Role> replicaRoles
@@ -377,10 +557,10 @@ public class ClusterStateCreationUtils {
         }
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
-        Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         Metadata.Builder metadataBuilder = Metadata.builder();
-
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
@@ -390,9 +570,9 @@ public class ClusterStateCreationUtils {
                     )
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
-                .eventIngestedRange(IndexLongFieldRange.UNKNOWN, null)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                 .build();
-            metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+            projectBuilder.put(indexMetadata, false);
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int i = 0; i < numberOfShards; i++) {
                 final ShardId shardId = new ShardId(index, "_na_", i);
@@ -411,9 +591,156 @@ public class ClusterStateCreationUtils {
             }
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
+
+        metadataBuilder.put(projectBuilder).generateClusterUuidIfNeeded();
+
         state.metadata(metadataBuilder);
-        state.routingTable(routingTableBuilder.build());
+        state.routingTable(GlobalRoutingTable.builder().put(projectId, routingTableBuilder).build());
         return state.build();
+    }
+
+    /**
+     * Creates cluster state that contains the specified indices with UNASSIGNED shards. The number of nodes will be
+     * `numberOfReplicas + 1` so that all index shards can be fully assigned.
+     *
+     * @param indices List of indices to create.
+     * @param numberOfShards Number of shards per index.
+     * @param numberOfReplicas Number of shard replicas per shard.
+     */
+    public static ClusterState stateWithUnassignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
+        return stateWithUnassignedPrimariesAndReplicas(
+            Metadata.DEFAULT_PROJECT_ID,
+            indices,
+            numberOfShards,
+            Collections.nCopies(numberOfReplicas, ShardRouting.Role.DEFAULT)
+        );
+    }
+
+    /**
+     * Creates cluster state that contains the specified indices with all UNASSIGNED shards.
+     * The number of nodes will be `replicaRoles.size() + 1` so that all index shards can be fully assigned.
+     */
+    public static ClusterState stateWithUnassignedPrimariesAndReplicas(
+        ProjectId projectId,
+        String[] indices,
+        int numberOfShards,
+        List<ShardRouting.Role> replicaRoles
+    ) {
+        int numberOfDataNodes = replicaRoles.size() + 1;
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        for (int i = 0; i < numberOfDataNodes; i++) {
+            final DiscoveryNode node = newNode(i);
+            discoBuilder = discoBuilder.add(node);
+            if (i == 0) {
+                discoBuilder.localNodeId(node.getId());
+                discoBuilder.masterNodeId(node.getId());
+            }
+        }
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
+        state.nodes(discoBuilder);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        for (String index : indices) {
+            IndexMetadata indexMetadata = IndexMetadata.builder(index)
+                .settings(
+                    indexSettings(IndexVersion.current(), numberOfShards, replicaRoles.size()).put(
+                        SETTING_CREATION_DATE,
+                        System.currentTimeMillis()
+                    )
+                )
+                .timestampRange(IndexLongFieldRange.UNKNOWN)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
+                .build();
+            projectBuilder.put(indexMetadata, false);
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+
+            for (int i = 0; i < numberOfShards; i++) {
+                final ShardId shardId = new ShardId(index, "_na_", i);
+                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+                indexShardRoutingBuilder.addShard(
+                    shardRoutingBuilder(index, i, null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(unassignedInfo).build()
+                );
+                for (int replica = 0; replica < replicaRoles.size(); replica++) {
+                    indexShardRoutingBuilder.addShard(
+                        shardRoutingBuilder(index, i, null, false, ShardRoutingState.UNASSIGNED).withRole(replicaRoles.get(replica))
+                            .withUnassignedInfo(unassignedInfo)
+                            .build()
+                    );
+                }
+                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
+
+        metadataBuilder.put(projectBuilder).generateClusterUuidIfNeeded();
+
+        state.metadata(metadataBuilder);
+        state.routingTable(GlobalRoutingTable.builder().put(projectId, routingTableBuilder).build());
+        return state.build();
+    }
+
+    public static Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas,
+        DiscoveryNodes nodes
+
+    ) {
+        return projectWithAssignedPrimariesAndReplicas(
+            projectId,
+            indices,
+            numberOfShards,
+            Collections.nCopies(numberOfReplicas, ShardRouting.Role.DEFAULT),
+            nodes
+        );
+    }
+
+    private static Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
+        String[] indices,
+        int numberOfShards,
+        List<ShardRouting.Role> replicaRoles,
+        DiscoveryNodes nodes
+    ) {
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final Iterator<DiscoveryNode> nodeIterator = Iterators.cycling(nodes);
+        for (String index : indices) {
+            final String uuid = UUIDs.base64UUID();
+            IndexMetadata indexMetadata = IndexMetadata.builder(index)
+                .settings(
+                    indexSettings(IndexVersion.current(), numberOfShards, replicaRoles.size()).put(
+                        SETTING_CREATION_DATE,
+                        System.currentTimeMillis()
+                    ).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+                )
+                .timestampRange(IndexLongFieldRange.UNKNOWN)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
+                .build();
+            projectBuilder.put(indexMetadata, false);
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            for (int i = 0; i < numberOfShards; i++) {
+                final ShardId shardId = new ShardId(index, uuid, i);
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+                indexShardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(shardId, nodeIterator.next().getId(), null, true, ShardRoutingState.STARTED)
+                );
+                for (int replica = 0; replica < replicaRoles.size(); replica++) {
+                    indexShardRoutingBuilder.addShard(
+                        shardRoutingBuilder(shardId, nodeIterator.next().getId(), false, ShardRoutingState.STARTED).withRole(
+                            replicaRoles.get(replica)
+                        ).build()
+                    );
+                }
+                indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder.build());
+        }
+        return new Tuple<>(projectBuilder, routingTableBuilder);
     }
 
     /**
@@ -425,8 +752,21 @@ public class ClusterStateCreationUtils {
      * @param numberOfReplicas   number of replicas
      */
     public static ClusterState stateWithActivePrimary(String index, boolean activePrimaryLocal, int numberOfReplicas) {
+        return stateWithActivePrimary(Metadata.DEFAULT_PROJECT_ID, index, activePrimaryLocal, numberOfReplicas);
+    }
+
+    /**
+     * Creates cluster state with and index that has one shard and as many replicas as numberOfReplicas.
+     * Primary will be STARTED in cluster state but replicas will be one of UNASSIGNED, INITIALIZING, STARTED or RELOCATING.
+     *
+     * @param projectId          project to create index in
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param numberOfReplicas   number of replicas
+     */
+    public static ClusterState stateWithActivePrimary(ProjectId projectId, String index, boolean activePrimaryLocal, int numberOfReplicas) {
         int assignedReplicas = randomIntBetween(0, numberOfReplicas);
-        return stateWithActivePrimary(index, activePrimaryLocal, assignedReplicas, numberOfReplicas - assignedReplicas);
+        return stateWithActivePrimary(projectId, index, activePrimaryLocal, assignedReplicas, numberOfReplicas - assignedReplicas);
     }
 
     /**
@@ -445,6 +785,27 @@ public class ClusterStateCreationUtils {
         int assignedReplicas,
         int unassignedReplicas
     ) {
+        return stateWithActivePrimary(Metadata.DEFAULT_PROJECT_ID, index, activePrimaryLocal, assignedReplicas, unassignedReplicas);
+    }
+
+    /**
+     * Creates cluster state with and index that has one shard and as many replicas as numberOfReplicas.
+     * Primary will be STARTED in cluster state. Some (unassignedReplicas) will be UNASSIGNED and
+     * some (assignedReplicas) will be one of INITIALIZING, STARTED or RELOCATING.
+     *
+     * @param projectId          project to create index in
+     * @param index              name of the index
+     * @param activePrimaryLocal if active primary should coincide with the local node in the cluster state
+     * @param assignedReplicas   number of replicas that should have INITIALIZING, STARTED or RELOCATING state
+     * @param unassignedReplicas number of replicas that should be unassigned
+     */
+    public static ClusterState stateWithActivePrimary(
+        ProjectId projectId,
+        String index,
+        boolean activePrimaryLocal,
+        int assignedReplicas,
+        int unassignedReplicas
+    ) {
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         // no point in randomizing - node assignment later on does it too.
         for (int i = 0; i < assignedReplicas; i++) {
@@ -453,7 +814,13 @@ public class ClusterStateCreationUtils {
         for (int i = assignedReplicas; i < replicaStates.length; i++) {
             replicaStates[i] = ShardRoutingState.UNASSIGNED;
         }
-        return state(index, activePrimaryLocal, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING), replicaStates);
+        return state(
+            projectId,
+            index,
+            activePrimaryLocal,
+            randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING),
+            replicaStates
+        );
     }
 
     /**
@@ -470,7 +837,7 @@ public class ClusterStateCreationUtils {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         state.metadata(Metadata.builder().generateClusterUuidIfNeeded());
-        state.routingTable(RoutingTable.builder().build());
+        state.routingTable(GlobalRoutingTable.builder().build());
         return state.build();
     }
 
@@ -574,12 +941,12 @@ public class ClusterStateCreationUtils {
     }
 
     private static Metadata.Builder addHealthNode(Metadata.Builder metadataBuilder, DiscoveryNode healthNode) {
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        ClusterPersistentTasksCustomMetadata.Builder tasks = ClusterPersistentTasksCustomMetadata.builder();
         PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment(
             healthNode.getId(),
             randomAlphaOfLength(10)
         );
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, HealthNodeTaskParams.INSTANCE, assignment);
-        return metadataBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        return metadataBuilder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build());
     }
 }

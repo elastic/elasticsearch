@@ -127,7 +127,7 @@ public class LogConfigurator {
             StatusLogger.getLogger().removeListener(ERROR_LISTENER);
         }
         configureESLogging();
-        configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+        configure(environment.settings(), environment.configDir(), environment.logsDir(), useConsole);
         initializeStatics();
         // creates a permanent status logger that can watch for StatusLogger events and forward to a real logger
         configureStatusLoggerForwarder();

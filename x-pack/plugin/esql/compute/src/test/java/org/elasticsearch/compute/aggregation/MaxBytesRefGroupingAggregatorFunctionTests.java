@@ -40,8 +40,8 @@ public class MaxBytesRefGroupingAggregatorFunctionTests extends GroupingAggregat
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxBytesRefAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxBytesRefAggregatorFunctionSupplier();
     }
 
     @Override

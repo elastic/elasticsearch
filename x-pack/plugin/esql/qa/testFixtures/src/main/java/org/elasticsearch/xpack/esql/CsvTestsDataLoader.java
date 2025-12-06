@@ -26,6 +26,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -41,7 +43,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
@@ -51,73 +56,201 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
-    private static final TestsDataset HOSTS = new TestsDataset("hosts");
-    private static final TestsDataset APPS = new TestsDataset("apps");
-    private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
-    private static final TestsDataset LANGUAGES = new TestsDataset("languages");
-    private static final TestsDataset ALERTS = new TestsDataset("alerts");
-    private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
-    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
-    private static final TestsDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
+    private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
+    private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
+        "employees_incompatible",
+        "mapping-default-incompatible.json",
+        "employees_incompatible.csv"
+    ).noSubfields();
+    private static final TestDataset HOSTS = new TestDataset("hosts");
+    private static final TestDataset APPS = new TestDataset("apps");
+    private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
+    private static final TestDataset MULTI_COLUMN_JOINABLE = new TestDataset(
+        "multi_column_joinable",
+        "mapping-multi_column_joinable.json",
+        "multi_column_joinable.csv"
+    );
+    private static final TestDataset MULTI_COLUMN_JOINABLE_LOOKUP = new TestDataset(
+        "multi_column_joinable_lookup",
+        "mapping-multi_column_joinable_lookup.json",
+        "multi_column_joinable_lookup.csv"
+    ).withSetting("lookup-settings.json");
+    private static final TestDataset LANGUAGES = new TestDataset("languages");
+    private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
+    private static final TestDataset LANGUAGES_NON_UNIQUE_KEY = new TestDataset("languages_non_unique_key");
+    private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
+        .withData("languages_non_unique_key.csv")
+        .withDynamicTypeMapping(Map.of("country", "text"));
+    private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
+        "languages_nested_fields",
+        "mapping-languages_nested_fields.json",
+        "languages_nested_fields.csv"
+    ).withSetting("lookup-settings.json");
+    private static final TestDataset LANGUAGES_MIX_NUMERICS = new TestDataset("languages_mixed_numerics").withSetting(
+        "lookup-settings.json"
+    );
+    private static final TestDataset ALERTS = new TestDataset("alerts");
+    private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
+    private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
+    private static final TestDataset MV_SAMPLE_DATA = new TestDataset("mv_sample_data");
+    private static final TestDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
         .withTypeMapping(Map.of("client_ip", "keyword"));
-    private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
+    private static final TestDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
         .withData("sample_data_ts_long.csv")
         .withTypeMapping(Map.of("@timestamp", "long"));
-    private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
-    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
-    private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
-    private static final TestsDataset AGES = new TestsDataset("ages");
-    private static final TestsDataset HEIGHTS = new TestsDataset("heights");
-    private static final TestsDataset DECADES = new TestsDataset("decades");
-    private static final TestsDataset AIRPORTS = new TestsDataset("airports");
-    private static final TestsDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
-    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web");
-    private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos");
-    private static final TestsDataset COUNTRIES_BBOX = new TestsDataset("countries_bbox");
-    private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset("countries_bbox_web");
-    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset("airport_city_boundaries");
-    private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset("cartesian_multipolygons");
-    private static final TestsDataset MULTIVALUE_GEOMETRIES = new TestsDataset("multivalue_geometries");
-    private static final TestsDataset MULTIVALUE_POINTS = new TestsDataset("multivalue_points");
-    private static final TestsDataset DISTANCES = new TestsDataset("distances");
-    private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
-    private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
-    private static final TestsDataset BOOKS = new TestsDataset("books");
-    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
+        .withData("sample_data_ts_nanos.csv")
+        .withTypeMapping(Map.of("@timestamp", "date_nanos"));
+    // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
+    private static final TestDataset SAMPLE_DATA_TS_NANOS_LOOKUP = SAMPLE_DATA_TS_NANOS.withIndex("sample__data_ts_nanos_lookup")
+        .withSetting("lookup-settings.json");
+    private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING = new TestDataset("partial_mapping_sample_data");
+    private static final TestDataset SAMPLE_DATA_NO_MAPPING = new TestDataset(
+        "no_mapping_sample_data",
+        "mapping-no_mapping_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    ).withTypeMapping(Stream.of("timestamp", "client_ip", "event_duration").collect(Collectors.toMap(k -> k, k -> "keyword")));
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE = new TestDataset(
+        "partial_mapping_no_source_sample_data",
+        "mapping-partial_mapping_no_source_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    ).withSetting("source_parameters-settings.json");
+    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE = new TestDataset(
+        "partial_mapping_excluded_source_sample_data",
+        "mapping-partial_mapping_excluded_source_sample_data.json",
+        "partial_mapping_sample_data.csv"
+    ).withSetting("source_parameters-settings.json");
+    private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
+    private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup").withSetting("lookup-settings.json");
+    private static final TestDataset MESSAGE_TYPES = new TestDataset("message_types");
+    private static final TestDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
+        .withSetting("lookup-settings.json");
+    private static final TestDataset FIREWALL_LOGS = new TestDataset("firewall_logs").noData();
+    private static final TestDataset THREAT_LIST = new TestDataset("threat_list").withSetting("lookup-settings.json").noData();
+    private static final TestDataset APP_LOGS = new TestDataset("app_logs").noData();
+    private static final TestDataset SERVICE_OWNERS = new TestDataset("service_owners").withSetting("lookup-settings.json").noData();
+    private static final TestDataset SYSTEM_METRICS = new TestDataset("system_metrics").noData();
+    private static final TestDataset HOST_INVENTORY = new TestDataset("host_inventory").withSetting("lookup-settings.json").noData();
+    private static final TestDataset OWNERSHIPS = new TestDataset("ownerships").withSetting("lookup-settings.json").noData();
+    private static final TestDataset CLIENT_CIDR = new TestDataset("client_cidr");
+    private static final TestDataset AGES = new TestDataset("ages");
+    private static final TestDataset HEIGHTS = new TestDataset("heights");
+    private static final TestDataset DECADES = new TestDataset("decades");
+    private static final TestDataset AIRPORTS = new TestDataset("airports");
+    private static final TestDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
+    private static final TestDataset AIRPORTS_NO_DOC_VALUES = new TestDataset("airports_no_doc_values").withData("airports.csv");
+    private static final TestDataset AIRPORTS_NOT_INDEXED = new TestDataset("airports_not_indexed").withData("airports.csv");
+    private static final TestDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestDataset("airports_not_indexed_nor_doc_values").withData(
+        "airports.csv"
+    );
+    private static final TestDataset AIRPORTS_WEB = new TestDataset("airports_web");
+    private static final TestDataset DATE_NANOS = new TestDataset("date_nanos");
+    private static final TestDataset DATE_NANOS_UNION_TYPES = new TestDataset("date_nanos_union_types");
+    private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");
+    private static final TestDataset COUNTRIES_BBOX_WEB = new TestDataset("countries_bbox_web");
+    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries").withSetting(
+        "lookup-settings.json"
+    );
+    private static final TestDataset CARTESIAN_MULTIPOLYGONS = new TestDataset("cartesian_multipolygons");
+    private static final TestDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestDataset("cartesian_multipolygons_no_doc_values")
+        .withData("cartesian_multipolygons.csv");
+    private static final TestDataset MULTIVALUE_GEOMETRIES = new TestDataset("multivalue_geometries");
+    private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
+    private static final TestDataset DISTANCES = new TestDataset("distances");
+    private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DATENANOS = new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv")
+        .withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
+        "k8s-downsampled",
+        "k8s-downsampled-mappings.json",
+        "k8s-downsampled.csv"
+    ).withSetting("k8s-downsampled-settings.json");
+    private static final TestDataset ADDRESSES = new TestDataset("addresses");
+    private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
+    private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset LOGS = new TestDataset("logs");
+    private static final TestDataset MV_TEXT = new TestDataset("mv_text");
+    private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset COLORS = new TestDataset("colors");
+    private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
+    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
+        "exp_histo_sample",
+        "exp_histo_sample-mappings.json",
+        "exp_histo_sample.csv"
+    ).withSetting("exp_histo_sample-settings.json");
+    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
 
-    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
+    public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
+        Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
         Map.entry(LANGUAGES.indexName, LANGUAGES),
+        Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
+        Map.entry(LANGUAGES_LOOKUP_NON_UNIQUE_KEY.indexName, LANGUAGES_LOOKUP_NON_UNIQUE_KEY),
+        Map.entry(LANGUAGES_NESTED_FIELDS.indexName, LANGUAGES_NESTED_FIELDS),
+        Map.entry(LANGUAGES_MIX_NUMERICS.indexName, LANGUAGES_MIX_NUMERICS),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING.indexName, SAMPLE_DATA_PARTIAL_MAPPING),
+        Map.entry(SAMPLE_DATA_NO_MAPPING.indexName, SAMPLE_DATA_NO_MAPPING),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE),
+        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE),
+        Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
+        Map.entry(SAMPLE_DATA_TS_NANOS_LOOKUP.indexName, SAMPLE_DATA_TS_NANOS_LOOKUP),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
+        Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
+        Map.entry(MESSAGE_TYPES.indexName, MESSAGE_TYPES),
+        Map.entry(MESSAGE_TYPES_LOOKUP.indexName, MESSAGE_TYPES_LOOKUP),
+        Map.entry(FIREWALL_LOGS.indexName, FIREWALL_LOGS),
+        Map.entry(THREAT_LIST.indexName, THREAT_LIST),
+        Map.entry(APP_LOGS.indexName, APP_LOGS),
+        Map.entry(SERVICE_OWNERS.indexName, SERVICE_OWNERS),
+        Map.entry(SYSTEM_METRICS.indexName, SYSTEM_METRICS),
+        Map.entry(HOST_INVENTORY.indexName, HOST_INVENTORY),
+        Map.entry(OWNERSHIPS.indexName, OWNERSHIPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
         Map.entry(AGES.indexName, AGES),
         Map.entry(HEIGHTS.indexName, HEIGHTS),
         Map.entry(DECADES.indexName, DECADES),
         Map.entry(AIRPORTS.indexName, AIRPORTS),
         Map.entry(AIRPORTS_MP.indexName, AIRPORTS_MP),
+        Map.entry(AIRPORTS_NO_DOC_VALUES.indexName, AIRPORTS_NO_DOC_VALUES),
+        Map.entry(AIRPORTS_NOT_INDEXED.indexName, AIRPORTS_NOT_INDEXED),
+        Map.entry(AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES.indexName, AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
         Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
+        Map.entry(CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES.indexName, CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES),
         Map.entry(MULTIVALUE_GEOMETRIES.indexName, MULTIVALUE_GEOMETRIES),
         Map.entry(MULTIVALUE_POINTS.indexName, MULTIVALUE_POINTS),
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
+        Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
+        Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
+        Map.entry(LOGS.indexName, LOGS),
+        Map.entry(MV_TEXT.indexName, MV_TEXT),
+        Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
+        Map.entry(COLORS.indexName, COLORS),
+        Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
+        Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
+        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
+        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
+        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -129,6 +262,8 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
     private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
+    private static final EnrichConfig CITY_LOCATIONS_ENRICH = new EnrichConfig("city_locations", "enrich-policy-city_locations.json");
+    private static final EnrichConfig COLORS_ENRICH = new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of(
         "languages",
@@ -137,7 +272,8 @@ public class CsvTestsDataLoader {
         "ages",
         "heights",
         "decades",
-        "airport_city_boundaries"
+        "airport_city_boundaries",
+        "colors_cmyk"
     );
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
         LANGUAGES_ENRICH,
@@ -148,8 +284,11 @@ public class CsvTestsDataLoader {
         DECADES_ENRICH,
         CITY_NAMES_ENRICH,
         CITY_BOUNDARIES_ENRICH,
-        CITY_AIRPORTS_ENRICH
+        CITY_AIRPORTS_ENRICH,
+        CITY_LOCATIONS_ENRICH,
+        COLORS_ENRICH
     );
+    public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     /**
      * <p>
@@ -205,7 +344,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -224,65 +363,271 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static Set<TestsDataset> availableDatasetsForEs(RestClient client) throws IOException {
-        boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
+    public static Set<TestDataset> availableDatasetsForEs(
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean requiresTimeSeries,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported
+    ) throws IOException {
+        Set<TestDataset> testDataSets = new HashSet<>();
 
-        return CSV_DATASET_MAP.values()
-            .stream()
-            .filter(d -> d.requiresInferenceEndpoint == false || inferenceEnabled)
-            .collect(Collectors.toCollection(HashSet::new));
+        for (TestDataset dataset : CSV_DATASET_MAP.values()) {
+            if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
+                && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
+                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
+                && (requiresTimeSeries == false || isTimeSeries(dataset))
+                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
+                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)) {
+                testDataSets.add(dataset);
+            }
+        }
+
+        return testDataSets;
     }
 
-    public static void loadDataSetIntoEs(RestClient client) throws IOException {
-        loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
-            ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
-        });
+    private static boolean isLookupDataset(TestDataset dataset) throws IOException {
+        Settings settings = dataset.readSettingsFile();
+        String mode = settings.get("index.mode");
+        return (mode != null && mode.equalsIgnoreCase("lookup"));
     }
 
-    private static void loadDataSetIntoEs(RestClient client, IndexCreator indexCreator) throws IOException {
+    private static boolean isSourceMappingDataset(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return true;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        // BWC tests don't support _source field mappings, so don't load those datasets.
+        return mappingNode.get("_source") != null;
+    }
+
+    private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("exponential_histogram")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("tdigest")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+        Settings settings = dataset.readSettingsFile();
+        String mode = settings.get("index.mode");
+        return (mode != null && mode.equalsIgnoreCase("time_series"));
+    }
+
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled
+    ) throws IOException {
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false);
+    }
+
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported
+    ) throws IOException {
+        loadDataSetIntoEs(
+            client,
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported,
+            (restClient, indexName, indexMapping, indexSettings) -> {
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+            }
+        );
+    }
+
+    private static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
+        IndexCreator indexCreator
+    ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client)) {
+        logger.info("Loading test datasets");
+        for (var dataset : availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported
+        )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets, logger);
+        logger.info("Loading enrich policies");
         for (var policy : ENRICH_POLICIES) {
             loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
         }
     }
 
-    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
-    public static void createInferenceEndpoint(RestClient client) throws IOException {
-        Request request = new Request("PUT", "_inference/sparse_embedding/test_sparse_inference");
-        request.setJsonEntity("""
-                  {
-                   "service": "test_service",
-                   "service_settings": {
-                     "model": "my_model",
-                     "api_key": "abc64"
-                   },
-                   "task_settings": {
-                   }
-                 }
-            """);
-        client.performRequest(request);
-    }
+    public static void createInferenceEndpoints(RestClient client) throws IOException {
+        if (clusterHasSparseEmbeddingInferenceEndpoint(client) == false) {
+            createSparseEmbeddingInferenceEndpoint(client);
+        }
 
-    public static void deleteInferenceEndpoint(RestClient client) throws IOException {
-        try {
-            client.performRequest(new Request("DELETE", "_inference/test_sparse_inference"));
-        } catch (ResponseException e) {
-            // 404 here means the endpoint was not created
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
+        if (clusterHasTextEmbeddingInferenceEndpoint(client) == false) {
+            createTextEmbeddingInferenceEndpoint(client);
+        }
+
+        if (clusterHasRerankInferenceEndpoint(client) == false) {
+            createRerankInferenceEndpoint(client);
+        }
+
+        if (clusterHasCompletionInferenceEndpoint(client) == false) {
+            createCompletionInferenceEndpoint(client);
         }
     }
 
-    public static boolean clusterHasInferenceEndpoint(RestClient client) throws IOException {
-        Request request = new Request("GET", "_inference/sparse_embedding/test_sparse_inference");
+    public static void deleteInferenceEndpoints(RestClient client) throws IOException {
+        deleteSparseEmbeddingInferenceEndpoint(client);
+        deleteTextEmbeddingInferenceEndpoint(client);
+        deleteRerankInferenceEndpoint(client);
+        deleteCompletionInferenceEndpoint(client);
+    }
+
+    /** The semantic_text mapping type requires inference endpoints that need to be setup before creating the index. */
+    public static void createSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference", """
+                  {
+                   "service": "test_service",
+                   "service_settings": { "model": "my_model", "api_key": "abc64" },
+                   "task_settings": { }
+                 }
+            """);
+    }
+
+    public static void createTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference", """
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                        "model": "my_model",
+                        "api_key": "abc64",
+                        "dimensions": 3,
+                        "similarity": "l2_norm",
+                        "element_type": "float"
+                    },
+                   "task_settings": { }
+                 }
+            """);
+    }
+
+    public static void deleteSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_sparse_inference");
+    }
+
+    public static void deleteTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_dense_inference");
+    }
+
+    public static boolean clusterHasSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference");
+    }
+
+    public static boolean clusterHasTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference");
+    }
+
+    public static void createRerankInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.RERANK, "test_reranker", """
+            {
+                "service": "test_reranking_service",
+                "service_settings": { "model_id": "my_model", "api_key": "abc64" },
+                "task_settings": { "use_text_length": true }
+            }
+            """);
+    }
+
+    public static void deleteRerankInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_reranker");
+    }
+
+    public static boolean clusterHasRerankInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.RERANK, "test_reranker");
+    }
+
+    public static void createCompletionInferenceEndpoint(RestClient client) throws IOException {
+        createInferenceEndpoint(client, TaskType.COMPLETION, "test_completion", """
+            {
+                "service": "completion_test_service",
+                "service_settings": { "model": "my_model", "api_key": "abc64" },
+                "task_settings": { "temperature": 3 }
+            }
+            """);
+    }
+
+    public static void deleteCompletionInferenceEndpoint(RestClient client) throws IOException {
+        deleteInferenceEndpoint(client, "test_completion");
+    }
+
+    public static boolean clusterHasCompletionInferenceEndpoint(RestClient client) throws IOException {
+        return clusterHasInferenceEndpoint(client, TaskType.COMPLETION, "test_completion");
+    }
+
+    private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings)
+        throws IOException {
+        Request request = new Request("PUT", "_inference/" + taskType.name() + "/" + inferenceId);
+        request.setJsonEntity(modelSettings);
+        client.performRequest(request);
+    }
+
+    private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
+        Request request = new Request("GET", "_inference/" + taskType.name() + "/" + inferenceId);
         try {
             client.performRequest(request);
         } catch (ResponseException e) {
@@ -294,11 +639,20 @@ public class CsvTestsDataLoader {
         return true;
     }
 
-    private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
-        URL policyMapping = CsvTestsDataLoader.class.getResource("/" + policyFileName);
-        if (policyMapping == null) {
-            throw new IllegalArgumentException("Cannot find resource " + policyFileName);
+    private static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "_inference/" + inferenceId));
+        } catch (ResponseException e) {
+            // 404 here means the endpoint was not created
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
         }
+    }
+
+    private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+        logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
+        URL policyMapping = getResource("/" + policyFileName);
         String entity = readTextFile(policyMapping);
         Request request = new Request("PUT", "/_enrich/policy/" + policyName);
         request.setJsonEntity(entity);
@@ -308,26 +662,25 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void load(RestClient client, TestsDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
-        final String mappingName = "/" + dataset.mappingFileName;
-        URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
-        if (mapping == null) {
-            throw new IllegalArgumentException("Cannot find resource " + mappingName);
+    private static URL getResource(String name) {
+        URL result = CsvTestsDataLoader.class.getResource(name);
+        if (result == null) {
+            throw new IllegalArgumentException("Cannot find resource " + name);
         }
-        final String dataName = "/" + dataset.dataFileName;
-        URL data = CsvTestsDataLoader.class.getResource(dataName);
-        if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource " + dataName);
-        }
-        Settings indexSettings = Settings.EMPTY;
-        final String settingName = dataset.settingFileName != null ? "/" + dataset.settingFileName : null;
-        if (settingName != null) {
-            indexSettings = Settings.builder()
-                .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                .build();
-        }
+        return result;
+    }
+
+    private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+        logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
+        URL mapping = getResource("/" + dataset.mappingFileName);
+        Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
-        loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+
+        // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
+        if (dataset.dataFileName != null) {
+            URL data = getResource("/data/" + dataset.dataFileName);
+            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        }
     }
 
     private static String readMappingFile(URL resource, Map<String, String> typeMapping) throws IOException {
@@ -366,6 +719,8 @@ public class CsvTestsDataLoader {
         }
     }
 
+    record ColumnHeader(String name, String type) {}
+
     @SuppressWarnings("unchecked")
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
@@ -383,12 +738,13 @@ public class CsvTestsDataLoader {
      */
     private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
+
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
-            String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null
+            ColumnHeader[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
 
             while ((line = reader.readLine()) != null) {
@@ -398,15 +754,16 @@ public class CsvTestsDataLoader {
                     String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
-                        columns = new String[entries.length];
+                        columns = new ColumnHeader[entries.length];
                         for (int i = 0; i < entries.length; i++) {
                             int split = entries[i].indexOf(':');
                             if (split < 0) {
-                                columns[i] = entries[i].trim();
+                                columns[i] = new ColumnHeader(entries[i].trim(), null);
                             } else {
                                 String name = entries[i].substring(0, split).trim();
+                                String type = entries[i].substring(split + 1).trim();
                                 if (allowSubFields || name.contains(".") == false) {
-                                    columns[i] = name;
+                                    columns[i] = new ColumnHeader(name, type);
                                 } else {// if it's a subfield, ignore it in the _bulk request
                                     columns[i] = null;
                                     subFieldsIndices.add(i);
@@ -436,7 +793,7 @@ public class CsvTestsDataLoader {
                                     // Value is null, skip
                                     continue;
                                 }
-                                if ("_id".equals(columns[i])) {
+                                if (columns[i] != null && "_id".equals(columns[i].name)) {
                                     // Value is an _id
                                     idField = entries[i];
                                     continue;
@@ -451,17 +808,17 @@ public class CsvTestsDataLoader {
                                     if (multiValues.length > 1) {
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            rowStringValue.append(quoteIfNecessary(s)).append(",");
+                                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = quoteIfNecessary(entries[i]);
+                                        entries[i] = toJson(columns[i].type, entries[i]);
                                     }
                                     // replace any escaped commas with single comma
                                     entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"").append(columns[i]).append("\":").append(entries[i]);
+                                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
                                         format(
@@ -499,9 +856,23 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static String quoteIfNecessary(String value) {
-        boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        return isQuoted ? value : "\"" + value + "\"";
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
+
+    private static String toJson(String type, String value) {
+        return switch (type == null ? "" : type) {
+            case "date_range", "double_range", "integer_range" -> {
+                Matcher m = RANGE_PATTERN.matcher(value);
+                if (m.matches() == false) {
+                    throw new IllegalArgumentException("can't parse range: " + value);
+                }
+                yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
+            }
+            default -> {
+                boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
+                boolean isNumeric = value.matches(NUMERIC_REGEX);
+                yield isQuoted || isNumeric ? value : "\"" + value + "\"";
+            }
+        };
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)
@@ -554,85 +925,145 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record TestsDataset(
+    public record MultiIndexTestDataset(String indexPattern, List<TestDataset> datasets) {
+        public static MultiIndexTestDataset of(TestDataset testsDataset) {
+            return new MultiIndexTestDataset(testsDataset.indexName, List.of(testsDataset));
+        }
+
+    }
+
+    public record TestDataset(
         String indexName,
         String mappingFileName,
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        Map<String, String> typeMapping,
+        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
+        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
         boolean requiresInferenceEndpoint
     ) {
-        public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, false);
+        public TestDataset(String indexName, String mappingFileName, String dataFileName) {
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, false);
         }
 
-        public TestsDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
+        public TestDataset(String indexName) {
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false);
         }
 
-        public TestsDataset withIndex(String indexName) {
-            return new TestsDataset(
+        public TestDataset withIndex(String indexName) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
-        public TestsDataset withData(String dataFileName) {
-            return new TestsDataset(
+        public TestDataset withData(String dataFileName) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
-        public TestsDataset withSetting(String settingFileName) {
-            return new TestsDataset(
+        public TestDataset noData() {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                null,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset withSetting(String settingFileName) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
-        public TestsDataset noSubfields() {
-            return new TestsDataset(
+        public TestDataset noSubfields() {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
                 settingFileName,
                 false,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
-        public TestsDataset withTypeMapping(Map<String, String> typeMapping) {
-            return new TestsDataset(
+        public TestDataset withTypeMapping(Map<String, String> typeMapping) {
+            return new TestDataset(
                 indexName,
                 mappingFileName,
                 dataFileName,
                 settingFileName,
                 allowSubFields,
                 typeMapping,
+                dynamicTypeMapping,
                 requiresInferenceEndpoint
             );
         }
 
-        public TestsDataset withInferenceEndpoint(boolean needsInference) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
+        public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset withInferenceEndpoint(boolean needsInference) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                needsInference
+            );
+        }
+
+        private Settings readSettingsFile() throws IOException {
+            Settings indexSettings = Settings.EMPTY;
+            final String settingName = settingFileName != null ? "/" + settingFileName : null;
+            if (settingName != null) {
+                indexSettings = Settings.builder()
+                    .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
+                    .build();
+            }
+
+            return indexSettings;
         }
     }
 

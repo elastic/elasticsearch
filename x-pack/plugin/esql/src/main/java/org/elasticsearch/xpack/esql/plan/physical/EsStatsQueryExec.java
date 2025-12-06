@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,38 +33,70 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public enum StatsType {
         COUNT,
-        MIN,
-        MAX,
-        EXISTS
     }
 
-    public record Stat(String name, StatsType type, QueryBuilder query) {
+    public sealed interface Stat {
+        List<ElementType> tagTypes();
+    }
 
+    public record BasicStat(String name, StatsType type, QueryBuilder query) implements Stat {
         public QueryBuilder filter(QueryBuilder sourceQuery) {
-            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query));
+            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
+        }
+
+        @Override
+        public List<ElementType> tagTypes() {
+            return List.of();
         }
     }
 
-    private final EsIndex index;
+    public record ByStat(List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) implements Stat {
+        public ByStat {
+            if (queryBuilderAndTags.isEmpty()) {
+                throw new IllegalStateException("ByStat must have at least one queryBuilderAndTags");
+            }
+        }
+
+        @Override
+        public List<ElementType> tagTypes() {
+            return List.of(switch (queryBuilderAndTags.getFirst().tags().getFirst()) {
+                case Integer i -> ElementType.INT;
+                case Long l -> ElementType.LONG;
+                default -> throw new IllegalStateException(
+                    "Unsupported tag type in ByStat: " + queryBuilderAndTags.getFirst().tags().getFirst()
+                );
+            });
+        }
+
+        @Override
+        public String toString() {
+            final StringBuffer sb = new StringBuffer("ByStat{");
+            sb.append("queryBuilderAndTags=").append(queryBuilderAndTags);
+            sb.append('}');
+            return sb.toString();
+        }
+    }
+
+    private final String indexPattern;
     private final QueryBuilder query;
     private final Expression limit;
     private final List<Attribute> attrs;
-    private final List<Stat> stats;
+    private final Stat stat;
 
     public EsStatsQueryExec(
         Source source,
-        EsIndex index,
-        QueryBuilder query,
+        String indexPattern,
+        @Nullable QueryBuilder query,
         Expression limit,
         List<Attribute> attributes,
-        List<Stat> stats
+        Stat stat
     ) {
         super(source);
-        this.index = index;
+        this.indexPattern = indexPattern;
         this.query = query;
         this.limit = limit;
         this.attrs = attributes;
-        this.stats = stats;
+        this.stat = stat;
     }
 
     @Override
@@ -78,19 +111,15 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsStatsQueryExec> info() {
-        return NodeInfo.create(this, EsStatsQueryExec::new, index, query, limit, attrs, stats);
+        return NodeInfo.create(this, EsStatsQueryExec::new, indexPattern, query, limit, attrs, stat);
     }
 
-    public EsIndex index() {
-        return index;
-    }
-
-    public QueryBuilder query() {
+    public @Nullable QueryBuilder query() {
         return query;
     }
 
-    public List<Stat> stats() {
-        return stats;
+    public Stat stat() {
+        return stat;
     }
 
     @Override
@@ -113,7 +142,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query, limit, attrs, stats);
+        return Objects.hash(indexPattern, query, limit, attrs, stat);
     }
 
     @Override
@@ -127,20 +156,20 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
 
         EsStatsQueryExec other = (EsStatsQueryExec) obj;
-        return Objects.equals(index, other.index)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
-            && Objects.equals(stats, other.stats);
+            && Objects.equals(stat, other.stat);
     }
 
     @Override
     public String nodeString() {
         return nodeName()
             + "["
-            + index
+            + indexPattern
             + "], stats"
-            + stats
+            + stat
             + "], query["
             + (query != null ? Strings.toString(query, false, true) : "")
             + "]"

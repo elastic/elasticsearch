@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -50,13 +49,8 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             super(in);
             this.inferenceEndpointId = in.readString();
             this.taskType = TaskType.fromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                this.forceDelete = Boolean.TRUE.equals(in.readOptionalBoolean());
-                this.dryRun = Boolean.TRUE.equals(in.readOptionalBoolean());
-            } else {
-                this.forceDelete = false;
-                this.dryRun = false;
-            }
+            this.forceDelete = Boolean.TRUE.equals(in.readOptionalBoolean());
+            this.dryRun = Boolean.TRUE.equals(in.readOptionalBoolean());
         }
 
         public String getInferenceEndpointId() {
@@ -80,10 +74,8 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             super.writeTo(out);
             out.writeString(inferenceEndpointId);
             taskType.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeOptionalBoolean(forceDelete);
-                out.writeOptionalBoolean(dryRun);
-            }
+            out.writeOptionalBoolean(forceDelete);
+            out.writeOptionalBoolean(dryRun);
         }
 
         @Override
@@ -121,32 +113,17 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                pipelineIds = in.readCollectionAsSet(StreamInput::readString);
-            } else {
-                pipelineIds = Set.of();
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
-                indexes = in.readCollectionAsSet(StreamInput::readString);
-                dryRunMessage = in.readOptionalString();
-            } else {
-                indexes = Set.of();
-                dryRunMessage = null;
-            }
-
+            pipelineIds = in.readCollectionAsSet(StreamInput::readString);
+            indexes = in.readCollectionAsSet(StreamInput::readString);
+            dryRunMessage = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeCollection(pipelineIds, StreamOutput::writeString);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {
-                out.writeCollection(indexes, StreamOutput::writeString);
-                out.writeOptionalString(dryRunMessage);
-            }
+            out.writeCollection(pipelineIds, StreamOutput::writeString);
+            out.writeCollection(indexes, StreamOutput::writeString);
+            out.writeOptionalString(dryRunMessage);
         }
 
         @Override

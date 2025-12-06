@@ -7,13 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link FloatVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class FloatVectorBlock extends AbstractVectorBlock implements FloatBlock {
 
@@ -54,6 +56,11 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     @Override
     public FloatBlock keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public FloatBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

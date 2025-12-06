@@ -63,7 +63,7 @@ public class DatafeedNodeSelector {
         List<String> datafeedIndices,
         IndicesOptions indicesOptions
     ) {
-        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         this.datafeedId = datafeedId;
         this.jobId = jobId;
         this.datafeedIndices = datafeedIndices;
@@ -206,9 +206,7 @@ public class DatafeedNodeSelector {
 
         for (String concreteIndex : concreteIndices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
-            if (routingTable == null
-                || routingTable.allPrimaryShardsActive() == false
-                || routingTable.readyForSearch(clusterState) == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 return new AssignmentFailure(
                     "cannot start datafeed ["
                         + datafeedId

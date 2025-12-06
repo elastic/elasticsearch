@@ -21,12 +21,10 @@ import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,10 +51,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             transportService,
             mock(ClusterService.class),
             mock(RerouteService.class),
-            mock(FeatureService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class)
         );
 
@@ -81,10 +77,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             transportService,
             mock(ClusterService.class),
             mock(RerouteService.class),
-            mock(FeatureService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class)
         );
 

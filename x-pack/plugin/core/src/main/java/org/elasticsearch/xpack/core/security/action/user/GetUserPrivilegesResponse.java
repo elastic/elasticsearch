@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,17 +45,12 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private final RemoteClusterPermissions remoteClusterPermissions;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
         cluster = in.readCollectionAsImmutableSet(StreamInput::readString);
         configurableClusterPrivileges = in.readCollectionAsImmutableSet(ConfigurableClusterPrivileges.READER);
         index = in.readCollectionAsImmutableSet(Indices::new);
         application = in.readCollectionAsImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
         runAs = in.readCollectionAsImmutableSet(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
-        } else {
-            remoteIndex = Set.of();
-        }
+        remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
         if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions = new RemoteClusterPermissions(in);
         } else {
@@ -115,7 +109,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     }
 
     public boolean hasRemoteClusterPrivileges() {
-        return remoteClusterPermissions.hasPrivileges();
+        return remoteClusterPermissions.hasAnyPrivileges();
     }
 
     @Override
@@ -125,17 +119,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeStringCollection(runAs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeCollection(remoteIndex);
-        } else if (hasRemoteIndicesPrivileges()) {
-            throw new IllegalArgumentException(
-                "versions of Elasticsearch before ["
-                    + TransportVersions.V_8_8_0.toReleaseVersion()
-                    + "] can't handle remote indices privileges and attempted to send to ["
-                    + out.getTransportVersion().toReleaseVersion()
-                    + "]"
-            );
-        }
+        out.writeCollection(remoteIndex);
         if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         } else if (hasRemoteClusterPrivileges()) {

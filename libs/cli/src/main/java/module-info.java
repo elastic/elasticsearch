@@ -11,6 +11,8 @@
 module org.elasticsearch.cli {
     requires jopt.simple;
     requires org.elasticsearch.base;
+    requires java.logging;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.cli;
 }

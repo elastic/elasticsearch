@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -17,8 +18,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExchangeSourceOperatorStatusTests extends AbstractWireSerializingTestCase<ExchangeSourceOperator.Status> {
     public void testToXContent() {
-        assertThat(Strings.toString(new ExchangeSourceOperator.Status(0, 10)), equalTo("""
-            {"pages_waiting":0,"pages_emitted":10}"""));
+        assertThat(Strings.toString(new ExchangeSourceOperator.Status(0, 10, 111)), equalTo("""
+            {"pages_waiting":0,"pages_emitted":10,"rows_emitted":111}"""));
     }
 
     @Override
@@ -28,24 +29,20 @@ public class ExchangeSourceOperatorStatusTests extends AbstractWireSerializingTe
 
     @Override
     protected ExchangeSourceOperator.Status createTestInstance() {
-        return new ExchangeSourceOperator.Status(between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE));
+        return new ExchangeSourceOperator.Status(randomNonNegativeInt(), randomNonNegativeInt(), randomNonNegativeLong());
     }
 
     @Override
     protected ExchangeSourceOperator.Status mutateInstance(ExchangeSourceOperator.Status instance) throws IOException {
-        switch (between(0, 1)) {
-            case 0:
-                return new ExchangeSourceOperator.Status(
-                    randomValueOtherThan(instance.pagesWaiting(), () -> between(0, Integer.MAX_VALUE)),
-                    instance.pagesEmitted()
-                );
-            case 1:
-                return new ExchangeSourceOperator.Status(
-                    instance.pagesWaiting(),
-                    randomValueOtherThan(instance.pagesEmitted(), () -> between(0, Integer.MAX_VALUE))
-                );
-            default:
-                throw new UnsupportedOperationException();
+        int pagesWaiting = instance.pagesWaiting();
+        int pagesEmitted = instance.pagesEmitted();
+        long rowsEmitted = instance.rowsEmitted();
+        switch (between(0, 2)) {
+            case 0 -> pagesWaiting = randomValueOtherThan(pagesWaiting, ESTestCase::randomNonNegativeInt);
+            case 1 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+            case 2 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
+            default -> throw new UnsupportedOperationException();
         }
+        return new ExchangeSourceOperator.Status(pagesWaiting, pagesEmitted, rowsEmitted);
     }
 }

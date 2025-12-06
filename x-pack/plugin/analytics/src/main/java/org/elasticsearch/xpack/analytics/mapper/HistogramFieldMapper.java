@@ -19,6 +19,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -34,11 +35,12 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -47,7 +49,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.CopyingXContentParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
@@ -55,7 +56,6 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -64,10 +64,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Field Mapper for pre-aggregated histograms.
  */
 public class HistogramFieldMapper extends FieldMapper {
+
     public static final String CONTENT_TYPE = "histogram";
 
-    public static final ParseField COUNTS_FIELD = new ParseField("counts");
-    public static final ParseField VALUES_FIELD = new ParseField("values");
+    // use the same default as numbers
+    private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
     private static HistogramFieldMapper toType(FieldMapper in) {
         return (HistogramFieldMapper) in;
@@ -77,8 +78,9 @@ public class HistogramFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
+        private final Parameter<Explicit<Boolean>> coerce;
 
-        public Builder(String name, boolean ignoreMalformedByDefault) {
+        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -86,11 +88,16 @@ public class HistogramFieldMapper extends FieldMapper {
                 m -> toType(m).ignoreMalformed,
                 ignoreMalformedByDefault
             );
+            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { ignoreMalformed, meta };
+            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
+                return new Parameter<?>[] { ignoreMalformed, coerce, meta };
+            } else {
+                return new Parameter<?>[] { ignoreMalformed, meta };
+            }
         }
 
         @Override
@@ -105,22 +112,31 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), COERCE_SETTING.get(c.getSettings())),
         notInMultiFields(CONTENT_TYPE)
     );
 
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
+    private final Explicit<Boolean> coerce;
+    private final boolean coerceByDefault;
+
     public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.coerce = builder.coerce.getValue();
+        this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
     @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    boolean coerce() {
+        return coerce.value();
     }
 
     @Override
@@ -130,7 +146,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault).init(this);
     }
 
     @Override
@@ -141,7 +157,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static class HistogramFieldType extends MappedFieldType {
 
         public HistogramFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
+            super(name, IndexType.docValuesOnly(), false, meta);
         }
 
         @Override
@@ -152,6 +168,11 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override
@@ -243,7 +264,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
                 @Override
                 public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-                    throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+                    throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
 
                 @Override
@@ -290,8 +311,6 @@ public class HistogramFieldMapper extends FieldMapper {
                 context.path().remove();
                 return;
             }
-            ArrayList<Double> values = null;
-            ArrayList<Long> counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             if (shouldStoreMalformedDataForSyntheticSource) {
@@ -301,106 +320,34 @@ public class HistogramFieldMapper extends FieldMapper {
             } else {
                 subParser = new XContentSubParser(context.parser());
             }
-            token = subParser.nextToken();
-            while (token != XContentParser.Token.END_OBJECT) {
-                // should be a field
-                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
-                String fieldName = subParser.currentName();
-                if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
-                    token = subParser.nextToken();
-                    // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    values = new ArrayList<>();
-                    token = subParser.nextToken();
-                    double previousVal = -Double.MAX_VALUE;
-                    while (token != XContentParser.Token.END_ARRAY) {
-                        // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                        double val = subParser.doubleValue();
-                        if (val < previousVal) {
-                            // values must be in increasing order
-                            throw new DocumentParsingException(
-                                subParser.getTokenLocation(),
-                                "error parsing field ["
-                                    + fullPath()
-                                    + "], ["
-                                    + VALUES_FIELD
-                                    + "] values must be in increasing order, got ["
-                                    + val
-                                    + "] but previous value was ["
-                                    + previousVal
-                                    + "]"
-                            );
-                        }
-                        values.add(val);
-                        previousVal = val;
-                        token = subParser.nextToken();
-                    }
-                } else if (fieldName.equals(COUNTS_FIELD.getPreferredName())) {
-                    token = subParser.nextToken();
-                    // should be an array
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, token, subParser);
-                    counts = new ArrayList<>();
-                    token = subParser.nextToken();
-                    while (token != XContentParser.Token.END_ARRAY) {
-                        // should be a number
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                        counts.add(subParser.longValue());
-                        token = subParser.nextToken();
-                    }
-                } else {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field [" + fullPath() + "], with unknown parameter [" + fieldName + "]"
-                    );
-                }
-                token = subParser.nextToken();
-            }
-            if (values == null) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
+            subParser.nextToken();
+
+            HistogramParser.ParsedHistogram parsedHistogram;
+            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
+                && coerce()
+                && subParser.currentToken() == XContentParser.Token.FIELD_NAME
+                && ExponentialHistogramParser.isExponentialHistogramSubFieldName(subParser.currentName())) {
+                ExponentialHistogramParser.ParsedExponentialHistogram parsedExponential = ExponentialHistogramParser.parse(
+                    fullPath(),
+                    subParser
                 );
+                parsedHistogram = ParsedHistogramConverter.exponentialToTDigest(parsedExponential);
+            } else {
+                parsedHistogram = HistogramParser.parse(fullPath(), subParser);
             }
-            if (counts == null) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field [" + fullPath() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
-                );
-            }
-            if (values.size() != counts.size()) {
-                throw new DocumentParsingException(
-                    subParser.getTokenLocation(),
-                    "error parsing field ["
-                        + fullPath()
-                        + "], expected same length from ["
-                        + VALUES_FIELD.getPreferredName()
-                        + "] and "
-                        + "["
-                        + COUNTS_FIELD.getPreferredName()
-                        + "] but got ["
-                        + values.size()
-                        + " != "
-                        + counts.size()
-                        + "]"
-                );
-            }
+
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            for (int i = 0; i < values.size(); i++) {
-                long count = counts.get(i);
-                if (count < 0) {
-                    throw new DocumentParsingException(
-                        subParser.getTokenLocation(),
-                        "error parsing field [" + fullPath() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
-                    );
-                } else if (count > 0) {
-                    // we do not add elements with count == 0
+            for (int i = 0; i < parsedHistogram.values().size(); i++) {
+                long count = parsedHistogram.counts().get(i);
+                assert count >= 0;
+                // we do not add elements with count == 0
+                if (count > 0) {
                     if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                         streamOutput.writeVLong(count);
                     } else {
                         streamOutput.writeVInt(Math.toIntExact(count));
                     }
-                    streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
+                    streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.values().get(i)));
                 }
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
@@ -445,7 +392,7 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     /** re-usable {@link HistogramValue} implementation */
-    private static class InternalHistogramValue extends HistogramValue {
+    static class InternalHistogramValue extends HistogramValue {
         double value;
         long count;
         boolean isExhausted;
@@ -497,14 +444,14 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = new CompositeSyntheticFieldLoader(
-            leafName(),
-            fullPath(),
-            new HistogramSyntheticFieldLoader(),
-            new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                new HistogramSyntheticFieldLoader(),
+                new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+            )
         );
-
-        return new SyntheticSourceSupport.Native(loader);
     }
 
     private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

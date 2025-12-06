@@ -47,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -152,8 +153,9 @@ public class SearchAfterIT extends ESIntegTestCase {
             searchResponse -> {
                 assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(2L));
                 assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
-                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
-                assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));
+                Map<String, Object> source = searchResponse.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.get("field1"), Matchers.equalTo(100));
+                assertThat(source.get("field2"), Matchers.equalTo("toto"));
             }
         );
     }
@@ -384,11 +386,11 @@ public class SearchAfterIT extends ESIntegTestCase {
         for (int i = 0; i < sortValues.size(); i++) {
             Object from = sortValues.get(i);
             if (from instanceof Integer integer) {
-                converted.add(integer.longValue());
+                converted.add(integer.intValue());
             } else if (from instanceof Short s) {
-                converted.add(s.longValue());
+                converted.add(s.intValue());
             } else if (from instanceof Byte b) {
-                converted.add(b.longValue());
+                converted.add(b.intValue());
             } else if (from instanceof Boolean b) {
                 if (b) {
                     converted.add(1L);
@@ -438,8 +440,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 int foundHits = 0;
                 do {
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
                         foundHits++;
@@ -469,8 +472,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 do {
                     Object[] after = null;
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         assertThat(((Number) timestamp).longValue(), equalTo(timestamps.get(foundHits)));
                         after = hit.getSortValues();
@@ -505,8 +509,9 @@ public class SearchAfterIT extends ESIntegTestCase {
                 do {
                     Object[] after = null;
                     for (SearchHit hit : resp.getHits().getHits()) {
-                        assertNotNull(hit.getSourceAsMap());
-                        final Object timestamp = hit.getSourceAsMap().get("timestamp");
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        assertNotNull(source);
+                        final Object timestamp = source.get("timestamp");
                         assertNotNull(timestamp);
                         foundSeqNos.add(((Number) timestamp).longValue());
                         after = hit.getSortValues();

@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,7 +33,10 @@ public class VectorFixedBuilderTests extends ESTestCase {
                 || elementType == ElementType.COMPOSITE
                 || elementType == ElementType.NULL
                 || elementType == ElementType.DOC
-                || elementType == ElementType.BYTES_REF) {
+                || elementType == ElementType.BYTES_REF
+                || elementType == ElementType.AGGREGATE_METRIC_DOUBLE
+                || elementType == ElementType.TDIGEST
+                || elementType == ElementType.EXPONENTIAL_HISTOGRAM) {
                 continue;
             }
             params.add(new Object[] { elementType });
@@ -67,7 +71,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
     private void testBuild(int size) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
         try (Vector.Builder builder = vectorBuilder(size, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, false, 1, 1, 0, 0);
+            RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
             fill(builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
@@ -81,7 +85,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
     public void testDoubleBuild() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
         try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+            RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
             fill(builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
@@ -100,7 +104,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             try {
                 Vector.Builder builder = vectorBuilder(10, blockFactory);
-                BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
                 fill(builder, random.block().asVector());
                 try (Vector built = builder.build()) {
                     assertThat(built, equalTo(random.block().asVector()));
@@ -116,7 +120,8 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, BYTES_REF, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, UNKNOWN ->
+                throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
             case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
             case FLOAT -> blockFactory.newFloatVectorFixedBuilder(size);
@@ -127,7 +132,8 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private void fill(Vector.Builder builder, Vector from) {
         switch (elementType) {
-            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, UNKNOWN ->
+                throw new UnsupportedOperationException();
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.FixedBuilder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));

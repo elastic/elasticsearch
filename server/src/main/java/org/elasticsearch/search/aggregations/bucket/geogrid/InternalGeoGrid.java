@@ -23,10 +23,12 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -106,7 +108,13 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
                 final int size = Math.toIntExact(
                     context.isFinalReduce() == false ? bucketsReducer.size() : Math.min(requiredSize, bucketsReducer.size())
                 );
-                try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, context.bigArrays())) {
+                try (
+                    BucketPriorityQueue<InternalGeoGridBucket, InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(
+                        size,
+                        context.bigArrays(),
+                        Function.identity()
+                    )
+                ) {
                     bucketsReducer.forEach(entry -> {
                         InternalGeoGridBucket bucket = createBucket(entry.key, entry.value.getDocCount(), entry.value.getAggregations());
                         ordered.insertWithOverflow(bucket);
@@ -130,20 +138,17 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return create(
-            getName(),
-            requiredSize,
-            buckets.stream()
-                .<InternalGeoGridBucket>map(
-                    b -> this.createBucket(
-                        b.hashAsLong,
-                        samplingContext.scaleUp(b.docCount),
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
-                    )
+        final List<InternalGeoGridBucket> buckets = new ArrayList<>(this.buckets.size());
+        for (InternalGeoGridBucket bucket : this.buckets) {
+            buckets.add(
+                this.createBucket(
+                    bucket.hashAsLong,
+                    samplingContext.scaleUp(bucket.docCount),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext)
                 )
-                .toList(),
-            getMetadata()
-        );
+            );
+        }
+        return create(getName(), requiredSize, buckets, getMetadata());
     }
 
     protected abstract B createBucket(long hashAsLong, long docCount, InternalAggregations aggregations);
@@ -152,7 +157,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (InternalGeoGridBucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

@@ -59,8 +59,15 @@ public class Regex {
         return isSuffixMatchPattern(str) && str.endsWith(".*");
     }
 
-    /** Return an {@link Automaton} that matches the given pattern. */
-    public static Automaton simpleMatchToAutomaton(String pattern) {
+    /**
+     * Return a non-determinized {@link Automaton} that matches the given pattern.
+     * WARNING: Use this method only when the resulting {@link Automaton} is used in contexts
+     * that do not require determinism (e.g., checking the intersection of automatons).
+     *
+     * For pattern matching with {@link CharacterRunAutomaton}, a deterministic automaton is required.
+     * In that case, use {@link Regex#simpleMatchToAutomaton} instead.
+     */
+    public static Automaton simpleMatchToNonDeterminizedAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();
         int previous = 0;
         for (int i = pattern.indexOf('*'); i != -1; i = pattern.indexOf('*', i + 1)) {
@@ -69,13 +76,24 @@ public class Regex {
             previous = i + 1;
         }
         automata.add(Automata.makeString(pattern.substring(previous)));
-        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.concatenate(automata);
+    }
+
+    /** Return a deterministic {@link Automaton} that matches the given pattern. */
+    public static Automaton simpleMatchToAutomaton(String pattern) {
+        return Operations.determinize(simpleMatchToNonDeterminizedAutomaton(pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**
-     * Return an Automaton that matches the union of the provided patterns.
+     * Returns a non-deterministic {@link Automaton} that matches the union of the given patterns.
+     *
+     * WARNING: Use this method only when the resulting {@link Automaton} is used in contexts
+     * that do not require determinism (e.g., checking the intersection of automatons).
+     *
+     * For pattern matching with {@link CharacterRunAutomaton}, a deterministic automaton is required.
+     * In that case, use {@link Regex#simpleMatchToAutomaton} instead.
      */
-    public static Automaton simpleMatchToAutomaton(String... patterns) {
+    public static Automaton simpleMatchToNonDeterminizedAutomaton(String... patterns) {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
@@ -88,7 +106,7 @@ public class Regex {
             if (isSuffixWildcard(pattern) && pattern.length() < 1000) {
                 prefixes.add(new BytesRef(pattern.substring(0, pattern.length() - 1)));
             } else if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
-                automata.add(simpleMatchToAutomaton(pattern));
+                automata.add(simpleMatchToNonDeterminizedAutomaton(pattern));
             } else {
                 simpleStrings.add(new BytesRef(pattern));
             }
@@ -113,7 +131,14 @@ public class Regex {
             prefixAutomaton.add(Automata.makeAnyString());
             automata.add(Operations.concatenate(prefixAutomaton));
         }
-        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.union(automata);
+    }
+
+    /**
+     * Return a deterministic Automaton that matches the union of the provided patterns.
+     */
+    public static Automaton simpleMatchToAutomaton(String... patterns) {
+        return Operations.determinize(simpleMatchToNonDeterminizedAutomaton(patterns), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

@@ -16,15 +16,18 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.ReplicationRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -33,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 public class TransportShardRefreshAction extends TransportReplicationAction<
@@ -47,6 +51,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     public static final String SOURCE_API = "api";
 
     private final Executor refreshExecutor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportShardRefreshAction(
@@ -56,7 +61,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         IndicesService indicesService,
         ThreadPool threadPool,
         ShardStateAction shardStateAction,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -74,8 +80,16 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             PrimaryActionExecution.RejectOnOverload,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
+        this.projectResolver = projectResolver;
         // registers the unpromotable version of shard refresh action
-        new TransportUnpromotableShardRefreshAction(clusterService, transportService, shardStateAction, actionFilters, indicesService);
+        new TransportUnpromotableShardRefreshAction(
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            indicesService,
+            threadPool
+        );
         this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
     }
 
@@ -96,6 +110,27 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
         }));
+    }
+
+    // We are here because there was mismatch between the SplitShardCountSummary in the request
+    // and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
+    // the current state.
+    @Override
+    protected Map<ShardId, BasicReplicationRequest> splitRequestOnPrimary(BasicReplicationRequest request) {
+        return ReplicationRequestSplitHelper.splitRequest(
+            request,
+            projectResolver.getProjectMetadata(clusterService.state()),
+            (targetShard, shardCountSummary) -> new BasicReplicationRequest(targetShard, shardCountSummary)
+        );
+    }
+
+    @Override
+    protected Tuple<ReplicationResponse, Exception> combineSplitResponses(
+        BasicReplicationRequest originalRequest,
+        Map<ShardId, BasicReplicationRequest> splitRequests,
+        Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
+    ) {
+        return ReplicationRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
     }
 
     @Override
@@ -119,28 +154,15 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
-            boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(
-                clusterService.state().metadata().index(indexShardRoutingTable.shardId().getIndex()).getSettings()
-            );
+            var primaryTerm = replicaRequest.primaryRefreshResult.primaryTerm();
+            var generation = replicaRequest.primaryRefreshResult.generation();
 
-            // Indices marked with fast refresh do not rely on refreshing the unpromotables
-            if (fastRefresh) {
-                listener.onResponse(null);
-            } else {
-                UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                    indexShardRoutingTable,
-                    replicaRequest.primaryRefreshResult.primaryTerm(),
-                    replicaRequest.primaryRefreshResult.generation(),
-                    false
-                );
-                transportService.sendRequest(
-                    transportService.getLocalNode(),
-                    TransportUnpromotableShardRefreshAction.NAME,
-                    unpromotableReplicaRequest,
-                    new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
-                );
-            }
+            transportService.sendRequest(
+                transportService.getLocalNode(),
+                TransportUnpromotableShardRefreshAction.NAME,
+                new UnpromotableShardRefreshRequest(indexShardRoutingTable, primaryTerm, generation, false),
+                new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
+            );
         }
     }
 }

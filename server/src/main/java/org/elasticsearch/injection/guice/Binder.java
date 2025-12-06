@@ -65,9 +65,7 @@ import org.elasticsearch.injection.guice.spi.Message;
  *
  * <p>The {@link Provider} you use here does not have to be a "factory"; that
  * is, a provider which always <i>creates</i> each instance it provides.
- * However, this is generally a good practice to follow.  You can then use
- * Guice's concept of {@link Scope scopes} to guide when creation should happen
- * -- "letting Guice work for you".
+ * However, this is generally a good practice to follow.
  *
  * <pre>
  *     bind(Service.class).annotatedWith(Red.class).to(ServiceImpl.class);</pre>

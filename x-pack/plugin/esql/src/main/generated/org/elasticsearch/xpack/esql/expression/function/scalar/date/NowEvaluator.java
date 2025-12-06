@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -16,9 +17,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Now}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NowEvaluator.class);
+
   private final Source source;
 
   private final long now;
@@ -36,6 +39,12 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block eval(Page page) {
     return eval(page.getPositionCount()).asBlock();
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    return baseRamBytesUsed;
   }
 
   public LongVector eval(int positionCount) {

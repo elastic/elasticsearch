@@ -14,8 +14,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,7 +59,6 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             globalCheckpoint = in.readLong();
             timedOut = in.readBoolean();
         }
@@ -142,6 +142,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             IndicesService indicesService
         ) {
@@ -151,6 +152,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 Request::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
@@ -239,7 +241,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             return state.routingTable().shardRoutingTable(request.request().getShardId()).primaryShardIt();
         }
     }

@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -51,7 +51,6 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -64,8 +63,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
-import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
-import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -85,20 +82,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
-import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -144,7 +138,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Create the index
         securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
@@ -155,7 +149,6 @@ public class NativeRolesStoreTests extends ESTestCase {
             TestUtils.newTestLicenseState(),
             securityIndex,
             clusterService,
-            mock(FeatureService.class),
             new ReservedRoleNameChecker.Default(),
             mock(NamedXContentRegistry.class)
         );
@@ -401,7 +394,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Init for validation
         new ReservedRolesStore(Set.of("superuser"));
@@ -411,7 +404,6 @@ public class NativeRolesStoreTests extends ESTestCase {
             licenseState,
             securityIndex,
             clusterService,
-            mock(FeatureService.class),
             mock(ReservedRoleNameChecker.class),
             mock(NamedXContentRegistry.class)
         );
@@ -463,101 +455,6 @@ public class NativeRolesStoreTests extends ESTestCase {
         putRole(rolesStore, flsDlsRole, future);
         e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("field and document level security"));
-    }
-
-    public void testPutRoleWithRemotePrivsUnsupportedMinNodeVersion() throws IOException {
-        // Init for validation
-        new ReservedRolesStore(Set.of("superuser"));
-        enum TEST_MODE {
-            REMOTE_INDICES_PRIVS,
-            REMOTE_CLUSTER_PRIVS,
-            REMOTE_INDICES_AND_CLUSTER_PRIVS
-        }
-        for (TEST_MODE testMode : TEST_MODE.values()) {
-            // default to both remote indices and cluster privileges and use the switch below to remove one or the other
-            TransportVersion transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-                TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-            );
-            RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = new RoleDescriptor.RemoteIndicesPrivileges[] {
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() };
-            RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions().addGroup(
-                new RemoteClusterPermissionGroup(
-                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                    new String[] { "remote" }
-                )
-            );
-            switch (testMode) {
-                case REMOTE_CLUSTER_PRIVS -> {
-                    transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-                        ROLE_REMOTE_CLUSTER_PRIVS
-                    );
-                    remoteIndicesPrivileges = null;
-                }
-                case REMOTE_INDICES_PRIVS -> remoteClusterPermissions = null;
-            }
-            final Client client = mock(Client.class);
-
-            final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
-                transportVersionBeforeAdvancedRemoteClusterSecurity
-            );
-            final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(minTransportVersion);
-
-            final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-
-            final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-            final FeatureService featureService = mock(FeatureService.class);
-            systemIndices.init(client, featureService, clusterService);
-            final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
-
-            final NativeRolesStore rolesStore = new NativeRolesStore(
-                Settings.EMPTY,
-                client,
-                licenseState,
-                securityIndex,
-                clusterService,
-                mock(FeatureService.class),
-                mock(ReservedRoleNameChecker.class),
-                mock(NamedXContentRegistry.class)
-            );
-            // setup the roles store so the security index exists
-            securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
-
-            RoleDescriptor remoteIndicesRole = new RoleDescriptor(
-                "remote",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                remoteIndicesPrivileges,
-                remoteClusterPermissions,
-                null,
-                null
-            );
-            PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-            putRole(rolesStore, remoteIndicesRole, future);
-            IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                String.format(Locale.ROOT, "expected IllegalStateException, but not thrown for mode [%s]", testMode),
-                future::actionGet
-            );
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "all nodes must have version ["
-                        + (TEST_MODE.REMOTE_CLUSTER_PRIVS.equals(testMode)
-                            ? ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
-                            : TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion())
-                        + "] or higher to support remote "
-                        + (remoteIndicesPrivileges != null ? "indices" : "cluster")
-                        + " privileges"
-                )
-            );
-        }
     }
 
     public void testGetRoleWhenDisabled() throws Exception {
@@ -891,7 +788,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
         }
 
-        Index index = metadata.index(securityIndexName).getIndex();
+        Index index = metadata.getProject().index(securityIndexName).getIndex();
 
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),

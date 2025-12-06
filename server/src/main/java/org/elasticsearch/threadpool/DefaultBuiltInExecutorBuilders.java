@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 
 import java.util.HashMap;
@@ -38,13 +39,28 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
         );
         result.put(
+            ThreadPool.Names.WRITE_COORDINATION,
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.WRITE_COORDINATION,
+                allocatedProcessors,
+                10000,
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build()
+            )
+        );
+        result.put(
             ThreadPool.Names.WRITE,
             new FixedExecutorBuilder(
                 settings,
                 ThreadPool.Names.WRITE,
                 allocatedProcessors,
-                10000,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                // 10,000 for all nodes with 8 cores or fewer. Scale up once we have more than 8 cores.
+                Math.max(allocatedProcessors * 750, 10000),
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackMaxQueueLatency()
+                    .trackExecutionTime(indexAutoscalingEWMA)
+                    .build()
             )
         );
         int searchOrGetThreadPoolSize = ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
@@ -68,8 +84,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 settings,
                 ThreadPool.Names.SEARCH,
                 searchOrGetThreadPoolSize,
-                1000,
-                new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
+                searchOrGetThreadPoolSize * 1000,
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(searchAutoscalingEWMA).build()
             )
         );
         result.put(
@@ -79,7 +95,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SEARCH_COORDINATION,
                 halfProc,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(searchAutoscalingEWMA).build()
             )
         );
         result.put(
@@ -91,10 +107,6 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 100,
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
-        );
-        result.put(
-            ThreadPool.Names.SEARCH_THROTTLED,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.SEARCH_THROTTLED, 1, 100, EsExecutors.TaskTrackingConfig.DEFAULT)
         );
         result.put(
             ThreadPool.Names.MANAGEMENT,
@@ -145,6 +157,12 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 false
             )
         );
+        if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
+            result.put(
+                ThreadPool.Names.MERGE,
+                new ScalingExecutorBuilder(ThreadPool.Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5), true)
+            );
+        }
         result.put(
             ThreadPool.Names.FORCE_MERGE,
             new FixedExecutorBuilder(
@@ -170,7 +188,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_READ,
                 halfProcMaxAt5,
                 2000,
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+                true
             )
         );
         result.put(
@@ -180,7 +199,19 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_WRITE,
                 halfProcMaxAt5,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build(),
+                true
+            )
+        );
+        result.put(
+            ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
+            new FixedExecutorBuilder(
+                settings,
+                ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
+                halfProcMaxAt5,
+                1000,
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build(),
+                true
             )
         );
         result.put(
@@ -190,7 +221,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_READ,
                 halfProcMaxAt5,
                 2000,
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+                true
             )
         );
         result.put(
@@ -200,7 +232,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
                 halfProcMaxAt5,
                 1500,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build(),
+                true
             )
         );
         return unmodifiableMap(result);

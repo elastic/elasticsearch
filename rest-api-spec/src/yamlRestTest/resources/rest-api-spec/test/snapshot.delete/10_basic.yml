@@ -68,3 +68,10 @@ setup:
         wait_for_completion: false
 
   - match: { acknowledged: true }
+
+  # now create another snapshot just to ensure that the async delete finishes before the test cleanup runs:
+  - do:
+      snapshot.create:
+        repository: test_repo_create_1
+        snapshot: barrier_snapshot
+        wait_for_completion: true

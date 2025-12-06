@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import joptsimple.internal.Strings;
+
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,9 +33,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.hamcrest.Matchers.equalTo;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
+
     static class ValueAndCompatibleTypes {
+
         final Supplier<Object> valueSupplier;
         final List<DataType> validDataTypes;
 
@@ -55,7 +62,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, FLOAT, DOUBLE, BOOLEAN),
         new ValueAndCompatibleTypes(ESTestCase::randomFloat, FLOAT, LONG, DOUBLE, BOOLEAN),
         new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, FLOAT, BOOLEAN),
-        new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), KEYWORD)
+        new ValueAndCompatibleTypes(() -> BytesRefs.toBytesRef(randomAlphaOfLength(5)), KEYWORD)
     );
 
     public static Literal randomLiteral() {
@@ -118,6 +125,19 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     public void testReplaceChildren() {
         Exception e = expectThrows(UnsupportedOperationException.class, () -> randomInstance().replaceChildrenSameSize(emptyList()));
         assertEquals("this type of node doesn't have any children to replace", e.getMessage());
+    }
+
+    public void testToString() {
+        assertThat(new Literal(Source.EMPTY, 1, LONG).toString(), equalTo("1"));
+        assertThat(new Literal(Source.EMPTY, BytesRefs.toBytesRef("short"), KEYWORD).toString(), equalTo("short"));
+        // toString should limit it's length
+        String tooLong = Strings.repeat('a', 510);
+        assertThat(new Literal(Source.EMPTY, BytesRefs.toBytesRef(tooLong), KEYWORD).toString(), equalTo(Strings.repeat('a', 500) + "..."));
+
+        for (ValueAndCompatibleTypes g : GENERATORS) {
+            Literal lit = new Literal(Source.EMPTY, g.valueSupplier.get(), randomFrom(g.validDataTypes));
+            assertThat(lit.toString(), equalTo(BytesRefs.toString(lit.value())));
+        }
     }
 
     private static Object randomValueOfTypeOtherThan(Object original, DataType type) {

@@ -23,7 +23,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -231,21 +230,9 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
         return this;
     }
 
-    public ZeroTermsQueryOption zeroTermsQuery() {
-        return zeroTermsQuery;
-    }
-
     public CombinedFieldsQueryBuilder autoGenerateSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateSynonymsPhraseQuery = enable;
         return this;
-    }
-
-    /**
-     * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to {@code true}.
-     */
-    public boolean autoGenerateSynonymsPhraseQuery() {
-        return autoGenerateSynonymsPhraseQuery;
     }
 
     private static void validateFieldBoost(float boost) {
@@ -461,6 +448,6 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersion.zero();
     }
 }

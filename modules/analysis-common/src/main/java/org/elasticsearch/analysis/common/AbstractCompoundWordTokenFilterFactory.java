@@ -28,14 +28,18 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
     protected final int maxSubwordSize;
     protected final boolean onlyLongestMatch;
     protected final CharArraySet wordList;
+    // TODO expose this parameter?
+    protected final boolean reuseChars;
 
     protected AbstractCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
 
         minWordSize = settings.getAsInt("min_word_size", CompoundWordTokenFilterBase.DEFAULT_MIN_WORD_SIZE);
         minSubwordSize = settings.getAsInt("min_subword_size", CompoundWordTokenFilterBase.DEFAULT_MIN_SUBWORD_SIZE);
         maxSubwordSize = settings.getAsInt("max_subword_size", CompoundWordTokenFilterBase.DEFAULT_MAX_SUBWORD_SIZE);
         onlyLongestMatch = settings.getAsBoolean("only_longest_match", false);
+        // TODO is the default of true correct? see: https://github.com/apache/lucene/pull/14278
+        reuseChars = true;
         wordList = Analysis.getWordSet(env, settings, "word_list");
         if (wordList == null) {
             throw new IllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");

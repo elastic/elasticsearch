@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.core.UpdateForV10;
+
 public final class XPackField {
     // These should be moved back to XPackPlugin once its moved to common
     /** Name constant for the security feature. */
@@ -30,6 +32,8 @@ public final class XPackField {
     public static final String UPGRADE = "upgrade";
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     public static final String SETTINGS_NAME = "xpack";
+    /** Name constant for the EIS feature. */
+    public static final String ELASTIC_INFERENCE_SERVICE = "Elastic Inference Service";
     /** Name constant for the eql feature. */
     public static final String EQL = "eql";
     /** Name constant for the esql feature. */
@@ -58,6 +62,7 @@ public final class XPackField {
     /** Name constant for the voting-only-node feature. */
     public static final String VOTING_ONLY = "voting_only";
     /** Name constant for the frozen index feature. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
     public static final String FROZEN_INDICES = "frozen_indices";
     /** Name constant for spatial features. */
     public static final String SPATIAL = "spatial";
@@ -71,6 +76,8 @@ public final class XPackField {
     public static final String DATA_STREAMS = "data_streams";
     /** Name constant for the data stream lifecycle feature. */
     public static final String DATA_STREAM_LIFECYCLE = "data_lifecycle";
+    /** Name constant for the time series data streams feature. */
+    public static final String TIME_SERIES_DATA_STREAMS = "time_series";
     /** Name constant for the data tiers feature. */
     public static final String DATA_TIERS = "data_tiers";
     /** Name constant for the aggregate_metric plugin. */
@@ -90,6 +97,7 @@ public final class XPackField {
     public static final String ENTERPRISE_GEOIP_DOWNLOADER = "enterprise_geoip_downloader";
     /** Name for Universal Profiling. */
     public static final String UNIVERSAL_PROFILING = "universal_profiling";
+    public static final String LOGSDB = "logsdb";
 
     private XPackField() {}
 

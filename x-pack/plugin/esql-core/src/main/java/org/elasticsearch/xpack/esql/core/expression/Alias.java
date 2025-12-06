@@ -22,11 +22,12 @@ import static java.util.Collections.singletonList;
 
 /**
  * An {@code Alias} is a {@code NamedExpression} that gets renamed to something else through the Alias.
- *
+ * <p>
  * For example, in the statement {@code 5 + 2 AS x}, {@code x} is an alias which is points to {@code ADD(5, 2)}.
- *
  * And in {@code SELECT col AS x} "col" is a named expression that gets renamed to "x" through an alias.
- *
+ * <p>
+ * Note on equality: The id is respected in {@link #equals(Object)} for Alias because the {@link ReferenceAttribute}
+ * created by {@link #toAttribute()} uses it.
  */
 public final class Alias extends NamedExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(NamedExpression.class, "Alias", Alias::new);
@@ -71,6 +72,10 @@ public final class Alias extends NamedExpression {
         );
     }
 
+    public Alias withId(NameId id) {
+        return new Alias(source(), name(), child(), id, synthetic());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
@@ -93,7 +98,8 @@ public final class Alias extends NamedExpression {
     }
 
     public Alias replaceChild(Expression child) {
-        return new Alias(source(), name(), child, id(), synthetic());
+        // these "nop" replacements can occur on attribute map resolutions having the default return same as the lookup key
+        return child == this.child ? this : new Alias(source(), name(), child, id(), synthetic());
     }
 
     @Override
@@ -124,7 +130,7 @@ public final class Alias extends NamedExpression {
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
-                ? new ReferenceAttribute(source(), name(), dataType(), nullable(), id(), synthetic())
+                ? new ReferenceAttribute(source(), null, name(), dataType(), nullable(), id(), synthetic())
                 : new UnresolvedAttribute(source(), name());
         }
         return lazyAttribute;
@@ -137,7 +143,7 @@ public final class Alias extends NamedExpression {
 
     @Override
     public String nodeString() {
-        return child.nodeString() + " AS " + name();
+        return child.nodeString() + " AS " + name() + "#" + id();
     }
 
     /**

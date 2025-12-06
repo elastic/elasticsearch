@@ -12,6 +12,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
-    private static final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("test");
+    private static final ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory("test");
     private static final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     private ExecutorService executor;

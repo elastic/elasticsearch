@@ -8,7 +8,6 @@
 package org.elasticsearch.repositories.blobstore.testkit.integrity;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -21,8 +20,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestRepositoryVerifyIntegrityAction extends BaseRestHandler {
-
-    public static final NodeFeature REPOSITORY_VERIFY_INTEGRITY_FEATURE = new NodeFeature("snapshot.repository_verify_integrity");
 
     @Override
     public List<Route> routes() {

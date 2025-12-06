@@ -23,14 +23,14 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Map;
 
 class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateMetricDouble valuesSource;
     private final DocValueFormat format;
 
     private DoubleArray sums;
@@ -45,7 +45,7 @@ class AggregateMetricBackedSumAggregator extends NumericMetricsAggregator.Single
     ) throws IOException {
         super(name, context, parent, metadata);
         assert valuesSourceConfig.hasValues();
-        this.valuesSource = (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateMetricDouble) valuesSourceConfig.getValuesSource();
         sums = context.bigArrays().newDoubleArray(1, true);
         compensations = context.bigArrays().newDoubleArray(1, true);
         this.format = valuesSourceConfig.format();

@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.Int3Hash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -22,8 +23,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 
 import java.util.Iterator;
 import java.util.List;
@@ -58,9 +61,7 @@ import java.util.List;
  *     leave a big gap, even if we never see {@code null}.
  * </p>
  */
-public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
-    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef2BlockHash, BytesRef3BlockHash, //
-    NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash, TimeSeriesBlockHash {
+public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     protected final BlockFactory blockFactory;
 
@@ -91,6 +92,9 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
+     * <p>
+     *     Keys must be in the same order as the IDs returned by {@link #nonEmpty()}.
+     * </p>
      */
     public abstract Block[] getKeys();
 
@@ -100,6 +104,9 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}
      * and {@code true} to {@code 1}. It's only <strong>after</strong> collection when we
      * know if there actually were any {@code true} or {@code false} values received.
+     * <p>
+     *     IDs must be in the same order as the keys returned by {@link #getKeys()}.
+     * </p>
      */
     public abstract IntVector nonEmpty();
 
@@ -107,7 +114,42 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
-    public record GroupSpec(int channel, ElementType elementType) {}
+    /**
+     * Configuration for a BlockHash group spec that is later sorted and limited (Top-N).
+     * <p>
+     *     Part of a performance improvement to avoid aggregating groups that will not be used.
+     * </p>
+     *
+     * @param order The order of this group in the sort, starting at 0
+     * @param asc True if this group will be sorted ascending. False if descending.
+     * @param nullsFirst True if the nulls should be the first elements in the TopN. False if they should be kept last.
+     * @param limit The number of elements to keep, including nulls.
+     */
+    public record TopNDef(int order, boolean asc, boolean nullsFirst, int limit) {}
+
+    /**
+     * Configuration for a BlockHash group spec that is doing text categorization.
+     */
+    public record CategorizeDef(String analyzer, OutputFormat outputFormat, int similarityThreshold) {
+        public enum OutputFormat {
+            REGEX,
+            TOKENS
+        }
+    }
+
+    public record GroupSpec(int channel, ElementType elementType, @Nullable CategorizeDef categorizeDef, @Nullable TopNDef topNDef) {
+        public GroupSpec(int channel, ElementType elementType) {
+            this(channel, elementType, null, null);
+        }
+
+        public GroupSpec(int channel, ElementType elementType, CategorizeDef categorizeDef) {
+            this(channel, elementType, categorizeDef, null);
+        }
+
+        public boolean isCategorize() {
+            return categorizeDef != null;
+        }
+    }
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
@@ -120,7 +162,12 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
         if (groups.size() == 1) {
-            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
+            GroupSpec group = groups.get(0);
+            if (group.topNDef() != null && group.elementType() == ElementType.LONG) {
+                TopNDef topNDef = group.topNDef();
+                return new LongTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
+            }
+            return newForElementType(group.channel(), group.elementType(), blockFactory);
         }
         if (groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
             switch (groups.size()) {
@@ -157,6 +204,31 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+
+    /**
+     * Builds a BlockHash for the Categorize grouping function.
+     */
+    public static BlockHash buildCategorizeBlockHash(
+        List<GroupSpec> groups,
+        AggregatorMode aggregatorMode,
+        BlockFactory blockFactory,
+        AnalysisRegistry analysisRegistry,
+        int emitBatchSize
+    ) {
+        if (groups.size() == 1) {
+            return new CategorizeBlockHash(
+                blockFactory,
+                groups.get(0).channel,
+                aggregatorMode,
+                groups.get(0).categorizeDef,
+                analysisRegistry
+            );
+        } else {
+            assert groups.get(0).isCategorize();
+            assert groups.subList(1, groups.size()).stream().noneMatch(GroupSpec::isCategorize);
+            return new CategorizePackedValuesBlockHash(groups, blockFactory, aggregatorMode, analysisRegistry, emitBatchSize);
+        }
     }
 
     /**

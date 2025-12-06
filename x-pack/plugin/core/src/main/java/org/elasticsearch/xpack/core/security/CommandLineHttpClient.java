@@ -14,7 +14,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -154,10 +154,12 @@ public class CommandLineHttpClient {
                     sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
                     httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
                 } else {
-                    final SslConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
+                    final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
                     // Requires permission java.lang.RuntimePermission "setFactory";
-                    httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
-                    final boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+                    httpsConn.setSSLSocketFactory(sslProfile.socketFactory());
+                    final boolean isHostnameVerificationEnabled = sslProfile.configuration()
+                        .verificationMode()
+                        .isHostnameVerificationEnabled();
                     if (isHostnameVerificationEnabled == false) {
                         httpsConn.setHostnameVerifier((hostname, session) -> true);
                     }
@@ -277,7 +279,7 @@ public class CommandLineHttpClient {
                 checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                 return;
             } else {
-                throw new IllegalStateException("Failed to determine the health of the cluster. ", e);
+                throw new IllegalStateException("Failed to determine the health of the cluster.", e);
             }
         }
         final int responseStatus = response.getHttpStatus();

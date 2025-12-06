@@ -346,7 +346,7 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
   - is_false: hits.hits.0._source.k8s\.pod\.running
 
-  # Assert rollup index settings
+  # Assert downsample index settings
   - do:
       indices.get_settings:
         index: test-downsample
@@ -358,7 +358,7 @@ setup:
   - match: { test-downsample.settings.index.downsample.source.name: test }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
 
-  # Assert rollup index mapping
+  # Assert downsample index mapping
   - do:
       indices.get_mapping:
         index: test-downsample
@@ -388,13 +388,88 @@ setup:
       indices.get:
         index: test
 
-  # Assert rollup index has been force merged
+---
+"Downsample index sample last values":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Last value sampling method was added in 9.3
   - do:
-      indices.segments:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body:  >
+          {
+            "fixed_interval": "1h",
+            "sampling_method": "last_value"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+  - match:  { hits.hits.0._source._doc_count: 2 }
+  - match:  { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match:  { hits.hits.0._source.metricset: pod }
+
+  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 0 }
+  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 0.00 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge: 101 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge: 101.0 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx: 1434577921 }
+  - match:  { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.56" }
+  - match:  { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:43:00.000Z" }
+  - match:  { hits.hits.0._source.k8s\.pod\.number_of_containers: 1 }
+  - match:  { hits.hits.0._source.k8s\.pod\.tags: ["backend", "test", "us-west2"] }
+  - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
+  - is_false: hits.hits.0._source.k8s\.pod\.running
+
+  # Assert downsample index settings
+  - do:
+      indices.get_settings:
         index: test-downsample
 
-  - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
-  - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}
+  - match: { test-downsample.settings.index.mode: time_series }
+  - match: { test-downsample.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
+  - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
+  - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
+  - match: { test-downsample.settings.index.downsample.source.name: test }
+  - match: { test-downsample.settings.index.downsample.sampling_method: last_value }
+  - match: { test-downsample.settings.index.number_of_shards: "1" }
+
+  # Assert rollup index mapping
+  - do:
+      indices.get_mapping:
+        index: test-downsample
+
+  - match: { test-downsample.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.type: integer }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.type: long }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.type: scaled_float }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.scaling_factor: 100 }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.type: scaled_float }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.type: keyword }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
+
+
+  # Assert source index has not been deleted
+  - do:
+      indices.get:
+        index: test
 
 ---
 "Downsample non-existing index":
@@ -869,6 +944,69 @@ setup:
         body: >
           {
             "fixed_interval": "90m"
+          }
+
+---
+"Downsample a downsampled index with wrong sampling methods":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Last value sampling method was added in 9.3
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample-default
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample-last-value
+        body: >
+          {
+            "fixed_interval": "1h",
+            "sampling_method": "last_value"
+          }
+  - is_true: acknowledged
+
+  - do:
+      catch: /Downsampling method \[last_value\] is not compatible with the source index downsampling method \[aggregate\]/
+      indices.downsample:
+        index: test-downsample-default
+        target_index: test-downsample-2
+        body: >
+          {
+            "fixed_interval": "2h",
+            "sampling_method": "last_value"
+          }
+
+  - do:
+      catch: /Downsampling method \[aggregate\] is not compatible with the source index downsampling method \[last_value\]/
+      indices.downsample:
+        index: test-downsample-last-value
+        target_index: test-downsample-2
+        body: >
+          {
+            "fixed_interval": "2h"
+          }
+
+  - do:
+      catch: /Downsampling method \[aggregate\] is not compatible with the source index downsampling method \[last_value\]/
+      indices.downsample:
+        index: test-downsample-last-value
+        target_index: test-downsample-2
+        body: >
+          {
+            "fixed_interval": "2h",
+            "sampling_method": "aggregate"
           }
 
 ---
@@ -1555,7 +1693,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ k8s.pod.name ]
@@ -1639,7 +1776,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ k8s.pod.name, k8s.pod.empty ]
@@ -1710,3 +1846,168 @@ setup:
   - match: { hits.hits.1._source._doc_count: 1 }
   - match: { hits.hits.1._source.k8s\.pod\.name: cat }
   - match: { hits.hits.1._source.k8s\.pod\.empty: "" }
+
+---
+"Downsample exponential histogram with last value":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value", "downsampling.exponential_histograms" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Last value sampling method was added in 9.3
+  - do:
+      indices.create:
+        index: test-exponential-histogram
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: exponential_histogram
+                time_series_metric: histogram
+              label:
+                type: exponential_histogram
+  - is_true: shards_acknowledged
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-exponential-histogram
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "lala", "metric": {"scale": -1, "sum": 1.2295711150758473, "min": -0.9714203537912545, "max": 0.9865998839317596, "negative": {"indices": [-3, -2, -1], "counts": [2, 11, 36]}, "positive": {"indices": [-6, -3, -2, -1], "counts": [1, 3, 11, 36]}}, "label": {"scale": -1, "sum": 1.2295711150758473, "min": -0.9714203537912545, "max": 0.9865998839317596, "negative": {"indices": [-3, -2, -1], "counts": [2, 11, 36]}, "positive": {"indices": [-6, -3, -2, -1], "counts": [1, 3, 11, 36]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "lala", "metric": {"scale": 1, "sum": 5.89290987609197, "min": -0.9410989907817573, "max": 0.9821606962370899, "negative": {"indices": [-9, -8, -7, -4, -3, -2, -1], "counts": [1, 2, 1, 3, 3, 2, 6]}, "positive": {"indices": [-10, -7, -6, -5, -4, -3, -2, -1], "counts": [3, 2, 1, 2, 5, 6, 4, 9]}}, "label": {"scale": 1, "sum": 5.89290987609197, "min": -0.9410989907817573, "max": 0.9821606962370899, "negative": {"indices": [-9, -8, -7, -4, -3, -2, -1], "counts": [1, 2, 1, 3, 3, 2, 6]}, "positive": {"indices": [-10, -7, -6, -5, -4, -3, -2, -1], "counts": [3, 2, 1, 2, 5, 6, 4, 9]}}}'
+  - match: { items.0.index.result: "created"}
+  - match: { items.1.index.result: "created"}
+
+  - do:
+      indices.put_settings:
+        index: test-exponential-histogram
+        body:
+          index.blocks.write: true
+  - is_true: acknowledged
+
+  - do:
+      indices.downsample:
+        index: test-exponential-histogram
+        target_index: downsampled-exponential-histogram
+        body: >
+          {
+            "fixed_interval": "1h",
+            "sampling_method": "last_value"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: downsampled-exponential-histogram
+
+  - length: { hits.hits: 1 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.metricset: lala }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.metric.max: 0.9821606962370899 }
+  - match: { hits.hits.0._source.metric.min: -0.9410989907817573 }
+  - match: { hits.hits.0._source.metric.scale: 1 }
+  - match: { hits.hits.0._source.metric.sum: 5.89290987609197 }
+  - match: { hits.hits.0._source.label.max: 0.9821606962370899 }
+  - match: { hits.hits.0._source.label.min: -0.9410989907817573 }
+  - match: { hits.hits.0._source.label.scale: 1 }
+  - match: { hits.hits.0._source.label.sum: 5.89290987609197 }
+
+---
+"Downsample exponential histogram with aggregate":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.exponential_histograms" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Last value sampling method was added in 9.3
+  - do:
+      indices.create:
+        index: test-exponential-histogram
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: exponential_histogram
+                time_series_metric: histogram
+              label:
+                type: exponential_histogram
+  - is_true: shards_acknowledged
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-exponential-histogram
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "lala", "metric": {"scale":38,"sum":-2.659439830689209,"min":-0.9985699620066124,"max":0.9991606633362218,"positive":{"indices":[-1349015837690,-1133741949749,-1093555204471,-878875428260,-870694284095,-831557211207,-801793317707,-633655864830,-583473541038,-576512037819,-568470393517,-555322469609,-510705457264,-497886869173,-485920366989,-459535642468,-433595368145,-390027945362,-356113581539,-343989550188,-340618512768,-292750567759,-278017998597,-273632142061,-265328573027,-262313863416,-261799809534,-243544433917,-200039973732,-189492605429,-153154647965,-134459061772,-117996065668,-111711978805,-109965984611,-101785856856,-93187164407,-79681306932,-76611651392,-65149069301,-58423697696,-56765280861,-41035363279,-39729265577,-7007278892,-332991304],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},"negative":{"indices":[-1722041245251,-1507876068779,-1461993774485,-1437177146905,-1022221748846,-909329959788,-902070008615,-869527704039,-859349507080,-836401169293,-835541219174,-827446708753,-823853818576,-767042645194,-764466131268,-698239247988,-598695656860,-560446067886,-554301612745,-521812328033,-508700015492,-462218888037,-417010270052,-384781248780,-371405487026,-366789447120,-349996665670,-300317310192,-287581746174,-287132961026,-284865058959,-255687331935,-236975923503,-200065874687,-196100184062,-147243768507,-145933242978,-140904484007,-136697299301,-117022220796,-87401418251,-63863967756,-62902280835,-59450473434,-53232718483,-49452610935,-45384224466,-36361788727,-34176300034,-12469429575,-9431189993,-3254481828,-2083495024,-567508884],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}}, "label": {"scale":38,"sum":-2.659439830689209,"min":-0.9985699620066124,"max":0.9991606633362218,"positive":{"indices":[-1349015837690,-1133741949749,-1093555204471,-878875428260,-870694284095,-831557211207,-801793317707,-633655864830,-583473541038,-576512037819,-568470393517,-555322469609,-510705457264,-497886869173,-485920366989,-459535642468,-433595368145,-390027945362,-356113581539,-343989550188,-340618512768,-292750567759,-278017998597,-273632142061,-265328573027,-262313863416,-261799809534,-243544433917,-200039973732,-189492605429,-153154647965,-134459061772,-117996065668,-111711978805,-109965984611,-101785856856,-93187164407,-79681306932,-76611651392,-65149069301,-58423697696,-56765280861,-41035363279,-39729265577,-7007278892,-332991304],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},"negative":{"indices":[-1722041245251,-1507876068779,-1461993774485,-1437177146905,-1022221748846,-909329959788,-902070008615,-869527704039,-859349507080,-836401169293,-835541219174,-827446708753,-823853818576,-767042645194,-764466131268,-698239247988,-598695656860,-560446067886,-554301612745,-521812328033,-508700015492,-462218888037,-417010270052,-384781248780,-371405487026,-366789447120,-349996665670,-300317310192,-287581746174,-287132961026,-284865058959,-255687331935,-236975923503,-200065874687,-196100184062,-147243768507,-145933242978,-140904484007,-136697299301,-117022220796,-87401418251,-63863967756,-62902280835,-59450473434,-53232718483,-49452610935,-45384224466,-36361788727,-34176300034,-12469429575,-9431189993,-3254481828,-2083495024,-567508884],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "lala", "metric": {"scale":38,"sum":-2.612341035444145,"min":-0.8596842630789088,"max":0.9412120998532649,"positive":{"indices":[-1527782821719,-1491647186305,-912103649399,-744031889051,-669036239523,-602111557612,-586601121715,-567461548128,-483021101785,-450865160617,-331097834736,-293981770197,-289290353357,-246965149109,-203070759894,-180702903638,-135653049938,-93843302593,-78356307212,-76729181967,-65070806329,-64241350555,-24026590621],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},"negative":{"indices":[-1423777207002,-923870284341,-877992064499,-870206177266,-850685295282,-759799372292,-643924938249,-570457241089,-528116212727,-369003212885,-315079526687,-292745353109,-235218433328,-222024648135,-204603508425,-195434414609,-177993661419,-172367743205,-168351131368,-149696012047,-115115447928,-95206374327,-74115574931,-74013160315,-64191774880,-63955626713,-59956698242],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}}, "label": {"scale":38,"sum":-2.612341035444145,"min":-0.8596842630789088,"max":0.9412120998532649,"positive":{"indices":[-1527782821719,-1491647186305,-912103649399,-744031889051,-669036239523,-602111557612,-586601121715,-567461548128,-483021101785,-450865160617,-331097834736,-293981770197,-289290353357,-246965149109,-203070759894,-180702903638,-135653049938,-93843302593,-78356307212,-76729181967,-65070806329,-64241350555,-24026590621],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},"negative":{"indices":[-1423777207002,-923870284341,-877992064499,-870206177266,-850685295282,-759799372292,-643924938249,-570457241089,-528116212727,-369003212885,-315079526687,-292745353109,-235218433328,-222024648135,-204603508425,-195434414609,-177993661419,-172367743205,-168351131368,-149696012047,-115115447928,-95206374327,-74115574931,-74013160315,-64191774880,-63955626713,-59956698242],"counts":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}}}'
+  - match: { items.0.index.result: "created"}
+  - match: { items.1.index.result: "created"}
+
+  - do:
+      indices.put_settings:
+        index: test-exponential-histogram
+        body:
+          index.blocks.write: true
+  - is_true: acknowledged
+
+  - do:
+      indices.downsample:
+        index: test-exponential-histogram
+        target_index: downsampled-exponential-histogram-aggregate
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: downsampled-exponential-histogram-aggregate
+
+  - length: { hits.hits: 1 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.metricset: lala }
+  - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
+  - match: { hits.hits.0._source.metric.max: 0.9991606633362218 }
+  - match: { hits.hits.0._source.metric.min: -0.9985699620066124 }
+  - match: { hits.hits.0._source.metric.scale: 38 }
+  - match: { hits.hits.0._source.metric.sum: -5.271780866133354 }
+  - match: { hits.hits.0._source.label.max: 0.9412120998532649 }
+  - match: { hits.hits.0._source.label.min: -0.8596842630789088 }
+  - match: { hits.hits.0._source.label.scale: 38 }
+  - match: { hits.hits.0._source.label.sum: -2.612341035444145 }

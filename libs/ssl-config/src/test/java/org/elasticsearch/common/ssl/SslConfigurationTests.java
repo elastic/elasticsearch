@@ -39,6 +39,7 @@ public class SslConfigurationTests extends ESTestCase {
         final SslClientAuthenticationMode clientAuth = randomFrom(SslClientAuthenticationMode.values());
         final List<String> ciphers = randomSubsetOf(randomIntBetween(1, DEFAULT_CIPHERS.size()), DEFAULT_CIPHERS);
         final List<String> protocols = randomSubsetOf(randomIntBetween(1, 4), VALID_PROTOCOLS);
+        final long handshakeTimeoutMillis = randomHandshakeTimeoutMillis();
         final SslConfiguration configuration = new SslConfiguration(
             "test.ssl",
             true,
@@ -47,7 +48,8 @@ public class SslConfigurationTests extends ESTestCase {
             verificationMode,
             clientAuth,
             ciphers,
-            protocols
+            protocols,
+            handshakeTimeoutMillis
         );
 
         assertThat(configuration.trustConfig(), is(trustConfig));
@@ -56,6 +58,7 @@ public class SslConfigurationTests extends ESTestCase {
         assertThat(configuration.clientAuth(), is(clientAuth));
         assertThat(configuration.getCipherSuites(), is(ciphers));
         assertThat(configuration.supportedProtocols(), is(protocols));
+        assertThat(configuration.handshakeTimeoutMillis(), is(handshakeTimeoutMillis));
 
         assertThat(configuration.toString(), containsString("TEST-TRUST"));
         assertThat(configuration.toString(), containsString("TEST-KEY"));
@@ -63,6 +66,7 @@ public class SslConfigurationTests extends ESTestCase {
         assertThat(configuration.toString(), containsString(clientAuth.toString()));
         assertThat(configuration.toString(), containsString(randomFrom(ciphers)));
         assertThat(configuration.toString(), containsString(randomFrom(protocols)));
+        assertThat(configuration.toString(), containsString("handshakeTimeoutMillis=" + handshakeTimeoutMillis));
     }
 
     public void testEqualsAndHashCode() {
@@ -72,6 +76,7 @@ public class SslConfigurationTests extends ESTestCase {
         final SslClientAuthenticationMode clientAuth = randomFrom(SslClientAuthenticationMode.values());
         final List<String> ciphers = randomSubsetOf(randomIntBetween(1, DEFAULT_CIPHERS.size() - 1), DEFAULT_CIPHERS);
         final List<String> protocols = randomSubsetOf(randomIntBetween(1, VALID_PROTOCOLS.length - 1), VALID_PROTOCOLS);
+        final long handshakeTimeoutMillis = randomHandshakeTimeoutMillis();
         final SslConfiguration configuration = new SslConfiguration(
             "test.ssl",
             true,
@@ -80,7 +85,8 @@ public class SslConfigurationTests extends ESTestCase {
             verificationMode,
             clientAuth,
             ciphers,
-            protocols
+            protocols,
+            handshakeTimeoutMillis
         );
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -93,14 +99,15 @@ public class SslConfigurationTests extends ESTestCase {
                 orig.verificationMode(),
                 orig.clientAuth(),
                 orig.getCipherSuites(),
-                orig.supportedProtocols()
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
             ),
             this::mutateSslConfiguration
         );
     }
 
     private SslConfiguration mutateSslConfiguration(SslConfiguration orig) {
-        return switch (randomIntBetween(1, 4)) {
+        return switch (randomIntBetween(1, 5)) {
             case 1 -> new SslConfiguration(
                 "test.ssl",
                 true,
@@ -109,7 +116,8 @@ public class SslConfigurationTests extends ESTestCase {
                 randomValueOtherThan(orig.verificationMode(), () -> randomFrom(SslVerificationMode.values())),
                 orig.clientAuth(),
                 orig.getCipherSuites(),
-                orig.supportedProtocols()
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
             );
             case 2 -> new SslConfiguration(
                 "test.ssl",
@@ -119,7 +127,8 @@ public class SslConfigurationTests extends ESTestCase {
                 orig.verificationMode(),
                 randomValueOtherThan(orig.clientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
                 orig.getCipherSuites(),
-                orig.supportedProtocols()
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
             );
             case 3 -> new SslConfiguration(
                 "test.ssl",
@@ -129,7 +138,19 @@ public class SslConfigurationTests extends ESTestCase {
                 orig.verificationMode(),
                 orig.clientAuth(),
                 DEFAULT_CIPHERS,
-                orig.supportedProtocols()
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
+            );
+            case 4 -> new SslConfiguration(
+                "test.ssl",
+                true,
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
+                orig.getCipherSuites(),
+                Arrays.asList(VALID_PROTOCOLS),
+                orig.handshakeTimeoutMillis()
             );
             default -> new SslConfiguration(
                 "test.ssl",
@@ -139,9 +160,14 @@ public class SslConfigurationTests extends ESTestCase {
                 orig.verificationMode(),
                 orig.clientAuth(),
                 orig.getCipherSuites(),
-                Arrays.asList(VALID_PROTOCOLS)
+                orig.supportedProtocols(),
+                randomValueOtherThan(orig.handshakeTimeoutMillis(), SslConfigurationTests::randomHandshakeTimeoutMillis)
             );
         };
+    }
+
+    private static long randomHandshakeTimeoutMillis() {
+        return randomLongBetween(1, 100000);
     }
 
     public void testDependentFiles() {
@@ -155,7 +181,8 @@ public class SslConfigurationTests extends ESTestCase {
             randomFrom(SslVerificationMode.values()),
             randomFrom(SslClientAuthenticationMode.values()),
             DEFAULT_CIPHERS,
-            SslConfigurationLoader.DEFAULT_PROTOCOLS
+            SslConfigurationLoader.DEFAULT_PROTOCOLS,
+            randomHandshakeTimeoutMillis()
         );
 
         final Path dir = createTempDir();
@@ -182,7 +209,8 @@ public class SslConfigurationTests extends ESTestCase {
             randomFrom(SslVerificationMode.values()),
             randomFrom(SslClientAuthenticationMode.values()),
             DEFAULT_CIPHERS,
-            Collections.singletonList(protocol)
+            Collections.singletonList(protocol),
+            randomHandshakeTimeoutMillis()
         );
 
         Mockito.when(trustConfig.createTrustManager()).thenReturn(null);

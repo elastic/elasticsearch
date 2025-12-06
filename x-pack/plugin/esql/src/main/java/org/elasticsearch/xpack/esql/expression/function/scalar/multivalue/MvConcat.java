@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
@@ -16,7 +17,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -91,8 +94,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override
@@ -120,8 +123,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     /**
-     * Evaluator for {@link MvConcat}. Not generated and doesn't extend from
-     * {@link AbstractMultivalueFunction.AbstractEvaluator} because it's just
+     * Evaluator for {@link MvConcat}. Not generated and doesn’t extend from
+     * {@link AbstractMultivalueFunction.AbstractEvaluator} because it’s just
      * too different from all the other mv operators:
      * <ul>
      *     <li>It takes an extra parameter - the delimiter</li>
@@ -130,6 +133,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
      * </ul>
      */
     private static class Evaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
         private final DriverContext context;
         private final ExpressionEvaluator field;
         private final ExpressionEvaluator delim;
@@ -145,7 +149,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
             try (BytesRefBlock fieldVal = (BytesRefBlock) field.eval(page); BytesRefBlock delimVal = (BytesRefBlock) delim.eval(page)) {
                 int positionCount = page.getPositionCount();
                 try (BytesRefBlock.Builder builder = context.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-                    BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don't blow past circuit breakers
+                    BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don’t blow past circuit breakers
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();
                     for (int p = 0; p < positionCount; p++) {
@@ -184,6 +188,13 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
         }
 
         @Override
-        public void close() {}
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed() + delim.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(field, delim);
+        }
     }
 }

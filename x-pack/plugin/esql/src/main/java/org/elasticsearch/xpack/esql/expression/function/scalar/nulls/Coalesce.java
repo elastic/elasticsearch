@@ -11,13 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -31,17 +26,16 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Function returning the first non-null value.
+ * Function returning the first non-null value. {@code COALESCE} runs as though
+ * it were lazily evaluating each position in each incoming {@link Block}.
  */
 public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
@@ -57,12 +51,15 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "date",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
-            "text",
-            "version" },
+            "version",
+            "exponential_histogram" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -78,12 +75,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "date",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Expression to evaluate."
         ) Expression first,
         @Param(
@@ -96,12 +97,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "date",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "Other expression to evaluate.",
             optional = true
         ) List<Expression> rest
@@ -145,12 +150,12 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
         for (int position = 0; position < children().size(); position++) {
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = children().get(position).dataType().noText();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
                 children().get(position),
-                t -> t == dataType,
+                t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
                 dataType.typeName()
@@ -164,16 +169,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public Nullability nullable() {
-        // If any of the children aren't nullable then this isn't.
+        // If any of the children aren’t nullable then this isn’t .
         for (Expression c : children()) {
             if (c.nullable() == Nullability.FALSE) {
                 return Nullability.FALSE;
             }
         }
         /*
-         * Otherwise let's call this one "unknown". If we returned TRUE here
+         * Otherwise let’s call this one "unknown". If we returned TRUE here
          * an optimizer rule would replace this with null if any of our children
-         * fold to null. We don't want that at all.
+         * fold to null. We don’t want that at all.
          */
         return Nullability.UNKNOWN;
     }
@@ -195,70 +200,22 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator::apply).toList();
-        return new ExpressionEvaluator.Factory() {
-            @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceEvaluator(
-                    context,
-                    PlannerUtils.toElementType(dataType()),
-                    childEvaluators.stream().map(x -> x.get(context)).toList()
+        return switch (dataType()) {
+            case BOOLEAN -> CoalesceBooleanEvaluator.toEvaluator(toEvaluator, children());
+            case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
+            case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());
+            case LONG, DATE_NANOS, DATETIME, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> CoalesceLongEvaluator.toEvaluator(
+                toEvaluator,
+                children()
+            );
+            case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
+                .toEvaluator(toEvaluator, children());
+            case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
+                SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(
+                    dataType() + " can’t be coalesced"
                 );
-            }
-
-            @Override
-            public String toString() {
-                return "CoalesceEvaluator[values=" + childEvaluators + ']';
-            }
         };
-    }
-
-    private record CoalesceEvaluator(DriverContext driverContext, ElementType resultType, List<EvalOperator.ExpressionEvaluator> evaluators)
-        implements
-            EvalOperator.ExpressionEvaluator {
-        @Override
-        public Block eval(Page page) {
-            /*
-             * We have to evaluate lazily so any errors or warnings that would be
-             * produced by the right hand side are avoided. And so if anything
-             * on the right hand side is slow we skip it.
-             *
-             * And it'd be good if that lazy evaluation were fast. But this
-             * implementation isn't. It's fairly simple - running position at
-             * a time - but it's not at all fast.
-             */
-            int positionCount = page.getPositionCount();
-            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
-                position: for (int p = 0; p < positionCount; p++) {
-                    int[] positions = new int[] { p };
-                    Page limited = new Page(
-                        1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
-                    );
-                    try (Releasable ignored = limited::releaseBlocks) {
-                        for (EvalOperator.ExpressionEvaluator eval : evaluators) {
-                            try (Block block = eval.eval(limited)) {
-                                if (false == block.isNull(0)) {
-                                    result.copyFrom(block, 0, 1);
-                                    continue position;
-                                }
-                            }
-                        }
-                        result.appendNull();
-                    }
-                }
-                return result.build();
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "CoalesceEvaluator[values=" + evaluators + ']';
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
-        }
     }
 }

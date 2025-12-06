@@ -57,13 +57,28 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             return null;
         }
 
+        // NOTE: FieldFetcher for non-metadata fields, as well as `_id` and `_source`.
+        // We need to retain `_id` and `_source` here to correctly populate the `StoredFieldSpecs` created by the
+        // `FieldFetcher` constructor.
         final SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
-        final FieldFetcher fieldFetcher = fetchFieldsContext == null ? null
-            : fetchFieldsContext.fields() == null ? null
-            : fetchFieldsContext.fields().isEmpty() ? null
-            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields());
+        final FieldFetcher fieldFetcher = (fetchFieldsContext == null
+            || fetchFieldsContext.fields() == null
+            || fetchFieldsContext.fields().isEmpty())
+                ? null
+                : FieldFetcher.create(
+                    searchExecutionContext,
+                    fetchFieldsContext.fields()
+                        .stream()
+                        .filter(
+                            fieldAndFormat -> (searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
+                                || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
+                                || IdFieldMapper.NAME.equals(fieldAndFormat.field)
+                                || SourceFieldMapper.NAME.equals(fieldAndFormat.field))
+                        )
+                        .toList()
+                );
 
-        // NOTE: Collect stored metadata fields requested via `fields` (in FetchFieldsContext`) like for instance the _ignored source field
+        // NOTE: Collect stored metadata fields requested via `fields` (in FetchFieldsContext) like for instance the _ignored source field
         final Set<FieldAndFormat> fetchContextMetadataFields = new HashSet<>();
         if (fetchFieldsContext != null && fetchFieldsContext.fields() != null && fetchFieldsContext.fields().isEmpty() == false) {
             for (final FieldAndFormat fieldAndFormat : fetchFieldsContext.fields()) {

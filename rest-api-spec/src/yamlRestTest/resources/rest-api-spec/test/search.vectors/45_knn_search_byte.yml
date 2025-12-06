@@ -254,3 +254,154 @@ setup:
             filter: {"term": {"name": "cow.jpg"}}
 
   - length: {hits.hits: 0}
+
+---
+"Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore_oversample]
+  - skip:
+      features: "headers"
+
+  # Non-rescored knn
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [127, 127, -128, -128, 127]
+            k: 3
+            num_candidates: 3
+
+  # Get scores - hit ordering may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: knn_score0 }
+  - set: { hits.hits.1._score: knn_score1 }
+  - set: { hits.hits.2._score: knn_score2 }
+
+  # Rescored knn
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [127, 127, -128, -128, 127]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 1.5
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $knn_score0 }
+  - match: { hits.hits.1._score: $knn_score1 }
+  - match: { hits.hits.2._score: $knn_score2 }
+---
+"Nested flat search":
+  - do:
+      indices.create:
+        index: flat_nested
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              name:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: dense_vector
+                    element_type: byte
+                    dims: 5
+                    index: true
+                    similarity: l2_norm
+                    index_options:
+                      type: flat
+  - do:
+      index:
+        index: flat_nested
+        id: "1"
+        body:
+          name: cow.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [-26, 44, -34, 15, 56]
+            - paragraph_id: 1
+              vector: [-26, 44, -3, 1, -20]
+
+  - do:
+      index:
+        index: flat_nested
+        id: "2"
+        body:
+          name: moose.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [0, 100, -13, 14, 100]
+            - paragraph_id: 2
+              vector: [0, 100, 0, 14, 100]
+            - paragraph_id: 3
+              vector: [0, 1, 0, 1, -15]
+
+  - do:
+      index:
+        index: flat_nested
+        id: "3"
+        body:
+          name: rabbit.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [0, 111, 13, 14, -6]
+
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        index: flat_nested
+        body:
+          fields: [ "name" ]
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ 0, 90, -10, 14, 100 ]
+                  num_candidates: 3
+                  k: 2
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+  - do:
+      search:
+        index: flat_nested
+        body:
+          fields: [ "name" ]
+          knn:
+            field: nested.vector
+            query_vector: [ 0, 90, 10, 14, -4 ]
+            num_candidates: 3
+            k: 2
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "1" }

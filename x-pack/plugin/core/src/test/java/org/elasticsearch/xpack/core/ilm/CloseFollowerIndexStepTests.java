@@ -13,7 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.mockito.Mockito;
 
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -24,7 +25,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
     private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -38,12 +39,12 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
             @SuppressWarnings("unchecked")
             ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
-            listener.onResponse(new CloseIndexResponse(true, true, Collections.emptyList()));
+            listener.onResponse(new CloseIndexResponse(true, true, List.of()));
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null);
     }
 
     public void testRequestNotAcknowledged() {
@@ -54,12 +55,12 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
             @SuppressWarnings("unchecked")
             ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
-            listener.onResponse(new CloseIndexResponse(false, false, Collections.emptyList()));
+            listener.onResponse(new CloseIndexResponse(false, false, List.of()));
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null));
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null));
         assertThat(e.getMessage(), is("close index request failed to be acknowledged"));
     }
 
@@ -77,7 +78,10 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
+        assertSame(
+            error,
+            expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null))
+        );
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
     }
@@ -85,13 +89,13 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
     public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .state(IndexMetadata.State.CLOSE)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
+        performActionAndWait(step, indexMetadata, projectStateWithEmptyProject(), null);
         Mockito.verifyNoMoreInteractions(client);
     }
 
@@ -113,11 +117,11 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
 
-        return new CloseFollowerIndexStep(key, nextKey, instance.getClient());
+        return new CloseFollowerIndexStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override
     protected CloseFollowerIndexStep copyInstance(CloseFollowerIndexStep instance) {
-        return new CloseFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new CloseFollowerIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 }

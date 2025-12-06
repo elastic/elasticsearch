@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,10 +43,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         private final boolean persistDefaultConfig;
 
         public Request(String inferenceEntityId, TaskType taskType) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
-            this.taskType = Objects.requireNonNull(taskType);
-            this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
+            this(inferenceEntityId, taskType, PERSIST_DEFAULT_CONFIGS);
         }
 
         public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig) {
@@ -62,13 +57,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super(in);
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16)) {
-                this.persistDefaultConfig = in.readBoolean();
-            } else {
-                this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
-            }
-
+            this.persistDefaultConfig = in.readBoolean();
         }
 
         public String getInferenceEntityId() {
@@ -88,10 +77,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super.writeTo(out);
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16)) {
-                out.writeBoolean(this.persistDefaultConfig);
-            }
+            out.writeBoolean(this.persistDefaultConfig);
         }
 
         @Override
@@ -119,13 +105,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                endpoints = in.readCollectionAsList(ModelConfigurations::new);
-            } else {
-                endpoints = new ArrayList<>();
-                endpoints.add(new ModelConfigurations(in));
-            }
+            endpoints = in.readCollectionAsList(ModelConfigurations::new);
         }
 
         public List<ModelConfigurations> getEndpoints() {
@@ -134,11 +114,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeCollection(endpoints);
-            } else {
-                endpoints.get(0).writeTo(out);
-            }
+            out.writeCollection(endpoints);
         }
 
         @Override

@@ -10,6 +10,7 @@
 package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -22,11 +23,20 @@ public class PutSynonymRuleActionRequestSerializingTests extends AbstractWireSer
 
     @Override
     protected PutSynonymRuleAction.Request createTestInstance() {
-        return new PutSynonymRuleAction.Request(randomIdentifier(), SynonymsTestUtils.randomSynonymRule());
+        return new PutSynonymRuleAction.Request(randomIdentifier(), SynonymsTestUtils.randomSynonymRule(), randomBoolean());
     }
 
     @Override
     protected PutSynonymRuleAction.Request mutateInstance(PutSynonymRuleAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String synonymsSetId = instance.synonymsSetId();
+        SynonymRule synonymRule = instance.synonymRule();
+        boolean refresh = instance.refresh();
+        switch (between(0, 2)) {
+            case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+            case 1 -> synonymRule = randomValueOtherThan(synonymRule, SynonymsTestUtils::randomSynonymRule);
+            case 2 -> refresh = refresh == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutSynonymRuleAction.Request(synonymsSetId, synonymRule, refresh);
     }
 }

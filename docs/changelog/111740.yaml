@@ -1,6 +1,0 @@
-pr: 111740
-summary: Fix Start Trial API output acknowledgement header for features
-area: License
-type: bug
-issues:
- - 111739

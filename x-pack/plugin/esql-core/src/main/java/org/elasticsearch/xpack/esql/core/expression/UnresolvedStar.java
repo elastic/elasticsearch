@@ -19,7 +19,7 @@ import static java.util.Collections.emptyList;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
-    // typically used for nested fields or inner/dotted fields
+    // TODO: Currently unused, can be removed. (Qualifiers will likely remain just strings.)
     private final UnresolvedAttribute qualifier;
 
     public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {
@@ -57,25 +57,14 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
-    public int hashCode() {
+    protected int innerHashCode(boolean ignoreIds) {
         return Objects.hash(qualifier);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        /*
-         * Intentionally not calling the superclass
-         * equals because it uses id which we always
-         * mutate when we make a clone. So we need
-         * to ignore it in equals for the transform
-         * tests to pass.
-         */
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-
-        UnresolvedStar other = (UnresolvedStar) obj;
-        return Objects.equals(qualifier, other.qualifier);
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
+        var other = (UnresolvedStar) o;
+        return super.innerEquals(other, true) && Objects.equals(qualifier, other.qualifier);
     }
 
     private String message() {

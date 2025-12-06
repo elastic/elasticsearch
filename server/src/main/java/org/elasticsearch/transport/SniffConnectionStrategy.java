@@ -14,23 +14,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -51,77 +47,16 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
-import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 
 public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
-    /**
-     * A list of initial seed nodes to discover eligible nodes from the remote cluster
-     */
-    public static final Setting.AffixSetting<List<String>> REMOTE_CLUSTER_SEEDS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "seeds",
-        (ns, key) -> Setting.listSetting(key, Collections.emptyList(), s -> {
-            // validate seed address
-            parsePort(s);
-            return s;
-        }, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
-
-    /**
-     * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
-     * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
-     * to the nodes in the remote cluster using this address instead. Use of this setting is not recommended and it is deliberately
-     * undocumented as it does not work well with all proxies.
-     */
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
-        "cluster.remote.",
-        "proxy",
-        (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF, s -> {
-            if (Strings.hasLength(s)) {
-                parsePort(s);
-            }
-        }), Setting.Property.Dynamic, Setting.Property.NodeScope),
-        () -> REMOTE_CLUSTER_SEEDS
-    );
-
-    /**
-     * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
-     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
-     */
-    public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER = intSetting(
-        "cluster.remote.connections_per_cluster",
-        3,
-        1,
-        Setting.Property.NodeScope
-    );
-    /**
-     * The maximum number of node connections that will be established to a remote cluster. For instance if there is only a single
-     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
-     */
-    public static final Setting.AffixSetting<Integer> REMOTE_NODE_CONNECTIONS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "node_connections",
-        (ns, key) -> intSetting(
-            key,
-            REMOTE_CONNECTIONS_PER_CLUSTER,
-            1,
-            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        )
-    );
-
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final TimeValue SNIFF_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS; // TODO make configurable?
-
-    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-        && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;
     private final List<Supplier<DiscoveryNode>> seedNodes;
@@ -131,71 +66,37 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final String proxyAddress;
     private final Executor managementExecutor;
 
-    SniffConnectionStrategy(
-        String clusterAlias,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        Settings settings
-    ) {
+    SniffConnectionStrategy(SniffLinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
         this(
-            clusterAlias,
+            config,
+            config.seedNodes()
+                .stream()
+                .map(
+                    seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(
+                        config.linkedProjectAlias(),
+                        seedAddress,
+                        config.proxyAddress()
+                    )
+                )
+                .toList(),
             transportService,
-            connectionManager,
-            REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            settings,
-            REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            getNodePredicate(settings),
-            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings)
+            connectionManager
         );
     }
 
     SniffConnectionStrategy(
-        String clusterAlias,
+        SniffLinkedProjectConfig config,
+        List<Supplier<DiscoveryNode>> seedNodesSupplier,
         TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        String proxyAddress,
-        Settings settings,
-        int maxNumRemoteConnections,
-        Predicate<DiscoveryNode> nodePredicate,
-        List<String> configuredSeedNodes
+        RemoteConnectionManager connectionManager
     ) {
-        this(
-            clusterAlias,
-            transportService,
-            connectionManager,
-            proxyAddress,
-            settings,
-            maxNumRemoteConnections,
-            nodePredicate,
-            configuredSeedNodes,
-            configuredSeedNodes.stream()
-                .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
-                .toList()
-        );
-    }
-
-    SniffConnectionStrategy(
-        String clusterAlias,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        String proxyAddress,
-        Settings settings,
-        int maxNumRemoteConnections,
-        Predicate<DiscoveryNode> nodePredicate,
-        List<String> configuredSeedNodes,
-        List<Supplier<DiscoveryNode>> seedNodes
-    ) {
-        super(clusterAlias, transportService, connectionManager, settings);
-        this.proxyAddress = proxyAddress;
-        this.maxNumRemoteConnections = maxNumRemoteConnections;
-        this.nodePredicate = nodePredicate;
-        this.configuredSeedNodes = configuredSeedNodes;
-        this.seedNodes = seedNodes;
+        super(config, transportService, connectionManager);
+        this.proxyAddress = config.proxyAddress();
+        this.maxNumRemoteConnections = config.maxNumConnections();
+        this.nodePredicate = config.nodePredicate();
+        this.configuredSeedNodes = config.seedNodes();
+        this.seedNodes = seedNodesSupplier;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
-    }
-
-    static Stream<Setting.AffixSetting<?>> enablementSettings() {
-        return Stream.of(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
     }
 
     static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
@@ -208,13 +109,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     @Override
-    protected boolean strategyMustBeRebuilt(Settings newSettings) {
-        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        int nodeConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return nodeConnections != maxNumRemoteConnections
-            || seedsChanged(configuredSeedNodes, addresses)
-            || proxyChanged(proxyAddress, proxy);
+    protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
+        assert config instanceof SniffLinkedProjectConfig : "expected config to be of type " + SniffLinkedProjectConfig.class;
+        final var sniffConfig = (SniffLinkedProjectConfig) config;
+        return sniffConfig.maxNumConnections() != maxNumRemoteConnections
+            || seedsChanged(configuredSeedNodes, sniffConfig.seedNodes())
+            || proxyChanged(proxyAddress, sniffConfig.proxyAddress());
     }
 
     @Override
@@ -244,7 +144,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     logger.debug(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed moving to next seed node", e);
                     collectRemoteNodes(seedNodesSuppliers, listener);
                 } else {
-                    logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
                     listener.onFailure(e);
                 }
             };
@@ -321,7 +220,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 } else {
                     action = ClusterStateAction.NAME;
-                    final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(SNIFF_REQUEST_TIMEOUT);
+                    final RemoteClusterStateRequest clusterStateRequest = new RemoteClusterStateRequest(SNIFF_REQUEST_TIMEOUT);
                     clusterStateRequest.clear();
                     clusterStateRequest.nodes(true);
                     request = clusterStateRequest;
@@ -505,6 +404,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         var seedVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion(),
             IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current()
         );
         if (proxyAddress == null || proxyAddress.isEmpty()) {
@@ -532,16 +432,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 seedVersion
             );
         }
-    }
-
-    // Default visibility for tests
-    static Predicate<DiscoveryNode> getNodePredicate(Settings settings) {
-        if (RemoteClusterService.REMOTE_NODE_ATTRIBUTE.exists(settings)) {
-            // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for cross cluster search
-            String attribute = RemoteClusterService.REMOTE_NODE_ATTRIBUTE.get(settings);
-            return DEFAULT_NODE_PREDICATE.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
-        }
-        return DEFAULT_NODE_PREDICATE;
     }
 
     private static DiscoveryNode maybeAddProxyAddress(String proxyAddress, DiscoveryNode node) {
@@ -646,6 +536,18 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public int hashCode() {
             return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected);
+        }
+
+        @Override
+        public String toString() {
+            return "SniffModeInfo{"
+                + "seedNodes="
+                + seedNodes
+                + ", maxConnectionsPerCluster="
+                + maxConnectionsPerCluster
+                + ", numNodesConnected="
+                + numNodesConnected
+                + '}';
         }
     }
 }

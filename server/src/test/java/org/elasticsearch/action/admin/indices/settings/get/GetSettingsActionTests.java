@@ -14,8 +14,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -57,20 +59,21 @@ public class GetSettingsActionTests extends ESTestCase {
                 GetSettingsActionTests.this.threadPool,
                 settingsFilter,
                 new ActionFilters(Collections.emptySet()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 new Resolver(),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
             );
         }
 
         @Override
-        protected void masterOperation(
+        protected void localClusterStateOperation(
             Task task,
             GetSettingsRequest request,
-            ClusterState state,
+            ProjectState state,
             ActionListener<GetSettingsResponse> listener
         ) {
-            ClusterState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1);
-            super.masterOperation(task, request, stateWithIndex, listener);
+            ProjectState stateWithIndex = ClusterStateCreationUtils.state(indexName, 1, 1).projectState(state.projectId());
+            super.localClusterStateOperation(task, request, stateWithIndex, listener);
         }
     }
 
@@ -104,7 +107,7 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     public void testIncludeDefaults() {
-        GetSettingsRequest noDefaultsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsRequest noDefaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName);
         ActionTestUtils.execute(
             getSettingsAction,
             null,
@@ -117,7 +120,7 @@ public class GetSettingsActionTests extends ESTestCase {
             )
         );
 
-        GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
+        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true);
 
         ActionTestUtils.execute(
             getSettingsAction,
@@ -134,7 +137,7 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     public void testIncludeDefaultsWithFiltering() {
-        GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName)
+        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName)
             .includeDefaults(true)
             .names("index.refresh_interval");
         ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionTestUtils.assertNoFailureListener(defaultsResponse -> {
@@ -155,16 +158,16 @@ public class GetSettingsActionTests extends ESTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
 
         @Override
-        public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+        public Index[] concreteIndices(ProjectMetadata project, IndicesRequest request) {
             Index[] out = new Index[request.indices().length];
             for (int x = 0; x < out.length; x++) {
                 out[x] = new Index(request.indices()[x], "_na_");

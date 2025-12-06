@@ -16,11 +16,9 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.lang.reflect.Constructor;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,14 +42,12 @@ public class MockPluginsService extends PluginsService {
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
     public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
-
-        final Path configPath = environment.configFile();
+        super(settings, environment.configDir(), new PluginsLoader(Collections.emptySet(), Collections.emptySet(), Collections.emptyMap()));
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
 
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            Plugin plugin = loadPlugin(pluginClass, settings, environment.configDir());
             PluginDescriptor pluginInfo = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",
@@ -69,7 +65,7 @@ public class MockPluginsService extends PluginsService {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, pluginClass.getClassLoader(), ModuleLayer.boot()));
+            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, MockPluginsService.class.getClassLoader()));
         }
         loadExtensions(pluginsLoaded);
         this.classpathPlugins = List.copyOf(pluginsLoaded);
@@ -168,10 +164,5 @@ public class MockPluginsService extends PluginsService {
             }
         }
         return extensions;
-    }
-
-    @Override
-    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-        // tests don't run modular
     }
 }

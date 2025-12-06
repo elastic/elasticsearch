@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,12 +40,6 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
 
     public static final String NAME = "slm";
 
-    private final FeatureService featureService;
-
-    public ReservedSnapshotAction(FeatureService featureService) {
-        this.featureService = featureService;
-    }
-
     @Override
     public String name() {
         return NAME;
@@ -66,7 +59,6 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
             );
             try {
                 validate(request);
-                SnapshotLifecycleService.validateIntervalScheduleSupport(request.getLifecycle().getSchedule(), featureService, state);
                 SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
                 SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
                 result.add(request);
@@ -85,9 +77,8 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
-    public TransformState transform(Object source, TransformState prevState) throws Exception {
-        @SuppressWarnings("unchecked")
-        var requests = prepare((List<SnapshotLifecyclePolicy>) source, prevState.state());
+    public TransformState transform(List<SnapshotLifecyclePolicy> source, TransformState prevState) throws Exception {
+        var requests = prepare(source, prevState.state());
 
         ClusterState state = prevState.state();
 
@@ -116,6 +107,11 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         }
 
         return new TransformState(state, entities);
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
     }
 
     @Override

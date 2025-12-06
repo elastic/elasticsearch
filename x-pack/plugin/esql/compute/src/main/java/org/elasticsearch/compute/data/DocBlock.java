@@ -9,6 +9,9 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -17,17 +20,12 @@ import java.io.IOException;
 /**
  * Wrapper around {@link DocVector} to make a valid {@link Block}.
  */
-public class DocBlock extends AbstractVectorBlock implements Block {
+public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
         this.vector = vector;
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -47,7 +45,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
     @Override
     public Block filter(int... positions) {
-        return new DocBlock(asVector().filter(positions));
+        return new DocBlock(vector.filter(positions));
+    }
+
+    @Override
+    public Block deepCopy(BlockFactory blockFactory) {
+        return new DocBlock(vector.deepCopy(blockFactory));
     }
 
     @Override
@@ -90,6 +93,14 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         Releasables.closeExpectNoException(vector);
     }
 
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("DocBlock[");
+        sb.append("vector=").append(vector);
+        sb.append(']');
+        return sb.toString();
+    }
+
     /**
      * A builder the for {@link DocBlock}.
      */
@@ -101,6 +112,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
+        private IndexedByShardId<? extends RefCounted> shardRefCounters = null;
+
+        public Builder shardRefCounters(IndexedByShardId<? extends RefCounted> shardRefCounters) {
+            this.shardRefCounters = shardRefCounters;
+            return this;
+        }
 
         private Builder(BlockFactory blockFactory, int estimatedSize) {
             IntVector.Builder shards = null;
@@ -188,7 +205,13 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shards, segments, docs, null);
+                result = new DocVector(
+                    shardRefCounters == null ? AlwaysReferencedIndexedByShardId.INSTANCE : shardRefCounters,
+                    shards,
+                    segments,
+                    docs,
+                    null
+                );
                 return result.asBlock();
             } finally {
                 if (result == null) {

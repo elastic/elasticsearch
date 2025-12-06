@@ -106,7 +106,7 @@ public final class DocumentPermissions implements CacheKey {
 
     /**
      * Creates a {@link BooleanQuery} to be used as filter to restrict access to documents.<br>
-     * Document permission queries are used to create an boolean query.<br>
+     * Document permission queries are used to create a boolean query.<br>
      * If the document permissions are limited, then there is an additional filter added restricting access to documents only allowed by the
      * limited queries.
      *
@@ -159,15 +159,15 @@ public final class DocumentPermissions implements CacheKey {
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, context);
                 Query roleQuery = context.toQuery(queryBuilder).query();
-                filter.add(roleQuery, SHOULD);
-                NestedLookup nestedLookup = context.nestedLookup();
-                if (nestedLookup != NestedLookup.EMPTY) {
-                    NestedHelper nestedHelper = new NestedHelper(nestedLookup, context::isFieldMapped);
-                    if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
+                if (context.nestedLookup() == NestedLookup.EMPTY) {
+                    filter.add(roleQuery, SHOULD);
+                } else {
+                    if (NestedHelper.mightMatchNestedDocs(roleQuery, context)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
                             .add(Queries.newNonNestedFilter(context.indexVersionCreated()), FILTER)
                             .build();
                     }
+                    filter.add(roleQuery, SHOULD);
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
                     BitSetProducer rootDocs = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);

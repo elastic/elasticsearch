@@ -37,7 +37,28 @@ public class EqlDateNanosIT extends EqlDateNanosSpecTestCase {
         return REMOTE_CLUSTER.getHttpAddresses();
     }
 
-    public EqlDateNanosIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
-        super(remoteClusterIndex(TEST_NANOS_INDEX), query, name, eventIds, joinKeys, size, maxSamplesPerKey);
+    public EqlDateNanosIT(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
+    ) {
+        super(
+            remoteClusterIndex(TEST_NANOS_INDEX),
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 }

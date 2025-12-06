@@ -12,11 +12,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
@@ -125,21 +126,13 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Environment environment,
         Client client,
         XPackLicenseState licenseState,
         JobManagerHolder jobManagerHolder,
         MachineLearningExtensionHolder machineLearningExtensionHolder
     ) {
-        super(
-            XPackUsageFeatureAction.MACHINE_LEARNING.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.MACHINE_LEARNING.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.licenseState = licenseState;
         this.jobManagerHolder = jobManagerHolder;
@@ -152,7 +145,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -595,6 +588,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     // TODO separate out ours and users models possibly regression vs classification
+    @FixForMultiProject // do not use default project
     private static void addInferenceIngestUsage(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         int pipelineCount = 0;
         StatsAccumulator docCountStats = new StatsAccumulator();
@@ -603,13 +597,19 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
         for (GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats : statsResponse.getResources().results()) {
             pipelineCount += modelStats.getPipelineCount();
-            modelStats.getIngestStats().processorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
-                if (processorStat.name().equals(InferenceProcessor.TYPE)) {
-                    docCountStats.add(processorStat.stats().ingestCount());
-                    timeStats.add(processorStat.stats().ingestTimeInMillis());
-                    failureStats.add(processorStat.stats().ingestFailedCount());
-                }
-            });
+            modelStats.getIngestStats()
+                .processorStats()
+                .getOrDefault(ProjectId.DEFAULT, Map.of())
+                .values()
+                .stream()
+                .flatMap(List::stream)
+                .forEach(processorStat -> {
+                    if (processorStat.name().equals(InferenceProcessor.TYPE)) {
+                        docCountStats.add(processorStat.stats().ingestCount());
+                        timeStats.add(processorStat.stats().ingestTimeInMillis());
+                        failureStats.add(processorStat.stats().ingestFailedCount());
+                    }
+                });
         }
 
         Map<String, Object> ingestUsage = Maps.newMapWithExpectedSize(6);

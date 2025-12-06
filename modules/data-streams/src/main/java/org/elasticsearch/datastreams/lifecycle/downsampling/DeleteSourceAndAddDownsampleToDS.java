@@ -17,8 +17,9 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -39,18 +40,21 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
     private static final Logger LOGGER = LogManager.getLogger(DeleteSourceAndAddDownsampleToDS.class);
     private final Settings settings;
     private ActionListener<Void> listener;
+    private final ProjectId projectId;
     private final String dataStreamName;
     private final String sourceBackingIndex;
     private final String downsampleIndex;
 
     public DeleteSourceAndAddDownsampleToDS(
         Settings settings,
+        ProjectId projectId,
         String dataStreamName,
         String sourceBackingIndex,
         String downsampleIndex,
         ActionListener<Void> listener
     ) {
         this.settings = settings;
+        this.projectId = projectId;
         this.dataStreamName = dataStreamName;
         this.sourceBackingIndex = sourceBackingIndex;
         this.downsampleIndex = downsampleIndex;
@@ -64,7 +68,8 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             downsampleIndex,
             dataStreamName
         );
-        IndexMetadata downsampleIndexMeta = state.metadata().index(downsampleIndex);
+        final var project = state.metadata().getProject(projectId);
+        IndexMetadata downsampleIndexMeta = project.index(downsampleIndex);
         if (downsampleIndexMeta == null) {
             // the downsample index doesn't exist anymore so nothing to replace here
             LOGGER.trace(
@@ -77,9 +82,9 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             );
             return state;
         }
-        IndexAbstraction sourceIndexAbstraction = state.metadata().getIndicesLookup().get(sourceBackingIndex);
+        IndexAbstraction sourceIndexAbstraction = project.getIndicesLookup().get(sourceBackingIndex);
         if (sourceIndexAbstraction == null) {
-            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = project.dataStreams().get(dataStreamName);
             // index was deleted in the meantime, so let's check if we can make sure the downsample index ends up in the
             // data stream (if not already there)
             if (dataStream != null
@@ -91,9 +96,9 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                     downsampleIndex,
                     dataStreamName
                 );
-                Metadata.Builder newMetaData = Metadata.builder(state.metadata())
-                    .put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
-                return ClusterState.builder(state).metadata(newMetaData).build();
+                ProjectMetadata.Builder newProject = ProjectMetadata.builder(project)
+                    .put(dataStream.addBackingIndex(project, downsampleIndexMeta.getIndex()));
+                return ClusterState.builder(state).putProjectMetadata(newProject).build();
             }
         } else {
             DataStream sourceParentDataStream = sourceIndexAbstraction.getParentDataStream();
@@ -107,13 +112,13 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                 throw new IllegalStateException(errorMessage);
             }
 
-            IndexMetadata sourceIndexMeta = state.metadata().index(sourceBackingIndex);
+            IndexMetadata sourceIndexMeta = project.index(sourceBackingIndex);
             assert sourceIndexMeta != null
                 : "the source index abstraction exists in the indices lookup, so the index metadata must "
                     + "exist in the same cluster state metadata";
             // the source index exists so let's start by deleting it
-            state = MetadataDeleteIndexService.deleteIndices(state, Set.of(sourceIndexMeta.getIndex()), settings);
-            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+            state = MetadataDeleteIndexService.deleteIndices(state.projectState(projectId), Set.of(sourceIndexMeta.getIndex()), settings);
+            DataStream dataStream = state.metadata().getProject(projectId).dataStreams().get(dataStreamName);
             if (sourceParentDataStream != null) {
                 assert sourceParentDataStream.getName().equals(dataStreamName)
                     : "the backing index must be part of the provided data "
@@ -142,13 +147,14 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
      * This method is private as it fits into the flow of this cluster state task - i.e. the source index has already been removed from
      * the provided state.
      */
-    private static ClusterState addDownsampleIndexToDataStream(
+    private ClusterState addDownsampleIndexToDataStream(
         ClusterState state,
         DataStream dataStream,
         IndexMetadata sourceIndexMeta,
         IndexMetadata downsampleIndexMeta
     ) {
-        Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
+        final var project = state.metadata().getProject(projectId);
+        ProjectMetadata.Builder newProject = ProjectMetadata.builder(project);
         TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
         // the generation lifecycle date is null only for the write index
         // we fail already if attempting to delete/downsample the write index, so the following assertion just re-inforces that
@@ -159,10 +165,10 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             generationLifecycleDate.millis()
         );
 
-        newMetaData.put(updatedDownsampleMetadata, true);
+        newProject.put(updatedDownsampleMetadata, true);
         // we deleted the source already so let's add the downsample index to the data stream
-        newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
-        return ClusterState.builder(state).metadata(newMetaData).build();
+        newProject.put(dataStream.addBackingIndex(project, downsampleIndexMeta.getIndex()));
+        return ClusterState.builder(state).putProjectMetadata(newProject).build();
     }
 
     /**

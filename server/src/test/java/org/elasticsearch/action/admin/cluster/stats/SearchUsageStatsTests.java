@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -21,7 +22,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStats.EMPTY;
+import static org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageStatsTests.randomExtendedSearchUsage;
+import static org.elasticsearch.action.admin.cluster.stats.SearchUsageStats.EXTENDED_SEARCH_USAGE_TELEMETRY;
+
 public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<SearchUsageStats> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(
+                    ExtendedSearchUsageMetric.class,
+                    ExtendedSearchUsageLongCounter.NAME,
+                    ExtendedSearchUsageLongCounter::new
+                )
+            )
+        );
+    }
 
     private static final List<String> QUERY_TYPES = List.of(
         "match",
@@ -97,6 +115,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
             randomRescorerUsage(randomIntBetween(0, RESCORER_TYPES.size())),
             randomSectionsUsage(randomIntBetween(0, SECTIONS.size())),
             randomRetrieversUsage(randomIntBetween(0, RETRIEVERS.size())),
+            randomExtendedSearchUsage(),
             randomLongBetween(10, Long.MAX_VALUE)
         );
     }
@@ -110,6 +129,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 instance.getRescorerUsage(),
                 instance.getSectionsUsage(),
                 instance.getRetrieversUsage(),
+                instance.getExtendedSearchUsage(),
                 instance.getTotalSearchCount()
             );
             case 1 -> new SearchUsageStats(
@@ -117,6 +137,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 randomValueOtherThan(instance.getRescorerUsage(), () -> randomRescorerUsage(randomIntBetween(0, RESCORER_TYPES.size()))),
                 instance.getSectionsUsage(),
                 instance.getRetrieversUsage(),
+                instance.getExtendedSearchUsage(),
                 instance.getTotalSearchCount()
             );
             case 2 -> new SearchUsageStats(
@@ -124,6 +145,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 instance.getRescorerUsage(),
                 randomValueOtherThan(instance.getSectionsUsage(), () -> randomSectionsUsage(randomIntBetween(0, SECTIONS.size()))),
                 instance.getRetrieversUsage(),
+                instance.getExtendedSearchUsage(),
                 instance.getTotalSearchCount()
             );
             case 3 -> new SearchUsageStats(
@@ -131,6 +153,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 instance.getRescorerUsage(),
                 instance.getSectionsUsage(),
                 randomValueOtherThan(instance.getRetrieversUsage(), () -> randomSectionsUsage(randomIntBetween(0, SECTIONS.size()))),
+                instance.getExtendedSearchUsage(),
                 instance.getTotalSearchCount()
             );
             case 4 -> new SearchUsageStats(
@@ -138,6 +161,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 instance.getRescorerUsage(),
                 instance.getSectionsUsage(),
                 instance.getRetrieversUsage(),
+                instance.getExtendedSearchUsage(),
                 randomValueOtherThan(instance.getTotalSearchCount(), () -> randomLongBetween(10, Long.MAX_VALUE))
             );
             default -> throw new IllegalStateException("Unexpected value: " + i);
@@ -150,14 +174,33 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         assertEquals(Map.of(), searchUsageStats.getRescorerUsage());
         assertEquals(Map.of(), searchUsageStats.getSectionsUsage());
         assertEquals(0, searchUsageStats.getTotalSearchCount());
+        assertEquals(EMPTY, searchUsageStats.getExtendedSearchUsage());
+
+        ExtendedSearchUsageStats extendedSearchUsageStats = new ExtendedSearchUsageStats(
+            Map.of("retrievers", Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", 10L))))
+        );
+        ExtendedSearchUsageStats anotherExtendedSearchUsageStats = new ExtendedSearchUsageStats(
+            Map.of("retrievers", Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", 5L))))
+        );
+        ExtendedSearchUsageStats combinedExtendedSearchUsageStats = new ExtendedSearchUsageStats(
+            Map.of("retrievers", Map.of("text_similarity_reranker", new ExtendedSearchUsageLongCounter(Map.of("chunk_rescorer", 15L))))
+        );
 
         searchUsageStats.add(
-            new SearchUsageStats(Map.of("match", 10L), Map.of("query", 5L), Map.of("query", 10L), Map.of("knn", 10L), 10L)
+            new SearchUsageStats(
+                Map.of("match", 10L),
+                Map.of("query", 5L),
+                Map.of("query", 10L),
+                Map.of("knn", 10L),
+                extendedSearchUsageStats,
+                10L
+            )
         );
         assertEquals(Map.of("match", 10L), searchUsageStats.getQueryUsage());
         assertEquals(Map.of("query", 10L), searchUsageStats.getSectionsUsage());
         assertEquals(Map.of("query", 5L), searchUsageStats.getRescorerUsage());
         assertEquals(10L, searchUsageStats.getTotalSearchCount());
+        assertEquals(extendedSearchUsageStats, searchUsageStats.getExtendedSearchUsage());
 
         searchUsageStats.add(
             new SearchUsageStats(
@@ -165,6 +208,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 Map.of("query", 5L, "learning_to_rank", 2L),
                 Map.of("query", 10L, "knn", 1L),
                 Map.of("knn", 10L, "rrf", 2L),
+                anotherExtendedSearchUsageStats,
                 10L
             )
         );
@@ -172,6 +216,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         assertEquals(Map.of("query", 20L, "knn", 1L), searchUsageStats.getSectionsUsage());
         assertEquals(Map.of("query", 10L, "learning_to_rank", 2L), searchUsageStats.getRescorerUsage());
         assertEquals(Map.of("knn", 20L, "rrf", 2L), searchUsageStats.getRetrieversUsage());
+        assertEquals(combinedExtendedSearchUsageStats, searchUsageStats.getExtendedSearchUsage());
         assertEquals(20L, searchUsageStats.getTotalSearchCount());
     }
 
@@ -181,11 +226,12 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
             Map.of("query", 2L),
             Map.of("query", 10L),
             Map.of("knn", 10L),
+            EMPTY,
             10L
         );
         assertEquals(
             "{\"search\":{\"total\":10,\"queries\":{\"term\":1},\"rescorers\":{\"query\":2},"
-                + "\"sections\":{\"query\":10},\"retrievers\":{\"knn\":10}}}",
+                + "\"sections\":{\"query\":10},\"retrievers\":{\"knn\":10},\"extended\":{}}}",
             Strings.toString(searchUsageStats)
         );
     }
@@ -199,7 +245,8 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 randomQueryUsage(QUERY_TYPES.size()),
                 version.onOrAfter(TransportVersions.V_8_12_0) ? randomRescorerUsage(RESCORER_TYPES.size()) : Map.of(),
                 randomSectionsUsage(SECTIONS.size()),
-                version.onOrAfter(TransportVersions.RETRIEVERS_TELEMETRY_ADDED) ? randomRetrieversUsage(RETRIEVERS.size()) : Map.of(),
+                version.onOrAfter(TransportVersions.V_8_16_0) ? randomRetrieversUsage(RETRIEVERS.size()) : Map.of(),
+                version.supports(EXTENDED_SEARCH_USAGE_TELEMETRY) ? randomExtendedSearchUsage() : EMPTY,
                 randomLongBetween(0, Long.MAX_VALUE)
             );
             assertSerialization(testInstance, version);

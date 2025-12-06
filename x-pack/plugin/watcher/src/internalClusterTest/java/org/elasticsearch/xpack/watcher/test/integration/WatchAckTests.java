@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRespon
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -74,6 +75,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
             .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
+
+        assertBusy(() -> assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L)));
 
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
         AckWatchResponse ackResponse = new AckWatchRequestBuilder(client(), "_id").setActionIds("_a1").get();
@@ -146,6 +149,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
             .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
+        assertBusy(() -> assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L)));
 
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
 
@@ -223,6 +227,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
             )
             .get();
         assertThat(putWatchResponse.isCreated(), is(true));
+        assertBusy(() -> assertThat(new WatcherStatsRequestBuilder(client()).get().getWatchesCount(), is(1L)));
 
         timeWarp().trigger("_name", 4, TimeValue.timeValueSeconds(5));
         restartWatcherRandomly();

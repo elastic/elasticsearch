@@ -30,7 +30,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -57,7 +57,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE = byteSizeSetting(
         "http.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
+        ByteSizeValue.of(64, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
     public static final Setting<Integer> WORKER_COUNT = new Setting<>(
@@ -68,7 +68,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     );
     private static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = byteSizeSetting(
         "transport.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
+        ByteSizeValue.of(64, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting(
@@ -91,7 +91,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
      */
     private static final ByteSizeValue MTU = ByteSizeValue.ofBytes(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
-    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
+    public static final Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = new Setting<>(
         SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
         (s) -> {
             ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);
@@ -122,6 +122,54 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         Setting.Property.NodeScope
     );
 
+    /*
+     * [NOTE: TLS Handshake Throttling]
+     *
+     * Each TLS handshake takes around 2.5ms of CPU to process, so each transport worker thread can process up to 400 handshakes per second.
+     * This is much slower than the rate at which we can accept new connections, so the handshakes can form a backlog of work. Clients
+     * typically impose a 10s timeout on TLS handshakes, so if we fall behind by more than 4000 handshakes then (even without any other
+     * CPU-bound work) each new client's handshake will take more than 10s to reach the head of the queue, and yet we will still attempt to
+     * complete it, delaying yet more client's handshake attempts, and ending up in a state where egregiously few new clients will be able
+     * to connect.
+     *
+     * We prevent this by restricting the number of handshakes in progress at once: by default we permit a backlog of up to 2000 handshakes
+     * per worker. This represents 5s of CPU time, half of the usual client timeout of 10s, which should be enough margin that we can work
+     * through this backlog before any of them time out (even in the -- likely -- situation that the CPU has something other than TLS
+     * handshakes to do).
+     *
+     * By default, the permitted 2000 handshakes are further divided into 200 in-flight handshake tasks (500ms of CPU time) enqueued on the
+     * Netty event loop as normal, and 1800 more delayed handshake tasks which are held in a separate queue and processed in LIFO order. The
+     * LIFO order yields better behaviour than FIFO in the situation that we cannot even spend 50% of CPU time on TLS handshakes, because in
+     * that case some of the enqueued handshakes will still hit the client timeout, so there's more value in focussing our limited attention
+     * on younger handshakes which we're more likely to complete before timing out. As long as we can devote at least 5% (200/4000) of a CPU
+     * to this work, we'll be dealing only with handshakes that we can actually complete within the 10s timeout.
+     *
+     * In future we may decide to adjust this division of work dynamically based on available CPU time, rather than relying on constant
+     * limits as described above.
+     */
+
+    /**
+     * Maximum number of in-flight TLS handshakes to permit on each event loop.
+     */
+    public static final Setting<Integer> SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS = intSetting(
+        "http.netty.tls_handshakes.max_in_progress",
+        200, // See [NOTE: TLS Handshake Throttling] above
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Maximum number of TLS handshakes to delay by holding in a queue on each event loop.
+     */
+    public static final Setting<Integer> SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED = intSetting(
+        "http.netty.tls_handshakes.max_delayed",
+        1800, // See [NOTE: TLS Handshake Throttling] above
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
     @Override
@@ -130,6 +178,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
             SETTING_HTTP_WORKER_COUNT,
             SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+            SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_IN_PROGRESS,
+            SETTING_HTTP_NETTY_TLS_HANDSHAKES_MAX_DELAYED,
             WORKER_COUNT,
             NETTY_RECEIVE_PREDICTOR_SIZE,
             NETTY_RECEIVE_PREDICTOR_MIN,
@@ -184,7 +234,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         HttpServerTransport.Dispatcher dispatcher,
         BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
@@ -196,7 +246,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
-                tracer,
+                telemetryProvider,
                 TLSConfig.noTLS(),
                 null,
                 null

@@ -10,6 +10,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -38,6 +39,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
         return this;
     }
 
+    public FieldCapabilitiesRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request().indicesOptions(indicesOptions);
+        return this;
+    }
+
     public FieldCapabilitiesRequestBuilder setIndexFilter(QueryBuilder indexFilter) {
         request().indexFilter(indexFilter);
         return this;
@@ -45,6 +51,21 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
 
     public FieldCapabilitiesRequestBuilder setRuntimeFields(Map<String, Object> runtimeFieldSection) {
         request().runtimeFields(runtimeFieldSection);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setIncludeIndices(boolean includeIndices) {
+        request().includeIndices(includeIndices);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setReturnLocalAll(boolean returnLocalAll) {
+        request().returnLocalAll(returnLocalAll);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setIncludeResolvedTo(boolean resolvedTo) {
+        request().includeResolvedTo(resolvedTo);
         return this;
     }
 }

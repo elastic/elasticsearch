@@ -7,26 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-$if(BytesRef)$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-$endif$
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-$if(int)$
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-$elseif(long)$
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
-$elseif(double)$
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
-$elseif(BytesRef)$
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
-$elseif(boolean)$
+import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.data.BooleanVector;
-$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -37,12 +25,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
-public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
+public class In$Name$Evaluator implements EvalOperator.ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(In$Name$Evaluator.class);
+
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator lhs;
@@ -53,7 +44,7 @@ public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
 
     private Warnings warnings;
 
-    public In$Type$Evaluator(
+    public In$Name$Evaluator(
         Source source,
         EvalOperator.ExpressionEvaluator lhs,
         EvalOperator.ExpressionEvaluator[] rhs,
@@ -166,6 +157,9 @@ $if(boolean)$
                 foundMatch = lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)) ? hasTrue : hasFalse;
 $elseif(BytesRef)$
                 foundMatch = In.process(nulls, mvs, lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
+$elseif(NanosMillis)$
+                // Even though these are longs, they're in different units and need special handling
+                foundMatch = In.processNanosMilils(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $else$
                 foundMatch = In.process(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $endif$
@@ -230,6 +224,10 @@ $if(BytesRef)$
                 result.appendBoolean(In.process(null, null, lhsVector.getBytesRef(p, lhsScratch), rhsValues));
 $elseif(boolean)$
                 result.appendBoolean(lhsVector.getBoolean(p) ? hasTrue : hasFalse);
+$elseif(nanosMillis)$
+                result.appendBoolean(In.processNanosMillis(null, null, lhsVector.get$Type$(p), rhsValues));
+$elseif(millisNanos)$
+                result.appendBoolean(In.processMillisNanos(null, null, lhsVector.get$Type$(p), rhsValues));
 $else$
                 result.appendBoolean(In.process(null, null, lhsVector.get$Type$(p), rhsValues));
 $endif$
@@ -240,7 +238,17 @@ $endif$
 
     @Override
     public String toString() {
-        return "In$Type$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+        return "In$Name$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        baseRamBytesUsed += lhs.baseRamBytesUsed();
+        for (EvalOperator.ExpressionEvaluator r : rhs) {
+            baseRamBytesUsed += r.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
     }
 
     @Override
@@ -272,16 +280,16 @@ $endif$
         }
 
         @Override
-        public In$Type$Evaluator get(DriverContext context) {
+        public In$Name$Evaluator get(DriverContext context) {
             EvalOperator.ExpressionEvaluator[] rhs = Arrays.stream(this.rhs)
                 .map(a -> a.get(context))
                 .toArray(EvalOperator.ExpressionEvaluator[]::new);
-            return new In$Type$Evaluator(source, lhs.get(context), rhs, context);
+            return new In$Name$Evaluator(source, lhs.get(context), rhs, context);
         }
 
         @Override
         public String toString() {
-            return "In$Type$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+            return "In$Name$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
         }
     }
 }

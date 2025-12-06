@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -19,7 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -69,21 +68,17 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
         }
     }
 
+    /**
+     * The only usage of this constructor is for BwC cross-cluster transforms for clusters before v8.2. The ML team is aware that we
+     * don't need to support that anymore now that we're on v9. Once they remove that BwC code, we can remove this constructor as well.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     GetIndexResponse(StreamInput in) throws IOException {
-        super(in);
         this.indices = in.readStringArray();
-        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getTransportVersion().before(TransportVersions.V_8_0_0) ? i -> {
-            int numMappings = i.readVInt();
-            assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
-            if (numMappings == 1) {
-                String type = i.readString();
-                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
-                return new MappingMetadata(i);
-            } else {
-                return MappingMetadata.EMPTY_MAPPINGS;
-            }
-        } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
-
+        mappings = in.readImmutableOpenMap(
+            StreamInput::readString,
+            i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS
+        );
         aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new));
         settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
@@ -166,6 +161,11 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
         }
     }
 
+    /**
+     * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);

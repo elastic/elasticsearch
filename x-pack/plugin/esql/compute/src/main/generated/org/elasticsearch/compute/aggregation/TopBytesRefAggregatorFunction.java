@@ -20,7 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link TopBytesRefAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -63,73 +63,83 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      BytesRefBlock block = page.getBlock(channels.get(0));
-      BytesRefVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      TopBytesRefAggregator.combine(state, vector.getBytesRef(i, scratch));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(BytesRefVector vVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      TopBytesRefAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(BytesRefVector vector, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(BytesRefVector vVector, BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      TopBytesRefAggregator.combine(state, vector.getBytesRef(i, scratch));
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      TopBytesRefAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(BytesRefBlock block) {
-    BytesRef scratch = new BytesRef();
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(BytesRefBlock vBlock) {
+    BytesRef vScratch = new BytesRef();
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        TopBytesRefAggregator.combine(state, block.getBytesRef(i, scratch));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        TopBytesRefAggregator.combine(state, vValue);
       }
     }
   }
 
-  private void addRawBlock(BytesRefBlock block, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(BytesRefBlock vBlock, BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        TopBytesRefAggregator.combine(state, block.getBytesRef(i, scratch));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        TopBytesRefAggregator.combine(state, vValue);
       }
     }
   }
@@ -144,7 +154,7 @@ public final class TopBytesRefAggregatorFunction implements AggregatorFunction {
     }
     BytesRefBlock top = (BytesRefBlock) topUncast;
     assert top.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef topScratch = new BytesRef();
     TopBytesRefAggregator.combineIntermediate(state, top);
   }
 

@@ -42,7 +42,6 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     static final String FAILURES_FIELD = "failures";
 
     public BulkByScrollResponse(StreamInput in) throws IOException {
-        super(in);
         took = in.readTimeValue();
         status = new BulkByScrollTask.Status(in);
         bulkFailures = in.readCollectionAsList(Failure::new);

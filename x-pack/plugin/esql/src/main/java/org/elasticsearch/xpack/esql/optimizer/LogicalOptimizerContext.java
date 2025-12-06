@@ -7,19 +7,33 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Objects;
 
 public class LogicalOptimizerContext {
     private final Configuration configuration;
+    private final FoldContext foldCtx;
+    private final TransportVersion minimumVersion;
 
-    public LogicalOptimizerContext(Configuration configuration) {
+    public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion) {
         this.configuration = configuration;
+        this.foldCtx = foldCtx;
+        this.minimumVersion = minimumVersion;
     }
 
     public Configuration configuration() {
         return configuration;
+    }
+
+    public FoldContext foldCtx() {
+        return foldCtx;
+    }
+
+    public TransportVersion minimumVersion() {
+        return minimumVersion;
     }
 
     @Override
@@ -27,17 +41,25 @@ public class LogicalOptimizerContext {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (LogicalOptimizerContext) obj;
-        return Objects.equals(this.configuration, that.configuration);
+        return this.configuration.equals(that.configuration)
+            && this.foldCtx.equals(that.foldCtx)
+            && Objects.equals(this.minimumVersion, that.minimumVersion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(configuration);
+        return Objects.hash(configuration, foldCtx, minimumVersion);
     }
 
     @Override
     public String toString() {
-        return "LogicalOptimizerContext[" + "configuration=" + configuration + ']';
+        return "LogicalOptimizerContext[configuration="
+            + configuration
+            + ", foldCtx="
+            + foldCtx
+            + ", minimumVersion="
+            + minimumVersion
+            + ']';
     }
 
 }

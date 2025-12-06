@@ -10,7 +10,9 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
 import org.hamcrest.Matcher;
 
@@ -101,7 +103,7 @@ public class IteratorAppendPageTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new IteratorAppendPage.Factory();
     }
 

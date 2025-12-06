@@ -13,11 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -25,9 +23,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -287,7 +287,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         return new TimeBasedCheckpointProvider(
             clock,
             parentTaskClient,
-            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            new RemoteClusterResolver(Settings.EMPTY, StubLinkedProjectConfigService.INSTANCE),
             transformConfigManager,
             transformAuditor,
             transformConfig
@@ -342,22 +342,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     }
 
     private static SearchResponse newSearchResponse(long totalHits) {
-        return new SearchResponse(
-            SearchHits.empty(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0),
-            null,
-            null,
-            false,
-            false,
-            null,
-            0,
-            null,
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null
-        );
+        return SearchResponseUtils.successfulResponse(SearchHits.empty(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 0));
     }
 
     @SuppressWarnings("unchecked")

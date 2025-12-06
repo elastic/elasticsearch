@@ -86,7 +86,7 @@ public class SizeLimitInputStreamTests extends ESTestCase {
 
     private static SizeLimitInputStream createRandomLimitedStream(int dataSize, int maxAllowedSize) {
         String data = randomAlphaOfLength(dataSize);
-        ByteSizeValue byteSizeValue = new ByteSizeValue(maxAllowedSize, ByteSizeUnit.BYTES);
+        ByteSizeValue byteSizeValue = ByteSizeValue.of(maxAllowedSize, ByteSizeUnit.BYTES);
         return new SizeLimitInputStream(byteSizeValue, new ByteArrayInputStream(data.getBytes(UTF_8)));
     }
 }

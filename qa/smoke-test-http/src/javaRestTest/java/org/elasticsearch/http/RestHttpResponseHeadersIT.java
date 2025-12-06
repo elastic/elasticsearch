@@ -13,7 +13,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +28,7 @@ import static org.hamcrest.Matchers.is;
  * methods on REST endpoints should respond with status code 405</a> for more
  * information.
  */
-public class RestHttpResponseHeadersIT extends ESRestTestCase {
+public class RestHttpResponseHeadersIT extends AbstractHttpSmokeTestIT {
 
     /**
      * For an OPTIONS request to a valid REST endpoint, verify that a 200 HTTP

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -45,7 +46,7 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),
-        Map.entry(DATE_NANOS, (field, source) -> field),
+        Map.entry(DATE_NANOS, (source, field) -> field),
         Map.entry(LONG, ToDateNanosFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),
@@ -61,9 +62,10 @@ public class ToDateNanos extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "date_nanos",
         description = "Converts an input to a nanosecond-resolution date value (aka date_nanos).",
-        note = "The range for date nanos is 1970-01-01T00:00:00.000000000Z to 2262-04-11T23:47:16.854775807Z.  Additionally, integers "
-            + "cannot be converted into date nanos, as the range of integer nanoseconds only covers about 2 seconds after epoch.",
-        preview = true
+        note = "The range for date nanos is 1970-01-01T00:00:00.000000000Z to 2262-04-11T23:47:16.854775807Z, attempting to convert "
+            + "values outside of that range will result in null with a warning.  Additionally, integers cannot be converted into date "
+            + "nanos, as the range of integer nanoseconds only covers about 2 seconds after epoch.",
+        examples = { @Example(file = "date_nanos", tag = "to_date_nanos") }
     )
     public ToDateNanos(
         Source source,

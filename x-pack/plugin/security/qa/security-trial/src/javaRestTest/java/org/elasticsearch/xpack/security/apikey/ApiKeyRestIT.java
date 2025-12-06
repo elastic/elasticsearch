@@ -828,7 +828,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(response);
         assertAPIKeyWithRemoteClusterPermissions(apiKeyId, includeRemoteCluster, false, null, new String[] { "foo", "bar" });
 
-        // create API key as the remote user which does remote_cluster limited_by permissions
+        // create API key as the remote user which has all remote_cluster permissions via limited_by
         response = sendRequestAsRemoteUser(createApiKeyRequest);
         apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
         assertThat(apiKeyId, notNullValue());
@@ -922,7 +922,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertNotNull(limitedByRole);
 
             List<Map<String, List<String>>> remoteCluster = (List<Map<String, List<String>>>) limitedByRole.get("remote_cluster");
-            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_enrich"));
+            assertThat(remoteCluster.get(0).get("privileges"), containsInAnyOrder("monitor_stats", "monitor_enrich"));
             assertThat(remoteCluster.get(0).get("clusters"), containsInAnyOrder("remote"));
         } else {
             // no limited by permissions
@@ -1695,7 +1695,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         updateRequest.setJsonEntity("{}");
         final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(updateRequest));
         assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e2.getMessage(), containsString("must update either [access] or [metadata] for cross-cluster API keys"));
+        assertThat(
+            e2.getMessage(),
+            containsString("must update [access], [metadata], or [certificate_identity] for cross-cluster API keys")
+        );
 
         // Access cannot be empty
         updateRequest.setJsonEntity("{\"access\":{}}");
@@ -2112,6 +2115,299 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
+    public void testUpdateCrossClusterApiKeyToAddCertificateIdentity() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cross-cluster-key-update-test",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "random" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+        final ObjectPath initialFetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(initialFetchResponse.evaluate("api_keys.0.certificate_identity"), nullValue());
+
+        final String certificateIdentity = "CN=updated-host,OU=engineering,DC=example,DC=com";
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "certificate_identity": "%s"
+            }""", certificateIdentity));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(certificateIdentity));
+    }
+
+    public void testUpdateCrossClusterApiKeyToChangeCertificateIdentity() throws IOException {
+        final String originalCertIdentity = "CN=original-host,OU=engineering,DC=example,DC=com";
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross-cluster-key-change-cert",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "metrics" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", originalCertIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+        final ObjectPath initialFetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(initialFetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(originalCertIdentity));
+
+        final String newCertificateIdentity = "CN=new-host,OU=security,DC=example,DC=com";
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "certificate_identity": "%s"
+            }""", newCertificateIdentity));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(newCertificateIdentity));
+    }
+
+    public void testUpdateCrossClusterApiKeyCertificateIdentityNoop() throws IOException {
+        final String certificateIdentity = "CN=test-host,OU=engineering,DC=example,DC=com";
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross-cluster-key-noop-test",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "something" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", certificateIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "certificate_identity": "%s"
+            }""", certificateIdentity));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(false));
+    }
+
+    public void testUpdateCrossClusterApiKeyToRemoveCertificateIdentity() throws IOException {
+        // Create API key with certificate identity
+        final String initialCertIdentity = "CN=initial-host,OU=engineering,DC=example,DC=com";
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross-cluster-key-remove-cert",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "logs" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", initialCertIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+
+        // Verify initial certificate identity
+        ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(initialCertIdentity));
+
+        // Update to remove certificate identity (explicit null)
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity("""
+            {
+              "certificate_identity": null
+            }""");
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        // Verify certificate identity was removed
+        fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), nullValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateMultipleApiKeysWithCertificateIdentityShouldFail() throws IOException {
+        // Create two API keys without certificate identity
+        final Request createRequest1 = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest1.setJsonEntity("""
+            {
+              "name": "key-1",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "index1" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(createRequest1, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId1 = assertOKAndCreateObjectPath(client().performRequest(createRequest1)).evaluate("id");
+
+        final Request createRequest2 = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest2.setJsonEntity("""
+            {
+              "name": "key-2",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "index2" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(createRequest2, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId2 = assertOKAndCreateObjectPath(client().performRequest(createRequest2)).evaluate("id");
+
+        // Attempt to update both with a certificate identity - should fail
+        final Request bulkUpdateRequest = new Request("POST", "/_security/api_key/_bulk_update");
+        bulkUpdateRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["%s", "%s"],
+              "certificate_identity": "CN=bulk-update,DC=example,DC=com"
+            }""", apiKeyId1, apiKeyId2));
+        setUserForRequest(bulkUpdateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        // This should succeed (200 OK) but contain errors
+        final Response bulkUpdateResponse = client().performRequest(bulkUpdateRequest);
+        assertOK(bulkUpdateResponse);
+
+        final Map<String, Object> responseMap = responseAsMap(bulkUpdateResponse);
+        final Map<String, Object> errors = (Map<String, Object>) responseMap.get("errors");
+        assertThat(errors.get("count"), equalTo(2));
+
+        final Map<String, Map<String, Object>> errorDetails = (Map<String, Map<String, Object>>) errors.get("details");
+        assertThat(
+            (String) errorDetails.get(apiKeyId1).get("reason"),
+            containsString("cannot update API key of type [cross_cluster] while expected type is [rest]")
+        );
+        assertThat(
+            (String) errorDetails.get(apiKeyId2).get("reason"),
+            containsString("cannot update API key of type [cross_cluster] while expected type is [rest]")
+        );
+    }
+
+    public void testUpdateCrossClusterApiKeyPreservesCertificateIdentityWhenNotSpecified() throws IOException {
+        final String certIdentity = "CN=preserve-test,OU=engineering,DC=example,DC=com";
+
+        // Create API key with certificate identity
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "preserve-cert-key",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "data" ]
+                  }
+                ]
+              },
+              "certificate_identity": "%s"
+            }""", certIdentity));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+
+        // Update only the access permissions (not certificate_identity)
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity("""
+            {
+              "access": {
+                "search": [
+                  {
+                    "names": [ "updated-data" ]
+                  }
+                ]
+              }
+            }""");
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse.evaluate("updated"), is(true));
+
+        // Verify certificate identity is preserved
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+        assertThat(fetchResponse.evaluate("api_keys.0.certificate_identity"), equalTo(certIdentity));
+    }
+
+    public void testCreateCrossClusterApiKeyWithInvalidCertificateIdentity() throws IOException {
+        // Test with invalid regex certificate identity
+        {
+            final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+            createRequest.setJsonEntity("""
+                {
+                  "name": "invalid-cert-key",
+                  "access": {
+                    "search": [
+                      {
+                        "names": [ "test" ]
+                      }
+                    ]
+                  },
+                  "certificate_identity": "["
+                }""");
+            setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Invalid certificate_identity format"));
+        }
+    }
+
+    public void testCannotSetCertificateIdentityOnRegularApiKey() throws IOException {
+        // Test that creating a regular API key with certificate_identity fails
+        final Request createRequest = new Request("POST", "_security/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "regular-key-with-cert",
+              "certificate_identity": "CN=test-host,OU=engineering,DC=example,DC=com"
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        ResponseException e1 = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e1.getMessage(), containsString("unknown field [certificate_identity"));
+
+        // Test that updating a regular API key with certificate_identity fails
+        final Request createRegularKeyRequest = new Request("POST", "_security/api_key");
+        createRegularKeyRequest.setJsonEntity("""
+            {
+              "name": "regular-key"
+            }""");
+        setUserForRequest(createRegularKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRegularKeyRequest)).evaluate("id");
+
+        final Request updateRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity("""
+            {
+              "certificate_identity": "CN=test-host,OU=engineering,DC=example,DC=com"
+            }""");
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(updateRequest));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e2.getMessage(), containsString("unknown field [certificate_identity"));
+    }
+
     private Response performRequestWithManageOwnApiKeyUser(Request request) throws IOException {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
@@ -2209,9 +2505,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(authenticateResponse);
         final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
 
-        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key", "managed_by", "elasticsearch"}.
+        // No encoded, api_key, or metadata.
         // If authentication type is other, authentication.api_key not present.
-        assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName)));
+        assertThat(authenticate, hasEntry("api_key", Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")));
     }
 
     private static Map<String, Object> getRandomUpdateApiKeyRequestBody(

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -41,42 +42,6 @@ final class ElasticServiceAccounts {
         )
     );
 
-    private static final ServiceAccount ENTERPRISE_SEARCH_ACCOUNT = new ElasticServiceAccount(
-        "enterprise-search-server",
-        new RoleDescriptor(
-            NAMESPACE + "/enterprise-search-server",
-            new String[] { "manage", "manage_security", "read_connector_secrets", "write_connector_secrets" },
-            new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "search-*",
-                        ".search-acl-filter-*",
-                        ".elastic-analytics-collections",
-                        ".ent-search-*",
-                        ".monitoring-ent-search-*",
-                        "metricbeat-ent-search-*",
-                        "enterprise-search-*",
-                        "logs-app_search.analytics-default",
-                        "logs-elastic_analytics.events-*",
-                        "logs-enterprise_search.api-default",
-                        "logs-enterprise_search.audit-default",
-                        "logs-app_search.search_relevance_suggestions-default",
-                        "logs-crawler-default",
-                        "logs-elastic_crawler-default",
-                        "logs-workplace_search.analytics-default",
-                        "logs-workplace_search.content_events-default",
-                        ".elastic-connectors*"
-                    )
-                    .privileges("manage", "read", "write")
-                    .build() },
-            null,
-            null,
-            null,
-            null,
-            null
-        )
-    );
-
     private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
         "fleet-server",
         new RoleDescriptor(
@@ -85,6 +50,8 @@ final class ElasticServiceAccounts {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
+                        "logs",
+                        "logs.*",
                         "logs-*",
                         "metrics-*",
                         "traces-*",
@@ -166,6 +133,12 @@ final class ElasticServiceAccounts {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("content-*", ".search-acl-filter-*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
+                    .build(),
+                // Custom permissions required for stateful agentless integrations
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("agentless-*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
+                    .allowRestrictedIndices(false)
                     .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
@@ -203,7 +176,6 @@ final class ElasticServiceAccounts {
 
     static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(
         AUTO_OPS_ACCOUNT,
-        ENTERPRISE_SEARCH_ACCOUNT,
         FLEET_ACCOUNT,
         FLEET_REMOTE_ACCOUNT,
         KIBANA_SYSTEM_ACCOUNT

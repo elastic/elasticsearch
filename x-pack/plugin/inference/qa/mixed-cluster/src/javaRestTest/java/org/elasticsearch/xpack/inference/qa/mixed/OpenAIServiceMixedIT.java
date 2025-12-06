@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.junit.AfterClass;
@@ -54,7 +54,6 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         openAiChatCompletionsServer.close();
     }
 
-    @AwaitsFix(bugUrl = "Backport #112074 to 8.16")
     @SuppressWarnings("unchecked")
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = bwcVersion.onOrAfter(Version.fromString(OPEN_AI_EMBEDDINGS_ADDED));

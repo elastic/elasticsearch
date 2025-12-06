@@ -546,76 +546,86 @@ public class Strings {
      * String. E.g. useful for <code>toString()</code> implementations.
      *
      * @param coll   the Collection to display
-     * @param delim  the delimiter to use (probably a ",")
-     * @param prefix the String to start each element with
-     * @param suffix the String to end each element with
+     * @param delimiter  the delimiter to use (probably a ",")
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delimiter) {
         StringBuilder sb = new StringBuilder();
-        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
+        collectionToDelimitedString(coll, delimiter, sb);
         return sb.toString();
     }
 
-    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
+    public static void collectionToDelimitedString(Iterable<?> coll, String delimiter, StringBuilder sb) {
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
+            sb.append(it.next());
             if (it.hasNext()) {
-                sb.append(delim);
+                sb.append(delimiter);
             }
         }
     }
 
     /**
-     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, String, String, StringBuilder)}
+     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, StringBuilder)}
      * except that it stops if the string gets too long and just indicates how many items were omitted.
      *
      * @param coll        the collection of items to display
-     * @param delim       the delimiter to write between the items (usually {@code ","})
-     * @param prefix      a string to write before each item (usually {@code ""} or {@code "["})
-     * @param suffix      a string to write after each item (usually {@code ""} or {@code "]"})
+     * @param delimiter   the delimiter to write between the items (e.g. {@code ","})
      * @param appendLimit if this many characters have been appended to the string and there are still items to display then the remaining
      *                    items are omitted
      */
-    public static void collectionToDelimitedStringWithLimit(
-        Iterable<?> coll,
-        String delim,
-        String prefix,
-        String suffix,
-        int appendLimit,
-        StringBuilder sb
-    ) {
-        final Iterator<?> it = coll.iterator();
-        final long lengthLimit = sb.length() + appendLimit; // long to avoid overflow
-        int count = 0;
-        while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
-            count += 1;
-            if (it.hasNext()) {
-                sb.append(delim);
-                if (sb.length() > lengthLimit) {
-                    int omitted = 0;
-                    while (it.hasNext()) {
-                        it.next();
-                        omitted += 1;
-                    }
-                    sb.append("... (").append(count + omitted).append(" in total, ").append(omitted).append(" omitted)");
-                }
-            }
-        }
+    public static void collectionToDelimitedStringWithLimit(Iterable<?> coll, String delimiter, int appendLimit, StringBuilder sb) {
+        final var boundedDelimitedStringCollector = new BoundedDelimitedStringCollector(sb, delimiter, appendLimit);
+        coll.forEach(boundedDelimitedStringCollector::appendItem);
+        boundedDelimitedStringCollector.finish();
     }
 
     /**
-     * Convenience method to return a Collection as a delimited (e.g. CSV)
-     * String. E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param coll  the Collection to display
-     * @param delim the delimiter to use (probably a ",")
-     * @return the delimited String
+     * Collects a sequence of objects into a delimited string, dropping objects once the string reaches a certain maximum length. Similar to
+     * {@link #collectionToDelimitedStringWithLimit} except that this doesn't need the collection of items to be provided up front.
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
-        return collectionToDelimitedString(coll, delim, "", "");
+    public static final class BoundedDelimitedStringCollector {
+        private final StringBuilder stringBuilder;
+        private final String delimiter;
+        private final long lengthLimit;
+        private int count = 0;
+        private int omitted = 0;
+
+        public BoundedDelimitedStringCollector(StringBuilder stringBuilder, String delimiter, int appendLimit) {
+            this.stringBuilder = stringBuilder;
+            this.delimiter = delimiter;
+            this.lengthLimit = stringBuilder.length() + appendLimit; // long to avoid overflow
+        }
+
+        /**
+         * Add the given item's string representation to the string, with a delimiter if necessary and surrounded by the given prefix and
+         * suffix, as long as the string is not already too long.
+         */
+        public void appendItem(Object item) {
+            count += 1;
+            if (omitted > 0) {
+                omitted += 1;
+                return;
+            }
+            if (count > 1) {
+                stringBuilder.append(delimiter);
+            }
+            if (stringBuilder.length() > lengthLimit) {
+                omitted += 1;
+                stringBuilder.append("..."); // indicate there are some omissions, just in case the caller forgets to call finish()
+                return;
+            }
+            stringBuilder.append(item);
+        }
+
+        /**
+         * Complete the collection, adding to the string a summary of omitted objects, if any.
+         */
+        public void finish() {
+            if (omitted > 0) {
+                stringBuilder.append(" (").append(count).append(" in total, ").append(omitted).append(" omitted)");
+            }
+        }
     }
 
     /**
@@ -812,7 +822,7 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
             XContentBuilder builder = createBuilder(pretty, human);
             if (toXContent.isFragment()) {

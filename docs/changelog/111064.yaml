@@ -1,6 +1,0 @@
-pr: 111064
-summary: "ESQL: Fix Double operations returning infinite"
-area: ES|QL
-type: bug
-issues:
- - 111026

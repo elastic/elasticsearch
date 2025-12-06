@@ -30,15 +30,19 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AttributeMapTests extends ESTestCase {
 
-    private static Attribute a(String name) {
+    static Attribute a(String name) {
         return new UnresolvedAttribute(Source.EMPTY, name);
     }
 
+    private static Attribute ONE = a("one");
+    private static Attribute TWO = a("two");
+    private static Attribute THREE = a("three");
+
     private static AttributeMap<String> threeMap() {
         AttributeMap.Builder<String> builder = AttributeMap.builder();
-        builder.put(a("one"), "one");
-        builder.put(a("two"), "two");
-        builder.put(a("three"), "three");
+        builder.put(ONE, "one");
+        builder.put(TWO, "two");
+        builder.put(THREE, "three");
 
         return builder.build();
     }
@@ -46,12 +50,12 @@ public class AttributeMapTests extends ESTestCase {
     public void testAttributeMapWithSameAliasesCanResolveAttributes() {
         Alias param1 = createIntParameterAlias(1, 100);
         Alias param2 = createIntParameterAlias(2, 100);
-        assertTrue(param1.equals(param2));
-        assertTrue(param1.semanticEquals(param2));
+        assertFalse(param1.equals(param2));
+        assertFalse(param1.semanticEquals(param2));
         // equality on literals
         assertTrue(param1.child().equals(param2.child()));
         assertTrue(param1.child().semanticEquals(param2.child()));
-        assertTrue(param1.toAttribute().equals(param2.toAttribute()));
+        assertFalse(param1.toAttribute().equals(param2.toAttribute()));
         assertFalse(param1.toAttribute().semanticEquals(param2.toAttribute()));
 
         AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
@@ -130,7 +134,7 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testEmptyConstructor() {
-        AttributeMap<Object> m = new AttributeMap<>();
+        AttributeMap<Object> m = AttributeMap.builder().build();
         assertThat(m.size(), is(0));
         assertThat(m.isEmpty(), is(true));
     }
@@ -156,7 +160,7 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testSingleItemConstructor() {
         Attribute one = a("one");
-        AttributeMap<String> m = new AttributeMap<>(one, "one");
+        AttributeMap<String> m = AttributeMap.of(one, "one");
         assertThat(m.size(), is(1));
         assertThat(m.isEmpty(), is(false));
 
@@ -168,8 +172,8 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testSubtract() {
         AttributeMap<String> m = threeMap();
-        AttributeMap<String> mo = new AttributeMap<>(m.keySet().iterator().next(), "one");
-        AttributeMap<String> empty = new AttributeMap<>();
+        AttributeMap<String> mo = AttributeMap.of(m.keySet().iterator().next(), "one");
+        AttributeMap<String> empty = AttributeMap.emptyAttributeMap();
 
         assertThat(m.subtract(empty), is(m));
         assertThat(m.subtract(m), is(empty));
@@ -184,7 +188,7 @@ public class AttributeMapTests extends ESTestCase {
     public void testIntersect() {
         AttributeMap<String> m = threeMap();
         AttributeMap<String> mo = new AttributeMap<>(m.keySet().iterator().next(), "one");
-        AttributeMap<String> empty = new AttributeMap<>();
+        AttributeMap<String> empty = AttributeMap.emptyAttributeMap();
 
         assertThat(m.intersect(empty), is(empty));
         assertThat(m.intersect(m), is(m));
@@ -194,7 +198,7 @@ public class AttributeMapTests extends ESTestCase {
     public void testSubsetOf() {
         AttributeMap<String> m = threeMap();
         AttributeMap<String> mo = new AttributeMap<>(m.keySet().iterator().next(), "one");
-        AttributeMap<String> empty = new AttributeMap<>();
+        AttributeMap<String> empty = AttributeMap.emptyAttributeMap();
 
         assertThat(m.subsetOf(empty), is(false));
         assertThat(m.subsetOf(m), is(true));
@@ -205,18 +209,14 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testKeySet() {
-        Attribute one = a("one");
-        Attribute two = a("two");
-        Attribute three = a("three");
-
         Set<Attribute> keySet = threeMap().keySet();
-        assertThat(keySet, contains(one, two, three));
+        assertThat(keySet, contains(ONE, TWO, THREE));
 
         // toObject
         Object[] array = keySet.toArray();
 
         assertThat(array, arrayWithSize(3));
-        assertThat(array, arrayContaining(one, two, three));
+        assertThat(array, arrayContaining(ONE, TWO, THREE));
     }
 
     public void testValues() {
@@ -254,36 +254,48 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testEmptyMapIsImmutable() {
         var empty = AttributeMap.emptyAttributeMap();
-        var ex = expectThrows(UnsupportedOperationException.class, () -> empty.add(a("one"), new Object()));
+        expectThrows(UnsupportedOperationException.class, () -> empty.put(a("one"), new Object()));
+    }
+
+    public void testMapIsImmutable() {
+        var map = threeMap();
+        expectThrows(UnsupportedOperationException.class, () -> map.put(a("one"), "one"));
+        expectThrows(UnsupportedOperationException.class, () -> map.putAll(threeMap()));
+        expectThrows(UnsupportedOperationException.class, () -> map.remove(a("one")));
+        expectThrows(UnsupportedOperationException.class, map::clear);
     }
 
     public void testAddPutEntriesIntoMap() {
-        var map = new AttributeMap<String>();
+        var builder = AttributeMap.builder();
         var one = a("one");
         var two = a("two");
         var three = a("three");
 
         for (var i : asList(one, two, three)) {
-            map.add(i, i.name());
+            builder.put(i, i.name());
         }
+
+        var map = builder.build();
 
         assertThat(map.size(), is(3));
 
-        assertThat(map.remove(one), is("one"));
-        assertThat(map.remove(two), is("two"));
+        assertThat(builder.remove(one), is("one"));
+        assertThat(builder.remove(two), is("two"));
 
         assertThat(map.size(), is(1));
     }
 
     public void testKeyIteratorRemoval() {
-        var map = new AttributeMap<String>();
+        var builder = AttributeMap.builder();
         var one = a("one");
         var two = a("two");
         var three = a("three");
 
         for (var i : asList(one, two, three)) {
-            map.add(i, i.name());
+            builder.put(i, i.name());
         }
+
+        var map = builder.build();
 
         assertThat(map.attributeNames(), contains("one", "two", "three"));
         assertThat(map.size(), is(3));
@@ -305,14 +317,16 @@ public class AttributeMapTests extends ESTestCase {
     }
 
     public void testValuesIteratorRemoval() {
-        var map = new AttributeMap<String>();
+        AttributeMap.Builder<String> builder = AttributeMap.builder();
         var one = a("one");
         var two = a("two");
         var three = a("three");
 
         for (var i : asList(one, two, three)) {
-            map.add(i, i.name());
+            builder.put(i, i.name());
         }
+
+        var map = builder.build();
 
         assertThat(map.values(), contains("one", "two", "three"));
 
@@ -329,5 +343,19 @@ public class AttributeMapTests extends ESTestCase {
         assertThat(it.next(), is("three"));
         it.remove();
         assertThat(it.hasNext(), is(false));
+    }
+
+    public void testMappAll() {
+        var one = a("one");
+        var two = a("two");
+        var three = a("three");
+
+        Collection<Attribute> collection = asList(one, two, three);
+        var map = AttributeMap.mapAll(collection, NamedExpression::toAttribute);
+
+        var builder = AttributeMap.builder();
+        collection.forEach(e -> builder.put(e, e.toAttribute()));
+
+        assertThat(map, is(builder.build()));
     }
 }

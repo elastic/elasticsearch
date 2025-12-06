@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -29,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMasterNodeAction<DeleteStoredScriptRequest> {
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/script/delete");
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteStoredScriptAction(
@@ -36,7 +37,7 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -45,9 +46,9 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             DeleteStoredScriptRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -57,12 +58,12 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        ScriptService.deleteStoredScript(clusterService, request, listener);
+        ScriptService.deleteStoredScript(clusterService, projectResolver.getProjectId(), request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteStoredScriptRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
 }

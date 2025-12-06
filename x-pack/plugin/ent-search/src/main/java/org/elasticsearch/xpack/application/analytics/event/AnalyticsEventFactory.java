@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.analytics.event;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -29,7 +30,10 @@ import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent
 
 /**
  * A utility class for parsing {@link AnalyticsEvent} objects from payloads (such as HTTP POST request bodies) or input streams.
+ * @deprecated in 9.0
  */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsEventFactory {
 
     public static final AnalyticsEventFactory INSTANCE = new AnalyticsEventFactory();

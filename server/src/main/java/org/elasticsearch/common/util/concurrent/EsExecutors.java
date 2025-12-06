@@ -10,6 +10,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -17,8 +18,6 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -96,6 +95,21 @@ public class EsExecutors {
         return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
+    /**
+     * Creates a scaling {@link EsThreadPoolExecutor} using an unbounded work queue.
+     * <p>
+     * The {@link EsThreadPoolExecutor} scales the same way as a regular {@link ThreadPoolExecutor} until the core pool size
+     * (and at least 1) is reached: each time a task is submitted a new worker is added regardless if an idle worker is available.
+     * <p>
+     * Once having reached the core pool size, a {@link ThreadPoolExecutor} will only add a new worker if the work queue rejects
+     * a task offer. Typically, using a regular unbounded queue, task offers won't ever be rejected, meaning the worker pool would never
+     * scale beyond the core pool size.
+     * <p>
+     * Scaling {@link EsThreadPoolExecutor}s use a customized unbounded {@link LinkedTransferQueue}, which rejects every task offer unless
+     * it can be immediately transferred to an available idle worker. If no such worker is available, the executor will add
+     * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
+     * rejection handler.
+     */
     public static EsThreadPoolExecutor newScaling(
         String name,
         int min,
@@ -107,10 +121,12 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor;
+        LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
+        // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
+        // probing the worker pool prevents this.
+        boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
         if (config.trackExecutionTime()) {
-            executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 min,
                 max,
@@ -119,12 +135,12 @@ public class EsExecutors {
                 queue,
                 TimedRunnable::new,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown),
+                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
                 contextHolder,
                 config
             );
         } else {
-            executor = new EsThreadPoolExecutor(
+            return new EsThreadPoolExecutor(
                 name,
                 min,
                 max,
@@ -132,14 +148,27 @@ public class EsExecutors {
                 unit,
                 queue,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown),
+                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
                 contextHolder
             );
         }
-        queue.executor = executor;
-        return executor;
     }
 
+    /**
+     * Creates a scaling {@link EsThreadPoolExecutor} using an unbounded work queue.
+     * <p>
+     * The {@link EsThreadPoolExecutor} scales the same way as a regular {@link ThreadPoolExecutor} until the core pool size
+     * (and at least 1) is reached: each time a task is submitted a new worker is added regardless if an idle worker is available.
+     * <p>
+     * Once having reached the core pool size, a {@link ThreadPoolExecutor} will only add a new worker if the work queue rejects
+     * a task offer. Typically, using a regular unbounded queue, task offers won't ever be rejected, meaning the worker pool would never
+     * scale beyond the core pool size.
+     * <p>
+     * Scaling {@link EsThreadPoolExecutor}s use a customized unbounded {@link LinkedTransferQueue}, which rejects every task offer unless
+     * it can be immediately transferred to an available idle worker. If no such worker is available, the executor will add
+     * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
+     * rejection handler.
+     */
     public static EsThreadPoolExecutor newScaling(
         String name,
         int min,
@@ -294,71 +323,79 @@ public class EsExecutors {
      */
     public static final ExecutorService DIRECT_EXECUTOR_SERVICE = new DirectExecutorService();
 
-    public static String threadName(Settings settings, String namePrefix) {
-        if (Node.NODE_NAME_SETTING.exists(settings)) {
-            return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
-        } else {
-            // TODO this should only be allowed in tests
-            return threadName("", namePrefix);
-        }
-    }
-
-    public static String threadName(final String nodeName, final String namePrefix) {
-        // TODO missing node names should only be allowed in tests
-        return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
-    }
-
-    public static String executorName(String threadName) {
-        // subtract 2 to avoid the `]` of the thread number part.
-        int executorNameEnd = threadName.lastIndexOf(']', threadName.length() - 2);
-        int executorNameStart = threadName.lastIndexOf('[', executorNameEnd);
-        if (executorNameStart == -1
-            || executorNameEnd - executorNameStart <= 1
-            || threadName.startsWith("TEST-")
-            || threadName.startsWith("LuceneTestCase")) {
-            return null;
-        }
-        return threadName.substring(executorNameStart + 1, executorNameEnd);
+    public static String threadName(Settings settings, String executorName) {
+        // TODO require node name to be non empty unless in tests
+        return EsThreadFactory.threadNamePrefix(Node.NODE_NAME_SETTING.get(settings), executorName);
     }
 
     public static String executorName(Thread thread) {
-        return executorName(thread.getName());
+        return EsThread.executorName(thread);
     }
 
-    public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
-        return daemonThreadFactory(threadName(settings, namePrefix));
+    public static ThreadFactory daemonThreadFactory(Settings settings, String executorName) {
+        // TODO require node name to be non empty unless in tests
+        return new EsThreadFactory(Node.NODE_NAME_SETTING.get(settings), executorName, false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
-        assert nodeName != null && false == nodeName.isEmpty();
-        return daemonThreadFactory(threadName(nodeName, namePrefix));
+    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName) {
+        return new EsThreadFactory(nodeName, executorName, false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String namePrefix) {
-        return new EsThreadFactory(namePrefix);
+    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName, boolean isSystemThread) {
+        assert Strings.hasLength(nodeName);
+        return new EsThreadFactory(nodeName, executorName, isSystemThread);
     }
 
-    static class EsThreadFactory implements ThreadFactory {
+    private static class EsThreadFactory implements ThreadFactory {
 
         final ThreadGroup group;
         final AtomicInteger threadNumber = new AtomicInteger(1);
-        final String namePrefix;
+        final String nodeName;
+        final String executorName;
+        final boolean isSystem;
 
-        EsThreadFactory(String namePrefix) {
-            this.namePrefix = namePrefix;
-            SecurityManager s = System.getSecurityManager();
-            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+        EsThreadFactory(String nodeName, String executorName, boolean isSystem) {
+            this.nodeName = nodeName;
+            this.executorName = executorName;
+            this.group = Thread.currentThread().getThreadGroup();
+            this.isSystem = isSystem;
         }
 
         @Override
         public Thread newThread(Runnable r) {
-            return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
-                Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
-                t.setDaemon(true);
-                return t;
-            });
+            String threadName = threadNamePrefix(nodeName, executorName) + "[T#" + threadNumber.getAndIncrement() + "]";
+            Thread thread = new EsThread(group, r, threadName, 0, executorName, isSystem);
+            thread.setDaemon(true);
+            return thread;
         }
 
+        static String threadNamePrefix(String nodeName, String executorName) {
+            return Strings.hasLength(nodeName)
+                ? "elasticsearch[" + nodeName + "][" + executorName + "]"
+                : "elasticsearch[" + executorName + "]";
+        }
+    }
+
+    public static class EsThread extends Thread {
+        private final String executorName;
+        private final boolean isSystem;
+
+        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, String executorName, boolean isSystem) {
+            super(group, target, name, stackSize);
+            this.executorName = executorName;
+            this.isSystem = isSystem;
+        }
+
+        public boolean isSystem() {
+            return isSystem;
+        }
+
+        private static String executorName(Thread thread) {
+            if (thread instanceof EsThread esThread) {
+                return esThread.executorName;
+            }
+            return null;
+        }
     }
 
     /**
@@ -366,32 +403,58 @@ public class EsExecutors {
      */
     private EsExecutors() {}
 
-    static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
+    private static <E> LinkedTransferQueue<E> newUnboundedScalingLTQueue(int corePoolSize, int maxPoolSize) {
+        if (maxPoolSize == 1 || maxPoolSize == corePoolSize) {
+            // scaling beyond core pool size (or 1) not required, use a regular unbounded LinkedTransferQueue
+            return new LinkedTransferQueue<>();
+        }
+        // scaling beyond core pool size with an unbounded queue requires ExecutorScalingQueue
+        // note, reconfiguration of core / max pool size not supported in EsThreadPoolExecutor
+        return new ExecutorScalingQueue<>();
+    }
 
-        ThreadPoolExecutor executor;
+    /**
+     * Customized {@link LinkedTransferQueue} to allow a {@link ThreadPoolExecutor} to scale beyond its core pool size despite having an
+     * unbounded queue.
+     * <p>
+     * Note, usage of unbounded work queues is a problem by itself. For once, it makes error-prone customizations necessary so that
+     * thread pools can scale up adequately. But worse, infinite queues prevent backpressure and impose a high risk of causing OOM errors.
+     * <a href="https://github.com/elastic/elasticsearch/issues/18613">Github #18613</a> captures various long outstanding, but important
+     * improvements to thread pools.
+     * <p>
+     * Once having reached its core pool size, a {@link ThreadPoolExecutor} will only add more workers if capacity remains and
+     * the task offer is rejected by the work queue. Typically that's never the case using a regular unbounded queue.
+     * <p>
+     * This customized implementation rejects every task offer unless it can be immediately transferred to an available idle worker.
+     * It relies on {@link ForceQueuePolicy} rejection handler to append the task to the work queue if no additional worker can be added
+     * and the task is rejected by the executor.
+     * <p>
+     * Note, {@link ForceQueuePolicy} cannot guarantee there will be available workers when appending tasks directly to the queue.
+     * For that reason {@link ExecutorScalingQueue} cannot be used with executors with empty core and max pool size of 1:
+     * the only available worker could time out just about at the same time as the task is appended, see
+     * <a href="https://github.com/elastic/elasticsearch/issues/124667">Github #124667</a> for more details.
+     * <p>
+     * Note, configuring executors using core = max size in combination with {@code allowCoreThreadTimeOut} could be an alternative to
+     * {@link ExecutorScalingQueue}. However, the scaling behavior would be very different: Using {@link ExecutorScalingQueue}
+     * we are able to reuse idle workers if available by means of {@link ExecutorScalingQueue#tryTransfer(Object)}.
+     * If setting core = max size, the executor will add a new worker for every task submitted until reaching the core/max pool size
+     * even if there's idle workers available.
+     */
+    static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ExecutorScalingQueue() {}
 
         @Override
         public boolean offer(E e) {
-            // first try to transfer to a waiting worker thread
-            if (tryTransfer(e) == false) {
-                // check if there might be spare capacity in the thread
-                // pool executor
-                int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();
-                if (left > 0) {
-                    // reject queuing the task to force the thread pool
-                    // executor to add a worker if it can; combined
-                    // with ForceQueuePolicy, this causes the thread
-                    // pool to always scale up to max pool size and we
-                    // only queue when there is no spare capacity
-                    return false;
-                } else {
-                    return super.offer(e);
-                }
-            } else {
-                return true;
+            if (e == EsThreadPoolExecutor.WORKER_PROBE) { // referential equality
+                // this probe ensures a worker is available after force queueing a task via ForceQueuePolicy
+                return super.offer(e);
             }
+            // try to transfer to a waiting worker thread
+            // otherwise reject queuing the task to force the thread pool executor to add a worker if it can;
+            // combined with ForceQueuePolicy, this causes the thread pool to always scale up to max pool size
+            // so that we only queue when there is no spare capacity
+            return tryTransfer(e);
         }
 
         // Overridden to workaround a JDK bug introduced in JDK 21.0.2
@@ -434,14 +497,23 @@ public class EsExecutors {
         private final boolean rejectAfterShutdown;
 
         /**
+         * Flag to indicate if the worker pool needs to be probed after force queuing a task to guarantee a worker is available.
+         */
+        private final boolean probeWorkerPool;
+
+        /**
          * @param rejectAfterShutdown indicates if {@link Runnable} should be rejected once the thread pool is shutting down
          */
-        ForceQueuePolicy(boolean rejectAfterShutdown) {
+        ForceQueuePolicy(boolean rejectAfterShutdown, boolean probeWorkerPool) {
             this.rejectAfterShutdown = rejectAfterShutdown;
+            this.probeWorkerPool = probeWorkerPool;
         }
 
         @Override
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
+            if (task == EsThreadPoolExecutor.WORKER_PROBE) { // referential equality
+                return;
+            }
             if (rejectAfterShutdown) {
                 if (executor.isShutdown()) {
                     reject(executor, task);
@@ -458,12 +530,19 @@ public class EsExecutors {
             }
         }
 
-        private static void put(ThreadPoolExecutor executor, Runnable task) {
+        private void put(ThreadPoolExecutor executor, Runnable task) {
             final BlockingQueue<Runnable> queue = executor.getQueue();
-            // force queue policy should only be used with a scaling queue
-            assert queue instanceof ExecutorScalingQueue;
+            // force queue policy should only be used with a scaling queue (ExecutorScalingQueue / LinkedTransferQueue)
+            assert queue instanceof LinkedTransferQueue;
             try {
                 queue.put(task);
+                if (probeWorkerPool && task == queue.peek()) { // referential equality
+                    // If the task is at the head of the queue, we can assume the queue was previously empty. In this case available workers
+                    // might have timed out in the meanwhile. To prevent the task from starving, we submit a noop probe to the executor.
+                    // Note, this deliberately doesn't check getPoolSize()==0 to avoid potential race conditions,
+                    // as the count in the atomic state (used by workerCountOf) is decremented first.
+                    executor.execute(EsThreadPoolExecutor.WORKER_PROBE);
+                }
             } catch (final InterruptedException e) {
                 assert false : "a scaling queue never blocks so a put to it can never be interrupted";
                 throw new AssertionError(e);
@@ -486,24 +565,43 @@ public class EsExecutors {
     }
 
     public static class TaskTrackingConfig {
-        // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-        public static double DEFAULT_EWMA_ALPHA = 0.3;
+        // This is a random starting point alpha.
+        public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
-        private final double ewmaAlpha;
+        private final boolean trackMaxQueueLatency;
+        private final double executionTimeEwmaAlpha;
 
-        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, false, DEFAULT_EWMA_ALPHA);
-        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, false, DEFAULT_EWMA_ALPHA);
+        public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
+            false,
+            false,
+            false,
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+        );
+        public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
+            true,
+            false,
+            false,
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+        );
 
-        public TaskTrackingConfig(boolean trackOngoingTasks, double ewmaAlpha) {
-            this(true, trackOngoingTasks, ewmaAlpha);
-        }
-
-        private TaskTrackingConfig(boolean trackExecutionTime, boolean trackOngoingTasks, double EWMAAlpha) {
+        /**
+         * @param trackExecutionTime Whether to track execution stats
+         * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
+         * @param trackMaxQueueLatency Whether to track max queue latency.
+         * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
+         */
+        private TaskTrackingConfig(
+            boolean trackExecutionTime,
+            boolean trackOngoingTasks,
+            boolean trackMaxQueueLatency,
+            double executionTimeEWMAAlpha
+        ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
-            this.ewmaAlpha = EWMAAlpha;
+            this.trackMaxQueueLatency = trackMaxQueueLatency;
+            this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
         }
 
         public boolean trackExecutionTime() {
@@ -514,8 +612,45 @@ public class EsExecutors {
             return trackOngoingTasks;
         }
 
-        public double getEwmaAlpha() {
-            return ewmaAlpha;
+        public boolean trackMaxQueueLatency() {
+            return trackMaxQueueLatency;
+        }
+
+        public double getExecutionTimeEwmaAlpha() {
+            return executionTimeEwmaAlpha;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private boolean trackExecutionTime = false;
+            private boolean trackOngoingTasks = false;
+            private boolean trackMaxQueueLatency = false;
+            private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+
+            public Builder() {}
+
+            public Builder trackExecutionTime(double alpha) {
+                trackExecutionTime = true;
+                ewmaAlpha = alpha;
+                return this;
+            }
+
+            public Builder trackOngoingTasks() {
+                trackOngoingTasks = true;
+                return this;
+            }
+
+            public Builder trackMaxQueueLatency() {
+                trackMaxQueueLatency = true;
+                return this;
+            }
+
+            public TaskTrackingConfig build() {
+                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+            }
         }
     }
 

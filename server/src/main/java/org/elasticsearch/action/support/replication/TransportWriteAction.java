@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -61,6 +62,7 @@ public abstract class TransportWriteAction<
     protected final IndexingPressure indexingPressure;
     protected final SystemIndices systemIndices;
     protected final ExecutorSelector executorSelector;
+    protected final ProjectResolver projectResolver;
 
     protected final PostWriteRefresh postWriteRefresh;
     private final BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction;
@@ -80,6 +82,7 @@ public abstract class TransportWriteAction<
         PrimaryActionExecution primaryActionExecution,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         ReplicaActionExecution replicaActionExecution
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
@@ -104,6 +107,7 @@ public abstract class TransportWriteAction<
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         this.executorSelector = systemIndices.getExecutorSelector();
+        this.projectResolver = projectResolver;
         this.postWriteRefresh = new PostWriteRefresh(transportService);
     }
 
@@ -113,7 +117,13 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request), force(request));
+        return indexingPressure.validateAndMarkPrimaryOperationStarted(
+            primaryOperationCount(request),
+            primaryOperationSize(request),
+            primaryLargestOperationSize(request),
+            force(request),
+            primaryAllowsOperationsBeyondSizeLimit(request)
+        );
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -121,7 +131,9 @@ public abstract class TransportWriteAction<
     }
 
     protected boolean isSystemShard(ShardId shardId) {
-        final IndexAbstraction abstraction = clusterService.state().metadata().getIndicesLookup().get(shardId.getIndexName());
+        final IndexAbstraction abstraction = projectResolver.getProjectMetadata(clusterService.state())
+            .getIndicesLookup()
+            .get(shardId.getIndexName());
         return abstraction != null ? abstraction.isSystem() : systemIndices.isSystemIndex(shardId.getIndexName());
     }
 
@@ -131,9 +143,11 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(
+                return indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
                     primaryOperationCount(request),
-                    primaryOperationSize(request)
+                    primaryOperationSize(request),
+                    primaryLargestOperationSize(request),
+                    primaryAllowsOperationsBeyondSizeLimit(request)
                 );
             } else {
                 return () -> {};
@@ -142,11 +156,14 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(
+            return indexingPressure.validateAndMarkPrimaryOperationStarted(
                 primaryOperationCount(request),
                 primaryOperationSize(request),
-                force(request)
+                primaryLargestOperationSize(request),
+                force(request),
+                primaryAllowsOperationsBeyondSizeLimit(request)
             );
+
         }
     }
 
@@ -156,6 +173,14 @@ public abstract class TransportWriteAction<
 
     protected int primaryOperationCount(Request request) {
         return 0;
+    }
+
+    protected long primaryLargestOperationSize(Request request) {
+        return 0;
+    }
+
+    protected boolean primaryAllowsOperationsBeyondSizeLimit(Request request) {
+        return true;
     }
 
     @Override

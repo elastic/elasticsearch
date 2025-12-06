@@ -12,7 +12,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -138,6 +139,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "local",
                 nowInMillis,
                 randomBoolean()
@@ -157,6 +159,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 nowInMillis,
                 randomBoolean()
@@ -204,6 +207,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -215,6 +219,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -230,6 +235,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -278,7 +284,15 @@ public class TransportSearchIT extends ESIntegTestCase {
         {
             SearchRequest searchRequest = randomBoolean()
                 ? originalRequest
-                : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
+                : SearchRequest.subSearchRequest(
+                    taskId,
+                    originalRequest,
+                    Strings.EMPTY_ARRAY,
+                    originalRequest.indicesOptions(),
+                    "remote",
+                    nowInMillis,
+                    true
+                );
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value());
                 InternalAggregations aggregations = searchResponse.getAggregations();
@@ -291,6 +305,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 taskId,
                 originalRequest,
                 Strings.EMPTY_ARRAY,
+                originalRequest.indicesOptions(),
                 "remote",
                 nowInMillis,
                 false
@@ -306,11 +321,16 @@ public class TransportSearchIT extends ESIntegTestCase {
 
     public void testWaitForRefreshIndexValidation() throws Exception {
         int numberOfShards = randomIntBetween(3, 10);
-        assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        assertAcked(prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        indicesAdmin().prepareAliases().addAlias("test1", "testAlias").get();
-        indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
+        assertAcked(
+            prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)),
+            prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)),
+            prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards))
+        );
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "testAlias"),
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(new String[] { "test2", "test3" }, "testFailedAlias")
+        );
 
         long[] validCheckpoints = new long[numberOfShards];
         Arrays.fill(validCheckpoints, SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -375,8 +395,10 @@ public class TransportSearchIT extends ESIntegTestCase {
         try {
             final int numPrimaries1 = randomIntBetween(2, 10);
             final int numPrimaries2 = randomIntBetween(1, 10);
-            assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries1)));
-            assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
+            assertAcked(
+                prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries1)),
+                prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2))
+            );
 
             // no exception
             prepareSearch("test1").get().decRef();
@@ -438,6 +460,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         int numShards = randomIntBetween(1, 10);
         indexSomeDocs("test", numShards, numShards * 3);
 
@@ -511,7 +534,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
+            updateClusterSettings(
+                Settings.builder().putNull("indices.breaker.request.limit").putNull(SearchService.BATCHED_QUERY_PHASE.getKey())
+            );
         }
     }
 
@@ -636,7 +661,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 
@@ -669,7 +694,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
             return new InternalAggregation[] { buildEmptyAggregation() };
         }
 

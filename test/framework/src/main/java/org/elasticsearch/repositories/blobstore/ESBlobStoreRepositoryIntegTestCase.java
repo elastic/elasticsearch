@@ -48,7 +48,6 @@ import org.hamcrest.CoreMatchers;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,7 +69,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -139,17 +137,27 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
     }
 
-    public void testWriteRead() throws IOException {
+    public void testWriteMaybeCopyRead() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+            String readBlobName = blobName;
+            writeBlob(container, blobName, new BytesArray(data), randomBoolean());
             if (randomBoolean()) {
                 // override file, to check if we get latest contents
                 data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-                writeBlob(container, "foobar", new BytesArray(data), false);
+                writeBlob(container, blobName, new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
+            if (randomBoolean()) {
+                // server-side copy if supported
+                try {
+                    final var destinationBlobName = blobName + "_copy";
+                    container.copyBlob(randomPurpose(), container, blobName, destinationBlobName, data.length);
+                    readBlobName = destinationBlobName;
+                } catch (UnsupportedOperationException ignored) {}
+            }
+            try (InputStream stream = container.readBlob(randomPurpose(), readBlobName)) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -522,39 +530,6 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         }
 
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap2").get());
-    }
-
-    public void testBlobStoreBulkDeletion() throws Exception {
-        Map<BlobPath, List<String>> expectedBlobsPerContainer = new HashMap<>();
-        try (BlobStore store = newBlobStore()) {
-            List<String> blobsToDelete = new ArrayList<>();
-            int numberOfContainers = randomIntBetween(2, 5);
-            for (int i = 0; i < numberOfContainers; i++) {
-                BlobPath containerPath = BlobPath.EMPTY.add(randomIdentifier());
-                final BlobContainer container = store.blobContainer(containerPath);
-                int numberOfBlobsPerContainer = randomIntBetween(5, 10);
-                for (int j = 0; j < numberOfBlobsPerContainer; j++) {
-                    byte[] bytes = randomBytes(randomInt(100));
-                    String blobName = randomAlphaOfLength(10);
-                    container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);
-                    if (randomBoolean()) {
-                        blobsToDelete.add(containerPath.buildAsString() + blobName);
-                    } else {
-                        expectedBlobsPerContainer.computeIfAbsent(containerPath, unused -> new ArrayList<>()).add(blobName);
-                    }
-                }
-            }
-
-            store.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator());
-            for (var containerEntry : expectedBlobsPerContainer.entrySet()) {
-                BlobContainer blobContainer = store.blobContainer(containerEntry.getKey());
-                Map<String, BlobMetadata> blobsInContainer = blobContainer.listBlobs(randomPurpose());
-                for (String expectedBlob : containerEntry.getValue()) {
-                    assertThat(blobsInContainer, hasKey(expectedBlob));
-                }
-                blobContainer.delete(randomPurpose());
-            }
-        }
     }
 
     public void testDanglingShardLevelBlobCleanup() throws Exception {

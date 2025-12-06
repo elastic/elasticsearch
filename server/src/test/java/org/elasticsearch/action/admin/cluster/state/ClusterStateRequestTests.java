@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,7 +29,9 @@ public class ClusterStateRequestTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
 
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT).routingTable(randomBoolean())
+            RemoteClusterStateRequest clusterStateRequest = new RemoteClusterStateRequest(TEST_REQUEST_TIMEOUT).routingTable(
+                randomBoolean()
+            )
                 .metadata(randomBoolean())
                 .nodes(randomBoolean())
                 .blocks(randomBoolean())
@@ -39,7 +40,7 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             TransportVersion testVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
+                TransportVersion.minimumCompatible(),
                 TransportVersion.current()
             );
             if (randomBoolean()) {
@@ -55,7 +56,7 @@ public class ClusterStateRequestTests extends ESTestCase {
 
             StreamInput streamInput = output.bytes().streamInput();
             streamInput.setTransportVersion(testVersion);
-            ClusterStateRequest deserializedCSRequest = new ClusterStateRequest(streamInput);
+            RemoteClusterStateRequest deserializedCSRequest = new RemoteClusterStateRequest(streamInput);
 
             assertThat(deserializedCSRequest.routingTable(), equalTo(clusterStateRequest.routingTable()));
             assertThat(deserializedCSRequest.metadata(), equalTo(clusterStateRequest.metadata()));
@@ -85,10 +86,13 @@ public class ClusterStateRequestTests extends ESTestCase {
     }
 
     public void testDescription() {
-        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().getDescription(), equalTo("cluster state [master timeout [30s]]"));
         assertThat(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).masterNodeTimeout(TimeValue.timeValueMinutes(5)).getDescription(),
-            equalTo("cluster state [routing table, nodes, metadata, blocks, customs, master timeout [5m]]")
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().getDescription(),
+            equalTo("cluster state [local, master timeout [30s]]")
+        );
+        assertThat(
+            new ClusterStateRequest(TimeValue.timeValueMinutes(5)).getDescription(),
+            equalTo("cluster state [routing table, nodes, metadata, blocks, customs, local, master timeout [5m]]")
         );
         assertThat(
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().routingTable(true).getDescription(),
@@ -98,7 +102,6 @@ public class ClusterStateRequestTests extends ESTestCase {
         assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().metadata(true).getDescription(), containsString("metadata"));
         assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().blocks(true).getDescription(), containsString("blocks"));
         assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().customs(true).getDescription(), containsString("customs"));
-        assertThat(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).local(true).getDescription(), containsString("local"));
         assertThat(
             new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(23L).getDescription(),
             containsString("wait for metadata version [23] with timeout [1m]")

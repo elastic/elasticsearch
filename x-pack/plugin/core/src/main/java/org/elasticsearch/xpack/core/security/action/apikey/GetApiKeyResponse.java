@@ -126,7 +126,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     static final ConstructingObjectParser<GetApiKeyResponse, Void> RESPONSE_PARSER;
     static {
-        int nFieldsForParsingApiKeyInfo = 13; // this must be changed whenever ApiKey#initializeParser is changed for the number of parsers
+        int nFieldsForParsingApiKeyInfo = 14; // this must be changed whenever ApiKey#initializeParser is changed for the number of parsers
         ConstructingObjectParser<Item, Void> keyInfoParser = new ConstructingObjectParser<>(
             "api_key_with_profile_uid",
             true,

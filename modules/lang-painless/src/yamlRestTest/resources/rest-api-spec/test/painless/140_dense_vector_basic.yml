@@ -221,9 +221,6 @@ setup:
   - close_to: {hits.hits.2._score: {value: 186.34454, error: 0.01}}
 ---
 "Test hamming distance fails on float":
-  - requires:
-      cluster_features: ["script.hamming"]
-      reason: "support for hamming distance added in 8.15"
   - do:
       headers:
         Content-Type: application/json

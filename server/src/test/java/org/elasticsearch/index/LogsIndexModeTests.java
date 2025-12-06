@@ -12,6 +12,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -25,9 +26,87 @@ public class LogsIndexModeTests extends ESTestCase {
     public void testDefaultHostNameSortField() {
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
         assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
-        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        boolean sortOnHostName = randomBoolean();
+        final IndexSettings settings = new IndexSettings(
+            metadata,
+            Settings.builder().put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), sortOnHostName).build()
+        );
+        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(sortOnHostName));
+    }
+
+    public void testDefaultHostNameSortFieldAndMapping() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        final IndexSettings settings = new IndexSettings(
+            metadata,
+            Settings.builder()
+                .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true)
+                .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true)
+                .build()
+        );
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
         assertThat(IndexMode.LOGSDB.getDefaultMapping(settings).string(), containsString("host.name"));
+    }
+
+    public void testDefaultHostNameSortFieldBwc() {
+        final IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(
+                indexSettings(IndexVersionUtils.getPreviousVersion(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME), 1, 1).put(
+                    buildSettings()
+                )
+            )
+            .build();
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
+    }
+
+    public void testDefaultHostNameSortWithOrder() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                metadata,
+                Settings.builder()
+                    .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), randomBoolean())
+                    .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
+                    .build()
+            )
+        );
+        assertEquals("setting [index.sort.order] requires [index.sort.field] to be configured", exception.getMessage());
+    }
+
+    public void testDefaultHostNameSortWithMode() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                metadata,
+                Settings.builder()
+                    .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), randomBoolean())
+                    .put(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "MAX")
+                    .build()
+            )
+        );
+        assertEquals("setting [index.sort.mode] requires [index.sort.field] to be configured", exception.getMessage());
+    }
+
+    public void testDefaultHostNameSortWithMissing() {
+        final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", buildSettings());
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB));
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                metadata,
+                Settings.builder()
+                    .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), randomBoolean())
+                    .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_first")
+                    .build()
+            )
+        );
+        assertEquals("setting [index.sort.missing] requires [index.sort.field] to be configured", exception.getMessage());
     }
 
     public void testCustomSortField() {

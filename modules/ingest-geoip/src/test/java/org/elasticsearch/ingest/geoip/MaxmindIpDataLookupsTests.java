@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -155,7 +157,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testAsn() throws IOException {
+    public void testAsn() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-ASN.mmdb";
         String ip = "82.171.64.0";
@@ -330,10 +332,11 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         }
     }
 
+    @FixForMultiProject(description = "Replace DEFAULT project")
     private DatabaseReaderLazyLoader loader(final String databaseName) {
         Path path = tmpDir.resolve(databaseName);
         copyDatabase(databaseName, path);
         final GeoIpCache cache = new GeoIpCache(1000);
-        return new DatabaseReaderLazyLoader(cache, path, null);
+        return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null);
     }
 }

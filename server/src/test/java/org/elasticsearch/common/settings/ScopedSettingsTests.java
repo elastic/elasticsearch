@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.elasticsearch.transport.TransportSettings;
 import org.mockito.Mockito;
 
@@ -42,12 +43,14 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@WithoutEntitlements // Entitlement logging interferes
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testResetSetting() {
@@ -333,6 +336,20 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(e3.getMessage(), equalTo("too long"));
     }
 
+    public void testValidateArchivedSetting() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.validate(Settings.builder().put("archived.index.store.type", "boom").build(), false)
+        );
+        assertThat(
+            e.getMessage(),
+            both(containsString("unknown setting [archived.index.store.type] was archived after upgrading, and must be removed.")).and(
+                containsString("https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster/archived-settings")
+            )
+        );
+    }
+
     public void testTupleAffixUpdateConsumer() {
         String prefix = randomAlphaOfLength(3) + "foo.";
         String intSuffix = randomAlphaOfLength(3);
@@ -465,8 +482,14 @@ public class ScopedSettingsTests extends ESTestCase {
         String group2 = randomAlphaOfLength(4);
         String group3 = randomAlphaOfLength(5);
         BiConsumer<String, Settings> listConsumer = results::put;
+        BiConsumer<String, Settings> validator = (group, settings) -> {
+            var val = intSetting.getConcreteSettingForNamespace(group).get(settings);
+            if (val > 10) {
+                throw new IllegalArgumentException("int too large");
+            }
+        };
 
-        service.addAffixGroupUpdateConsumer(Arrays.asList(intSetting, listSetting), listConsumer);
+        service.addAffixGroupUpdateConsumer(Arrays.asList(intSetting, listSetting), listConsumer, validator);
         assertEquals(0, results.size());
         service.applySettings(
             Settings.builder()
@@ -539,6 +562,21 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(Arrays.asList(16, 17), listSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings));
         assertEquals(1, results.size());
         assertEquals(2, groupOneSettings.size());
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> service.applySettings(
+                Settings.builder()
+                    .put(intBuilder.apply(group1), 2)
+                    .put(intBuilder.apply(group2), 11) // fails validation
+                    .putList(listBuilder.apply(group1), "16", "17")
+                    .putList(listBuilder.apply(group3), "5", "6")
+                    .build()
+            )
+        );
+
+        assertThat(exception.getMessage(), containsString("int too large"));
+
         results.clear();
     }
 
@@ -1136,6 +1174,42 @@ public class ScopedSettingsTests extends ESTestCase {
 
         Settings diffed = clusterSettings.diff(Settings.EMPTY, settings);
         assertTrue(diffed.isEmpty());
+    }
+
+    public void testValidateSecureSettingInsecureOverride() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        String settingName = "something.secure";
+        secureSettings.setString(settingName, "secure");
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").setSecureSettings(secureSettings).build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
+    }
+
+    public void testValidateSecureSettingInInsecureSettings() {
+        String settingName = "something.secure";
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -21,6 +23,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
+
+    private final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+
     public void testCrud() throws Exception {
         EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
@@ -29,15 +34,15 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
         assertThat(error.get(), nullValue());
 
-        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state().metadata().getProject(projectId));
         assertThat(result, equalTo(policy));
 
-        Map<String, EnrichPolicy> listPolicies = EnrichStore.getPolicies(clusterService.state());
+        Map<String, EnrichPolicy> listPolicies = EnrichStore.getPolicies(clusterService.state().metadata().getProject(projectId));
         assertThat(listPolicies.size(), equalTo(1));
         assertThat(listPolicies.get(name), equalTo(policy));
 
         deleteEnrichPolicy(name, clusterService);
-        result = EnrichStore.getPolicy(name, clusterService.state());
+        result = EnrichStore.getPolicy(name, clusterService.state().metadata().getProject(projectId));
         assertThat(result, nullValue());
     }
 
@@ -54,7 +59,7 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         ;
 
         deleteEnrichPolicy(name, clusterService);
-        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state().metadata().getProject(projectId));
         assertThat(result, nullValue());
     }
 
@@ -143,18 +148,18 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
 
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> EnrichStore.getPolicy(nullOrEmptyName, clusterService.state())
+            () -> EnrichStore.getPolicy(nullOrEmptyName, clusterService.state().metadata().getProject(projectId))
         );
 
         assertThat(error.getMessage(), equalTo("name is missing or empty"));
 
-        EnrichPolicy policy = EnrichStore.getPolicy("null-policy", clusterService.state());
+        EnrichPolicy policy = EnrichStore.getPolicy("null-policy", clusterService.state().metadata().getProject(projectId));
         assertNull(policy);
     }
 
     public void testListValidation() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
+        Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state().metadata().getProject(projectId));
         assertTrue(policies.isEmpty());
     }
 

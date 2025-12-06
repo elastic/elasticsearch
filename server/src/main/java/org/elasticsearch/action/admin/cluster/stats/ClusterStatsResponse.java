@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
@@ -36,9 +37,13 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterSnapshotStats clusterSnapshotStats;
     final RepositoryUsageStats repositoryUsageStats;
     final CCSTelemetrySnapshot ccsMetrics;
+    final CCSTelemetrySnapshot esqlMetrics;
     final long timestamp;
     final String clusterUUID;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
+
+    public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
+    public static final String ESQL_TELEMETRY_FIELD_NAME = "_esql";
 
     public ClusterStatsResponse(
         long timestamp,
@@ -50,14 +55,16 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         AnalysisStats analysisStats,
         VersionStats versionStats,
         ClusterSnapshotStats clusterSnapshotStats,
-        Map<String, RemoteClusterStats> remoteClustersStats
+        Map<String, RemoteClusterStats> remoteClustersStats,
+        boolean skipMRT
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
-        ccsMetrics = new CCSTelemetrySnapshot();
+        ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
+        esqlMetrics = new CCSTelemetrySnapshot(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -66,7 +73,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 break;
             }
         }
-        nodes.forEach(node -> ccsMetrics.add(node.getCcsMetrics()));
+        nodes.forEach(node -> {
+            ccsMetrics.add(node.getSearchCcsMetrics());
+            esqlMetrics.add(node.getEsqlCcsMetrics());
+        });
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
 
@@ -147,7 +157,16 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         if (remoteClustersStats != null) {
             builder.field("clusters", remoteClustersStats);
         }
+        builder.startObject(CCS_TELEMETRY_FIELD_NAME);
         ccsMetrics.toXContent(builder, params);
+        builder.endObject();
+
+        if (esqlMetrics.getTotalCount() > 0) {
+            builder.startObject(ESQL_TELEMETRY_FIELD_NAME);
+            esqlMetrics.toXContent(builder, params);
+            builder.endObject();
+        }
+
         builder.endObject();
 
         return builder;
@@ -164,7 +183,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public record RemoteClusterStats(
         String clusterUUID,
         String mode,
-        boolean skipUnavailable,
+        Optional<Boolean> skipUnavailable,
         String transportCompress,
         Set<String> versions,
         String status,
@@ -175,7 +194,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         long heapBytes,
         long memBytes
     ) implements ToXContentFragment {
-        public RemoteClusterStats(String mode, boolean skipUnavailable, String transportCompress) {
+        public RemoteClusterStats(String mode, Optional<Boolean> skipUnavailable, String transportCompress) {
             this(
                 "unavailable",
                 mode,
@@ -214,7 +233,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.startObject();
             builder.field("cluster_uuid", clusterUUID);
             builder.field("mode", mode);
-            builder.field("skip_unavailable", skipUnavailable);
+            if (skipUnavailable.isPresent()) {
+                builder.field("skip_unavailable", skipUnavailable.get());
+            }
             builder.field("transport.compress", transportCompress);
             builder.field("status", status);
             builder.field("version", versions);

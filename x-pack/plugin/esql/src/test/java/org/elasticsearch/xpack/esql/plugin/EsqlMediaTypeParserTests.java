@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
@@ -84,10 +85,22 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         var accept = randomFrom("text/plain", "text/csv", "text/tab-separated-values");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> getResponseMediaType(reqWithAccept(accept), createTestInstance(false, true))
+            () -> getResponseMediaType(reqWithAccept(accept), createTestInstance(false, true, false))
         );
         assertEquals(
             "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
+            e.getMessage()
+        );
+    }
+
+    public void testIncludeExecutionMetadataWithAcceptText() {
+        var accept = randomFrom("text/plain", "text/csv", "text/tab-separated-values");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithAccept(accept), createCpsTestInstance(false, true, false))
+        );
+        assertEquals(
+            "Invalid use of [include_execution_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
             e.getMessage()
         );
     }
@@ -105,7 +118,7 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
             RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv")));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> getResponseMediaType(restRequest, createTestInstance(false, true))
+                () -> getResponseMediaType(restRequest, createTestInstance(false, true, false))
             );
             assertEquals(
                 "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
@@ -115,7 +128,44 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         {
             // check that no exception is thrown for the XContent types
             RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("SMILE", "YAML", "CBOR", "JSON")));
-            MediaType responseMediaType = getResponseMediaType(restRequest, createTestInstance(true, true));
+            MediaType responseMediaType = getResponseMediaType(restRequest, createTestInstance(true, true, false));
+            assertNotNull(responseMediaType);
+        }
+    }
+
+    public void testIncludeExecutionMetadataWithNonJSONMediaTypesInParams() {
+        {
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv")));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> getResponseMediaType(restRequest, createCpsTestInstance(false, true, false))
+            );
+            assertEquals(
+                "Invalid use of [include_execution_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
+                e.getMessage()
+            );
+        }
+        {
+            // check that no exception is thrown for the XContent types
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("SMILE", "YAML", "CBOR", "JSON")));
+            MediaType responseMediaType = getResponseMediaType(restRequest, createCpsTestInstance(true, true, false));
+            assertNotNull(responseMediaType);
+        }
+    }
+
+    public void testProfileWithNonJSONMediaTypesInParams() {
+        {
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv")));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> getResponseMediaType(restRequest, createTestInstance(false, false, true))
+            );
+            assertEquals("Invalid use of [profile] argument: cannot be used in combination with [txt, csv, tsv] formats", e.getMessage());
+        }
+        {
+            // check that no exception is thrown for the XContent types
+            RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("SMILE", "YAML", "CBOR", "JSON")));
+            MediaType responseMediaType = getResponseMediaType(restRequest, createTestInstance(true, false, true));
             assertNotNull(responseMediaType);
         }
     }
@@ -123,9 +173,15 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
     public void testNoFormat() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> getResponseMediaType(new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(), createTestInstance(false))
+            () -> getResponseMediaType(emptyRequest(), createTestInstance(false))
         );
         assertEquals(e.getMessage(), "Invalid request content type: Accept=[null], Content-Type=[null], format=[null]");
+    }
+
+    public void testNoContentType() {
+        RestRequest fakeRestRequest = emptyRequest();
+        assertThat(getResponseMediaType(fakeRestRequest, CSV), is(CSV));
+        assertThat(getResponseMediaType(fakeRestRequest, JSON), is(JSON));
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {
@@ -140,15 +196,27 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         ).withParams(params).build();
     }
 
+    private static RestRequest emptyRequest() {
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+    }
+
     protected EsqlQueryRequest createTestInstance(boolean columnar) {
         var request = new EsqlQueryRequest();
         request.columnar(columnar);
         return request;
     }
 
-    protected EsqlQueryRequest createTestInstance(boolean columnar, boolean includeCCSMetadata) {
+    protected EsqlQueryRequest createTestInstance(boolean columnar, boolean includeCCSMetadata, boolean profile) {
         var request = createTestInstance(columnar);
         request.includeCCSMetadata(includeCCSMetadata);
+        request.profile(profile);
+        return request;
+    }
+
+    protected EsqlQueryRequest createCpsTestInstance(boolean columnar, boolean includeExecutionMetadata, boolean profile) {
+        var request = createTestInstance(columnar);
+        request.includeExecutionMetadata(includeExecutionMetadata);
+        request.profile(profile);
         return request;
     }
 }

@@ -76,8 +76,8 @@ public class BulkProcessor2 implements Closeable {
         private final Listener listener;
         private final ThreadPool threadPool;
         private int maxRequestsInBulk = 1000;
-        private ByteSizeValue maxBulkSizeInBytes = new ByteSizeValue(5, ByteSizeUnit.MB);
-        private ByteSizeValue maxBytesInFlight = new ByteSizeValue(50, ByteSizeUnit.MB);
+        private ByteSizeValue maxBulkSizeInBytes = ByteSizeValue.of(5, ByteSizeUnit.MB);
+        private ByteSizeValue maxBytesInFlight = ByteSizeValue.of(50, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private int maxNumberOfRetries = 3;
 

@@ -12,18 +12,24 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -35,12 +41,13 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(str -> {
-            for (String syntax : new String[] { "\\", "*" }) {
+        final Function<String, String> escapeString = str -> {
+            for (String syntax : new String[] { "\\", "*", "?" }) {
                 str = str.replace(syntax, "\\" + syntax);
             }
             return str;
-        }, () -> "*");
+        };
+        List<Object[]> cases = (List<Object[]>) RLikeTests.parameters(escapeString, () -> "*");
 
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         addCases(suppliers);
@@ -54,7 +61,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     private static void addCases(List<TestCaseSupplier> suppliers) {
         for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
-            suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, type), () -> {
+            suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
                 String patternString = randomAlphaOfLength(2);
                 BytesRef pattern = new BytesRef(patternString + "*");
@@ -62,7 +69,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                 return new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(str, type, "str"),
-                        new TestCaseSupplier.TypedData(pattern, type, "pattern").forceLiteral()
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
                     ),
                     startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
                     DataType.BOOLEAN,
@@ -74,12 +81,31 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
+        return buildWildcardLike(source, args);
+    }
+
+    Expression buildWildcardLike(Source source, List<Expression> args) {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
-        if (args.size() > 2) {
-            Literal caseInsensitive = (Literal) args.get(2);
-            assertThat(caseInsensitive.fold(), equalTo(false));
-        }
-        return new WildcardLike(source, expression, new WildcardPattern(((BytesRef) pattern.fold()).utf8ToString()));
+        Literal caseInsensitive = args.size() > 2 ? (Literal) args.get(2) : null;
+        boolean caseInsesitiveBool = caseInsensitive != null && (boolean) caseInsensitive.fold(FoldContext.small());
+
+        WildcardPattern wildcardPattern = new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small())).utf8ToString());
+        return caseInsesitiveBool
+            ? new WildcardLike(source, expression, wildcardPattern, true)
+            : (randomBoolean()
+                ? new WildcardLike(source, expression, wildcardPattern)
+                : new WildcardLike(source, expression, wildcardPattern, false));
+    }
+
+    @AfterClass
+    public static void renderNotLike() throws Exception {
+        renderNegatedOperator(
+            constructorWithFunctionInfo(WildcardLike.class),
+            "LIKE",
+            d -> d,
+            getTestClass(),
+            DocsV3Support.callbacksFromSystemProperty()
+        );
     }
 }

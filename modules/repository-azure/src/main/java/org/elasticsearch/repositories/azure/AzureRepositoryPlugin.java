@@ -9,13 +9,14 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.core.util.serializer.JacksonAdapter;
-
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -24,12 +25,12 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,11 +44,6 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     public static final String REPOSITORY_THREAD_POOL_NAME = "repository_azure";
     public static final String NETTY_EVENT_LOOP_THREAD_POOL_NAME = "azure_event_loop";
-
-    static {
-        // Trigger static initialization with the plugin class loader so we have access to the proper xml parser
-        AccessController.doPrivileged((PrivilegedAction<Object>) JacksonAdapter::createDefaultSerializerAdapter);
-    }
 
     // protected for testing
     final SetOnce<AzureStorageService> azureStoreService = new SetOnce<>();
@@ -66,19 +62,22 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
-        return Collections.singletonMap(AzureRepository.TYPE, metadata -> {
+        return Collections.singletonMap(AzureRepository.TYPE, (projectId, metadata) -> {
             AzureStorageService storageService = azureStoreService.get();
             assert storageService != null;
             return new AzureRepository(
+                projectId,
                 metadata,
                 namedXContentRegistry,
                 storageService,
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                repositoriesMetrics
+                repositoriesMetrics,
+                snapshotMetrics
             );
         });
     }
@@ -86,17 +85,29 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     @Override
     public Collection<?> createComponents(PluginServices services) {
         AzureClientProvider azureClientProvider = AzureClientProvider.create(services.threadPool(), settings);
-        azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
+        azureStoreService.set(
+            createAzureStorageService(settings, azureClientProvider, services.clusterService(), services.projectResolver())
+        );
+        assert assertRepositoryAzureMaxThreads(settings, services.threadPool());
         return List.of(azureClientProvider);
     }
 
-    AzureStorageService createAzureStorageService(Settings settingsToUse, AzureClientProvider azureClientProvider) {
-        return new AzureStorageService(settingsToUse, azureClientProvider);
+    AzureStorageService createAzureStorageService(
+        Settings settingsToUse,
+        AzureClientProvider azureClientProvider,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) {
+        return new AzureStorageService(settingsToUse, azureClientProvider, clusterService, projectResolver);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
+            AzureClientProvider.EVENT_LOOP_THREAD_COUNT,
+            AzureClientProvider.MAX_OPEN_CONNECTIONS,
+            AzureClientProvider.OPEN_CONNECTION_TIMEOUT,
+            AzureClientProvider.MAX_IDLE_TIME,
             AzureStorageSettings.ACCOUNT_SETTING,
             AzureStorageSettings.KEY_SETTING,
             AzureStorageSettings.SAS_TOKEN_SETTING,
@@ -112,12 +123,18 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(executorBuilder(), nettyEventLoopExecutorBuilder(settingsToUse));
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(executorBuilder(settings), nettyEventLoopExecutorBuilder(settings));
     }
 
-    public static ExecutorBuilder<?> executorBuilder() {
-        return new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0, 5, TimeValue.timeValueSeconds(30L), false);
+    public static ExecutorBuilder<?> executorBuilder(Settings settings) {
+        int repositoryAzureMax = 5;
+        if (DiscoveryNode.isStateless(settings)) {
+            // REPOSITORY_THREAD_POOL_NAME is shared between snapshot and translogs/segments upload logic in serverless. In order to avoid
+            // snapshots to slow down other uploads due to rate limiting, we allow more threads in serverless.
+            repositoryAzureMax += ThreadPool.getMaxSnapshotThreadPoolSize(EsExecutors.allocatedProcessors(settings));
+        }
+        return new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0, repositoryAzureMax, TimeValue.timeValueSeconds(30L), false);
     }
 
     public static ExecutorBuilder<?> nettyEventLoopExecutorBuilder(Settings settings) {
@@ -131,6 +148,21 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settingsToLoad);
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
-        storageService.refreshSettings(clientsSettings);
+        storageService.refreshClusterClientSettings(clientsSettings);
+    }
+
+    private static boolean assertRepositoryAzureMaxThreads(Settings settings, ThreadPool threadPool) {
+        if (DiscoveryNode.isStateless(settings)) {
+            var repositoryAzureMax = threadPool.info(REPOSITORY_THREAD_POOL_NAME).getMax();
+            var snapshotMax = ThreadPool.getMaxSnapshotThreadPoolSize(EsExecutors.allocatedProcessors(settings));
+            assert snapshotMax < repositoryAzureMax
+                : "thread pool ["
+                    + REPOSITORY_THREAD_POOL_NAME
+                    + "] should be large enough to allow all "
+                    + snapshotMax
+                    + " snapshot threads to run at once, but got: "
+                    + repositoryAzureMax;
+        }
+        return true;
     }
 }

@@ -6,7 +6,7 @@ WORKFLOW="${DRA_WORKFLOW:-snapshot}"
 BRANCH="${BUILDKITE_BRANCH:-}"
 
 # Don't publish main branch to staging
-if [[ "$BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
+if [[ ("$BRANCH" == "main" || "$BRANCH" == *.x) && "$WORKFLOW" == "staging" ]]; then
   exit 0
 fi
 
@@ -22,11 +22,17 @@ if [[ "$BRANCH" == "main" ]]; then
 fi
 
 ES_VERSION=$(grep elasticsearch build-tools-internal/version.properties | sed "s/elasticsearch *= *//g")
+BASE_VERSION="$ES_VERSION"
 echo "ES_VERSION=$ES_VERSION"
 
 VERSION_SUFFIX=""
 if [[ "$WORKFLOW" == "snapshot" ]]; then
   VERSION_SUFFIX="-SNAPSHOT"
+fi
+
+if [[ -n "${VERSION_QUALIFIER:-}" ]]; then
+  ES_VERSION="${ES_VERSION}-${VERSION_QUALIFIER}"
+  echo "Version qualifier specified. ES_VERSION=${ES_VERSION}."
 fi
 
 BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
@@ -37,6 +43,7 @@ echo "ML_CPP_BUILD_ID=$ML_CPP_BUILD_ID"
 
 LICENSE_KEY_ARG=""
 BUILD_SNAPSHOT_ARG=""
+VERSION_QUALIFIER_ARG=""
 
 if [[ "$WORKFLOW" == "staging" ]]; then
   LICENSE_KEY=$(mktemp -d)/license.key
@@ -45,6 +52,10 @@ if [[ "$WORKFLOW" == "staging" ]]; then
   LICENSE_KEY_ARG="-Dlicense.key=$LICENSE_KEY"
 
   BUILD_SNAPSHOT_ARG="-Dbuild.snapshot=false"
+fi
+
+if [[ -n "${VERSION_QUALIFIER:-}" ]]; then
+  VERSION_QUALIFIER_ARG="-Dbuild.version_qualifier=$VERSION_QUALIFIER"
 fi
 
 echo --- Building release artifacts
@@ -56,12 +67,19 @@ echo --- Building release artifacts
   -Dcsv="$WORKSPACE/build/distributions/dependencies-${ES_VERSION}${VERSION_SUFFIX}.csv" \
   $LICENSE_KEY_ARG \
   $BUILD_SNAPSHOT_ARG \
+  $VERSION_QUALIFIER_ARG \
   buildReleaseArtifacts \
   exportCompressedDockerImages \
+  exportDockerContexts \
+  :zipAggregation \
   :distribution:generateDependenciesReport
 
 PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script
+if [[ -z "${VERSION_QUALIFIER:-}" ]]; then
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_SUFFIX"
+else
+x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="-$VERSION_QUALIFIER"
+fi
 
 # we regenerate this file as part of the release manager invocation
 rm "build/distributions/elasticsearch-jdbc-${ES_VERSION}${VERSION_SUFFIX}.taco.sha512"
@@ -88,7 +106,8 @@ docker run --rm \
   --branch "$RM_BRANCH" \
   --commit "$BUILDKITE_COMMIT" \
   --workflow "$WORKFLOW" \
-  --version "$ES_VERSION" \
+  --qualifier "${VERSION_QUALIFIER:-}" \
+  --version "$BASE_VERSION" \
   --artifact-set main \
   --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
   --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"

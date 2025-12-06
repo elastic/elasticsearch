@@ -8,17 +8,26 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Map;
 
 public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
@@ -40,6 +49,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataType.GEOHASH, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEOTILE, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEOHEX, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
@@ -47,6 +59,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     );
 
     @FunctionInfo(
+        operator = "==",
         returnType = { "boolean" },
         description = "Check if two fields are equal. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
@@ -65,6 +78,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -84,6 +100,9 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -94,11 +113,60 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
             description = "An expression."
         ) Expression right
     ) {
-        super(source, left, right, BinaryComparisonOperation.EQ, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.EQ,
+            evaluatorMap,
+            EqualsNanosMillisEvaluator.Factory::new,
+            EqualsMillisNanosEvaluator.Factory::new
+        );
     }
 
     public Equals(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.EQ, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.EQ,
+            zoneId,
+            evaluatorMap,
+            EqualsNanosMillisEvaluator.Factory::new,
+            EqualsMillisNanosEvaluator.Factory::new
+        );
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (right() instanceof Literal lit) {
+            // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
+            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // it comes to multi-value handling).
+            if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+                if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
+                    return Translatable.YES_BUT_RECHECK_NEGATED;
+                }
+            }
+        }
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (right() instanceof Literal lit) {
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+                String value = ((BytesRef) lit.value()).utf8ToString();
+                if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, value)) {
+                    String name = handler.nameOf(fa);
+                    return new SingleValueQuery(new EqualsSyntheticSourceDelegate(source(), name, value), name, true);
+                }
+            }
+        }
+        return super.asQuery(pushdownPredicates, handler);
     }
 
     @Override
@@ -139,6 +207,16 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Evaluator(extraName = "Longs")
     static boolean processLongs(long lhs, long rhs) {
         return lhs == rhs;
+    }
+
+    @Evaluator(extraName = "MillisNanos")
+    static boolean processMillisNanos(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(rhs, lhs) == 0;
+    }
+
+    @Evaluator(extraName = "NanosMillis")
+    static boolean processNanosMillis(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(lhs, rhs) == 0;
     }
 
     @Evaluator(extraName = "Doubles")

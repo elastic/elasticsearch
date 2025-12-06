@@ -9,21 +9,35 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomList;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedDataSupplier;
 
@@ -33,6 +47,31 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 public final class MultiRowTestCaseSupplier {
 
     private MultiRowTestCaseSupplier() {}
+
+    /**
+     * A {@link List} of the cases for the specified type without any limits.
+     */
+    public static List<TypedDataSupplier> unlimitedSuppliers(DataType type, int minRows, int maxRows) {
+        return switch (type) {
+            case DATETIME -> dateCases(minRows, maxRows);
+            case DATE_NANOS -> dateNanosCases(minRows, maxRows);
+            case INTEGER -> intCases(minRows, maxRows, Integer.MIN_VALUE, Integer.MAX_VALUE, true);
+            case LONG -> longCases(minRows, maxRows, Long.MIN_VALUE, Long.MAX_VALUE, true);
+            case UNSIGNED_LONG -> ulongCases(minRows, maxRows, BigInteger.ZERO, UNSIGNED_LONG_MAX, true);
+            case DOUBLE -> doubleCases(minRows, maxRows, -Double.MAX_VALUE, Double.MAX_VALUE, true);
+            case KEYWORD, TEXT -> stringCases(minRows, maxRows, type);
+            // If a type is missing here it's safe to them as you need them
+            default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
+        };
+    }
+
+    public static List<TypedDataSupplier> nullCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(cases, minRows, maxRows, "null", DataType.NULL, () -> null);
+
+        return cases;
+    }
 
     public static List<TypedDataSupplier> intCases(int minRows, int maxRows, int min, int max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
@@ -262,6 +301,40 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    /**
+     * Generate cases for {@link DataType#DATE_NANOS}.
+     */
+    public static List<TypedDataSupplier> dateNanosCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<1970-01-01T00:00:00.000000000Z>", DataType.DATE_NANOS, () -> 0L);
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<date nanos>",
+            DataType.DATE_NANOS,
+            () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11)
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<far future date nanos>",
+            DataType.DATE_NANOS,
+            () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE)
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<nanos near the end of time>",
+            DataType.DATE_NANOS,
+            () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE)
+        );
+
+        return cases;
+    }
+
     public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -334,55 +407,113 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
-    public static List<TypedDataSupplier> geoPointCases(int minRows, int maxRows, boolean withAltitude) {
-        List<TypedDataSupplier> cases = new ArrayList<>();
+    public enum IncludingAltitude {
+        YES,
+        NO
+    }
 
-        addSuppliers(
-            cases,
+    public static List<TypedDataSupplier> geoPointCases(int minRows, int maxRows, IncludingAltitude withAltitude) {
+        return spatialCases(minRows, maxRows, withAltitude, "geo_point", DataType.GEO_POINT, GeometryTestUtils::randomPoint);
+    }
+
+    public static List<TypedDataSupplier> geoShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
+        return spatialCases(
             minRows,
             maxRows,
-            "<no alt geo_point>",
-            DataType.GEO_POINT,
-            () -> GEO.asWkb(GeometryTestUtils.randomPoint(false))
+            includingAltitude,
+            "geo_shape",
+            DataType.GEO_SHAPE,
+            b -> GeometryTestUtils.randomGeometryWithoutCircle(0, b)
         );
+    }
 
-        if (withAltitude) {
-            addSuppliers(
-                cases,
-                minRows,
-                maxRows,
-                "<with alt geo_point>",
-                DataType.GEO_POINT,
-                () -> GEO.asWkb(GeometryTestUtils.randomPoint(true))
-            );
+    public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.CARTESIAN_SHAPE,
+            b -> ShapeTestUtils.randomGeometryWithoutCircle(0, b)
+        );
+    }
+
+    public static List<TypedDataSupplier> cartesianPointCases(int minRows, int maxRows, IncludingAltitude includingAltitude) {
+        return spatialCases(minRows, maxRows, includingAltitude, "cartesian_point", DataType.CARTESIAN_POINT, ShapeTestUtils::randomPoint);
+    }
+
+    @SuppressWarnings("fallthrough")
+    private static List<TypedDataSupplier> spatialCases(
+        int minRows,
+        int maxRows,
+        IncludingAltitude includingAltitude,
+        String name,
+        DataType type,
+        Function<Boolean, ? extends Geometry> gen
+    ) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        switch (includingAltitude) {
+            case YES:
+                addSuppliers(cases, minRows, maxRows, Strings.format("<with alt %s>", name), type, () -> GEO.asWkb(gen.apply(true)));
+                // Explicit fallthrough: always generate a case without altitude.
+            case NO:
+                addSuppliers(cases, minRows, maxRows, Strings.format("<no alt %s>", name), type, () -> GEO.asWkb(gen.apply(false)));
         }
 
         return cases;
     }
 
-    public static List<TypedDataSupplier> cartesianPointCases(int minRows, int maxRows, boolean withAltitude) {
+    public static List<TypedDataSupplier> geohashCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return Geohash.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, Geohash.PRECISION));
+        };
         List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohash>", DataType.GEOHASH, gen);
+        return cases;
+    }
 
-        addSuppliers(
-            cases,
-            minRows,
-            maxRows,
-            "<no alt cartesian_point>",
-            DataType.CARTESIAN_POINT,
-            () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(false))
-        );
+    public static List<TypedDataSupplier> geotileCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return GeoTileUtils.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, GeoTileUtils.MAX_ZOOM));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geotile>", DataType.GEOTILE, gen);
+        return cases;
+    }
 
-        if (withAltitude) {
+    public static List<TypedDataSupplier> geohexCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return H3.geoToH3(point.getLat(), point.getLon(), ESTestCase.randomIntBetween(1, H3.MAX_H3_RES));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohex>", DataType.GEOHEX, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
             addSuppliers(
                 cases,
                 minRows,
                 maxRows,
-                "<with alt cartesian_point>",
-                DataType.CARTESIAN_POINT,
-                () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(true))
+                "empty exponential histograms",
+                DataType.EXPONENTIAL_HISTOGRAM,
+                () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
+            );
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "random exponential histograms",
+                DataType.EXPONENTIAL_HISTOGRAM,
+                EsqlTestUtils::randomExponentialHistogram
             );
         }
-
         return cases;
     }
 
@@ -431,6 +562,99 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> tsidCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "_tsid",
+            DataType.TSID_DATA_TYPE,
+            () -> EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value()
+        );
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> aggregateMetricDoubleCases(int minRows, int maxRows, double min, double max) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        if (0 <= max && 0 >= min) {
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "0 aggregate metric double with positive count",
+                DataType.AGGREGATE_METRIC_DOUBLE,
+                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                    0.0,
+                    0.0,
+                    0.0,
+                    ESTestCase.randomIntBetween(1, Integer.MAX_VALUE)
+                )
+            );
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "0 aggregate metric double with count 0",
+                DataType.AGGREGATE_METRIC_DOUBLE,
+                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, 0)
+            );
+        }
+
+        addSuppliers(cases, minRows, maxRows, "random aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+            var v1 = randomDoubleBetween(min, max, true);
+            var v2 = randomDoubleBetween(min, max, true);
+            double generatedMin = Math.min(v1, v2);
+            double generatedMax = Math.max(v1, v2);
+            int count = randomIntBetween(1, Integer.MAX_VALUE);
+            double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+            return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+        });
+
+        if (min < 0) {
+            addSuppliers(cases, minRows, maxRows, "entirely negative aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+                var v1 = randomDoubleBetween(min, 0, true);
+                var v2 = randomDoubleBetween(min, 0, true);
+                double generatedMin = Math.min(v1, v2);
+                double generatedMax = Math.max(v1, v2);
+                int count = randomIntBetween(1, Integer.MAX_VALUE);
+                double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+            });
+        }
+        if (max > 0) {
+            addSuppliers(cases, minRows, maxRows, "entirely positive aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+                var v1 = randomDoubleBetween(0, max, false);
+                var v2 = randomDoubleBetween(0, max, false);
+                double generatedMin = Math.min(v1, v2);
+                double generatedMax = Math.max(v1, v2);
+                int count = randomIntBetween(1, Integer.MAX_VALUE);
+                double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+            });
+        }
+        if (min < 0 && max > 0) {
+            addSuppliers(cases, minRows, maxRows, "negative and positive aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+                var generatedMin = randomDoubleBetween(min, 0, true);
+                var generatedMax = randomDoubleBetween(0, max, false);
+                int count = randomIntBetween(1, Integer.MAX_VALUE);
+                double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+            });
+        }
+        return cases;
+    }
+
+    private static double generateAggregateMetricDoubleSum(double min, double max) {
+        if ((max >= 0 && min >= 0) || (max <= 0 && min <= 0)) {
+            return min + max + randomDoubleBetween(min, max, true);
+        }
+        return randomDoubleBetween(min, max, true);
+    }
+
     private static <T> void addSuppliers(
         List<TypedDataSupplier> cases,
         int minRows,
@@ -440,12 +664,19 @@ public final class MultiRowTestCaseSupplier {
         Supplier<T> valueSupplier
     ) {
         if (minRows <= 1 && maxRows >= 1) {
-            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true));
+            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true, List.of()));
         }
 
         if (maxRows > 1) {
             cases.add(
-                new TypedDataSupplier("<" + name + "s>", () -> randomList(Math.max(2, minRows), maxRows, valueSupplier), type, false, true)
+                new TypedDataSupplier(
+                    "<" + name + "s>",
+                    () -> randomList(Math.max(2, minRows), maxRows, valueSupplier),
+                    type,
+                    false,
+                    true,
+                    List.of()
+                )
             );
         }
     }

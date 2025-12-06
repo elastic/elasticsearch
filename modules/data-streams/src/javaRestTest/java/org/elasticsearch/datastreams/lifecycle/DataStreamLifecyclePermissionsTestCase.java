@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -46,7 +45,6 @@ public abstract class DataStreamLifecyclePermissionsTestCase extends ESRestTestC
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.security.enabled", "true")

@@ -6,12 +6,12 @@
         "Api": {
             "type": "object",
             "propertyNames": {
-                "pattern": "^(?:[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?|_internal\\.[a-z]+?(_[a-z]+)*)$"
+                "pattern": "^(?:[a-z][a-z0-9]*?(_[a-z0-9]+)*(\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)?|_internal\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)$"
             },
             "minProperties": 1,
             "maxProperties": 1,
             "patternProperties": {
-                "^(?:[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?|_internal\\.[a-z]+?(_[a-z]+)*)$": {
+                "^(?:[a-z][a-z0-9]*?(_[a-z0-9]+)*(\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)?|_internal\\.[a-z][a-z0-9]*?(_[a-z0-9]+)*)$": {
                     "$ref": "#/definitions/Components"
                 }
             },
@@ -60,6 +60,9 @@
                     "properties": {
                       "stability": {
                         "const": "stable"
+                      },
+                      "visibility": {
+                        "const": "public"
                       }
                     }
                   },
@@ -135,10 +138,10 @@
             "type": "object",
             "additionalProperties": true,
             "propertyNames": {
-              "pattern": "^_?[a-z]+?(_[a-z]+)*$"
+              "pattern": "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$"
             },
             "patternProperties": {
-                "^_?[a-z]+?(_[a-z]+)*$": {
+                "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$": {
                     "$ref": "#/definitions/ParamPart"
                 }
             },
@@ -161,7 +164,8 @@
                 }
             },
             "required": [
-                "description"
+                "description",
+                "required"
             ],
             "title": "API request Body",
             "description": "The request body for the API. Does not detail the structure, only whether the API accepts a body and its format"
@@ -232,10 +236,10 @@
             "type": "object",
             "additionalProperties": true,
             "propertyNames": {
-              "pattern": "^_?[a-z]+?(_[a-z]+)*$"
+              "pattern": "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$"
             },
             "patternProperties": {
-                "^_?[a-z]+?(_[a-z]+)*$": {
+                "^_?[a-z][a-z0-9]*?(_[a-z0-9]+)*$": {
                     "$ref": "#/definitions/ParamPart"
                 }
             },
@@ -255,7 +259,7 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "pattern": "^[a-zA-Z_]+$"
+                        "pattern": "^[_a-zA-Z][_a-zA-Z0-9.]*$"
                     },
                     "title": "Valid options when type is an enum"
                 },
@@ -264,10 +268,7 @@
                     "title": "Default value"
                 },
                 "deprecated": {
-                    "oneOf": [
-                      { "$ref": "#/definitions/Deprecated" },
-                      { "type": "boolean" }
-                    ]
+                    "$ref": "#/definitions/Deprecated"
                 },
                 "description": {
                     "type": "string",

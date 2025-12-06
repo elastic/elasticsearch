@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -103,6 +105,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME,
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                     MachineLearningField.MAX_LAZY_ML_NODES,
@@ -172,7 +176,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build()).getExplanation()
+            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build(), ProjectId.DEFAULT).getExplanation()
         );
     }
 
@@ -194,7 +198,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build()
+            csBuilder.build(),
+            ProjectId.DEFAULT
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
@@ -215,7 +220,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
             params,
             csBuilder.nodes().getAllNodes(),
-            csBuilder.build()
+            csBuilder.build(),
+            ProjectId.DEFAULT
         );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
@@ -309,7 +315,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             client,
             TestIndexNameExpressionResolver.newInstance(),
             licenseState,
-            true
+            mock(AnomalyDetectionAuditor.class)
         );
     }
 }

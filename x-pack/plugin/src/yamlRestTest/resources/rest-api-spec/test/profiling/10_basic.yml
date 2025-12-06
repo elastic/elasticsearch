@@ -1,10 +1,14 @@
 ---
 setup:
   - requires:
+      test_runner_features: [ "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.13.0"]
       reason: "Universal Profiling test infrastructure is available in 8.12+"
 
   - do:
+      allowed_warnings_regex:
+        # https://github.com/elastic/elasticsearch/issues/127911
+        - "Index \\[\\.profiling-.*\\] name begins with a dot .* and will not be allowed in a future Elasticsearch version."
       cluster.put_settings:
         body:
           persistent:
@@ -116,7 +120,7 @@ setup:
           - {"create": {"_index": "profiling-executables", "_id": "lHp5_WAgpLy2alrUVab6HA"}}
           - {"@timestamp": "1698624000", "Executable": {"build": {"id": "c5f89ea1c68710d2a493bb604c343a92c4f8ddeb"}, "file": {"name": "vmlinux"}}, "Symbolization": {"next_time": "4852491791"}, "ecs": {"version": "1.12.0"}}
           - {"create": {"_index": "profiling-hosts", "_id": "eLH27YsBj2lLi3tJYlvr"}}
-          - {"profiling.project.id": 100, "host.id": "8457605156473051743", "@timestamp": 1700504426, "ecs.version": "1.12.0", "profiling.agent.build_timestamp": 1688111067, "profiling.instance.private_ipv4s": ["192.168.1.2"], "ec2.instance_life_cycle": "on-demand", "profiling.agent.config.map_scale_factor": 0, "host.type": "i3.2xlarge", "profiling.host.ip": "192.168.1.2", "profiling.agent.config.bpf_log_level": 0, "profiling.host.sysctl.net.core.bpf_jit_enable": 1, "profiling.agent.config.file": "/etc/prodfiler/prodfiler.conf", "ec2.local_ipv4": "192.168.1.2", "profiling.agent.config.no_kernel_version_check": false, "host.arch": "amd64", "profiling.host.tags": ["cloud_provider:aws", "cloud_environment:qa", "cloud_region:eu-west-1"], "profiling.agent.config.probabilistic_threshold": 100, "profiling.agent.config.disable_tls": false, "profiling.agent.config.tracers": "all", "profiling.agent.start_time": 1700090045589, "profiling.agent.config.max_elements_per_interval": 800, "cloud.provider": "aws", "cloud.region": "eu-west-1", "profiling.agent.config.present_cpu_cores": 8, "profiling.host.kernel_version": "9.9.9-0-aws", "profiling.agent.config.bpf_log_size": 65536, "profiling.agent.config.known_traces_entries": 65536, "profiling.host.sysctl.kernel.unprivileged_bpf_disabled": 1, "profiling.agent.config.verbose": false, "profiling.agent.config.probabilistic_interval": "1m0s", "ec2.placement.availability_zone_id": "euw1-az1", "ec2.security_groups": "", "ec2.local_hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "ec2.placement.availability_zone": "eu-west-1c", "profiling.agent.config.upload_symbols": false, "profiling.host.sysctl.kernel.bpf_stats_enabled": 0, "profiling.host.name": "ip-192-168-1-2", "ec2.mac": "00:11:22:33:44:55", "profiling.host.kernel_proc_version": "Linux version 9.9.9-0-aws", "profiling.agent.config.cache_directory": "/var/cache/optimyze/", "profiling.agent.version": "v8.12.0", "ec2.hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "profiling.agent.config.elastic_mode": false, "ec2.ami_id": "ami-aaaaaaaaaaa", "ec2.instance_id": "i-0b999999999999999" }
+          - {"profiling.project.id": 100, "host.id": "8457605156473051743", "@timestamp": 1700504426, "ecs.version": "1.12.0", "profiling.agent.build_timestamp": 1688111067, "profiling.instance.private_ipv4s": ["192.168.1.2"], "ec2.instance_life_cycle": "on-demand", "profiling.agent.config.map_scale_factor": 0, "host.type": "i3.2xlarge", "profiling.host.ip": "192.168.1.2", "profiling.agent.config.bpf_log_level": 0, "profiling.host.sysctl.net.core.bpf_jit_enable": 1, "profiling.agent.config.file": "/etc/prodfiler/prodfiler.conf", "ec2.local_ipv4": "192.168.1.2", "profiling.agent.config.no_kernel_version_check": false, "host.arch": "amd64", "profiling.host.tags": ["cloud_provider:aws", "cloud_environment:qa", "cloud_region:eu-west-1"], "profiling.agent.config.probabilistic_threshold": 100, "profiling.agent.config.disable_tls": false, "profiling.agent.config.tracers": "all", "profiling.agent.start_time": 1700090045589, "profiling.agent.config.max_elements_per_interval": 800, "cloud.provider": "aws", "cloud.region": "eu-west-1", "profiling.agent.config.present_cpu_cores": 8, "profiling.host.kernel_version": "9.9.9-0-aws", "profiling.agent.config.bpf_log_size": 65536, "profiling.agent.config.known_traces_entries": 65536, "profiling.host.sysctl.kernel.unprivileged_bpf_disabled": 1, "profiling.agent.config.verbose": false, "profiling.agent.config.probabilistic_interval": "1m0s", "ec2.placement.availability_zone_id": "euw1-az1", "ec2.security_groups": "", "ec2.local_hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "ec2.placement.availability_zone": "eu-west-1c", "profiling.agent.config.upload_symbols": false, "profiling.host.sysctl.kernel.bpf_stats_enabled": 0, "host.name": "ip-192-168-1-2", "ec2.mac": "00:11:22:33:44:55", "profiling.host.kernel_proc_version": "Linux version 9.9.9-0-aws", "profiling.agent.config.cache_directory": "/var/cache/optimyze/", "profiling.agent.version": "v8.12.0", "ec2.hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "profiling.agent.config.elastic_mode": false, "ec2.ami_id": "ami-aaaaaaaaaaa", "ec2.instance_id": "i-0b999999999999999" }
           - {"index": {"_index": "test-events"}}
           - {"@timestamp": "1700504427", "events": ["S07KmaoGhvNte78xwwRbZQ"]}
 ---
@@ -244,7 +248,7 @@ teardown:
               }
             }
           }
-  - match: { Size: 47}
+  - match: { Size: 49}
 
 ---
 "Test flamegraph from test-events":
@@ -272,7 +276,7 @@ teardown:
               }
             }
           }
-  - match: { Size: 47}
+  - match: { Size: 49}
 
 ---
 "Test topN functions from profiling-events":

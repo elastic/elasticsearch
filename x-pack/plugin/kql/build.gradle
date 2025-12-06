@@ -1,14 +1,20 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  name 'x-pack-kql'
-  description 'Elasticsearch Expanded Pack Plugin - KQL query'
-  classname 'org.elasticsearch.xpack.kql.KqlPlugin'
+  name = 'x-pack-kql'
+  description = 'Elasticsearch Expanded Pack Plugin - KQL query'
+  classname ='org.elasticsearch.xpack.kql.KqlPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {
@@ -17,19 +23,15 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  compileOnly "org.antlr:antlr4-runtime:${versions.antlr4}"
+  implementation "org.antlr:antlr4-runtime:${versions.antlr4}"
 
   testImplementation "org.antlr:antlr4-runtime:${versions.antlr4}"
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-/****************************************************************
- *  Enable QA/rest integration tests for snapshot builds only   *
- *  TODO: Enable for all builds upon this feature release       *
- ****************************************************************/
-if (BuildParams.isSnapshotBuild()) {
-  addQaCheckDependencies(project)
+tasks.named('yamlRestTest').configure {
+  usesDefaultDistribution("to be triaged")
 }
 
 /**********************************

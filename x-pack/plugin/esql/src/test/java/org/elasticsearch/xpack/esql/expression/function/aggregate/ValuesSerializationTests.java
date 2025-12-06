@@ -21,9 +21,4 @@ public class ValuesSerializationTests extends AbstractExpressionSerializationTes
     protected Values mutateInstance(Values instance) throws IOException {
         return new Values(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

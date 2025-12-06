@@ -31,7 +31,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -79,7 +80,7 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -147,7 +148,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     protected Settings followerClusterSettings() {
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            builder.put(RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), randomIntBetween(1, 100));
+            builder.put(RemoteClusterSettings.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.getKey(), randomIntBetween(1, 100));
         }
         return builder.build();
     }
@@ -182,7 +183,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             0,
             "leader",
             mockPlugins,
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         leaderCluster.beforeTest(random());
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
@@ -204,7 +206,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             0,
             "follower",
             mockPlugins,
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 
@@ -449,14 +452,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final Index resolveLeaderIndex(String index) {
-        GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
     protected final Index resolveFollowerIndex(String index) {
-        GetIndexResponse getIndexResponse = followerClient().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = followerClient().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(index)
+            .get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
@@ -503,7 +510,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
                 .stream()
                 .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
@@ -821,36 +828,40 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         RestoreSnapshotRequest restoreSnapshotRequest
     ) {
         final var future = new PlainActionFuture<RestoreInfo>();
-        restoreService.restoreSnapshot(restoreSnapshotRequest, future.delegateFailure((delegate, restoreCompletionResponse) -> {
-            assertNull(restoreCompletionResponse.restoreInfo());
-            // this would only be non-null if the restore was a no-op, but that would be a test bug
-            final Snapshot snapshot = restoreCompletionResponse.snapshot();
-            final String uuid = restoreCompletionResponse.uuid();
-            final ClusterStateListener clusterStateListener = new ClusterStateListener() {
-                @Override
-                public void clusterChanged(ClusterChangedEvent changedEvent) {
-                    final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
-                    final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
+        restoreService.restoreSnapshot(
+            ProjectId.DEFAULT,
+            restoreSnapshotRequest,
+            future.delegateFailure((delegate, restoreCompletionResponse) -> {
+                assertNull(restoreCompletionResponse.restoreInfo());
+                // this would only be non-null if the restore was a no-op, but that would be a test bug
+                final Snapshot snapshot = restoreCompletionResponse.snapshot();
+                final String uuid = restoreCompletionResponse.uuid();
+                final ClusterStateListener clusterStateListener = new ClusterStateListener() {
+                    @Override
+                    public void clusterChanged(ClusterChangedEvent changedEvent) {
+                        final RestoreInProgress.Entry prevEntry = restoreInProgress(changedEvent.previousState(), uuid);
+                        final RestoreInProgress.Entry newEntry = restoreInProgress(changedEvent.state(), uuid);
 
-                    assertNotNull(prevEntry);
-                    // prevEntry could be null if there was a master failover and (due to batching) we missed the cluster state update
-                    // that completed the restore, but that doesn't happen in these tests
-                    if (newEntry == null) {
-                        clusterService.removeListener(this);
-                        Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
-                        RestoreInfo ri = new RestoreInfo(
-                            prevEntry.snapshot().getSnapshotId().getName(),
-                            prevEntry.indices(),
-                            shards.size(),
-                            shards.size() - RestoreService.failedShards(shards)
-                        );
-                        logger.debug("restore of [{}] completed", snapshot);
-                        delegate.onResponse(ri);
-                    } // else restore not completed yet, wait for next cluster state update
-                }
-            };
-            clusterService.addListener(clusterStateListener);
-        }));
+                        assertNotNull(prevEntry);
+                        // prevEntry could be null if there was a master failover and (due to batching) we missed the cluster state update
+                        // that completed the restore, but that doesn't happen in these tests
+                        if (newEntry == null) {
+                            clusterService.removeListener(this);
+                            Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                            RestoreInfo ri = new RestoreInfo(
+                                prevEntry.snapshot().getSnapshotId().getName(),
+                                prevEntry.indices(),
+                                shards.size(),
+                                shards.size() - RestoreService.failedShards(shards)
+                            );
+                            logger.debug("restore of [{}] completed", snapshot);
+                            delegate.onResponse(ri);
+                        } // else restore not completed yet, wait for next cluster state update
+                    }
+                };
+                clusterService.addListener(clusterStateListener);
+            })
+        );
         return future;
     }
 
@@ -861,8 +872,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 AutoFollowMetadata empty = new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metadata(
-                    Metadata.builder(currentState.getMetadata())
+                newState.putProjectMetadata(
+                    ProjectMetadata.builder(currentState.metadata().getProject())
                         .putCustom(AutoFollowMetadata.TYPE, empty)
                         .removeCustom(PersistentTasksCustomMetadata.TYPE)
                         .build()

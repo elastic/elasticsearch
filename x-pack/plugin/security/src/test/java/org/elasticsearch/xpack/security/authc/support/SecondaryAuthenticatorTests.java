@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -140,7 +141,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             threadPool,
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocationOnMock -> {
@@ -160,6 +162,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE,
+            mock(),
             MeterRegistry.NOOP
         );
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrail);

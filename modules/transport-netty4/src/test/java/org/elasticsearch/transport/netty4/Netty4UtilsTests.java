@@ -11,6 +11,7 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 
 import org.apache.lucene.util.BytesRef;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ZeroBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -31,8 +33,17 @@ public class Netty4UtilsTests extends ESTestCase {
     private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
     private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
-    public void testToChannelBufferWithEmptyRef() throws IOException {
-        ByteBuf buffer = Netty4Utils.toByteBuf(getRandomizedBytesReference(0));
+    public void testToByteBufEmptyArray() throws IOException {
+        var arrayBackedRef = getRandomizedBytesReference(0);
+        assertTrue(arrayBackedRef.hasArray());
+        var buffer = Netty4Utils.toByteBuf(arrayBackedRef);
+        assertSame(Unpooled.EMPTY_BUFFER, buffer);
+    }
+
+    public void testToByteBufEmptyIterator() {
+        var iterBackedRef = new ZeroBytesReference(0);
+        assertFalse(iterBackedRef.hasArray());
+        var buffer = Netty4Utils.toByteBuf(iterBackedRef);
         assertSame(Unpooled.EMPTY_BUFFER, buffer);
     }
 
@@ -66,6 +77,43 @@ public class Netty4UtilsTests extends ESTestCase {
             assertTrue(buffer instanceof CompositeByteBuf);
         }
         assertArrayEquals(BytesReference.toBytes(ref), BytesReference.toBytes(bytesReference));
+    }
+
+    /**
+     * Test that wrapped reference counted object from netty reflects correct counts in ES RefCounted
+     */
+    public void testToRefCounted() {
+        var buf = PooledByteBufAllocator.DEFAULT.buffer(1);
+        assertEquals(1, buf.refCnt());
+
+        var refCounted = Netty4Utils.toRefCounted(buf);
+        assertEquals(1, refCounted.refCnt());
+
+        buf.retain();
+        assertEquals(2, refCounted.refCnt());
+
+        refCounted.incRef();
+        assertEquals(3, refCounted.refCnt());
+        assertEquals(buf.refCnt(), refCounted.refCnt());
+
+        refCounted.decRef();
+        assertEquals(2, refCounted.refCnt());
+        assertEquals(buf.refCnt(), refCounted.refCnt());
+        assertTrue(refCounted.hasReferences());
+
+        refCounted.decRef();
+        refCounted.decRef();
+        assertFalse(refCounted.hasReferences());
+    }
+
+    /**
+     * Ensures that released ByteBuf cannot be accessed from ReleasableBytesReference
+     */
+    public void testToReleasableBytesReferenceThrowOnByteBufRelease() {
+        var buf = PooledByteBufAllocator.DEFAULT.buffer(1);
+        var relBytes = Netty4Utils.toReleasableBytesReference(buf);
+        buf.release();
+        assertThrows(AssertionError.class, () -> relBytes.get(0));
     }
 
     private BytesReference getRandomizedBytesReference(int length) throws IOException {

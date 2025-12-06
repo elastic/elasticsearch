@@ -151,8 +151,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 // no point in asserting the precise wording of the message into this test, but we care that the note contains these bits:
                 containsString("No shard was specified in the explain API request"),
                 containsString("specify the target shard in the request"),
-                containsString("https://www.elastic.co/guide/en/elasticsearch/reference"),
-                containsString("cluster-allocation-explain.html")
+                containsString("https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain?")
             )
         );
 

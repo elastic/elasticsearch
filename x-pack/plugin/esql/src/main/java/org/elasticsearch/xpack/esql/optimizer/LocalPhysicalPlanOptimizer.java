@@ -8,24 +8,27 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-
-import static java.util.Arrays.asList;
 
 /**
  * Manages field extraction and pushing parts of the query into Lucene. (Query elements that are not pushed into Lucene are executed via
@@ -33,37 +36,39 @@ import static java.util.Arrays.asList;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
+    private static final List<Batch<PhysicalPlan>> RULES = rules(true);
+
+    private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
-        return verify(execute(plan));
+        return verify(execute(plan), plan.output());
     }
 
-    PhysicalPlan verify(PhysicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
-        if (failures.isEmpty() == false) {
+    PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
+        Failures failures = verifier.verify(optimizedPlan, expectedOutputAttributes);
+        if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
-        return plan;
+        return optimizedPlan;
     }
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return rules(true);
+        return RULES;
     }
 
-    protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
+    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(7);
         esSourceRules.add(new ReplaceSourceAttributes());
-
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
+            esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
         }
@@ -71,10 +76,27 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         // execute the rules multiple times to improve the chances of things being pushed down
         @SuppressWarnings("unchecked")
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
+
+        // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
+        // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
+        // done, and it should be executed only once.
+        var substitutionRules = new Batch<>(
+            "Substitute RoundTo with QueryAndTags",
+            Limiter.ONCE,
+            new ReplaceRoundToWithQueryAndTags(),
+            new PushCountQueryAndTagsToSource()
+        );
+
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction(), new SpatialDocValuesExtraction());
-        return asList(pushdown, fieldExtraction);
+        var fieldExtraction = new Batch<>(
+            "Field extraction",
+            Limiter.ONCE,
+            new ExtractDimensionFieldsAfterAggregation(),
+            new InsertFieldExtraction(),
+            new SpatialDocValuesExtraction(),
+            new SpatialShapeBoundsExtraction()
+        );
+        return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }
-
 }

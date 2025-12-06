@@ -264,15 +264,15 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected Map<String, Object> transform(final Result<AsnResult> result) {
-            AsnResult response = result.result;
+            AsnResult response = result.result();
             Long asn = response.asn;
             String organizationName = response.name;
-            String network = result.network;
+            String network = result.network();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip);
+                    case IP -> data.put("ip", result.ip());
                     case ASN -> {
                         if (asn != null) {
                             data.put("asn", asn);
@@ -316,12 +316,12 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected Map<String, Object> transform(final Result<CountryResult> result) {
-            CountryResult response = result.result;
+            CountryResult response = result.result();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip);
+                    case IP -> data.put("ip", result.ip());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = response.country;
                         if (countryIsoCode != null) {
@@ -359,12 +359,12 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected Map<String, Object> transform(final Result<GeolocationResult> result) {
-            GeolocationResult response = result.result;
+            GeolocationResult response = result.result();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip);
+                    case IP -> data.put("ip", result.ip());
                     case COUNTRY_ISO_CODE -> {
                         String countryIsoCode = response.country;
                         if (countryIsoCode != null) {
@@ -418,12 +418,12 @@ final class IpinfoIpDataLookups {
 
         @Override
         protected Map<String, Object> transform(final Result<PrivacyDetectionResult> result) {
-            PrivacyDetectionResult response = result.result;
+            PrivacyDetectionResult response = result.result();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", result.ip);
+                    case IP -> data.put("ip", result.ip());
                     case HOSTING -> {
                         if (response.hosting != null) {
                             data.put("hosting", response.hosting);
@@ -461,15 +461,8 @@ final class IpinfoIpDataLookups {
     }
 
     /**
-     * Just a little record holder -- there's the data that we receive via the binding to our record objects from the Reader via the
-     * getRecord call, but then we also need to capture the passed-in ip address that came from the caller as well as the network for
-     * the returned DatabaseRecord from the Reader.
-     */
-    public record Result<T>(T result, String ip, String network) {}
-
-    /**
      * The {@link IpinfoIpDataLookups.AbstractBase} is an abstract base implementation of {@link IpDataLookup} that
-     * provides common functionality for getting a {@link IpinfoIpDataLookups.Result} that wraps a record from a {@link IpDatabase}.
+     * provides common functionality for getting a {@link IpDataLookup.Result} that wraps a record from a {@link IpDatabase}.
      *
      * @param <RESPONSE> the record type that will be wrapped and returned
      */
@@ -491,19 +484,20 @@ final class IpinfoIpDataLookups {
         @Override
         public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
             final Result<RESPONSE> response = ipDatabase.getResponse(ipAddress, this::lookup);
-            return (response == null || response.result == null) ? Map.of() : transform(response);
+            return (response == null || response.result() == null) ? Map.of() : transform(response);
         }
 
         @Nullable
         private Result<RESPONSE> lookup(final Reader reader, final String ipAddress) throws IOException {
             final InetAddress ip = InetAddresses.forString(ipAddress);
-            final DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
-            final RESPONSE data = record.getData();
-            return (data == null) ? null : new Result<>(data, NetworkAddress.format(ip), record.getNetwork().toString());
+            final DatabaseRecord<RESPONSE> entry = reader.getRecord(ip, clazz);
+            final RESPONSE data = entry.getData();
+            return (data == null) ? null : new Result<>(data, NetworkAddress.format(ip), entry.getNetwork().toString());
         }
 
         /**
-         * Extract the configured properties from the retrieved response
+         * Extract the configured properties from the retrieved response.
+         *
          * @param response the non-null response that was retrieved
          * @return a mapping of properties for the ip from the response
          */

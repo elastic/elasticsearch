@@ -18,11 +18,10 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         LocalSourceExec joinData = LocalSourceExecSerializationTests.randomLocalSourceExec();
-        List<Attribute> matchFields = randomFields();
         List<Attribute> leftFields = randomFields();
         List<Attribute> rightFields = randomFields();
         List<Attribute> output = randomFields();
-        return new HashJoinExec(source, child, joinData, matchFields, leftFields, rightFields, output);
+        return new HashJoinExec(source, child, joinData, leftFields, rightFields, output);
     }
 
     private static List<Attribute> randomFields() {
@@ -36,21 +35,24 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
 
     @Override
     protected HashJoinExec mutateInstance(HashJoinExec instance) throws IOException {
-        PhysicalPlan child = instance.child();
-        LocalSourceExec joinData = instance.joinData();
-        List<Attribute> matchFields = randomFieldAttributes(1, 5, false);
+        PhysicalPlan child = instance.left();
+        PhysicalPlan joinData = instance.joinData();
         List<Attribute> leftFields = randomFieldAttributes(1, 5, false);
         List<Attribute> rightFields = randomFieldAttributes(1, 5, false);
         List<Attribute> output = randomFieldAttributes(1, 5, false);
-        switch (between(0, 5)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> joinData = randomValueOtherThan(joinData, LocalSourceExecSerializationTests::randomLocalSourceExec);
-            case 2 -> matchFields = randomValueOtherThan(matchFields, HashJoinExecSerializationTests::randomFields);
-            case 3 -> leftFields = randomValueOtherThan(leftFields, HashJoinExecSerializationTests::randomFields);
-            case 4 -> rightFields = randomValueOtherThan(rightFields, HashJoinExecSerializationTests::randomFields);
-            case 5 -> output = randomValueOtherThan(output, HashJoinExecSerializationTests::randomFields);
+            case 2 -> leftFields = randomValueOtherThan(leftFields, HashJoinExecSerializationTests::randomFields);
+            case 3 -> rightFields = randomValueOtherThan(rightFields, HashJoinExecSerializationTests::randomFields);
+            case 4 -> output = randomValueOtherThan(output, HashJoinExecSerializationTests::randomFields);
             default -> throw new UnsupportedOperationException();
         }
-        return new HashJoinExec(instance.source(), child, joinData, matchFields, leftFields, rightFields, output);
+        return new HashJoinExec(instance.source(), child, joinData, leftFields, rightFields, output);
+    }
+
+    @Override
+    protected boolean alwaysEmptySource() {
+        return true;
     }
 }

@@ -39,22 +39,22 @@ public class TestMeterUsages {
         this.longHistogram = meterRegistry.registerLongHistogram("es.test.long_histogram.histogram", "test", "unit");
         meterRegistry.registerDoubleGauge("es.test.double_gauge.current", "test", "unit", () -> {
             var value = doubleWithAttributes.get();
-            logger.info("[es.test.double_gauge.current] callback with value [{}]", value);
+            logger.trace("[es.test.double_gauge.current] callback with value [{}]", value);
             return value;
         });
         meterRegistry.registerLongGauge("es.test.long_gauge.current", "test", "unit", () -> {
             var value = longWithAttributes.get();
-            logger.info("[es.test.long_gauge.current] callback with value [{}]", value);
+            logger.trace("[es.test.long_gauge.current] callback with value [{}]", value);
             return value;
         });
         meterRegistry.registerLongAsyncCounter("es.test.async_long_counter.total", "test", "unit", () -> {
             var value = longWithAttributes.get();
-            logger.info("[es.test.async_long_counter.total] callback with value [{}]", value);
+            logger.trace("[es.test.async_long_counter.total] callback with value [{}]", value);
             return value;
         });
         meterRegistry.registerDoubleAsyncCounter("es.test.async_double_counter.total", "test", "unit", () -> {
             var value = doubleWithAttributes.get();
-            logger.info("[es.test.async_double_counter.total] callback with value [{}]", value);
+            logger.trace("[es.test.async_double_counter.total] callback with value [{}]", value);
             return value;
         });
     }
@@ -69,7 +69,7 @@ public class TestMeterUsages {
         longHistogram.record(2);
 
         // triggers gauges and async counters
-        logger.info("setting async counters");
+        logger.trace("setting async counters");
         doubleWithAttributes.set(new DoubleWithAttributes(1.0, Map.of()));
         longWithAttributes.set(new LongWithAttributes(1, Map.of()));
     }

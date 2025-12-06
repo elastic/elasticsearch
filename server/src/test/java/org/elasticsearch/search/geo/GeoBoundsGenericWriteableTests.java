@@ -12,10 +12,8 @@ package org.elasticsearch.search.geo;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,8 +24,6 @@ import org.elasticsearch.test.AbstractWireTestCase;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class GeoBoundsGenericWriteableTests extends AbstractWireTestCase<GenericWriteableWrapper> {
 
@@ -75,18 +71,5 @@ public class GeoBoundsGenericWriteableTests extends AbstractWireTestCase<Generic
     @Override
     protected GenericWriteableWrapper copyInstance(GenericWriteableWrapper instance, TransportVersion version) throws IOException {
         return copyInstance(instance, writableRegistry(), StreamOutput::writeWriteable, GenericWriteableWrapper::readFrom, version);
-    }
-
-    public void testSerializationFailsWithOlderVersion() {
-        TransportVersion older = TransportVersions.V_8_10_X;
-        assert older.before(TransportVersions.V_8_11_X);
-        final var testInstance = createTestInstance().geoBoundingBox();
-        try (var output = new BytesStreamOutput()) {
-            output.setTransportVersion(older);
-            assertThat(
-                expectThrows(Throwable.class, () -> output.writeGenericValue(testInstance)).getMessage(),
-                containsString("[GeoBoundingBox] requires minimal transport version")
-            );
-        }
     }
 }

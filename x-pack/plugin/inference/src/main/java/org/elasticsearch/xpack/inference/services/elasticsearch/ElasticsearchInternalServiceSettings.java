@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +45,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     private Integer numAllocations;
     private final int numThreads;
     private final String modelId;
-    private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
+    private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
     private final String deploymentId;
 
     public static ElasticsearchInternalServiceSettings fromPersistedMap(Map<String, Object> map) {
@@ -109,24 +112,11 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(
-        Integer numAllocations,
+        @Nullable Integer numAllocations,
         int numThreads,
         String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings
-    ) {
-        this.numAllocations = numAllocations;
-        this.numThreads = numThreads;
-        this.modelId = Objects.requireNonNull(modelId);
-        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
-        this.deploymentId = null;
-    }
-
-    public ElasticsearchInternalServiceSettings(
-        Integer numAllocations,
-        int numThreads,
-        String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        String deploymentId
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        @Nullable String deploymentId
     ) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
@@ -157,40 +147,25 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
-            this.numAllocations = in.readOptionalVInt();
-        } else {
-            this.numAllocations = in.readVInt();
-        }
+        this.numAllocations = in.readOptionalVInt();
         this.numThreads = in.readVInt();
         this.modelId = in.readString();
-        this.adaptiveAllocationsSettings = in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)
-            ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
-            : null;
-        this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT)
-            ? in.readOptionalString()
-            : null;
+        this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+        this.deploymentId = in.readOptionalString();
     }
 
-    public void setNumAllocations(Integer numAllocations) {
+    public void setAllocations(Integer numAllocations, @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
         this.numAllocations = numAllocations;
+        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
-            out.writeOptionalVInt(getNumAllocations());
-        } else {
-            out.writeVInt(getNumAllocations());
-        }
+        out.writeOptionalVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
         out.writeString(modelId());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
-            out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT)) {
-            out.writeOptionalString(deploymentId);
-        }
+        out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
+        out.writeOptionalString(deploymentId);
     }
 
     @Override
@@ -253,6 +228,52 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_13_0;
+    }
+
+    public ElasticsearchInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var mutableServiceSettings = new HashMap<>(serviceSettings);
+
+        if (serviceSettings.containsKey(NUM_THREADS)) {
+            validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
+        }
+
+        var numAllocations = extractOptionalPositiveInteger(
+            mutableServiceSettings,
+            NUM_ALLOCATIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
+            mutableServiceSettings,
+            ADAPTIVE_ALLOCATIONS,
+            validationException
+        );
+
+        if (numAllocations == null && adaptiveAllocationsSettings == null) {
+            validationException.addValidationError(
+                ServiceUtils.missingOneOfSettingsErrorMsg(
+                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
+                    ModelConfigurations.SERVICE_SETTINGS
+                )
+            );
+        }
+        if (numAllocations != null && adaptiveAllocationsSettings != null) {
+            validationException.addValidationError(
+                Strings.format("[%s] cannot be set if [%s] is set", NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS)
+            );
+        }
+        validationException.throwIfValidationErrorsExist();
+
+        return toBuilder().setNumAllocations(numAllocations).setAdaptiveAllocationsSettings(adaptiveAllocationsSettings).build();
+    }
+
+    public Builder toBuilder() {
+        return new Builder().setAdaptiveAllocationsSettings(adaptiveAllocationsSettings)
+            .setDeploymentId(deploymentId)
+            .setModelId(modelId)
+            .setNumThreads(numThreads)
+            .setNumAllocations(numAllocations);
     }
 
     public static class Builder {

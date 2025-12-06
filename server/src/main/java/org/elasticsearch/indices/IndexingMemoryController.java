@@ -56,7 +56,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      * to set a floor on the actual size in bytes (default: 48 MB). */
     public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
         "indices.memory.min_index_buffer_size",
-        new ByteSizeValue(48, ByteSizeUnit.MB),
+        ByteSizeValue.of(48, ByteSizeUnit.MB),
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope
@@ -84,6 +84,20 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     public static final Setting<TimeValue> SHARD_MEMORY_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
         "indices.memory.interval",
         TimeValue.timeValueSeconds(5),
+        Property.NodeScope
+    );
+
+    /* Currently, indexing is throttled due to memory pressure in stateful/stateless or disk pressure in stateless.
+     * This limits the number of indexing threads to 1 per shard. However, this might not be enough when the number of
+     * shards that need indexing is larger than the number of threads. So we might opt to pause indexing completely.
+     * The default value for this setting is false, but it can be set to true in stateless.
+     * Note that this should only be enabled in stateless. In stateful clusters, where we have
+     * indexing replicas, if pause throttling gets enabled on replicas, it will indirectly
+     * pause the primary as well which might prevent us from relocating the primary shard.
+     */
+    public static final Setting<Boolean> PAUSE_INDEXING_ON_THROTTLE = Setting.boolSetting(
+        "indices.pause.on.throttle",
+        false,
         Property.NodeScope
     );
 
@@ -209,7 +223,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             .pollFirst()) {
             // Remove the shard from the set first, so that multiple threads can run writeIndexingBuffer concurrently on the same shard.
             pendingWriteIndexingBufferSet.remove(shard);
+            // Calculate the time taken to write the indexing buffers so it can be accounted for in the index write load
+            long startTime = System.nanoTime();
             shard.writeIndexingBuffer();
+            long took = System.nanoTime() - startTime;
+            shard.addWriteIndexBuffersToIndexThreadsTime(took);
             wrotePendingIndexingBuffer = true;
         }
         return wrotePendingIndexingBuffer;
@@ -232,7 +250,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         statusChecker.run();
     }
 
-    /** Asks this shard to throttle indexing to one thread */
+    /** Asks this shard to throttle indexing to one thread. If the PAUSE_INDEXING_ON_THROTTLE seeting is set to true,
+     * throttling will pause indexing completely for the throttled shard.
+     */
     protected void activateThrottling(IndexShard shard) {
         shard.activateThrottling();
     }
@@ -244,20 +264,21 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
-        postOperation(shardId, index, result);
+        postOperation(index, result);
     }
 
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
-        postOperation(shardId, delete, result);
+        postOperation(delete, result);
     }
 
-    private void postOperation(ShardId shardId, Engine.Operation operation, Engine.Result result) {
+    private void postOperation(Engine.Operation operation, Engine.Result result) {
         recordOperationBytes(operation, result);
         // Piggy back on indexing threads to write segments. We're not submitting a task to the index threadpool because we want memory to
         // be reclaimed rapidly. This has the downside of increasing the latency of _bulk requests though. Lucene does the same thing in
         // DocumentsWriter#postUpdate, flushing a segment because the size limit on the RAM buffer was reached happens on the call to
         // IndexWriter#addDocument.
+
         while (writePendingIndexingBuffers()) {
             // If we just wrote segments, then run the checker again if not already running to check if we released enough memory.
             if (statusChecker.tryRun() == false) {
@@ -481,7 +502,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     totalBytesUsed -= shardAndBytesUsed.bytesUsed;
                     lastShardId = shardAndBytesUsed.shard.shardId();
                     if (doThrottle && throttled.contains(shardAndBytesUsed.shard) == false) {
-                        logger.debug(
+                        logger.info(
                             "now throttling indexing for shard [{}]: segment writing can't keep up",
                             shardAndBytesUsed.shard.shardId()
                         );

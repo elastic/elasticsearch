@@ -169,7 +169,15 @@ class TransformFailureHandler {
      * @param numFailureRetries the number of configured retries
      */
     private void handleBulkIndexingException(BulkIndexingException bulkIndexingException, boolean unattended, int numFailureRetries) {
-        if (unattended == false && bulkIndexingException.isIrrecoverable()) {
+        if (bulkIndexingException.getCause() instanceof ClusterBlockException) {
+            context.setIsWaitingForIndexToUnblock(true);
+            retryWithoutIncrementingFailureCount(
+                bulkIndexingException,
+                bulkIndexingException.getDetailedMessage(),
+                unattended,
+                numFailureRetries
+            );
+        } else if (unattended == false && bulkIndexingException.isIrrecoverable()) {
             String message = TransformMessages.getMessage(
                 TransformMessages.LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR,
                 bulkIndexingException.getDetailedMessage()
@@ -232,12 +240,46 @@ class TransformFailureHandler {
             && unwrappedException.getClass().equals(context.getLastFailure().getClass());
 
         final int failureCount = context.incrementAndGetFailureCount(unwrappedException);
-
         if (unattended == false && numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail(unwrappedException, "task encountered more than " + numFailureRetries + " failures; latest failure: " + message);
             return;
         }
 
+        logRetry(unwrappedException, message, unattended, numFailureRetries, failureCount, repeatedFailure);
+    }
+
+    /**
+     * Terminate failure handling without incrementing the retries used
+     * <p>
+     * This is used when there is an ongoing recoverable issue and we want to retain
+     * retries for any issues that may occur after the issue is resolved
+     *
+     * @param unwrappedException The exception caught
+     * @param message error message to log/audit
+     * @param unattended whether the transform runs in unattended mode
+     * @param numFailureRetries the number of configured retries
+     */
+    private void retryWithoutIncrementingFailureCount(
+        Throwable unwrappedException,
+        String message,
+        boolean unattended,
+        int numFailureRetries
+    ) {
+        // group failures to decide whether to report it below
+        final boolean repeatedFailure = context.getLastFailure() != null
+            && unwrappedException.getClass().equals(context.getLastFailure().getClass());
+
+        logRetry(unwrappedException, message, unattended, numFailureRetries, context.getFailureCount(), repeatedFailure);
+    }
+
+    private void logRetry(
+        Throwable unwrappedException,
+        String message,
+        boolean unattended,
+        int numFailureRetries,
+        int failureCount,
+        boolean repeatedFailure
+    ) {
         // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
         // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
         // and if the number of retries is about to exceed

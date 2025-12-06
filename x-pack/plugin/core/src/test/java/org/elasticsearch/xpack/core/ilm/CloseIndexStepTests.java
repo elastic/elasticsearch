@@ -11,27 +11,16 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.client.internal.AdminClient;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexVersion;
-import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
-import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     protected CloseIndexStep createRandomInstance() {
@@ -54,7 +43,7 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
 
     @Override
     protected CloseIndexStep copyInstance(CloseIndexStep instance) {
-        return new CloseIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new CloseIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     public void testPerformAction() {
@@ -63,29 +52,22 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
+        var state = projectStateWithEmptyProject();
 
         CloseIndexStep step = createRandomInstance();
-
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer((Answer<Void>) invocation -> {
             CloseIndexRequest request = (CloseIndexRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
             assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
-            listener.onResponse(
-                new CloseIndexResponse(true, true, Collections.singletonList(new CloseIndexResponse.IndexResult(indexMetadata.getIndex())))
-            );
+            listener.onResponse(new CloseIndexResponse(true, true, List.of(new CloseIndexResponse.IndexResult(indexMetadata.getIndex()))));
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        step.performAction(indexMetadata, null, null, new ActionListener<>() {
+        step.performAction(indexMetadata, state, null, new ActionListener<>() {
 
             @Override
             public void onResponse(Void complete) {
@@ -99,7 +81,9 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
         });
 
         assertEquals(true, actionCompleted.get());
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).close(Mockito.any(), Mockito.any());
     }
@@ -110,14 +94,10 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
+        var state = projectStateWithEmptyProject();
 
         CloseIndexStep step = createRandomInstance();
         Exception exception = new RuntimeException();
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer((Answer<Void>) invocation -> {
             CloseIndexRequest request = (CloseIndexRequest) invocation.getArguments()[0];
@@ -128,8 +108,10 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, null, null)));
-        Mockito.verify(client, Mockito.only()).admin();
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).close(Mockito.any(), Mockito.any());
     }

@@ -16,6 +16,7 @@ import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -25,11 +26,11 @@ import java.util.Map;
  * respective feature name.
  */
 public class QueryFeatureExtractor implements FeatureExtractor {
-
     private final List<String> featureNames;
     private final List<Weight> weights;
-    private final List<Scorer> scorers;
-    private DisjunctionDISIApproximation rankerIterator;
+
+    private final DisiPriorityQueue subScorers;
+    private DisjunctionDISIApproximation approximation;
 
     public QueryFeatureExtractor(List<String> featureNames, List<Weight> weights) {
         if (featureNames.size() != weights.size()) {
@@ -37,35 +38,46 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         }
         this.featureNames = featureNames;
         this.weights = weights;
-        this.scorers = new ArrayList<>(weights.size());
+        this.subScorers = DisiPriorityQueue.ofMaxSize(weights.size());
     }
 
     @Override
     public void setNextReader(LeafReaderContext segmentContext) throws IOException {
-        DisiPriorityQueue disiPriorityQueue = new DisiPriorityQueue(weights.size());
-        scorers.clear();
-        for (Weight weight : weights) {
+        Collection<FeatureDisiWrapper> disiWrappers = new ArrayList<>();
+        subScorers.clear();
+        for (int i = 0; i < weights.size(); i++) {
+            var weight = weights.get(i);
             if (weight == null) {
-                scorers.add(null);
                 continue;
             }
-            Scorer scorer = weight.scorer(segmentContext);
-            if (scorer != null) {
-                disiPriorityQueue.add(new DisiWrapper(scorer));
+            var scorerSupplier = weight.scorerSupplier(segmentContext);
+            if (scorerSupplier != null) {
+                var scorer = scorerSupplier.get(0L);
+                if (scorer != null) {
+                    FeatureDisiWrapper featureDisiWrapper = new FeatureDisiWrapper(scorer, featureNames.get(i));
+                    subScorers.add(featureDisiWrapper);
+                    disiWrappers.add(featureDisiWrapper);
+                }
             }
-            scorers.add(scorer);
         }
-        rankerIterator = new DisjunctionDISIApproximation(disiPriorityQueue);
+        approximation = subScorers.size() > 0 ? new DisjunctionDISIApproximation(disiWrappers, Long.MAX_VALUE) : null;
     }
 
     @Override
     public void addFeatures(Map<String, Object> featureMap, int docId) throws IOException {
-        rankerIterator.advance(docId);
-        for (int i = 0; i < featureNames.size(); i++) {
-            Scorer scorer = scorers.get(i);
-            // Do we have a scorer, and does it match the provided document?
-            if (scorer != null && scorer.docID() == docId) {
-                featureMap.put(featureNames.get(i), scorer.score());
+        if (approximation == null || approximation.docID() > docId) {
+            return;
+        }
+        if (approximation.docID() < docId) {
+            approximation.advance(docId);
+        }
+        if (approximation.docID() != docId) {
+            return;
+        }
+        var w = (FeatureDisiWrapper) approximation.topList();
+        for (; w != null; w = (FeatureDisiWrapper) w.next) {
+            if (w.twoPhaseView == null || w.twoPhaseView.matches()) {
+                featureMap.put(w.featureName, w.scorable.score());
             }
         }
     }
@@ -75,4 +87,12 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         return featureNames;
     }
 
+    private static class FeatureDisiWrapper extends DisiWrapper {
+        final String featureName;
+
+        FeatureDisiWrapper(Scorer scorer, String featureName) {
+            super(scorer, false);
+            this.featureName = featureName;
+        }
+    }
 }

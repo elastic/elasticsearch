@@ -11,12 +11,17 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
@@ -26,6 +31,8 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -34,13 +41,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Make sures that we can run many concurrent requests with large number of shards with any data_partitioning.
@@ -56,11 +66,25 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
+            .build();
+    }
+
     @Before
     public void setupIndices() {
         int numIndices = between(10, 20);
         for (int i = 0; i < numIndices; i++) {
-            String index = "test-" + i;
+            String manyType = randomFrom("date", "date_nanos", "keyword", "long");
+            String index = "test-" + i + "__" + manyType;
             client().admin()
                 .indices()
                 .prepareCreate(index)
@@ -70,14 +94,18 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
-                .setMapping("user", "type=keyword", "tags", "type=keyword")
+                .setMapping("user", "type=keyword", "tags", "type=keyword", "many_type", "type=" + manyType, "single_type", "type=long")
                 .get();
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            int numDocs = between(5, 10);
+            int numDocs = between(10, 25); // every shard has at least 1 doc
+            long startInMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-10-23T13:52:55.015Z");
             for (int d = 0; d < numDocs; d++) {
                 String user = randomFrom("u1", "u2", "u3");
                 String tag = randomFrom("java", "elasticsearch", "lucene");
-                bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+                long millis = startInMillis + randomLongBetween(0, TimeValue.timeValueDays(1).millis());
+                String many = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(millis);
+                Map<String, Object> source = Map.of("user", user, "tags", tag, "single_type", millis, "many_type", many);
+                bulk.add(client().prepareIndex().setSource(source));
             }
             bulk.get();
         }
@@ -89,56 +117,93 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         for (int q = 0; q < numQueries; q++) {
             threads[q] = new Thread(() -> {
-                try {
-                    assertTrue(latch.await(1, TimeUnit.MINUTES));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 final var pragmas = Settings.builder();
                 if (randomBoolean() && canUseQueryPragmas()) {
                     pragmas.put(randomPragmas().getSettings())
                         .put("task_concurrency", between(1, 2))
                         .put("exchange_concurrent_clients", between(1, 2));
                 }
-                run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build())).close();
-            });
+                try (
+                    var response = run(
+                        syncEsqlQueryRequest("from test-* | stats count(user) by tags").pragmas(new QueryPragmas(pragmas.build()))
+                    )
+                ) {
+                    // do nothing
+                } catch (Exception | AssertionError e) {
+                    logger.warn("Query failed with exception", e);
+                    throw e;
+                }
+            }, "testConcurrentQueries-" + q);
         }
         for (Thread thread : threads) {
             thread.start();
         }
         latch.countDown();
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(10_000);
         }
     }
 
     public void testRejection() throws Exception {
-        String[] nodes = internalCluster().getNodeNames();
-        for (String node : nodes) {
-            MockTransportService ts = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
-                handler.messageReceived(request, new TransportChannel() {
-                    @Override
-                    public String getProfileName() {
-                        return channel.getProfileName();
-                    }
+        DiscoveryNode dataNode = randomFrom(internalCluster().clusterService().state().nodes().getDataNodes().values());
+        String indexName = "single-node-index";
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.require._name", dataNode.getName())
+            )
+            .setMapping("user", "type=keyword", "tags", "type=keyword")
+            .get();
+        client().prepareIndex(indexName)
+            .setSource("user", "u1", "tags", "lucene")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
-                    @Override
-                    public void sendResponse(TransportResponse response) {
-                        channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
-                    }
+        MockTransportService ts = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getName());
+        CountDownLatch dataNodeRequestLatch = new CountDownLatch(1);
+        ts.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+            handler.messageReceived(request, channel, task);
+            dataNodeRequestLatch.countDown();
+        });
 
-                    @Override
-                    public void sendResponse(Exception exception) {
-                        channel.sendResponse(exception);
-                    }
-                }, task);
+        ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            ts.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    channel.sendResponse(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    assertTrue(dataNodeRequestLatch.await(30, TimeUnit.SECONDS));
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                }
             });
-        }
+        });
+
         try {
             AtomicReference<Exception> failure = new AtomicReference<>();
             EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("from test-* | stats count(user) by tags");
+            request.query("from single-node-index | stats count(user) by tags");
             request.acceptedPragmaRisks(true);
             request.pragmas(randomPragmas());
             CountDownLatch queryLatch = new CountDownLatch(1);
@@ -151,9 +216,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.TOO_MANY_REQUESTS));
             assertThat(failure.get().getMessage(), equalTo("test queue"));
         } finally {
-            for (String node : nodes) {
-                ((MockTransportService) internalCluster().getInstance(TransportService.class, node)).clearAllRules();
-            }
+            ts.clearAllRules();
         }
     }
 
@@ -192,20 +255,101 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 "from test-* | SORT tags | LIMIT 1000"
             );
             for (String q : queries) {
-                QueryPragmas pragmas = randomPragmas();
+                var pragmas = randomPragmas();
+                // For queries involving TopN, the node-reduce driver may hold on to contexts for longer (due to late materialization, which
+                // is only turned when the NODE_LEVEL_REDUCTION is turned on), so we don't check against the limit.
+                boolean nodeLevelReduction = QueryPragmas.NODE_LEVEL_REDUCTION.get(pragmas.getSettings());
+                int maxAllowed = q.contains("SORT tags") && nodeLevelReduction ? Integer.MAX_VALUE : pragmas.maxConcurrentShardsPerNode();
                 for (SearchService searchService : searchServices) {
-                    SearchContextCounter counter = new SearchContextCounter(pragmas.maxConcurrentShardsPerNode());
+                    SearchContextCounter counter = new SearchContextCounter(maxAllowed);
                     var mockSearchService = (MockSearchService) searchService;
-                    mockSearchService.setOnPutContext(r -> counter.onNewContext());
+                    mockSearchService.setOnCreateSearchContext(r -> counter.onNewContext());
                     mockSearchService.setOnRemoveContext(r -> counter.onContextReleased());
                 }
-                run(q, pragmas).close();
+                run(syncEsqlQueryRequest(q).pragmas(pragmas)).close();
             }
         } finally {
             for (SearchService searchService : searchServices) {
                 var mockSearchService = (MockSearchService) searchService;
-                mockSearchService.setOnPutContext(r -> {});
+                mockSearchService.setOnCreateSearchContext(r -> {});
                 mockSearchService.setOnRemoveContext(r -> {});
+            }
+        }
+    }
+
+    public void testCancelUnnecessaryRequests() {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(3);
+
+        var coordinatingNode = internalCluster().getNodeNames()[0];
+
+        var exchanges = new AtomicInteger(0);
+        var coordinatorNodeTransport = MockTransportService.getInstance(coordinatingNode);
+        coordinatorNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (Objects.equals(action, ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
+                logger.info("Opening exchange on node [{}]", connection.getNode().getId());
+                exchanges.incrementAndGet();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        var query = syncEsqlQueryRequest("from test-* | LIMIT 1").pragmas(
+            new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build())
+        );
+
+        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
+            assertThat(Iterables.size(result.rows()), equalTo(1L));
+            assertThat(exchanges.get(), lessThanOrEqualTo(2));
+        } finally {
+            coordinatorNodeTransport.clearAllRules();
+        }
+    }
+
+    public void testMultiTypes() {
+        String q0 = """
+            FROM test-* METADATA _index
+            | EVAL many_date = TO_DATETIME(many_type), many_str = TO_STRING(many_type), many_long = TO_LONG(many_type)
+            | KEEP _index, single_type, many_date, many_str, many_long
+            """;
+        String q1 = q0 + " | SORT _index";
+        String q2 = q0 + " | SORT single_type";
+        String q3 = q0 + " | SORT single_type, _index";
+        for (String q : List.of(q0, q1, q2, q3)) {
+            logger.debug("--> running query:\n{}", q);
+            try (var resp = run(q)) {
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                for (List<Object> row : rows) {
+                    String index = (String) row.get(0);
+                    String manyType = index.substring(index.indexOf("__") + 2);
+                    long singleValue = (long) row.get(1);
+                    String manyDate = (String) row.get(2);
+                    assertThat(manyDate, equalTo(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(singleValue)));
+                    switch (manyType) {
+                        case "keyword" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(manyDate));
+                            assertNull(row.get(4));
+                        }
+                        case "long" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(Long.toString(singleValue)));
+                            long manyLong = (long) row.get(4);
+                            assertThat(manyLong, equalTo(singleValue));
+                        }
+                        case "date" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(manyDate));
+                            long manyLong = (long) row.get(4);
+                            assertThat(manyLong, equalTo(singleValue));
+                        }
+                        case "date_nanos" -> {
+                            String manyKeyword = (String) row.get(3);
+                            assertThat(manyKeyword, equalTo(manyDate));
+                            long manyLong = (long) row.get(4);
+                            assertThat(manyLong, equalTo(singleValue * 1000_000L));
+                        }
+                    }
+                }
             }
         }
     }

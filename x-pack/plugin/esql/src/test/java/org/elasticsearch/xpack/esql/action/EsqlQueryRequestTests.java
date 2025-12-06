@@ -35,11 +35,15 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -60,12 +64,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class EsqlQueryRequestTests extends ESTestCase {
 
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -76,14 +82,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -96,6 +104,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testNamedParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -103,7 +112,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             ,"params":[ {"n1" : "8.15.0"}, { "n2" : 0.05}, {"n3" : -799810013},
              {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n_6" : null}, {"n7_" : false},
              {"_n1" : "8.15.0"}, { "__n2" : 0.05}, {"__3" : -799810013},
-             {"__4n" : "127.0.0.1"}, {"_n5" : "esql"}, {"_n6" : null}, {"_n7" : false}] }""";
+             {"__4n" : "127.0.0.1"}, {"_n5" : "esql"}, {"_n6" : null}, {"_n7" : false},
+             {"_n8": ["8.15.0", "8.19.0"]}, {"_n9": ["x", "y"]}, {"_n10": [true, false]}, {"_n11": [1.0, 1.1, 1.2]},
+             {"_n12": [-799810013, 0, 799810013]}
+             ] }""";
 
         List<QueryParam> params = List.of(
             paramAsConstant("n1", "8.15.0"),
@@ -119,20 +131,72 @@ public class EsqlQueryRequestTests extends ESTestCase {
             paramAsConstant("__4n", "127.0.0.1"),
             paramAsConstant("_n5", "esql"),
             paramAsConstant("_n6", null),
-            paramAsConstant("_n7", false)
+            paramAsConstant("_n7", false),
+            new QueryParam("_n8", List.of("8.15.0", "8.19.0"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n9", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n10", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n11", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n12", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE)
+            // TODO add mixed null values, or check all elements, and separate into a new method
         );
         String json = String.format(Locale.ROOT, """
             {
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
+        assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
+        assertEquals(locale, request.locale());
+        assertEquals(filter, request.filter());
+        assertEquals(params.size(), request.params().size());
+
+        for (int i = 0; i < request.params().size(); i++) {
+            assertEquals(params.get(i), request.params().get(i + 1));
+        }
+    }
+
+    public void testNamedMultivaluedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        String paramsString = """
+            ,"params":[
+             {"_n1": ["8.15.0", "8.19.0"]}, {"_n2": ["x", "y"]}, {"_n3": [true, false]}, {"_n4": [1.0, 1.1, 1.2]},
+             {"_n5": [-799810013, 0, 799810013]}
+             ] }""";
+
+        List<QueryParam> params = List.of(
+            new QueryParam("_n1", List.of("8.15.0", "8.19.0"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n2", List.of("x", "y"), KEYWORD, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n3", List.of(true, false), BOOLEAN, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n4", List.of(1.0, 1.1, 1.2), DOUBLE, ParserUtils.ParamClassification.VALUE),
+            new QueryParam("_n5", List.of(-799810013, 0, 799810013), DataType.INTEGER, ParserUtils.ParamClassification.VALUE)
+        );
+        String json = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "time_zone": "%s",
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+
+        assertEquals(query, request.query());
+        assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -144,12 +208,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifiersPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -175,14 +236,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
             {
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, timeZone.getId(), locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -196,6 +259,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testInvalidParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -207,9 +271,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 %s
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-            }""", paramsString1, query, columnar, locale.toLanguageTag(), filter);
+            }""", paramsString1, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
         assertThat(
@@ -259,13 +324,134 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
-    public void testInvalidParamsForIdentifiersPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
+    public void testInvalidMultivaluedNamedParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        // invalid named parameter for multivalued constants
+        String paramsString = """
+            "params":[
+             {"_n1": [null, "8.15.0"]}, {"_n2": [null, null, "x"]}, {"_n3": [null, true, false]},
+             {"_n4": [null, 1.0, null]}, {"_n5": [null, -799810013, null, 799810013]},
+             {"n6" : [{"value" : {"a5" : "v5"}}]}, {"n7" : [{"identifier" : ["x", "y"]}]}, {"n8" : [{"pattern" : ["x*", "y*"]}]}
+             ]""";
+        String json1 = String.format(Locale.ROOT, """
+            {
+                %s,
+                "query": "%s",
+                "columnar": %s,
+                "time_zone": "%s",
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
+
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "[3:2] Parameter [_n1] contains a null entry: [null, 8.15.0]. Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "[3:29] Parameter [_n2] contains a null entry: [null, null, x]. Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "[3:57] Parameter [_n3] contains a null entry: [null, true, false]. Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "[4:2] Parameter [_n4] contains a null entry: [null, 1.0, null]. Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "[4:30] Parameter [_n5] contains a null entry: [null, -799810013, null, 799810013]. "
+                    + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(e1.getCause().getMessage(), containsString("[5:2] n6=[{value={a5=v5}}] is not supported as a parameter"));
+        assertThat(e1.getCause().getMessage(), containsString("[5:40] n7=[{identifier=[x, y]}] is not supported as a parameter"));
+        assertThat(e1.getCause().getMessage(), containsString("[5:80] n8=[{pattern=[x*, y*]}] is not supported as a parameter"));
+    }
+
+    public void testInvalidMultivaluedUnnamedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+
+        // invalid named parameter for multivalued constants
+        String paramsString = """
+            "params":[
+             [null, "8.15.0"], [null, null, "x"], [null, true, false], [null, 1.0, null], [null, -799810013, null, 799810013]
+             ]""";
+        String json1 = String.format(Locale.ROOT, """
+            {
+                %s,
+                "query": "%s",
+                "columnar": %s,
+                "time_zone": "%s",
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
+
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:2] Parameter contains a null entry: [null, 8.15.0]. Null values are not allowed in multivalued params;")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:20] Parameter contains a null entry: [null, null, x]. Null values are not allowed in multivalued params;")
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "[3:39] Parameter contains a null entry: [null, true, false]. Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString("[3:60] Parameter contains a null entry: [null, 1.0, null]. Null values are not allowed in multivalued params;")
+        );
+    }
+
+    public void testInvalidParamsString() {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json1 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": {*}
+            }""", query);
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        String message1 = e1.getCause().getMessage();
+        assertThat("Unexpected failure when parsing " + json1 + ". " + message1, containsString("Unexpected token [START_OBJECT]"));
+        String json2 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": "foo"
+            }""", query);
+        Exception e2 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
+        String message2 = e2.getCause().getMessage();
+        assertThat("Unexpected failure when parsing " + json2 + ". " + message2, containsString("Unexpected token [VALUE_STRING]"));
+    }
+
+    public void testInvalidParamsForIdentifiersPatterns() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -282,45 +468,94 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 %s
                 "query": "%s",
                 "columnar": %s,
+                "time_zone": "%s",
                 "locale": "%s",
                 "filter": %s
-            }""", paramsString1, query, columnar, locale.toLanguageTag(), filter);
+            }""", paramsString1, query, columnar, timeZone.getId(), locale.toLanguageTag(), filter);
 
         Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        String message = e1.getCause().getMessage();
         assertThat(
-            e1.getCause().getMessage(),
+            message,
+            containsString("[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; ")
+        );
+        assertThat(
+            message,
             containsString(
-                "[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; "
-                    + "[2:38] [n2] has multiple param attributes [identifier, pattern], "
-                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[2:38] [v2] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[3:1] [n3] has multiple param attributes [identifier, pattern], "
-                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[3:1] [v3] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[3:51] [n4] has multiple param attributes [pattern, value], "
-                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[3:51] [v4.1] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[4:1] n5={value={a5=v5}} is not supported as a parameter; "
-                    + "[4:36] [{a6.1=v6.1, a6.2=v6.2}] is not a valid value for IDENTIFIER parameter, "
-                    + "a valid value for IDENTIFIER parameter is a string; "
-                    + "[4:36] n6={identifier={a6.1=v6.1, a6.2=v6.2}} is not supported as a parameter; "
-                    + "[4:98] [n7] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[5:1] n8={value=[x, y]} is not supported as a parameter; "
-                    + "[5:34] [[x, y]] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[5:34] n9={identifier=[x, y]} is not supported as a parameter; "
-                    + "[5:72] [[x*, y*]] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[5:72] n10={pattern=[x*, y*]} is not supported as a parameter; "
-                    + "[6:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[6:31] [true] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[6:61] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[6:94] [v14] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[7:1] Cannot parse more than one key:value pair as parameter, found [{n16:{identifier=v16}}, {n15:{pattern=v15*}}]"
+                "[2:38] [n2] has multiple param attributes [identifier, pattern], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[2:38] [v2] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:1] [n3] has multiple param attributes [identifier, pattern], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:1] [v3] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:51] [n4] has multiple param attributes [pattern, value], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                "[3:51] [v4.1] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *;"
+            )
+        );
+        assertThat(message, containsString("[4:1] n5={value={a5=v5}} is not supported as a parameter;"));
+        assertThat(message, containsString("[4:36] [{a6.1=v6.1, a6.2=v6.2}] is not a valid value for IDENTIFIER parameter,"));
+        assertThat(message, containsString("a valid value for IDENTIFIER parameter is a string;"));
+        assertThat(message, containsString("[4:36] n6={identifier={a6.1=v6.1, a6.2=v6.2}} is not supported as a parameter;"));
+        assertThat(
+            message,
+            containsString("[4:98] [n7] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param;")
+        );
+        assertThat(
+            message,
+            containsString("[5:34] n9={identifier=[x, y]} parameter is multivalued, only VALUE parameters can be multivalued;")
+        );
+        assertThat(
+            message,
+            containsString("[5:72] n10={pattern=[x*, y*]} parameter is multivalued, only VALUE parameters can be multivalued;")
+        );
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(
+            message,
+            containsString("[6:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;")
+        );
+        assertThat(message, containsString("[6:31] [true] is not a valid value for PATTERN parameter,"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(
+            message,
+            containsString(
+                "[6:61] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string;"
+            )
+        );
+        assertThat(message, containsString("[6:94] [v14] is not a valid value for PATTERN parameter,"));
+        assertThat(message, containsString("a valid value for PATTERN parameter is a string and contains *;"));
+        assertThat(
+            message,
+            containsString(
+                "[7:1] Cannot parse more than one key:value pair as parameter, found [{n16:{identifier=v16}}, {n15:{pattern=v15*}}"
             )
         );
     }
@@ -342,6 +577,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testParseFieldsForAsync() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
+        ZoneId timeZone = randomZone();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
@@ -357,6 +593,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 {
                     "query": "%s",
                     "columnar": %s,
+                    "time_zone": "%s",
                     "locale": "%s",
                     "filter": %s,
                     "keep_on_completion": %s,
@@ -365,6 +602,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     %s""",
             query,
             columnar,
+            timeZone.getId(),
             locale.toLanguageTag(),
             filter,
             keepOnCompletion,
@@ -377,6 +615,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
+        assertEquals(timeZone, request.timeZone());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
@@ -617,10 +856,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""".replace("QUERY", query);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
-        Task task = request.createTask(id, "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        String localNode = randomAlphaOfLength(2);
+        Task task = request.createTask(new TaskId(localNode, id), "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
 
-        String localNode = randomAlphaOfLength(2);
         TaskInfo taskInfo = task.taskInfo(localNode, true);
         String json = taskInfo.toString();
         String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
@@ -629,12 +868,24 @@ public class EsqlQueryRequestTests extends ESTestCase {
             .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
             .replaceAll("5326", Integer.toString(id))
             .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)
+            .replaceAll("Ks5ApyqMTtWj5LrKigmCjQ", ((EsqlQueryStatus) taskInfo.status()).id().getEncoded())
+            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
             .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
             .replaceAll("1690818392328", Long.toString(taskInfo.startTime()))
             .replaceAll("41.7ms", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString())
             .replaceAll("41770830", Long.toString(taskInfo.runningTimeNanos()))
             .trim();
         assertThat(json, equalTo(expected));
+    }
+
+    public void testProjectRouting() throws IOException {
+        String json = """
+            {
+                "query": "FROM test",
+                "project_routing": "_alias:_origin"
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.projectRouting(), is("_alias:_origin"));
     }
 
     private List<QueryParam> randomParameters() {

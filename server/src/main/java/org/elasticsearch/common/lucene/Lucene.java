@@ -20,6 +20,8 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -62,6 +64,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,6 +73,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -83,12 +87,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene100";
+
+    public static final String LATEST_CODEC = "Lucene103";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -107,14 +115,9 @@ public class Lucene {
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(TOTAL_HITS_EQUAL_TO_ZERO, EMPTY_SCORE_DOCS);
 
-    private Lucene() {}
+    private static final TransportVersion SEARCH_INCREMENTAL_TOP_DOCS_NULL = TransportVersion.fromName("search_incremental_top_docs_null");
 
-    /**
-     * Reads the segments infos, failing if it fails to load
-     */
-    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        return SegmentInfos.readLatestCommit(directory);
-    }
+    private Lucene() {}
 
     /**
      * Returns an iterable that allows to iterate over all files in this segments info
@@ -129,6 +132,14 @@ public class Lucene {
     }
 
     /**
+     * Returns the additional files that the {@param current} index commit introduces compared to the {@param previous} one.
+     */
+    public static Set<String> additionalFileNames(IndexCommit previous, IndexCommit current) throws IOException {
+        final Set<String> previousFiles = previous != null ? new HashSet<>(previous.getFileNames()) : Set.of();
+        return current.getFileNames().stream().filter(f -> previousFiles.contains(f) == false).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
      * Returns the number of documents in the index referenced by this {@link SegmentInfos}
      */
     public static int getNumDocs(SegmentInfos info) {
@@ -140,20 +151,26 @@ public class Lucene {
     }
 
     /**
+     * Reads the segments infos, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
+        return SegmentInfos.readLatestCommit(directory, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
+    }
+
+    /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit) throws IOException {
-        // Using commit.getSegmentsFileName() does NOT work here, have to
-        // manually create the segment filename
+        // Using commit.getSegmentsFileName() does NOT work here, have to manually create the segment filename
         String filename = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", commit.getGeneration());
-        return SegmentInfos.readCommit(commit.getDirectory(), filename);
+        return readSegmentInfos(filename, commit.getDirectory());
     }
 
     /**
      * Reads the segments infos from the given segments file name, failing if it fails to load
      */
     private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
-        return SegmentInfos.readCommit(directory, segmentsFileName);
+        return SegmentInfos.readCommit(directory, segmentsFileName, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
     }
 
     /**
@@ -189,7 +206,18 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
+        // Need to figure out what the parent field is that, so that validation in IndexWriter doesn't fail
+        // if no parent field is configured, but FieldInfo says there is a parent field.
+        String parentField = null;
         final IndexCommit cp = getIndexCommit(si, directory);
+        try (var reader = DirectoryReader.open(cp)) {
+            var topLevelFieldInfos = FieldInfos.getMergedFieldInfos(reader);
+            for (FieldInfo fieldInfo : topLevelFieldInfos) {
+                if (fieldInfo.isParentField()) {
+                    parentField = fieldInfo.getName();
+                }
+            }
+        }
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
@@ -197,6 +225,7 @@ public class Lucene {
                     .setIndexCommit(cp)
                     .setCommitOnClose(false)
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
+                    .setParentField(parentField)
             )
         ) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
@@ -298,18 +327,15 @@ public class Lucene {
         } else if (type == 1) {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
-            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
-            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
-            for (int i = 0; i < fieldDocs.length; i++) {
-                fieldDocs[i] = readFieldDoc(in);
-            }
+            SortField[] fields = readSortFieldArray(in);
+            FieldDoc[] fieldDocs = in.readArray(Lucene::readFieldDoc, FieldDoc[]::new);
             return new TopDocsAndMaxScore(new TopFieldDocs(totalHits, fieldDocs, fields), maxScore);
         } else if (type == 2) {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
             String field = in.readString();
-            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
+            SortField[] fields = readSortFieldArray(in);
             int size = in.readVInt();
             Object[] collapseValues = new Object[size];
             FieldDoc[] fieldDocs = new FieldDoc[size];
@@ -324,69 +350,40 @@ public class Lucene {
     }
 
     public static FieldDoc readFieldDoc(StreamInput in) throws IOException {
-        Comparable<?>[] cFields = new Comparable<?>[in.readVInt()];
-        for (int j = 0; j < cFields.length; j++) {
-            byte type = in.readByte();
-            if (type == 0) {
-                cFields[j] = null;
-            } else if (type == 1) {
-                cFields[j] = in.readString();
-            } else if (type == 2) {
-                cFields[j] = in.readInt();
-            } else if (type == 3) {
-                cFields[j] = in.readLong();
-            } else if (type == 4) {
-                cFields[j] = in.readFloat();
-            } else if (type == 5) {
-                cFields[j] = in.readDouble();
-            } else if (type == 6) {
-                cFields[j] = in.readByte();
-            } else if (type == 7) {
-                cFields[j] = in.readShort();
-            } else if (type == 8) {
-                cFields[j] = in.readBoolean();
-            } else if (type == 9) {
-                cFields[j] = in.readBytesRef();
-            } else if (type == 10) {
-                cFields[j] = new BigInteger(in.readString());
-            } else {
-                throw new IOException("Can't match type [" + type + "]");
-            }
-        }
-        return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
+        var sortValues = readSortValues(in);
+        return new FieldDoc(in.readVInt(), in.readFloat(), sortValues);
+    }
+
+    public static Object[] readSortValues(StreamInput in) throws IOException {
+        return in.readArray(Lucene::readSortValue, Object[]::new);
     }
 
     public static Comparable<?> readSortValue(StreamInput in) throws IOException {
         byte type = in.readByte();
-        if (type == 0) {
-            return null;
-        } else if (type == 1) {
-            return in.readString();
-        } else if (type == 2) {
-            return in.readInt();
-        } else if (type == 3) {
-            return in.readLong();
-        } else if (type == 4) {
-            return in.readFloat();
-        } else if (type == 5) {
-            return in.readDouble();
-        } else if (type == 6) {
-            return in.readByte();
-        } else if (type == 7) {
-            return in.readShort();
-        } else if (type == 8) {
-            return in.readBoolean();
-        } else if (type == 9) {
-            return in.readBytesRef();
-        } else if (type == 10) {
-            return new BigInteger(in.readString());
-        } else {
-            throw new IOException("Can't match type [" + type + "]");
-        }
+        return switch (type) {
+            case 0 -> null;
+            case 1 -> in.readString();
+            case 2 -> in.readInt();
+            case 3 -> in.readLong();
+            case 4 -> in.readFloat();
+            case 5 -> in.readDouble();
+            case 6 -> in.readByte();
+            case 7 -> in.readShort();
+            case 8 -> in.readBoolean();
+            case 9 -> in.readBytesRef();
+            case 10 -> new BigInteger(in.readString());
+            default -> throw new IOException("Can't match type [" + type + "]");
+        };
     }
 
     public static ScoreDoc readScoreDoc(StreamInput in) throws IOException {
         return new ScoreDoc(in.readVInt(), in.readFloat());
+    }
+
+    private static ScoreDoc readScoreDocWithShardIndex(StreamInput in) throws IOException {
+        var res = readScoreDoc(in);
+        res.shardIndex = in.readVInt();
+        return res;
     }
 
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
@@ -396,18 +393,121 @@ public class Lucene {
         out.writeEnum(totalHits.relation());
     }
 
+    /**
+     * Same as {@link #writeTopDocs} but also reads the shard index with every score doc written so that the results can be partitioned
+     * by shard for sorting purposes.
+     */
+    public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
+        if (topDocs == null) {
+            if (out.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL)) {
+                out.writeByte((byte) -1);
+                return;
+            } else {
+                topDocs = Lucene.EMPTY_TOP_DOCS;
+            }
+        }
+        if (topDocs instanceof TopFieldGroups topFieldGroups) {
+            out.writeByte((byte) 2);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeString(topFieldGroups.field);
+            writeSortFieldArray(out, topFieldGroups.fields);
+            out.writeVInt(topDocs.scoreDocs.length);
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                ScoreDoc doc = topFieldGroups.scoreDocs[i];
+                writeFieldDoc(out, (FieldDoc) doc);
+                writeSortValue(out, topFieldGroups.groupValues[i]);
+                out.writeVInt(doc.shardIndex);
+            }
+        } else if (topDocs instanceof TopFieldDocs topFieldDocs) {
+            out.writeByte((byte) 1);
+            writeTotalHits(out, topDocs.totalHits);
+            writeSortFieldArray(out, topFieldDocs.fields);
+            out.writeArray((o, doc) -> {
+                writeFieldDoc(o, (FieldDoc) doc);
+                o.writeVInt(doc.shardIndex);
+            }, topFieldDocs.scoreDocs);
+        } else {
+            out.writeByte((byte) 0);
+            writeTotalHits(out, topDocs.totalHits);
+            out.writeArray((o, scoreDoc) -> {
+                writeScoreDoc(o, scoreDoc);
+                o.writeVInt(scoreDoc.shardIndex);
+            }, topDocs.scoreDocs);
+        }
+    }
+
+    public static void writeSortFieldArray(StreamOutput out, SortField[] sortFields) throws IOException {
+        out.writeArray(Lucene::writeSortField, sortFields);
+    }
+
+    /**
+     * Read side counterpart to {@link #writeTopDocsIncludingShardIndex} and the same as {@link #readTopDocs(StreamInput)} but for the
+     * added shard index values that are read.
+     */
+    public static TopDocs readTopDocsIncludingShardIndex(StreamInput in) throws IOException {
+        byte type = in.readByte();
+        if (type == -1) {
+            assert in.getTransportVersion().supports(SEARCH_INCREMENTAL_TOP_DOCS_NULL);
+            return null;
+        } else if (type == 0) {
+            TotalHits totalHits = readTotalHits(in);
+
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = readScoreDocWithShardIndex(in);
+                }
+            }
+            return new TopDocs(totalHits, scoreDocs);
+        } else if (type == 1) {
+            TotalHits totalHits = readTotalHits(in);
+            SortField[] fields = readSortFieldArray(in);
+            FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                var fieldDoc = readFieldDoc(in);
+                fieldDoc.shardIndex = in.readVInt();
+                fieldDocs[i] = fieldDoc;
+            }
+            return new TopFieldDocs(totalHits, fieldDocs, fields);
+        } else if (type == 2) {
+            TotalHits totalHits = readTotalHits(in);
+            String field = in.readString();
+            SortField[] fields = readSortFieldArray(in);
+            int size = in.readVInt();
+            Object[] collapseValues = new Object[size];
+            FieldDoc[] fieldDocs = new FieldDoc[size];
+            for (int i = 0; i < fieldDocs.length; i++) {
+                var doc = readFieldDoc(in);
+                collapseValues[i] = readSortValue(in);
+                doc.shardIndex = in.readVInt();
+                fieldDocs[i] = doc;
+            }
+            return new TopFieldGroups(field, totalHits, fieldDocs, fields, collapseValues);
+        } else {
+            throw new IllegalStateException("Unknown type " + type);
+        }
+    }
+
+    public static SortField[] readSortFieldArray(StreamInput in) throws IOException {
+        return in.readArray(Lucene::readSortField, SortField[]::new);
+    }
+
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
         if (topDocs.topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
 
-            writeTotalHits(out, topDocs.topDocs.totalHits);
+            writeTotalHits(out, topFieldGroups.totalHits);
             out.writeFloat(topDocs.maxScore);
 
             out.writeString(topFieldGroups.field);
-            out.writeArray(Lucene::writeSortField, topFieldGroups.fields);
+            writeSortFieldArray(out, topFieldGroups.fields);
 
-            out.writeVInt(topDocs.topDocs.scoreDocs.length);
-            for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
+            out.writeVInt(topFieldGroups.scoreDocs.length);
+            for (int i = 0; i < topFieldGroups.scoreDocs.length; i++) {
                 ScoreDoc doc = topFieldGroups.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
                 writeSortValue(out, topFieldGroups.groupValues[i]);
@@ -415,10 +515,10 @@ public class Lucene {
         } else if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
             out.writeByte((byte) 1);
 
-            writeTotalHits(out, topDocs.topDocs.totalHits);
+            writeTotalHits(out, topFieldDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
 
-            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
+            writeSortFieldArray(out, topFieldDocs.fields);
             out.writeArray((o, doc) -> writeFieldDoc(o, (FieldDoc) doc), topFieldDocs.scoreDocs);
         } else {
             out.writeByte((byte) 0);
@@ -493,14 +593,17 @@ public class Lucene {
 
     public static void writeFieldDoc(StreamOutput out, FieldDoc fieldDoc) throws IOException {
         out.writeArray(Lucene::writeSortValue, fieldDoc.fields);
-        out.writeVInt(fieldDoc.doc);
-        out.writeFloat(fieldDoc.score);
+        doWriteScoreDoc(out, fieldDoc);
     }
 
     public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
         if (scoreDoc.getClass().equals(ScoreDoc.class) == false) {
             throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
         }
+        doWriteScoreDoc(out, scoreDoc);
+    }
+
+    private static void doWriteScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
     }
@@ -542,12 +645,8 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
-        } else if (sortField.getClass() == SortedNumericSortField.class) {
-            SortField newSortField = new SortField(
-                sortField.getField(),
-                ((SortedNumericSortField) sortField).getNumericType(),
-                sortField.getReverse()
-            );
+        } else if (sortField instanceof SortedNumericSortField snsf) {
+            SortField newSortField = new SortField(sortField.getField(), snsf.getNumericType(), sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
@@ -557,17 +656,9 @@ public class Lucene {
         }
     }
 
-    public static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
+    static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
         sortField = rewriteMergeSortField(sortField);
-        if (sortField.getClass() != SortField.class) {
-            throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
-        }
-        if (sortField.getField() == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(sortField.getField());
-        }
+        out.writeOptionalString(sortField.getField());
         if (sortField.getComparatorSource() != null) {
             IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField
                 .getComparatorSource();
@@ -652,15 +743,26 @@ public class Lucene {
      * If no SegmentReader can be extracted an {@link IllegalStateException} is thrown.
      */
     public static SegmentReader segmentReader(LeafReader reader) {
+        SegmentReader segmentReader = tryUnwrapSegmentReader(reader);
+        if (segmentReader == null) {
+            throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        }
+        return segmentReader;
+    }
+
+    /**
+     * Tries to extract a segment reader from the given index reader. Unlike {@link #segmentReader(LeafReader)} this method returns
+     * null if no SegmentReader can be unwrapped instead of throwing an exception.
+     */
+    public static SegmentReader tryUnwrapSegmentReader(LeafReader reader) {
         if (reader instanceof SegmentReader) {
             return (SegmentReader) reader;
         } else if (reader instanceof final FilterLeafReader fReader) {
-            return segmentReader(FilterLeafReader.unwrap(fReader));
+            return tryUnwrapSegmentReader(FilterLeafReader.unwrap(fReader));
         } else if (reader instanceof final FilterCodecReader fReader) {
-            return segmentReader(FilterCodecReader.unwrap(fReader));
+            return tryUnwrapSegmentReader(FilterCodecReader.unwrap(fReader));
         }
-        // hard fail - we can't get a SegmentReader
-        throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
+        return null;
     }
 
     @SuppressForbidden(reason = "Version#parseLeniently() used in a central place")

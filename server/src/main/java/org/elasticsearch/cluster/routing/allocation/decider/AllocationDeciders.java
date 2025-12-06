@@ -82,6 +82,10 @@ public class AllocationDeciders {
         );
     }
 
+    /**
+     * Returns whether rebalancing (move shards to improve relative node weights and performance) is allowed right now.
+     * Rebalancing can be disabled via cluster settings, or throttled by cluster settings (e.g. max concurrent shard moves).
+     */
     public Decision canRebalance(RoutingAllocation allocation) {
         return withDeciders(
             allocation,
@@ -100,7 +104,7 @@ public class AllocationDeciders {
     }
 
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         return withDecidersCheckingShardIgnoredNodes(
             allocation,
             shardRouting,
@@ -201,31 +205,32 @@ public class AllocationDeciders {
         BiFunction<String, Decision, String> logMessageCreator
     ) {
         if (debugMode == RoutingAllocation.DebugMode.OFF) {
-            var result = Decision.YES;
+            Decision mostNegativeDecision = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
-                if (decision.type() == Decision.Type.NO) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
+                if (mostNegativeDecision.type().higherThan(decision.type())) {
+                    mostNegativeDecision = decision;
+                    if (mostNegativeDecision.type() == Decision.Type.NO) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
+                        }
+                        break;
                     }
-                    return decision;
-                } else if (result.type() == Decision.Type.YES && decision.type() == Decision.Type.THROTTLE) {
-                    result = decision;
                 }
             }
-            return result;
+            return mostNegativeDecision;
         } else {
-            var result = new Decision.Multi();
+            final var multiDecision = new Decision.Multi();
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
                 if (logger.isTraceEnabled() && decision.type() == Decision.Type.NO) {
                     logger.trace(() -> logMessageCreator.apply(decider.getClass().getSimpleName(), decision));
                 }
                 if (decision != Decision.ALWAYS && (debugMode == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {
-                    result.add(decision);
+                    multiDecision.add(decision);
                 }
             }
-            return result;
+            return multiDecision;
         }
     }
 

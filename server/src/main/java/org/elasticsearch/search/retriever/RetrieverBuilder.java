@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -34,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A retriever represents an API element that returns an ordered list of top
@@ -50,20 +50,15 @@ import java.util.Objects;
  */
 public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>, ToXContent {
 
-    public static final NodeFeature RETRIEVERS_SUPPORTED = new NodeFeature("retrievers_supported");
-
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
-    protected static void declareBaseParserFields(
-        String name,
-        AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
-    ) {
+    protected static void declareBaseParserFields(AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser) {
         parser.declareObjectArray(
-            (r, v) -> r.preFilterQueryBuilders = v,
+            (r, v) -> r.preFilterQueryBuilders = new ArrayList<>(v),
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
             PRE_FILTER_FIELD
         );
@@ -138,7 +133,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             throw new ParsingException(new XContentLocation(nonfe.getLineNumber(), nonfe.getColumnNumber()), message, nonfe);
         }
 
-        context.trackRetrieverUsage(retrieverName);
+        context.trackRetrieverUsage(retrieverBuilder);
 
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(
@@ -218,6 +213,10 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         this.rankDocs = rankDocs;
     }
 
+    public RankDoc[] getRankDocs() {
+        return rankDocs;
+    }
+
     /**
      * Gets the filters for this retriever.
      */
@@ -243,6 +242,16 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         boolean allowPartialSearchResults
     ) {
         return validationException;
+    }
+
+    /**
+     * @return Additional fields associated with this retriever that we want to track in
+     * {@link org.elasticsearch.action.admin.cluster.stats.SearchUsageStats}.
+     *
+     * Individual retrievers should override this to add their own specific custom fields.
+     */
+    public Set<String> getExtendedUsageFields() {
+        return Set.of();
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

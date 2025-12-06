@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-    name 'x-pack-async'
-    description 'A module which handles common async operations'
-    classname 'org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
+    name = 'x-pack-async'
+    description = 'A module which handles common async operations'
+    classname ='org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
     extendedPlugins = ['x-pack-core']
 }
 base {

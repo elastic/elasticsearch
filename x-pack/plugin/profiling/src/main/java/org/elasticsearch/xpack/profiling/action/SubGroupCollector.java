@@ -26,21 +26,15 @@ public final class SubGroupCollector {
     private static final Logger log = LogManager.getLogger(SubGroupCollector.class);
 
     private final String[] aggregationFields;
-    private final boolean legacyAggregationField;
 
-    public static SubGroupCollector attach(
-        AbstractAggregationBuilder<?> parentAggregation,
-        String[] aggregationFields,
-        boolean legacyAggregationField
-    ) {
-        SubGroupCollector c = new SubGroupCollector(aggregationFields, legacyAggregationField);
+    public static SubGroupCollector attach(AbstractAggregationBuilder<?> parentAggregation, String[] aggregationFields) {
+        SubGroupCollector c = new SubGroupCollector(aggregationFields);
         c.addAggregations(parentAggregation);
         return c;
     }
 
-    private SubGroupCollector(String[] aggregationFields, boolean legacyAggregationField) {
+    private SubGroupCollector(String[] aggregationFields) {
         this.aggregationFields = aggregationFields;
-        this.legacyAggregationField = legacyAggregationField;
     }
 
     private boolean hasAggregationFields() {
@@ -68,7 +62,7 @@ public final class SubGroupCollector {
     void collectResults(Bucket bucket, TraceEvent event) {
         if (hasAggregationFields()) {
             if (event.subGroups == null) {
-                event.subGroups = SubGroup.root(aggregationFields[0], legacyAggregationField);
+                event.subGroups = SubGroup.root(aggregationFields[0]);
             }
             collectInternal(bucket.getAggregations(), event.subGroups, 0);
         }

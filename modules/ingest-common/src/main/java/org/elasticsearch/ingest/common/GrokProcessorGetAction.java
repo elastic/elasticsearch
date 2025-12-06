@@ -8,12 +8,11 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -43,11 +42,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction {
 
-    static final ActionType<GrokProcessorGetAction.Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
+    static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
 
     private GrokProcessorGetAction() {/* no instances */}
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final boolean sorted;
         private final String ecsCompatibility;
@@ -60,9 +59,7 @@ public class GrokProcessorGetAction {
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
-            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? in.readString()
-                : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
+            this.ecsCompatibility = in.readString();
         }
 
         @Override
@@ -74,9 +71,7 @@ public class GrokProcessorGetAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-                out.writeString(ecsCompatibility);
-            }
+            out.writeString(ecsCompatibility);
         }
 
         public boolean sorted() {
@@ -96,7 +91,6 @@ public class GrokProcessorGetAction {
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             grokPatterns = in.readMap(StreamInput::readString);
         }
 

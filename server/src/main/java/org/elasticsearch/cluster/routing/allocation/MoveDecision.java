@@ -12,9 +12,9 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -92,11 +92,12 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for the shard being able to remain on its current node, so the shard won't
      * be forced to move to another node.
      */
-    public static MoveDecision remain(Decision canRemainDecision) {
+    public static MoveDecision createRemainYesDecision(Decision canRemainDecision) {
+        assert canRemainDecision.type() != Type.NO;
+        assert canRemainDecision.type() != Type.NOT_PREFERRED;
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
-        assert canRemainDecision.type() != Type.NO;
         return new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, canRemainDecision, null, 0);
     }
 
@@ -150,9 +151,19 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * returns {@code false} otherwise.  If {@link #isDecisionTaken()} returns {@code false},
      * then invoking this method will throw an {@code IllegalStateException}.
      */
-    public boolean forceMove() {
+    public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return canRemain() == false && canMoveDecision == AllocationDecision.YES;
+        return cannotRemain() && canMoveDecision == AllocationDecision.YES;
+    }
+
+    /**
+     * Returns {@code true} if the shard cannot remain on its current node and _cannot_ be moved.
+     * returns {@code false} otherwise.  If {@link #isDecisionTaken()} returns {@code false},
+     * then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public boolean cannotRemainAndCannotMove() {
+        checkDecisionState();
+        return cannotRemain() && canMoveDecision != AllocationDecision.YES;
     }
 
     /**
@@ -162,6 +173,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public boolean canRemain() {
         checkDecisionState();
         return canRemainDecision.type() == Type.YES;
+    }
+
+    /**
+     * Returns {@code true} if the shard cannot remain on its current node, returns {@code false} if the shard can remain.
+     * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public boolean cannotRemain() {
+        return canRemain() == false;
     }
 
     /**
@@ -179,6 +198,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * the result of this method is meaningless, as no rebalance decision was taken.  If {@link #isDecisionTaken()}
      * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     public boolean canRebalanceCluster() {
         checkDecisionState();
         return clusterRebalanceDecision != null && clusterRebalanceDecision.type() == Type.YES;
@@ -192,6 +212,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an
      * {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     @Nullable
     public Decision getClusterRebalanceDecision() {
         checkDecisionState();
@@ -232,7 +253,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                     ? Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE
                     : Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE;
                 case THROTTLE -> Explanations.Rebalance.CLUSTER_THROTTLE;
-                case YES -> {
+                case YES, NOT_PREFERRED -> {
                     if (getTargetNode() != null) {
                         yield canMoveDecision == AllocationDecision.THROTTLED
                             ? Explanations.Rebalance.NODE_THROTTLE
@@ -244,7 +265,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             };
         } else {
             // it was a decision to force move the shard
-            assert canRemain() == false;
+            assert cannotRemain();
             return switch (canMoveDecision) {
                 case YES -> Explanations.Move.YES;
                 case THROTTLED -> Explanations.Move.THROTTLED;
@@ -260,14 +281,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         checkDecisionState();
-        return ChunkedToXContent.builder(params).append((builder, p) -> {
+        return Iterators.concat(Iterators.single((builder, p) -> {
             if (targetNode != null) {
                 builder.startObject("target_node");
                 discoveryNodeToXContent(targetNode, true, builder);
                 builder.endObject();
             }
             builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
-            if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
+            if (cannotRemain() && canRemainDecision.getDecisions().isEmpty() == false) {
                 builder.startArray("can_remain_decisions");
                 canRemainDecision.toXContent(builder, params);
                 builder.endArray();
@@ -285,11 +306,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("can_rebalance_to_other_node", canMoveDecision);
                 builder.field("rebalance_explanation", getExplanation());
             } else {
-                builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
+                builder.field("can_move_to_other_node", cannotRemainAndCanMove() ? "yes" : "no");
                 builder.field("move_explanation", getExplanation());
             }
             return builder;
-        }).append(nodeDecisionsToXContentChunked(nodeDecisions));
+        }), nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

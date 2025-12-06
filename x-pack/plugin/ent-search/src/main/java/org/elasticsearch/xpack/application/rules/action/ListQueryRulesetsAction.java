@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -31,11 +31,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class ListQueryRulesetsAction {
 
     public static final String NAME = "cluster:admin/xpack/query_rules/list";
-    public static final ActionType<ListQueryRulesetsAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private ListQueryRulesetsAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
         private final PageParams pageParams;
 
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
@@ -107,7 +107,6 @@ public class ListQueryRulesetsAction {
         final QueryPage<QueryRulesetListItem> queryPage;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryPage = new QueryPage<>(in, QueryRulesetListItem::new);
         }
 

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
@@ -58,10 +60,10 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_9_X;
     public static final TransportVersion SECURITY_ROLE_DESCRIPTION = TransportVersions.V_8_15_0;
 
     public static final String ROLE_TYPE = "role";
+    private static final Logger logger = LogManager.getLogger(RoleDescriptor.class);
 
     private final String name;
     private final String[] clusterPrivileges;
@@ -191,7 +193,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             ? Collections.unmodifiableMap(transientMetadata)
             : Collections.singletonMap("enabled", true);
         this.remoteIndicesPrivileges = remoteIndicesPrivileges != null ? remoteIndicesPrivileges : RemoteIndicesPrivileges.NONE;
-        this.remoteClusterPermissions = remoteClusterPermissions != null && remoteClusterPermissions.hasPrivileges()
+        this.remoteClusterPermissions = remoteClusterPermissions != null && remoteClusterPermissions.hasAnyPrivileges()
             ? remoteClusterPermissions
             : RemoteClusterPermissions.NONE;
         this.restriction = restriction != null ? restriction : Restriction.NONE;
@@ -212,16 +214,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
-        } else {
-            this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
-        }
-        if (in.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
-            this.restriction = new Restriction(in);
-        } else {
-            this.restriction = Restriction.NONE;
-        }
+        this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
+        this.restriction = new Restriction(in);
         if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             this.remoteClusterPermissions = new RemoteClusterPermissions(in);
         } else {
@@ -263,7 +257,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public boolean hasRemoteClusterPermissions() {
-        return remoteClusterPermissions.hasPrivileges();
+        return remoteClusterPermissions.hasAnyPrivileges();
     }
 
     public RemoteClusterPermissions getRemoteClusterPermissions() {
@@ -481,12 +475,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeArray(remoteIndicesPrivileges);
-        }
-        if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
-            restriction.writeTo(out);
-        }
+        out.writeArray(remoteIndicesPrivileges);
+        restriction.writeTo(out);
         if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         }
@@ -830,25 +820,32 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
-                    if (privileges.length != 1
-                        || RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
-                            .contains(privileges[0].trim().toLowerCase(Locale.ROOT)) == false) {
-                        throw new ElasticsearchParseException(
-                            "failed to parse remote_cluster for role [{}]. "
-                                + RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
-                                + " is the only value allowed for [{}] within [remote_cluster]",
+                    if (Arrays.stream(privileges)
+                        .map(s -> s.toLowerCase(Locale.ROOT).trim())
+                        .allMatch(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()::contains) == false) {
+                        final String message = String.format(
+                            Locale.ROOT,
+                            "failed to parse remote_cluster for role [%s]. "
+                                + "%s are the only values allowed for [%s] within [remote_cluster]. Found %s",
                             roleName,
-                            currentFieldName
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions(),
+                            currentFieldName,
+                            Arrays.toString(privileges)
                         );
+                        logger.info(message);
+                        throw new ElasticsearchParseException(message);
                     }
                 } else if (Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                     clusters = readStringArray(roleName, parser, false);
                 } else {
-                    throw new ElasticsearchParseException(
-                        "failed to parse remote_cluster for role [{}]. unexpected field [{}]",
+                    final String message = String.format(
+                        Locale.ROOT,
+                        "failed to parse remote_cluster for role [%s]. unexpected field [%s]",
                         roleName,
                         currentFieldName
                     );
+                    logger.info(message);
+                    throw new ElasticsearchParseException(message);
                 }
             }
             if (privileges != null && clusters == null) {

@@ -19,12 +19,16 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 import org.hamcrest.Matchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -171,12 +175,18 @@ public class InetAddressesTests extends ESTestCase {
     }
 
     public void testConvertDottedQuadToHex() throws UnknownHostException {
-        String[] ipStrings = { "7::0.128.0.127", "7::0.128.0.128", "7::128.128.0.127", "7::0.128.128.127" };
+        String[] ipStrings = { "7::0.128.0.127", "7::0.128.0.128", "7::128.128.0.127", "7::0.128.128.127", "::ffff:10.10.1.1" };
 
         for (String ipString : ipStrings) {
             // Shouldn't hit DNS, because it's an IP string literal.
             InetAddress ipv6Addr = InetAddress.getByName(ipString);
             assertEquals(ipv6Addr, InetAddresses.forString(ipString));
+            int extraLength = randomInt(8);
+            int offset = randomInt(extraLength);
+            byte[] asBytes = ipString.getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = new byte[asBytes.length + extraLength];
+            System.arraycopy(asBytes, 0, bytes, offset, asBytes.length);
+            assertEquals(ipv6Addr, InetAddresses.forString(bytes, offset, asBytes.length));
             assertTrue(InetAddresses.isInetAddress(ipString));
         }
     }
@@ -199,6 +209,35 @@ public class InetAddressesTests extends ESTestCase {
         assertEquals("::1", InetAddresses.toAddrString(InetAddresses.forString("0:0:0:0:0:0:0:1")));
         assertEquals("2001:658:22a:cafe::", InetAddresses.toAddrString(InetAddresses.forString("2001:0658:022a:cafe::")));
         assertEquals("::102:304", InetAddresses.toAddrString(InetAddresses.forString("::1.2.3.4")));
+        assertEquals("2001:db8::1:0:0:1", InetAddresses.toAddrString(InetAddresses.forString("2001:db8::1:0:0:1")));
+    }
+
+    public void testWithOffsets() {
+        List<String> ipStrings = List.of(
+            "1:2:3:4:5:6:7:8",
+            "2001:0:0:4::8",
+            "2001::4:5:6:7:8",
+            "2001:0:3:4:5:6:7:8",
+            "0:0:3::ffff",
+            "::4:0:0:0:ffff",
+            "::5:0:0:ffff",
+            "1::4:0:0:7:8",
+            "::",
+            "::1",
+            "2001:658:22a:cafe::",
+            "::102:304",
+            "2001:db8::1:0:0:1",
+            "2001:db8::1:0:1:0"
+        );
+        for (String ipString : ipStrings) {
+            byte[] bytes = ipString.getBytes(StandardCharsets.UTF_8);
+            int extraLength = randomInt(8);
+            int offset = randomInt(extraLength);
+            byte[] bytesWithPadding = new byte[bytes.length + extraLength];
+            System.arraycopy(bytes, 0, bytesWithPadding, offset, bytes.length);
+            InetAddress addr = InetAddresses.forString(bytesWithPadding, offset, bytes.length);
+            assertEquals(ipString, InetAddresses.toAddrString(addr));
+        }
     }
 
     public void testToUriStringIPv4() {
@@ -243,5 +282,27 @@ public class InetAddressesTests extends ESTestCase {
         cidr = InetAddresses.parseCidr("::fffe:0:0/128");
         assertEquals(InetAddresses.forString("::fffe:0:0"), cidr.v1());
         assertEquals(Integer.valueOf(128), cidr.v2());
+    }
+
+    public void testEncodeAsIpv6() throws Exception {
+        assertEquals(16, InetAddresses.encodeAsIpv6(new Text("::1")).length);
+        assertEquals(16, InetAddresses.encodeAsIpv6(new Text("192.168.0.0")).length);
+        assertEquals(
+            "192.168.0.0",
+            InetAddresses.toAddrString(InetAddress.getByAddress(InetAddresses.encodeAsIpv6(new Text("192.168.0.0"))))
+        );
+    }
+
+    public void testAppendHexBytes() {
+        for (int i = 0; i < 256; i++) {
+            byte b1 = randomByte();
+            byte b2 = randomByte();
+            // The expected string is the hex representation of the two bytes, padded to 4 characters
+            String expected = String.format(Locale.ROOT, "%1$04x", (b1 & 0xFF) << 8 | b2 & 0xFF);
+            byte[] hex = new byte[4];
+            InetAddresses.appendHexBytes(hex, 0, b1, b2);
+            String actual = new String(hex, StandardCharsets.US_ASCII);
+            assertEquals(expected, actual);
+        }
     }
 }

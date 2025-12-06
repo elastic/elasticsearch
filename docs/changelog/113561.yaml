@@ -1,5 +1,0 @@
-pr: 113561
-summary: Add link to Circuit Breaker "Data too large" exception message
-area: Infra/Circuit Breakers
-type: enhancement
-issues: []

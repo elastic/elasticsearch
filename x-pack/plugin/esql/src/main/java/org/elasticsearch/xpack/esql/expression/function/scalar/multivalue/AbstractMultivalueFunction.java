@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
@@ -32,27 +30,6 @@ import java.util.List;
  * </p>
  */
 public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            MvAppend.ENTRY,
-            MvAvg.ENTRY,
-            MvConcat.ENTRY,
-            MvCount.ENTRY,
-            MvDedupe.ENTRY,
-            MvFirst.ENTRY,
-            MvLast.ENTRY,
-            MvMax.ENTRY,
-            MvMedian.ENTRY,
-            MvMedianAbsoluteDeviation.ENTRY,
-            MvMin.ENTRY,
-            MvPercentile.ENTRY,
-            MvPSeriesWeightedSum.ENTRY,
-            MvSlice.ENTRY,
-            MvSort.ENTRY,
-            MvSum.ENTRY,
-            MvZip.ENTRY
-        );
-    }
 
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
@@ -64,7 +41,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(field);
     }
 
@@ -98,8 +75,8 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
 
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
-         * It's useful to specialize this from {@link #evalNullable} because it knows
-         * that it's producing an "array vector" because it only ever emits single
+         * It’s useful to specialize this from {@link #evalNullable} because it knows
+         * that it’s producing an "array vector" because it only ever emits single
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
          *

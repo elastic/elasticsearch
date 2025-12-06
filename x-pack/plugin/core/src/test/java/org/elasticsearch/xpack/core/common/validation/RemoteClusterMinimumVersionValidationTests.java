@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.common.validation;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -33,7 +32,10 @@ import static org.mockito.Mockito.spy;
 
 public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
 
-    private static final TransportVersion MIN_EXPECTED_VERSION = TransportVersions.V_7_11_0;
+    private static final TransportVersion VERSION_CLUSTER_A = TransportVersion.fromId(1_100_0_00);
+    private static final TransportVersion VERSION_CLUSTER_B = TransportVersion.fromId(1_200_0_00);
+    private static final TransportVersion VERSION_CLUSTER_C = TransportVersion.fromId(1_300_0_00);
+    private static final TransportVersion MIN_EXPECTED_VERSION = VERSION_CLUSTER_B;
     private static final String REASON = "some reason";
 
     private Context context;
@@ -41,9 +43,9 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         context = spy(new Context(null, null, null, null, null, null, null, null, null, null));
-        doReturn(TransportVersions.V_7_10_0).when(context).getRemoteClusterVersion("cluster-A");
-        doReturn(TransportVersions.V_7_11_0).when(context).getRemoteClusterVersion("cluster-B");
-        doReturn(TransportVersions.V_7_12_0).when(context).getRemoteClusterVersion("cluster-C");
+        doReturn(VERSION_CLUSTER_A).when(context).getRemoteClusterVersion("cluster-A");
+        doReturn(VERSION_CLUSTER_B).when(context).getRemoteClusterVersion("cluster-B");
+        doReturn(VERSION_CLUSTER_C).when(context).getRemoteClusterVersion("cluster-C");
     }
 
     public void testGetters() {
@@ -82,8 +84,8 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
                 ctx -> assertThat(
                     ctx.getValidationException().validationErrors(),
                     contains(
-                        "remote clusters are expected to run at least version [7.11.0] (reason: [some reason]), "
-                            + "but the following clusters were too old: [cluster-A (7.10.0)]"
+                        "remote clusters are expected to run at least version [1.20.0] (reason: [some reason]), "
+                            + "but the following clusters were too old: [cluster-A (1.10.0)]"
                     )
                 )
             )
@@ -93,15 +95,15 @@ public class RemoteClusterMinimumVersionValidationTests extends ESTestCase {
     public void testValidate_TwoRemoteClusterVersionsTooLow() {
         doReturn(new HashSet<>(Arrays.asList("cluster-A", "cluster-B", "cluster-C"))).when(context).getRegisteredRemoteClusterNames();
         doReturn(new TreeSet<>(Arrays.asList("cluster-A:dummy", "cluster-B:dummy", "cluster-C:dummy"))).when(context).resolveRemoteSource();
-        SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(TransportVersions.V_7_12_0, REASON);
+        SourceDestValidation validation = new RemoteClusterMinimumVersionValidation(VERSION_CLUSTER_C, REASON);
         validation.validate(
             context,
             ActionTestUtils.assertNoFailureListener(
                 ctx -> assertThat(
                     ctx.getValidationException().validationErrors(),
                     contains(
-                        "remote clusters are expected to run at least version [7.12.0] (reason: [some reason]), "
-                            + "but the following clusters were too old: [cluster-A (7.10.0), cluster-B (7.11.0)]"
+                        "remote clusters are expected to run at least version [1.30.0] (reason: [some reason]), "
+                            + "but the following clusters were too old: [cluster-A (1.10.0), cluster-B (1.20.0)]"
                     )
                 )
             )

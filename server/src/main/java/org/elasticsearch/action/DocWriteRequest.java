@@ -9,17 +9,19 @@
 package org.elasticsearch.action;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.action.bulk.TransportAbstractBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,7 +39,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
+public interface DocWriteRequest<T> extends IndicesRequest, Accountable, Releasable {
 
     // Flag set for disallowing index auto creation for an individual write request.
     String REQUIRE_ALIAS = "require_alias";
@@ -160,9 +162,14 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     boolean isRequireDataStream();
 
     /**
-     * Finalize the request before executing or routing it.
+     * Finalize the request before routing it.
      */
-    void process(IndexRouting indexRouting);
+    default void preRoutingProcess(IndexRouting indexRouting) {}
+
+    /**
+     * Finalize the request after routing it.
+     */
+    default void postRoutingProcess(IndexRouting indexRouting) {}
 
     /**
      * Pick the appropriate shard id to receive this request.
@@ -170,14 +177,19 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     int route(IndexRouting indexRouting);
 
     /**
+     * Pick the appropriate target shard id this request should be routed to during resharding.
+     */
+    int rerouteAtSourceDuringResharding(IndexRouting indexRouting);
+
+    /**
      * Resolves the write index that should receive this request
      * based on the provided index abstraction.
      *
      * @param ia        The provided index abstraction
-     * @param metadata  The metadata instance used to resolve the write index.
+     * @param project   The project metadata used to resolve the write index.
      * @return the write index that should receive this request
      */
-    default Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+    default Index getConcreteWriteIndex(IndexAbstraction ia, ProjectMetadata project) {
         return ia.getWriteIndex();
     }
 
@@ -340,5 +352,13 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
             );
         }
         return validationException;
+    }
+
+    @Override
+    default void close() {
+        IndexRequest indexRequest = TransportAbstractBulkAction.getIndexWriteRequest(this);
+        if (indexRequest != null) {
+            indexRequest.indexSource().close();
+        }
     }
 }

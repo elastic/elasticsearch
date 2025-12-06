@@ -14,7 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -36,8 +36,12 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends BaseRestHandler {
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in count requests is deprecated.";
+
+    private Settings settings;
+
+    public RestCountAction(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -56,6 +60,11 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            request.param("project_routing");
+        }
+
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);

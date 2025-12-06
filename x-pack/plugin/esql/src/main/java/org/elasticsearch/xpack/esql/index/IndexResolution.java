@@ -6,27 +6,45 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.core.Nullable;
 
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public final class IndexResolution {
 
-    public static IndexResolution valid(EsIndex index, Set<String> unavailableClusters) {
+    public static final IndexResolution EMPTY_SUBQUERY = notFound("empty subquery");
+
+    /**
+     * @param index EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
+     * @param resolvedIndices Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).
+     * @param failures failures occurred during field-caps.
+     * @return valid IndexResolution
+     */
+    public static IndexResolution valid(EsIndex index, Set<String> resolvedIndices, Map<String, List<FieldCapabilitiesFailure>> failures) {
         Objects.requireNonNull(index, "index must not be null if it was found");
-        Objects.requireNonNull(unavailableClusters, "unavailableClusters must not be null");
-        return new IndexResolution(index, null, unavailableClusters);
+        Objects.requireNonNull(resolvedIndices, "resolvedIndices must not be null");
+        Objects.requireNonNull(failures, "failures must not be null");
+        return new IndexResolution(index, null, resolvedIndices, failures);
     }
 
+    /**
+     * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
+     */
     public static IndexResolution valid(EsIndex index) {
-        return valid(index, Collections.emptySet());
+        return valid(index, index.concreteQualifiedIndices(), Map.of());
+    }
+
+    public static IndexResolution empty(String indexPattern) {
+        return valid(new EsIndex(indexPattern, Map.of(), Map.of(), Map.of(), Map.of(), Set.of()));
     }
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid, Collections.emptySet());
+        return new IndexResolution(null, invalid, Set.of(), Map.of());
     }
 
     public static IndexResolution notFound(String name) {
@@ -38,13 +56,21 @@ public final class IndexResolution {
     @Nullable
     private final String invalid;
 
-    // remote clusters included in the user's index expression that could not be connected to
-    private final Set<String> unavailableClusters;
+    // all indices found by field-caps
+    private final Set<String> resolvedIndices;
+    // map from cluster alias to failures that occurred during field-caps.
+    private final Map<String, List<FieldCapabilitiesFailure>> failures;
 
-    private IndexResolution(EsIndex index, @Nullable String invalid, Set<String> unavailableClusters) {
+    private IndexResolution(
+        EsIndex index,
+        @Nullable String invalid,
+        Set<String> resolvedIndices,
+        Map<String, List<FieldCapabilitiesFailure>> failures
+    ) {
         this.index = index;
         this.invalid = invalid;
-        this.unavailableClusters = unavailableClusters;
+        this.resolvedIndices = resolvedIndices;
+        this.failures = failures;
     }
 
     public boolean matches(String indexName) {
@@ -63,15 +89,25 @@ public final class IndexResolution {
     }
 
     /**
-     * Is the index valid for use with ql? Returns {@code false} if the
-     * index wasn't found.
+     * Is the index valid for use with ql?
+     * @return {@code false} if the index wasn't found.
      */
     public boolean isValid() {
         return invalid == null;
     }
 
-    public Set<String> getUnavailableClusters() {
-        return unavailableClusters;
+    /**
+     * @return Map from cluster alias to failures that occurred during field-caps.
+     */
+    public Map<String, List<FieldCapabilitiesFailure>> failures() {
+        return failures;
+    }
+
+    /**
+     * @return all indices found by field-caps (regardless of whether they had any mappings)
+     */
+    public Set<String> resolvedIndices() {
+        return resolvedIndices;
     }
 
     @Override
@@ -82,16 +118,29 @@ public final class IndexResolution {
         IndexResolution other = (IndexResolution) obj;
         return Objects.equals(index, other.index)
             && Objects.equals(invalid, other.invalid)
-            && Objects.equals(unavailableClusters, other.unavailableClusters);
+            && Objects.equals(resolvedIndices, other.resolvedIndices)
+            && Objects.equals(failures, other.failures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, invalid, unavailableClusters);
+        return Objects.hash(index, invalid, resolvedIndices, failures);
     }
 
     @Override
     public String toString() {
-        return invalid != null ? invalid : index.name();
+        return invalid != null
+            ? invalid
+            : "IndexResolution{"
+                + "index="
+                + index
+                + ", invalid='"
+                + invalid
+                + '\''
+                + ", resolvedIndices="
+                + resolvedIndices
+                + ", unavailableClusters="
+                + failures
+                + '}';
     }
 }

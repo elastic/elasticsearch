@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,9 +38,11 @@ import java.util.Map;
 public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
     FieldUsageStatsRequest,
     FieldUsageStatsResponse,
-    FieldUsageShardResponse> {
+    FieldUsageShardResponse,
+    Void> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportFieldUsageAction(
@@ -47,6 +50,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indexServices,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -59,6 +63,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indexServices;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -90,6 +95,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         FieldUsageStatsRequest request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<FieldUsageShardResponse> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -106,7 +112,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, FieldUsageStatsRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allActiveShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allActiveShards(concreteIndices);
     }
 
     @Override
@@ -116,6 +122,6 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, FieldUsageStatsRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

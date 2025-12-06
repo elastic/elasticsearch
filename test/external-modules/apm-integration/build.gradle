@@ -1,12 +1,20 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-  description 'Apm integration plugin'
-  classname 'org.elasticsearch.test.apmintegration.ApmIntegrationPlugin'
+  description = 'Apm integration plugin'
+  classname ='org.elasticsearch.test.apmintegration.ApmIntegrationPlugin'
 }
 
 // let the javaRestTest see the classpath of main
@@ -17,10 +25,10 @@ tasks.named("test").configure {
 }
 
 tasks.named('javaRestTest').configure {
-  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 
 dependencies {
   clusterModules project(':modules:apm')
-  implementation project(':libs:elasticsearch-logging')
+  implementation project(':libs:logging')
 }

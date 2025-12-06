@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -39,7 +40,8 @@ public class EqlSearchTask extends StoredAsyncTask<EqlSearchResponse> {
             false,
             getExecutionId().getEncoded(),
             true,
-            true
+            true,
+            ShardSearchFailure.EMPTY_ARRAY
         );
     }
 }

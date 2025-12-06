@@ -38,7 +38,8 @@ public final class SamlServiceProviderFactory {
             document.attributeNames.principal,
             document.attributeNames.name,
             document.attributeNames.email,
-            document.attributeNames.roles
+            document.attributeNames.roles,
+            document.attributeNames.extensions
         );
         final Set<X509Credential> credentials = document.certificates.getServiceProviderX509SigningCertificates()
             .stream()

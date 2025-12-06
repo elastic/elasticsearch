@@ -13,17 +13,28 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,6 +53,64 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
+
+        // Warnings cases
+        suppliers.stream().toList().forEach(supplier -> {
+            DataType firstArgumentType = supplier.types().get(0);
+            String evaluatorTypePart = switch (firstArgumentType) {
+                case BOOLEAN -> "Boolean";
+                case INTEGER -> "Int";
+                case LONG, DATE_NANOS, DATETIME, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
+                case DOUBLE -> "Double";
+                case KEYWORD, TEXT, IP, VERSION, GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> "BytesRef";
+                default -> throw new IllegalArgumentException("Unsupported type: " + firstArgumentType);
+            };
+
+            // Start offset greater than end offset
+            suppliers.add(new TestCaseSupplier(List.of(firstArgumentType, DataType.INTEGER, DataType.INTEGER), () -> {
+                int end = randomIntBetween(0, 10);
+                int start = randomIntBetween(end + 1, end + 10);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(List.of(randomLiteral(firstArgumentType).value()), firstArgumentType, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSlice"
+                        + evaluatorTypePart
+                        + "Evaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    firstArgumentType,
+                    nullValue()
+                ).withFoldingException(InvalidArgumentException.class, "Start offset is greater than end offset")
+                    .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Start offset is greater than end offset"
+                    );
+            }));
+
+            // Negative start with positive end
+            suppliers.add(new TestCaseSupplier(List.of(firstArgumentType, DataType.INTEGER, DataType.INTEGER), () -> {
+                int start = randomIntBetween(-10, -1);
+                int end = randomIntBetween(0, 10);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(List.of(randomLiteral(firstArgumentType).value()), firstArgumentType, "field"),
+                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                    ),
+                    "MvSlice"
+                        + evaluatorTypePart
+                        + "Evaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                    firstArgumentType,
+                    nullValue()
+                ).withFoldingException(InvalidArgumentException.class, "Start and end offset have different signs")
+                    .withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Start and end offset have different signs"
+                    );
+            }));
+        });
+
         return parameterSuppliersFromTypedData(
             anyNullIsNull(
                 suppliers,
@@ -149,56 +218,59 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void longs(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Long> field = randomList(1, 10, () -> randomLong());
-            int length = field.size();
-            int start = randomIntBetween(0, length - 1);
-            int end = randomIntBetween(start, length - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.LONG, "field"),
-                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
-                ),
-                "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataType.LONG,
-                equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
-            );
-        }));
+        addLongTestCase(suppliers, DataType.LONG, ESTestCase::randomLong);
+        addLongTestCase(suppliers, DataType.DATETIME, ESTestCase::randomLong);
+        addLongTestCase(suppliers, DataType.DATE_NANOS, ESTestCase::randomLong);
+        for (DataType gridType : new DataType[] { GEOHASH, GEOTILE, GEOHEX }) {
+            addLongTestCase(suppliers, gridType, () -> randomGrid(gridType));
+        }
 
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Long> field = randomList(1, 10, () -> randomLong());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Long> field = randomList(1, 10, () -> randomNonNegativeLong());
+            List<BigInteger> result = field.stream().map(NumericUtils::unsignedLongAsBigInteger).toList();
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.DATETIME, "field"),
+                    new TestCaseSupplier.TypedData(field, DataType.UNSIGNED_LONG, "field"),
                     new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
                     new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataType.DATETIME,
-                equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
+                DataType.UNSIGNED_LONG,
+                equalTo(start == end ? result.get(start) : result.subList(start, end + 1))
             );
         }));
+    }
 
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.INTEGER, DataType.INTEGER), () -> {
-            List<Long> field = randomList(1, 10, () -> randomLong());
+    private static void addLongTestCase(List<TestCaseSupplier> suppliers, DataType dataType, Supplier<Long> longSupplier) {
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Long> field = randomList(1, 10, longSupplier);
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, DataType.DATE_NANOS, "field"),
+                    new TestCaseSupplier.TypedData(field, dataType, "field"),
                     new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
                     new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
                 ),
                 "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                DataType.DATE_NANOS,
+                dataType,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
+    }
+
+    static long randomGrid(DataType gridType) {
+        Point point = GeometryTestUtils.randomPoint();
+        return switch (gridType) {
+            case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), randomIntBetween(1, Geohash.PRECISION));
+            case GEOTILE -> GeoTileUtils.longEncode(point.getX(), point.getY(), randomIntBetween(1, GeoTileUtils.MAX_ZOOM));
+            case GEOHEX -> H3.geoToH3(point.getLat(), point.getLon(), randomIntBetween(1, H3.MAX_H3_RES));
+            default -> throw new IllegalStateException("Invalid grid type: " + gridType);
+        };
     }
 
     private static void doubles(List<TestCaseSupplier> suppliers) {

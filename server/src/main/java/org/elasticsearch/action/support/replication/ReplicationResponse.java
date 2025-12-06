@@ -44,7 +44,6 @@ public class ReplicationResponse extends ActionResponse {
     public ReplicationResponse() {}
 
     public ReplicationResponse(StreamInput in) throws IOException {
-        super(in);
         shardInfo = ReplicationResponse.ShardInfo.readFrom(in);
     }
 

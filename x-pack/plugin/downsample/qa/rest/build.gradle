@@ -5,20 +5,28 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
-  testImplementation project(path: ':test:test-clusters')
-  yamlRestTestImplementation project(path: xpackModule('rollup'))
+  testImplementation project(':test:test-clusters')
+  yamlRestTestImplementation project(xpackModule('rollup'))
+
+  clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('analytics'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(xpackModule('mapper-exponential-histogram'))
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline'
+    include '_common', 'bulk', 'cluster', 'indices', 'search', 'ingest.put_pipeline', 'ingest.delete_pipeline', 'capabilities'
   }
 }
 
@@ -26,27 +34,19 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
-}
-tasks.named('yamlRestCompatTest') {
-  usesDefaultDistribution()
-}
-tasks.named("yamlRestCompatTestTransform").configure ({ task ->
-  task.skipTest("downsample/10_basic/Downsample index with empty dimension on routing path", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample histogram as label", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample date timestamp field using strict_date_optional_time_nanos format",
-                "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample a downsampled index", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample date_nanos timestamp field using custom format", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample using coarse grained timestamp", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample label with ignore_above", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample object field", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample empty and missing labels", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample index", "Skip until pr/115358 gets backported")
-  task.skipTest("downsample/10_basic/Downsample index with empty dimension", "Skip until pr/115358 gets backported")
-})
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

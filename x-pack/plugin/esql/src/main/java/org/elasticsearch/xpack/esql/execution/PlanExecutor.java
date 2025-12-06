@@ -7,28 +7,33 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
-import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
-import org.elasticsearch.xpack.esql.stats.QueryMetric;
+import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
+import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 
+import java.util.List;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -41,53 +46,90 @@ public class PlanExecutor {
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
-    private final PlanningMetricsManager planningMetricsManager;
+    private final PlanTelemetryManager planTelemetryManager;
+    private final EsqlQueryLog queryLog;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry) {
+    public PlanExecutor(
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        EsqlQueryLog queryLog,
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers
+    ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
-        this.mapper = new Mapper(functionRegistry);
+        this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
-        this.verifier = new Verifier(metrics);
-        this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
+        this.verifier = new Verifier(metrics, licenseState, extraCheckers);
+        this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
+        this.queryLog = queryLog;
     }
 
     public void esql(
         EsqlQueryRequest request,
         String sessionId,
-        Configuration cfg,
+        TransportVersion localClusterMinimumVersion,
+        AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
-        ActionListener<Result> listener
+        EsqlSession.PlanRunner planRunner,
+        TransportActionServices services,
+        ActionListener<Versioned<Result>> listener
     ) {
-        final PlanningMetrics planningMetrics = new PlanningMetrics();
+        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
-            cfg,
+            localClusterMinimumVersion,
+            analyzerSettings,
             indexResolver,
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
             verifier,
-            planningMetrics,
-            indicesExpressionGrouper
+            planTelemetry,
+            indicesExpressionGrouper,
+            services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, executionInfo, runPhase, wrap(x -> {
-            planningMetricsManager.publish(planningMetrics, true);
-            listener.onResponse(x);
-        }, ex -> {
-            // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
-            metrics.failed(clientId);
-            planningMetricsManager.publish(planningMetrics, false);
-            listener.onFailure(ex);
-        }));
+
+        var begin = System.nanoTime();
+        ActionListener<Versioned<Result>> executeListener = wrap(
+            x -> onQuerySuccess(request, listener, x, planTelemetry),
+            ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+        );
+        // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
+        // and all the metrics are properly updated
+        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
+    }
+
+    private void onQuerySuccess(
+        EsqlQueryRequest request,
+        ActionListener<Versioned<Result>> listener,
+        Versioned<Result> x,
+        PlanTelemetry planTelemetry
+    ) {
+        planTelemetryManager.publish(planTelemetry, true);
+        queryLog.onQueryPhase(x, request.query());
+        listener.onResponse(x);
+    }
+
+    private void onQueryFailure(
+        EsqlQueryRequest request,
+        ActionListener<Versioned<Result>> listener,
+        Exception ex,
+        QueryMetric clientId,
+        PlanTelemetry planTelemetry,
+        long begin
+    ) {
+        // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
+        metrics.failed(clientId);
+        planTelemetryManager.publish(planTelemetry, false);
+        queryLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
+        listener.onFailure(ex);
     }
 
     public IndexResolver indexResolver() {

@@ -10,6 +10,8 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -32,6 +34,9 @@ import java.util.stream.Stream;
  * Keeps track of user provided databases in the ES_HOME/config/ingest-geoip directory.
  * This directory is monitored and files updates are picked up and may cause databases being loaded or removed at runtime.
  */
+@NotMultiProjectCapable(
+    description = "Custom databases not available in serverless, we should review this class for MP again after serverless is enabled"
+)
 final class ConfigDatabases implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ConfigDatabases.class);
@@ -42,7 +47,7 @@ final class ConfigDatabases implements Closeable {
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
     ConfigDatabases(Environment environment, GeoIpCache cache) {
-        this(environment.configFile().resolve("ingest-geoip"), cache);
+        this(environment.configDir().resolve("ingest-geoip"), cache);
     }
 
     ConfigDatabases(Path geoipConfigDir, GeoIpCache cache) {
@@ -69,12 +74,13 @@ final class ConfigDatabases implements Closeable {
         return configDatabases;
     }
 
+    @NotMultiProjectCapable(description = "Replace DEFAULT project after serverless is enabled")
     void updateDatabase(Path file, boolean update) {
         String databaseFileName = file.getFileName().toString();
         try {
             if (update) {
                 logger.info("database file changed [{}], reloading database...", file);
-                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, null);
+                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, file, null);
                 DatabaseReaderLazyLoader existing = configDatabases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.shutdown();
@@ -90,6 +96,7 @@ final class ConfigDatabases implements Closeable {
         }
     }
 
+    @NotMultiProjectCapable(description = "Replace DEFAULT project after serverless is enabled")
     Map<String, DatabaseReaderLazyLoader> initConfigDatabases() throws IOException {
         Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>();
 
@@ -103,7 +110,7 @@ final class ConfigDatabases implements Closeable {
                     if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                         assert Files.exists(databasePath);
                         String databaseFileName = databasePath.getFileName().toString();
-                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, databasePath, null);
+                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, databasePath, null);
                         databases.put(databaseFileName, loader);
                     }
                 }

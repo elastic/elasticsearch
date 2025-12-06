@@ -20,10 +20,7 @@ public enum RestApiVersion {
 
     V_9(9),
 
-    V_8(8),
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove all references to V_7 then delete this annotation
-    V_7(7);
+    V_8(8);
 
     public final byte major;
 
@@ -54,7 +51,6 @@ public enum RestApiVersion {
         return switch (restApiVersion) {
             case V_9 -> r -> r.major == V_9.major;
             case V_8 -> r -> r.major == V_8.major;
-            case V_7 -> r -> r.major == V_7.major;
         };
     }
 
@@ -62,15 +58,11 @@ public enum RestApiVersion {
         return switch (restApiVersion) {
             case V_9 -> r -> r.major >= V_9.major;
             case V_8 -> r -> r.major >= V_8.major;
-            case V_7 -> r -> r.major >= V_7.major;
         };
     }
 
     public static RestApiVersion forMajor(int major) {
         switch (major) {
-            case 7 -> {
-                return V_7;
-            }
             case 8 -> {
                 return V_8;
             }

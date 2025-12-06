@@ -109,7 +109,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo("""
             {"_doc":{"properties":{"body":{"type":"text"},"date":{"type":"integer"}}}}"""));
     }
@@ -123,7 +123,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo("""
             {"_doc":{"properties":{"date":{"type":"integer"}}}}"""));
     }
@@ -215,7 +215,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         .get();
 
                     assertThat(response.isAcknowledged(), equalTo(true));
-                    GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
+                    GetMappingsResponse getMappingResponse = client2.admin()
+                        .indices()
+                        .prepareGetMappings(TEST_REQUEST_TIMEOUT, indexName)
+                        .get();
                     MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
                     @SuppressWarnings("unchecked")
                     Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
@@ -284,7 +287,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
      * Waits for the given mapping type to exists on the master node.
      */
     private void assertMappingOnMaster(final String index, final String... fieldNames) {
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings(index).get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         MappingMetadata mappings = response.getMappings().get(index);
         assertThat(mappings, notNullValue());
 

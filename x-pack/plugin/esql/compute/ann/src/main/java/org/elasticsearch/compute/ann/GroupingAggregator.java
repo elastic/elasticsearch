@@ -27,9 +27,4 @@ public @interface GroupingAggregator {
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
-
-    /**
-     * If {@code true} then the @timestamp LongVector will be appended to the input blocks of the aggregation function.
-     */
-    boolean includeTimestamps() default false;
 }

@@ -13,13 +13,13 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,8 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
-
-    public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
@@ -107,9 +105,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private String leafName;
 
-        @SuppressWarnings("this-escape")
         protected Builder(String leafName) {
-            setLeafName(leafName);
+            this.leafName = leafName;
         }
 
         public final String leafName() {
@@ -120,7 +117,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(MapperBuilderContext context);
 
         void setLeafName(String leafName) {
-            this.leafName = internFieldName(leafName);
+            this.leafName = leafName;
         }
     }
 
@@ -131,8 +128,89 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Whether we can parse this type on indices with the given index created version.
          */
         default boolean supportsVersion(IndexVersion indexCreatedVersion) {
-            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
+            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
+    }
+
+    /**
+     * This class models the ignore_above parameter in indices.
+     */
+    public static final class IgnoreAbove {
+        // We use Integer.MAX_VALUE to represent a no-op, accepting all values.
+        public static final int IGNORE_ABOVE_DEFAULT_VALUE = Integer.MAX_VALUE;
+        public static final int IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES = 8191;
+
+        private final Integer value;
+        private final Integer defaultValue;
+
+        public IgnoreAbove(Integer value) {
+            this(Objects.requireNonNull(value), IndexMode.STANDARD, IndexVersion.current());
+        }
+
+        public IgnoreAbove(Integer value, IndexMode indexMode) {
+            this(value, indexMode, IndexVersion.current());
+        }
+
+        public IgnoreAbove(Integer value, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+            if (value != null && value < 0) {
+                throw new IllegalArgumentException("[ignore_above] must be positive, got [" + value + "]");
+            }
+
+            this.value = value;
+            this.defaultValue = getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion);
+        }
+
+        public int get() {
+            return value != null ? value : defaultValue;
+        }
+
+        /**
+         * Returns whether ignore_above is set; at field or index level.
+         */
+        public boolean isSet() {
+            // if ignore_above equals default, its not considered to be set, even if it was explicitly set to the default value
+            return Integer.valueOf(get()).equals(defaultValue) == false;
+        }
+
+        /**
+         * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
+         */
+        public boolean valuesPotentiallyIgnored() {
+            // We use Integer.MAX_VALUE to represent accepting all values. If the value is anything else, then either we have an
+            // explicitly configured ignore_above, or we have a non no-op default.
+            return get() != Integer.MAX_VALUE;
+        }
+
+        /**
+         * Returns whether the given string will be ignored.
+         */
+        public boolean isIgnored(final String s) {
+            if (s == null) return false;
+            return lengthExceedsIgnoreAbove(s.length());
+        }
+
+        public boolean isIgnored(final XContentString s) {
+            if (s == null) return false;
+            return lengthExceedsIgnoreAbove(s.stringLength());
+        }
+
+        private boolean lengthExceedsIgnoreAbove(int strLength) {
+            return strLength > get();
+        }
+
+        public static int getIgnoreAboveDefaultValue(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+            if (diffIgnoreAboveDefaultForLogs(indexMode, indexCreatedVersion)) {
+                return IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES;
+            } else {
+                return IGNORE_ABOVE_DEFAULT_VALUE;
+            }
+        }
+
+        private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+            return indexMode == IndexMode.LOGSDB
+                && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB));
+        }
+
     }
 
     private final String leafName;
@@ -171,18 +249,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
-
-    /**
-     * Create a {@link SourceLoader.SyntheticFieldLoader} to populate synthetic source.
-     *
-     * @throws IllegalArgumentException if the field is configured in a way that doesn't
-     *         support synthetic source. This translates nicely into a 400 error when
-     *         users configure synthetic source in the mapping without configuring all
-     *         fields properly.
-     */
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        throw new IllegalArgumentException("field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source");
-    }
 
     @Override
     public String toString() {
@@ -228,4 +294,19 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
      */
     public abstract int getTotalFieldsCount();
+
+    /**
+     * @return whether this mapper supports storing leaf array elements natively when synthetic source is enabled.
+     */
+    public final boolean supportStoringArrayOffsets() {
+        return getOffsetFieldName() != null;
+    }
+
+    /**
+     * @return the offset field name used to store offsets iff {@link #supportStoringArrayOffsets()} returns
+     * <code>true</code>.
+     */
+    public String getOffsetFieldName() {
+        return null;
+    }
 }

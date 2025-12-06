@@ -13,16 +13,21 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
-public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
+public class GetSettingsRequest extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
 
@@ -52,10 +57,15 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
-    public GetSettingsRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public GetSettingsRequest(TimeValue masterTimeout) {
+        super(masterTimeout);
     }
 
+    /**
+     * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public GetSettingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
@@ -63,16 +73,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         names = in.readStringArray();
         humanReadable = in.readBoolean();
         includeDefaults = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(names);
-        out.writeBoolean(humanReadable);
-        out.writeBoolean(includeDefaults);
     }
 
     @Override
@@ -119,6 +119,11 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
             validationException = ValidateActions.addValidationError("names may not be null", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 
     @Override

@@ -83,7 +83,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             .setMetadata(true)
             .get();
         Metadata metadata = clusterStateResponse.getState().getMetadata();
-        RepositoriesMetadata repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        RepositoriesMetadata repositoriesMetadata = metadata.getProject().custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
         assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());
         assertThat(repositoriesMetadata.repository("test-repo-1").type(), equalTo("fs"));
@@ -94,7 +94,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check that both repositories are in cluster state");
         clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get();
         metadata = clusterStateResponse.getState().getMetadata();
-        repositoriesMetadata = metadata.custom(RepositoriesMetadata.TYPE);
+        repositoriesMetadata = metadata.getProject().custom(RepositoriesMetadata.TYPE);
         assertThat(repositoriesMetadata, notNullValue());
         assertThat(repositoriesMetadata.repositories().size(), equalTo(2));
         assertThat(repositoriesMetadata.repository("test-repo-1"), notNullValue());
@@ -507,6 +507,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             .findFirst()
             .orElseThrow()
             .queue();
+
+        // There is one task in the queue for computing and forking the cleanup work.
+        assertThat(queueLength.getAsInt(), equalTo(1));
+
+        safeAwait(barrier); // unblock the barrier thread and let it process the queue
+        safeAwait(barrier); // wait for the queue to be processed
 
         // There are indexCount (=3*snapshotPoolSize) index-deletion tasks, plus one for cleaning up the root metadata. However, the
         // throttled runner only enqueues one task per SNAPSHOT thread to start with, and then the eager runner adds another one. This shows

@@ -18,7 +18,8 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -37,6 +38,7 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/repository/delete");
     private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteRepositoryAction(
@@ -45,7 +47,7 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -54,15 +56,15 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             DeleteRepositoryRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteRepositoryRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -72,7 +74,7 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        repositoriesService.unregisterRepository(request, listener);
+        repositoriesService.unregisterRepository(projectResolver.getProjectId(), request, listener);
     }
 
     @Override
@@ -83,5 +85,17 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     @Override
     public Set<String> modifiedKeys(DeleteRepositoryRequest request) {
         return Set.of(request.name());
+    }
+
+    @Override
+    protected void validateForReservedState(DeleteRepositoryRequest request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request::toString
+        );
     }
 }

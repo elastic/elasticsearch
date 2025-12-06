@@ -15,6 +15,4 @@ module org.elasticsearch.index.mapper.annotatedtext {
     requires org.apache.lucene.highlighter;
 
     // exports nothing
-
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.index.mapper.annotatedtext.Features;
 }

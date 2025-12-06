@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -21,9 +22,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CastIntToLongEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator v;
@@ -50,21 +53,29 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += v.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, IntBlock vBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (vBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (vBlock.getValueCount(p) != 1) {
-          if (vBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(Cast.castIntToLong(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
+        result.appendLong(Cast.castIntToLong(v));
       }
       return result.build();
     }
@@ -73,7 +84,8 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   public LongVector eval(int positionCount, IntVector vVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Cast.castIntToLong(vVector.getInt(p)));
+        int v = vVector.getInt(p);
+        result.appendLong(p, Cast.castIntToLong(v));
       }
       return result.build();
     }

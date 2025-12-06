@@ -9,9 +9,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -21,18 +21,49 @@ import java.util.Set;
 
 public class ExpectedShardSizeEstimator {
 
+    public interface ShardSizeProvider {
+        /**
+         * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
+         */
+        Long getShardSize(ShardId shardId, boolean primary);
+
+        /**
+         * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
+         */
+        default Long getShardSize(ShardRouting shardRouting) {
+            return getShardSize(shardRouting.shardId(), shardRouting.primary());
+        }
+
+        /**
+         * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+         */
+        default long getShardSize(ShardRouting shardRouting, long defaultValue) {
+            final var shardSize = getShardSize(shardRouting);
+            return shardSize == null ? defaultValue : shardSize;
+        }
+
+        /**
+         * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+         */
+        default long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
+            final var shardSize = getShardSize(shardId, primary);
+            return shardSize == null ? defaultValue : shardSize;
+        }
+    }
+
     public static boolean shouldReserveSpaceForInitializingShard(ShardRouting shard, RoutingAllocation allocation) {
         return shouldReserveSpaceForInitializingShard(shard, allocation.metadata());
     }
 
     public static long getExpectedShardSize(ShardRouting shard, long defaultSize, RoutingAllocation allocation) {
+        ProjectMetadata project = allocation.metadata().projectFor(shard.index());
         return getExpectedShardSize(
             shard,
             defaultSize,
             allocation.clusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
+            project,
+            allocation.routingTable(project.id())
         );
     }
 
@@ -51,11 +82,12 @@ public class ExpectedShardSizeEstimator {
             // Snapshot restore (unless it is partial) require downloading all segments locally from the blobstore to start the shard.
             // See org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction.buildIndexSettings
             // and DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS
-            case SNAPSHOT -> metadata.getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
+            case SNAPSHOT -> metadata.indexMetadata(shard.index()).isPartialSearchableSnapshot() == false;
 
             // shrink/split/clone operation is going to clone existing locally placed shards using file system hard links
             // so no additional space is going to be used until future merges
             case LOCAL_SHARDS -> false;
+            case RESHARD_SPLIT -> false;
         };
     }
 
@@ -66,25 +98,25 @@ public class ExpectedShardSizeEstimator {
     public static long getExpectedShardSize(
         ShardRouting shard,
         long defaultValue,
-        ClusterInfo clusterInfo,
+        ShardSizeProvider shardSizeProvider,
         SnapshotShardSizeInfo snapshotShardSizeInfo,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable
     ) {
-        final IndexMetadata indexMetadata = metadata.getIndexSafe(shard.index());
+        final IndexMetadata indexMetadata = projectMetadata.getIndexSafe(shard.index());
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
-            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
+            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, shardSizeProvider, projectMetadata, routingTable);
         } else if (shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
-            var shardSize = clusterInfo.getShardSize(shard.shardId(), shard.primary());
+            var shardSize = shardSizeProvider.getShardSize(shard.shardId(), shard.primary());
             if (shardSize == null && shard.primary() == false) {
                 // derive replica size from corresponding primary
-                shardSize = clusterInfo.getShardSize(shard.shardId(), true);
+                shardSize = shardSizeProvider.getShardSize(shard.shardId(), true);
             }
             return shardSize == null ? defaultValue : shardSize;
         }
@@ -94,14 +126,14 @@ public class ExpectedShardSizeEstimator {
         ShardRouting shard,
         long defaultValue,
         IndexMetadata indexMetadata,
-        ClusterInfo clusterInfo,
-        Metadata metadata,
+        ShardSizeProvider shardSizeProvider,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable
     ) {
         // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in the worst case
         long targetShardSize = 0;
         final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
-        final IndexMetadata sourceIndexMetadata = metadata.index(mergeSourceIndex);
+        final IndexMetadata sourceIndexMetadata = projectMetadata.index(mergeSourceIndex);
         if (sourceIndexMetadata != null) {
             final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
                 shard.id(),
@@ -109,10 +141,15 @@ public class ExpectedShardSizeEstimator {
                 indexMetadata.getNumberOfShards()
             );
             final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
+            if (indexRoutingTable == null) {
+                final String error = "No routing table for index [" + mergeSourceIndex + "] in project [" + projectMetadata.id() + "]";
+                assert false : error;
+                throw new IllegalStateException(error);
+            }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 if (shardIds.contains(shardRoutingTable.shardId())) {
-                    targetShardSize += clusterInfo.getShardSize(shardRoutingTable.primaryShard(), 0);
+                    targetShardSize += shardSizeProvider.getShardSize(shardRoutingTable.primaryShard(), 0);
                 }
             }
         }

@@ -49,7 +49,7 @@ public final class FieldPermissionsCache {
             .build();
     }
 
-    public Cache.CacheStats getCacheStats() {
+    public Cache.Stats getCacheStats() {
         return cache.stats();
     }
 
@@ -107,7 +107,7 @@ public final class FieldPermissionsCache {
                     List<Automaton> automatonList = fieldPermissionsCollection.stream()
                         .map(FieldPermissions::getIncludeAutomaton)
                         .collect(Collectors.toList());
-                    return new FieldPermissions(key, Automatons.unionAndDeterminize(automatonList));
+                    return new FieldPermissions(key, Automatons.unionAndMinimize(automatonList));
                 });
             } catch (ExecutionException e) {
                 throw new ElasticsearchException("unable to compute field permissions", e);

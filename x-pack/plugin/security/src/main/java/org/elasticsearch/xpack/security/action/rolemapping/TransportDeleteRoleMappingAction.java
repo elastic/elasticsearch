@@ -17,19 +17,19 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
-import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 
 public class TransportDeleteRoleMappingAction extends HandledTransportAction<DeleteRoleMappingRequest, DeleteRoleMappingResponse> {
     private final NativeRoleMappingStore roleMappingStore;
-    private final ClusterStateRoleMapper clusterStateRoleMapper;
+    private final ProjectStateRoleMapper projectStateRoleMapper;
 
     @Inject
     public TransportDeleteRoleMappingAction(
         ActionFilters actionFilters,
         TransportService transportService,
         NativeRoleMappingStore roleMappingStore,
-        ClusterStateRoleMapper clusterStateRoleMapper
+        ProjectStateRoleMapper projectStateRoleMapper
     ) {
         super(
             DeleteRoleMappingAction.NAME,
@@ -39,13 +39,13 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.roleMappingStore = roleMappingStore;
-        this.clusterStateRoleMapper = clusterStateRoleMapper;
+        this.projectStateRoleMapper = projectStateRoleMapper;
     }
 
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
         roleMappingStore.deleteRoleMapping(request, listener.safeMap(found -> {
-            if (found && clusterStateRoleMapper.hasMapping(request.getName())) {
+            if (found && projectStateRoleMapper.hasMapping(request.getName())) {
                 // Allow to delete a mapping with the same name in the native role mapping store as the file_settings namespace, but
                 // add a warning header to signal to the caller that this could be a problem.
                 HeaderWarning.addWarning(

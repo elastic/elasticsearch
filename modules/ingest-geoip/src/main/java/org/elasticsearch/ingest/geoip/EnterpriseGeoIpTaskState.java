@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -123,7 +123,7 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override
@@ -142,12 +142,15 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
      * Retrieves the geoip downloader's task state from the cluster state. This may return null in some circumstances,
      * for example if the geoip downloader task hasn't been created yet (which it wouldn't be if it's disabled).
      *
-     * @param state the cluster state to read the task state from
+     * @param projectMetadata the project metatdata to read the task state from
      * @return the geoip downloader's task state or null if there is not a state to read
      */
     @Nullable
-    static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ClusterState state) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER);
+    static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ProjectMetadata projectMetadata) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(
+            projectMetadata,
+            EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER
+        );
         return (task == null) ? null : (EnterpriseGeoIpTaskState) task.getState();
     }
 

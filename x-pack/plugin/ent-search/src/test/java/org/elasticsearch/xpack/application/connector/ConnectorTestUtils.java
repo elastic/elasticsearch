@@ -99,23 +99,23 @@ public final class ConnectorTestUtils {
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
             randomAlphaOfLengthBetween(5, 15),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomBoolean()),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15))
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomBoolean(),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15)
         );
     }
 
     public static PostConnectorAction.Request getRandomPostConnectorActionRequest() {
         return new PostConnectorAction.Request(
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomBoolean()),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15)),
-            randomFrom(randomAlphaOfLengthBetween(5, 15))
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomBoolean(),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15),
+            randomAlphaOfLengthBetween(5, 15)
         );
     }
 
@@ -341,6 +341,18 @@ public final class ConnectorTestUtils {
 
     public static Connector getRandomConnectorWithDetachedIndex() {
         return getRandomConnectorBuilder().setIndexName(null).build();
+    }
+
+    public static Connector getRandomConnectorWithAttachedIndex(String indexName) {
+        return getRandomConnectorBuilder().setIndexName(indexName).build();
+    }
+
+    public static Connector getRandomSelfManagedConnector() {
+        return getRandomConnectorBuilder().setIsNative(false).build();
+    }
+
+    public static Connector getRandomElasticManagedConnector() {
+        return getRandomConnectorBuilder().setIsNative(true).build();
     }
 
     public static Connector getRandomConnectorWithServiceTypeNotDefined() {

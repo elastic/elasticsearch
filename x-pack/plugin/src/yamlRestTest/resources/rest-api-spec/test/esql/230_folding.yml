@@ -1,0 +1,732 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ dense_vector_field_type_released ]
+      test_runner_features: [ capabilities, contains ]
+      reason: "make sure new functions run where supported only, dense vector needed for index creation"
+  - do:
+      indices.create:
+        index: employees
+        body:
+          mappings:
+            properties:
+              hire_date:
+                type: date
+              salary_change:
+                type: double
+              salary:
+                type: integer
+              salary_change_long:
+                type: long
+              name:
+                type: keyword
+              image_vector:
+                type: dense_vector
+                dims: 3
+                index: true
+                similarity: l2_norm
+              ip:
+                type: ip
+              favorite_numbers:
+                type: integer
+
+  - do:
+      bulk:
+        index: employees
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ], "ip": "192.168.1.1" , "favorite_numbers": [ 4, 2, 3 ] }
+          - { "index": { } }
+          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ], "ip": "192.168.1.2" , "favorite_numbers": [ 4, 7, -2 ] }
+          - { "index": { } }
+          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ], "ip": "10.168.1.2" , "favorite_numbers": [ 2, 1, 3 ] }
+
+---
+TOP function with constant folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ agg_top ]
+      reason: "Uses TOP function"
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                date = TOP(hire_date, 1+1, "dEsc"),
+                double = TOP(salary_change, 100-98, REVERSE("csed")),
+                integer = TOP(salary, 4-(1+1), Substring("Ascending",0,3)),
+                long = TOP(salary_change_long, 10 - 4*2, Concat("as","c"))
+            | LIMIT 5
+  - match: { columns.0.name: "date" }
+  - match: { columns.1.name: "double" }
+  - match: { columns.2.name: "integer" }
+  - match: { columns.3.name: "long" }
+  - length: { values: 1 }
+  - length: { values.0: 4 }
+  # Check that the values are as expected for the folded constants
+  - match: { values.0.0: [ "2021-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z" ] }
+  - match: { values.0.1: [ 200.5, 100.5 ] }
+  - match: { values.0.2: [ 40000, 50000 ] }
+  - match: { values.0.3: [ 50, 100 ] }
+
+
+---
+
+TOP function with negative limit value after folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ agg_top ]
+      reason: "Uses TOP function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                date = TOP(hire_date, 10 - 20, "dEsc"),
+                double = TOP(salary_change, 100-98, REVERSE("csed")),
+                integer = TOP(salary, 4-(1+1), Substring("Ascending",0,3)),
+                long = TOP(salary_change_long, 10 - 4*2, Concat("as","c"))
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Limit must be greater than 0 in [TOP(hire_date, 10 - 20, \"dEsc\")], found [-10]" }
+
+---
+
+Top function with invalid sort order:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ agg_top ]
+      reason: "Uses TOP function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                date = TOP(hire_date, 2, REVERSE("csed123")),
+                double = TOP(salary_change, 100-98, REVERSE("csed")),
+                integer = TOP(salary, 4-(1+1), Substring("Ascending",0,3)),
+                long = TOP(salary_change_long, 10 - 4*2, Concat("as","c"))
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Invalid order value in [TOP(hire_date, 2, REVERSE(\"csed123\"))], expected [ASC, DESC] but got [321desc]" }
+
+---
+
+SAMPLE function with constant folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ sample_v3 ]
+      reason: "Uses SAMPLE function"
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                sample_salary = SAMPLE(salary, 1+2)
+            | LIMIT 5
+  - match: { columns.0.name: "sample_salary" }
+  - length: { values: 1 }
+  - length: { values.0: 1 }
+
+---
+
+SAMPLE function with negative limit value after folding:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ sample_v3 ]
+      reason: "Uses SAMPLE function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS
+                sample_salary = SAMPLE(salary, 2-5)
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Limit must be greater than 0 in [SAMPLE(salary, 2-5)], found [-3]" }
+
+---
+
+MATCH function with foldable query:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MATCH(salary, 50000+10000)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "salary_change" }
+  - match: { columns.3.name: "salary_change_long" }
+  - match: { columns.4.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.0: "2021-01-01T00:00:00.000Z" }
+  - match: { values.0.1: 60000 }
+  - match: { values.0.2: 200.5 }
+  - match: { values.0.3: 200 }
+  - match: { values.0.4: "Bob Johnson" }
+
+---
+
+MATCH function with non-foldable query:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MATCH(salary, salary + 10000 )
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    #We only check that the problematic string is there, because the error message is slightly different in old versions
+    #"Query must be a valid string in [MATCH(salary, salary + 10000 )], found [salary + 10000]"
+    #second argument of [MATCH(salary, salary + 10000 )] must be a constant, received [salary + 10000]
+  - contains: { error.reason: "[MATCH(salary, salary + 10000 )]" }
+
+---
+
+Foldable query using MATCH_PHRASE on name:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ match_phrase_function ]
+      reason: "Uses MATCH_PHRASE function"
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MATCH_PHRASE(name, CONCAT("Bob ", "Johnson"))
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "salary_change" }
+  - match: { columns.3.name: "salary_change_long" }
+  - match: { columns.4.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.0: "2021-01-01T00:00:00.000Z" }
+  - match: { values.0.1: 60000 }
+  - match: { values.0.2: 200.5 }
+  - match: { values.0.3: 200 }
+  - match: { values.0.4: "Bob Johnson" }
+
+---
+
+Foldable query using MATCH_PHRASE on name but with non-foldable expression:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ match_phrase_function ]
+      reason: "Uses MATCH_PHRASE function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MATCH_PHRASE(name, CONCAT("Bob ", name))
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #second argument of [MATCH_PHRASE(name, CONCAT("Bob ", name))] must be a constant, received [CONCAT("Bob ", name)]"
+    #Query must be a valid string in [MATCH_PHRASE(name, CONCAT(\"Bob \", name))], found [CONCAT(\"Bob \", name)]
+  - contains: { error.reason: "[MATCH_PHRASE(name, CONCAT(\"Bob \", name))]" }
+
+---
+
+Foldable query using MATCH_PHRASE on name but with non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ match_phrase_function ]
+      reason: "Uses MATCH_PHRASE function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MATCH_PHRASE(name, name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    # second argument of [MATCH_PHRASE(name, name)] must be a constant, received [name]
+    # Query must be a valid string in [MATCH_PHRASE(name, name)], found [name
+  - contains: { error.reason: "[MATCH_PHRASE(name, name)]" }
+
+---
+
+
+Foldable query using MULTI_MATCH on name:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ multi_match_function ]
+      reason: "Uses MULTI_MATCH function"
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MULTI_MATCH(CONCAT("Bob ", "Johnson"), name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "salary_change" }
+  - match: { columns.3.name: "salary_change_long" }
+  - match: { columns.4.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.0: "2021-01-01T00:00:00.000Z" }
+  - match: { values.0.1: 60000 }
+  - match: { values.0.2: 200.5 }
+  - match: { values.0.3: 200 }
+  - match: { values.0.4: "Bob Johnson" }
+
+---
+
+Foldable query using MULTI_MATCH on name but with non-foldable expression:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ multi_match_function ]
+      reason: "Uses MULTI_MATCH function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MULTI_MATCH(CONCAT("Bob ", name), name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    # first argument of [MULTI_MATCH(CONCAT("Bob ", name), name)] must be a constant, received [CONCAT("Bob ", name)]
+    # Query must be a valid string in [MULTI_MATCH(CONCAT(\"Bob \", name), name)], found [CONCAT(\"Bob \", name)]
+  - contains: { error.reason: "[MULTI_MATCH(CONCAT(\"Bob \", name), name)]" }
+
+---
+
+Query using MULTI_MATCH on name but with non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ multi_match_function ]
+      reason: "Uses MULTI_MATCH function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE MULTI_MATCH(name, name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #first argument of [MULTI_MATCH(CONCAT("Bob ", name), name)] must be a constant, received [CONCAT("Bob ", name)]
+    #Query must be a valid string in [MULTI_MATCH(name, name)], found [name
+  - contains: { error.reason: "[MULTI_MATCH(name, name)]" }
+
+---
+
+Foldable query using QSTR on name:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE QSTR(CONCAT("name:", "Bob*"))
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "salary_change" }
+  - match: { columns.3.name: "salary_change_long" }
+  - match: { columns.4.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.0: "2021-01-01T00:00:00.000Z" }
+  - match: { values.0.1: 60000 }
+  - match: { values.0.2: 200.5 }
+  - match: { values.0.3: 200 }
+  - match: { values.0.4: "Bob Johnson" }
+
+---
+
+Foldable query using QSTR on name but with non-foldable expression:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE QSTR(CONCAT(name, "Bob"))
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #first argument of [QSTR(CONCAT(name, "Bob"))] must be a constant, received [CONCAT(name, "Bob")]"
+    #Query must be a valid string in [QSTR(CONCAT(name, \"Bob\"))], found [CONCAT(name, \"Bob\")]
+  - contains: { error.reason: "[QSTR(CONCAT(name, \"Bob\"))]" }
+
+---
+
+Foldable query using KQL on name but with non-foldable expression:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KQL(name)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    # We only check that the problematic string is there, because the error message is slightly different in old versions
+    #Query must be a valid string in [KQL(name)], found [name
+    #argument of [KQL(name)] must be a constant, received [name]
+  - contains: { error.reason: "[KQL(name)]" }
+
+---
+
+Foldable query using KNN on image_vector:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v3 ]
+      reason: "Uses KNN function"
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, [0.4, 0.5, 0.9], 1 + 1)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | SORT name
+            | LIMIT 2
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "salary_change" }
+  - match: { columns.3.name: "salary_change_long" }
+  - match: { columns.4.name: "name" }
+  - match: { columns.5.name: "image_vector" }
+  - length: { values: 2 }
+
+---
+
+Foldable query using KNN on image_vector but with non-foldable expression:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v3 ]
+      reason: "Uses KNN function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, [0.4, 0.5, 0.9], 1+salary)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "third argument of [KNN(image_vector, [0.4, 0.5, 0.9], 1+salary)] must be a constant, received [1+salary]" }
+
+---
+
+KNN on non constant k():
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v3 ]
+      reason: "Uses KNN function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, [0.4, 0.5, 0.9], salary)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "third argument of [KNN(image_vector, [0.4, 0.5, 0.9], salary)] must be a constant, received [salary" }
+
+---
+
+KNN on non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ knn_function_v3 ]
+      reason: "Uses KNN function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE KNN(image_vector, image_vector, 1)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name, image_vector
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+    #We only check that the problematic string is there, because the error message is slightly different in old versions
+    #Query must be a valid string in [KNN(image_vector, image_vector, 1)], found [image_vector
+    #second argument of [KNN(image_vector, image_vector, 1)] must be a constant, received [image_vector]
+  - contains: { error.reason: "[KNN(image_vector, image_vector, 1)]" }
+
+---
+
+Query using TERM function on name but with non constant query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ term_function ]
+      reason: "Uses TERM function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE TERM(name, salary)
+            | KEEP hire_date, salary, salary_change, salary_change_long, name
+            | LIMIT 5
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [TERM(name, salary)] must be [string], found value [salary] type [integer]" }
+
+---
+
+Percentile with foldable value:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW x = 100 | STATS p = PERCENTILE(x, 19.8 + 13.4454545) | LIMIT 1
+  - match: { columns.0.name: "p" }
+  - match: { values.0.0: 100 }
+
+---
+
+Percentile with non-foldable value:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees | STATS p = PERCENTILE(salary, salary + 1)  | LIMIT 1
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [PERCENTILE(salary, salary + 1)] must be a constant, received [salary + 1]" }
+
+---
+COUNT_DISTINCT with foldable precision:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS c1 = COUNT_DISTINCT(salary, 234 + 543)  | LIMIT 1
+  - match: { columns.0.name: "c1" }
+  - length: { values: 1 }
+
+---
+COUNT_DISTINCT with no precision:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS c1 = COUNT_DISTINCT(salary)  | LIMIT 1
+  - match: { columns.0.name: "c1" }
+  - length: { values: 1 }
+
+---
+COUNT_DISTINCT with non-foldable precision:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | STATS COUNT_DISTINCT(salary, salary + 1)  | LIMIT 1
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [COUNT_DISTINCT(salary, salary + 1)] must be a constant, received [salary + 1]" }
+
+---
+MV_SORT with foldable order:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2]
+            | EVAL sa = mv_sort(a, CONCAT("AS", "C")), sd = mv_sort(a, CONCAT("DE", "SC")) | LIMIT 1
+  - match: { columns.0.name: "a" }
+  - match: { columns.1.name: "sa" }
+  - match: { columns.2.name: "sd" }
+  - match: { values.0.1: [ -3, 2, 2, 4 ] }
+  - match: { values.0.2: [ 4, 2, 2, -3 ] }
+---
+MV_SORT with foldable order on employee favorite numbers:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE salary == 50000
+            | EVAL sa = mv_sort(favorite_numbers, CONCAT("AS", "C"))
+            | KEEP sa
+            | LIMIT 1
+
+  - match: { columns.0.name: "sa" }
+  - match: { values.0.0: [ 2,3,4 ] }
+
+---
+MV_SORT with invalid foldable order:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2]
+            | EVAL sa = mv_sort(a, CONCAT("ASC", "DESC")) | LIMIT 1
+  - match: { error.type: "illegal_argument_exception" }
+  - contains: { error.reason: "Invalid order value in [mv_sort(a, CONCAT(\"ASC\", \"DESC\"))], expected one of [ASC, DESC] but got [ASCDESC]" }
+
+
+---
+MV_SORT with invalid non-foldable order:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2], str = "REVERSE"
+            | EVAL sa = mv_sort(a, CONCAT(str, "DESC")) | LIMIT 1
+  - match: { error.type: "illegal_argument_exception" }
+  - contains: { error.reason: "Invalid order value in [mv_sort(a, CONCAT(str, \"DESC\"))], expected one of [ASC, DESC] but got [REVERSEDESC]" }
+
+---
+CIDR_MATCH with multiple CIDRs:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW ip1 = "127.0.0.3"
+            | WHERE CIDR_MATCH(TO_IP(ip1), CONCAT("127", ".0.0.2/32"), "127.0.0.3/32") | LIMIT 5
+  - match: { columns.0.name: "ip1" }
+  - match: { values.0.0: "127.0.0.3" }
+
+---
+CIDR_MATCH with non-foldable CIDRs:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE CIDR_MATCH(ip, CONCAT(TO_STRING(ip), "/8"), "127.0.0.3/32") | LIMIT 5
+  - length: { values: 3 }
+
+---
+Employee name equals:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE CONCAT("Alice"," Smith") == name
+            | KEEP hire_date, salary, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.2: "Alice Smith" }
+
+---
+Employee name in list:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE name in (CONCAT("Alice"," Smith"), CONCAT("fake", " name"))
+            | KEEP hire_date, salary, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.2: "Alice Smith" }

@@ -34,7 +34,7 @@ subprojects {
 }
 
 def calculateBranchVersion() {
-    File f = rootProject.file(".git/refs/heads/origin")
+    File f = layout.settingsDirectory.file(".git/refs/heads/origin").asFile
     def branchName = f.list()?.first().trim()
     return branchName + ".1"
 

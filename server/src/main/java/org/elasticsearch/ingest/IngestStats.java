@@ -9,13 +9,16 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -24,24 +27,32 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats)
-    implements
-        Writeable,
-        ChunkedToXContent {
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
+
+public record IngestStats(
+    Stats totalStats,
+    List<PipelineStat> pipelineStats,
+    Map<ProjectId, Map<String, List<ProcessorStat>>> processorStats
+) implements Writeable, ChunkedToXContent {
 
     private static final Comparator<PipelineStat> PIPELINE_STAT_COMPARATOR = Comparator.comparingLong(
         (PipelineStat p) -> p.stats.ingestTimeInMillis
     ).thenComparingLong((PipelineStat p) -> p.stats.ingestCount).thenComparingLong((PipelineStat p) -> p.byteStats.bytesProduced);
 
     public static final IngestStats IDENTITY = new IngestStats(Stats.IDENTITY, List.of(), Map.of());
+
+    private static final TransportVersion NODES_STATS_SUPPORTS_MULTI_PROJECT = TransportVersion.fromName(
+        "nodes_stats_supports_multi_project"
+    );
 
     /**
      * @param totalStats - The total stats for Ingest. This is logically the sum of all pipeline stats,
@@ -57,28 +68,43 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      * Read from a stream.
      */
     public static IngestStats read(StreamInput in) throws IOException {
-        var stats = new Stats(in);
+        // while reading the processors, we're going to encounter identical name and type strings *repeatedly*
+        // it's advantageous to discard the endless copies of the same strings and canonical-ize them to keep our
+        // heap usage under control. note: this map is key to key, because of the limitations of the set interface.
+        final Map<String, String> namesAndTypesCache = new HashMap<>();
+
+        var stats = readStats(in);
         var size = in.readVInt();
+        if (stats == Stats.IDENTITY && size == 0) {
+            return IDENTITY;
+        }
         var pipelineStats = new ArrayList<PipelineStat>(size);
-        var processorStats = Maps.<String, List<ProcessorStat>>newMapWithExpectedSize(size);
+        Map<ProjectId, Map<String, List<ProcessorStat>>> processorStats = new HashMap<>();
 
         for (var i = 0; i < size; i++) {
+            ProjectId projectId = in.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)
+                ? ProjectId.readFrom(in)
+                // We will not have older nodes in a multi-project cluster, so we can assume that everything is in the default project.
+                : Metadata.DEFAULT_PROJECT_ID;
             var pipelineId = in.readString();
-            var pipelineStat = new Stats(in);
-            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? new ByteStats(in) : new ByteStats(0, 0);
-            pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
+            var pipelineStat = readStats(in);
+            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? readByteStats(in) : ByteStats.IDENTITY;
+            pipelineStats.add(new PipelineStat(projectId, pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
             for (var j = 0; j < processorsSize; j++) {
                 var processorName = in.readString();
                 var processorType = in.readString();
-                var processorStat = new Stats(in);
+                var processorStat = readStats(in);
+                // pass these name and type through the local names and types cache to canonical-ize them
+                processorName = namesAndTypesCache.computeIfAbsent(processorName, Function.identity());
+                processorType = namesAndTypesCache.computeIfAbsent(processorType, Function.identity());
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
-            processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
+            processorStats.computeIfAbsent(projectId, k -> new HashMap<>()).put(pipelineId, unmodifiableList(processorStatsPerPipeline));
         }
 
-        return new IngestStats(stats, pipelineStats, processorStats);
+        return new IngestStats(stats, pipelineStats, unmodifiableMap(processorStats));
     }
 
     @Override
@@ -86,12 +112,16 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (PipelineStat pipelineStat : pipelineStats) {
+            if (out.getTransportVersion().supports(NODES_STATS_SUPPORTS_MULTI_PROJECT)) {
+                pipelineStat.projectId().writeTo(out);
+            }
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 pipelineStat.byteStats().writeTo(out);
             }
-            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
+            List<ProcessorStat> processorStatsForPipeline = processorStats.getOrDefault(pipelineStat.projectId(), Map.of())
+                .get(pipelineStat.pipelineId());
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
             } else {
@@ -122,7 +152,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                 pipelineStat -> Iterators.concat(
 
                     Iterators.single((builder, params) -> {
-                        builder.startObject(pipelineStat.pipelineId());
+                        String key = outerParams.paramAsBoolean(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, false)
+                            ? pipelineStat.projectId() + "/" + pipelineStat.pipelineId()
+                            : pipelineStat.pipelineId();
+                        builder.startObject(key);
                         pipelineStat.stats().toXContent(builder, params);
                         pipelineStat.byteStats().toXContent(builder, params);
                         builder.startArray("processors");
@@ -130,7 +163,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                     }),
 
                     Iterators.map(
-                        processorStats.getOrDefault(pipelineStat.pipelineId(), List.of()).iterator(),
+                        processorStats.getOrDefault(pipelineStat.projectId(), Map.of())
+                            .getOrDefault(pipelineStat.pipelineId(), List.of())
+                            .iterator(),
                         processorStat -> (builder, params) -> {
                             builder.startObject();
                             builder.startObject(processorStat.name());
@@ -143,12 +178,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                             return builder;
                         }
                     ),
-
-                    Iterators.<ToXContent>single((builder, params) -> builder.endArray().endObject())
+                    Iterators.single((builder, params) -> builder.endArray().endObject())
                 )
             ),
-
-            Iterators.<ToXContent>single((builder, params) -> builder.endObject().endObject())
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 
@@ -160,7 +193,20 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         );
     }
 
-    static Map<String, List<ProcessorStat>> merge(Map<String, List<ProcessorStat>> first, Map<String, List<ProcessorStat>> second) {
+    static Map<ProjectId, Map<String, List<ProcessorStat>>> merge(
+        Map<ProjectId, Map<String, List<ProcessorStat>>> first,
+        Map<ProjectId, Map<String, List<ProcessorStat>>> second
+    ) {
+        Map<ProjectId, Map<String, List<ProcessorStat>>> totals = new HashMap<>();
+        first.forEach((projectId, statsByPipeline) -> totals.merge(projectId, statsByPipeline, IngestStats::innerMerge));
+        second.forEach((projectId, statsByPipeline) -> totals.merge(projectId, statsByPipeline, IngestStats::innerMerge));
+        return totals;
+    }
+
+    private static Map<String, List<ProcessorStat>> innerMerge(
+        Map<String, List<ProcessorStat>> first,
+        Map<String, List<ProcessorStat>> second
+    ) {
         var totalsPerPipelineProcessor = new HashMap<String, List<ProcessorStat>>();
 
         first.forEach((pipelineId, stats) -> totalsPerPipelineProcessor.merge(pipelineId, stats, ProcessorStat::merge));
@@ -169,19 +215,27 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         return totalsPerPipelineProcessor;
     }
 
+    /**
+     * Read {@link Stats} from a stream.
+     */
+    private static Stats readStats(StreamInput in) throws IOException {
+        long ingestCount = in.readVLong();
+        long ingestTimeInMillis = in.readVLong();
+        long ingestCurrent = in.readVLong();
+        long ingestFailedCount = in.readVLong();
+        if (ingestCount == 0 && ingestTimeInMillis == 0 && ingestCurrent == 0 && ingestFailedCount == 0) {
+            return Stats.IDENTITY;
+        } else {
+            return new Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
+        }
+    }
+
     public record Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount)
         implements
             Writeable,
             ToXContentFragment {
 
         public static final Stats IDENTITY = new Stats(0, 0, 0, 0);
-
-        /**
-         * Read from a stream.
-         */
-        public Stats(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
-        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -216,7 +270,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     static class Builder {
         private Stats totalStats = null;
         private final List<PipelineStat> pipelineStats = new ArrayList<>();
-        private final Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
+        private final Map<ProjectId, Map<String, List<ProcessorStat>>> processorStats = new HashMap<>();
 
         Builder addTotalMetrics(IngestMetric totalMetric) {
             assert totalStats == null;
@@ -224,44 +278,55 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return this;
         }
 
-        Builder addPipelineMetrics(String pipelineId, IngestPipelineMetric ingestPipelineMetrics) {
+        Builder addPipelineMetrics(ProjectId projectId, String pipelineId, IngestPipelineMetric ingestPipelineMetrics) {
             this.pipelineStats.add(
-                new PipelineStat(pipelineId, ingestPipelineMetrics.createStats(), ingestPipelineMetrics.createByteStats())
+                new PipelineStat(projectId, pipelineId, ingestPipelineMetrics.createStats(), ingestPipelineMetrics.createByteStats())
             );
             return this;
         }
 
-        Builder addProcessorMetrics(String pipelineId, String processorName, String processorType, IngestMetric metric) {
-            this.processorStats.computeIfAbsent(pipelineId, k -> new ArrayList<>())
+        Builder addProcessorMetrics(
+            ProjectId projectId,
+            String pipelineId,
+            String processorName,
+            String processorType,
+            IngestMetric metric
+        ) {
+            this.processorStats.computeIfAbsent(projectId, k -> new HashMap<>())
+                .computeIfAbsent(pipelineId, k -> new ArrayList<>())
                 .add(new ProcessorStat(processorName, processorType, metric.createStats()));
             return this;
         }
 
         IngestStats build() {
-            return new IngestStats(totalStats, Collections.unmodifiableList(pipelineStats), Collections.unmodifiableMap(processorStats));
+            return new IngestStats(totalStats, unmodifiableList(pipelineStats), unmodifiableMap(processorStats));
         }
     }
 
     /**
      * Container for pipeline stats.
      */
-    public record PipelineStat(String pipelineId, Stats stats, ByteStats byteStats) {
+    public record PipelineStat(ProjectId projectId, String pipelineId, Stats stats, ByteStats byteStats) {
         static List<PipelineStat> merge(List<PipelineStat> first, List<PipelineStat> second) {
-            var totalsPerPipeline = new HashMap<String, PipelineStat>();
+            record MergeKey(ProjectId projectId, String pipelineId) {}
 
-            first.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps, PipelineStat::merge));
-            second.forEach(ps -> totalsPerPipeline.merge(ps.pipelineId, ps, PipelineStat::merge));
+            var totalsPerPipeline = new HashMap<MergeKey, PipelineStat>();
+
+            first.forEach(ps -> totalsPerPipeline.merge(new MergeKey(ps.projectId, ps.pipelineId), ps, PipelineStat::merge));
+            second.forEach(ps -> totalsPerPipeline.merge(new MergeKey(ps.projectId, ps.pipelineId), ps, PipelineStat::merge));
 
             return totalsPerPipeline.entrySet()
                 .stream()
-                .map(v -> new PipelineStat(v.getKey(), v.getValue().stats, v.getValue().byteStats))
+                .map(v -> new PipelineStat(v.getKey().projectId(), v.getKey().pipelineId(), v.getValue().stats, v.getValue().byteStats))
                 .sorted(PIPELINE_STAT_COMPARATOR)
                 .toList();
         }
 
         private static PipelineStat merge(PipelineStat first, PipelineStat second) {
+            assert first.projectId.equals(second.projectId) : "Can only merge stats from the same project";
             assert first.pipelineId.equals(second.pipelineId) : "Can only merge stats from the same pipeline";
             return new PipelineStat(
+                first.projectId,
                 first.pipelineId,
                 Stats.merge(first.stats, second.stats),
                 ByteStats.merge(first.byteStats, second.byteStats)
@@ -269,13 +334,21 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
     }
 
+    static ByteStats readByteStats(StreamInput in) throws IOException {
+        long bytesIngested = in.readVLong();
+        long bytesProduced = in.readVLong();
+        if (bytesProduced == 0L && bytesIngested == 0L) {
+            return ByteStats.IDENTITY;
+        }
+        return new ByteStats(bytesIngested, bytesProduced);
+    }
+
     /**
      * Container for ingested byte stats
      */
     public record ByteStats(long bytesIngested, long bytesProduced) implements Writeable, ToXContentFragment {
-        public ByteStats(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong());
-        }
+
+        public static final ByteStats IDENTITY = new ByteStats(0L, 0L);
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -299,6 +372,11 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
 
         static ByteStats merge(ByteStats first, ByteStats second) {
+            if (first == IDENTITY) {
+                return second;
+            } else if (second == IDENTITY) {
+                return first;
+            }
             return new ByteStats((first.bytesIngested + second.bytesIngested), first.bytesProduced + second.bytesProduced);
         }
     }

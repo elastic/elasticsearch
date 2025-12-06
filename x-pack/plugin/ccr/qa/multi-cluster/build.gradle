@@ -1,74 +1,20 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(xpackModule('ccr'))
-  testImplementation project(':x-pack:plugin:ccr:qa')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('ccr')), 'javaRestTest'))
+  javaRestTestImplementation project(xpackModule('ccr'))
 }
 
-def leaderCluster = testClusters.register('leader-cluster') {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
-  setting 'path.repo', "${buildDir}/cluster/shared/repo/leader-cluster"
+tasks.named("javaRestTest") {
+  usesDefaultDistribution("uses _xpack usage api")
+  // These fail in CI but only when run as part of checkPart2 and not individually.
+  // Tracked in : https://github.com/elastic/elasticsearch/issues/66661
+  buildParams.withFipsEnabledOnly(it)
 }
-
-def middleCluster = testClusters.register('middle-cluster') {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-    setting 'cluster.remote.leader_cluster.seeds',
-            { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
-}
-
-tasks.register("leader-cluster", RestIntegTestTask) {
-  mustRunAfter("precommit")
-  systemProperty 'tests.target_cluster', 'leader'
-  systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
-}
-
-tasks.register("middle-cluster", RestIntegTestTask) {
-  dependsOn "leader-cluster"
-  useCluster testClusters.named("leader-cluster")
-  systemProperty 'tests.target_cluster', 'middle'
-  systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
-  nonInputProperties.systemProperty 'tests.leader_host',leaderCluster.map(c -> c.allHttpSocketURI.get(0))
-}
-
-
-tasks.register('follow-cluster', RestIntegTestTask) {
-  dependsOn "leader-cluster", "middle-cluster"
-    useCluster leaderCluster
-    useCluster middleCluster
-    systemProperty 'tests.target_cluster', 'follow'
-    systemProperty 'tests.leader_cluster_repository_path', "${buildDir}/cluster/shared/repo/leader-cluster"
-    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c -> c.allHttpSocketURI.get(0))
-    nonInputProperties.systemProperty 'tests.middle_host', middleCluster.map(c -> c.allHttpSocketURI.get(0))
-}
-
-testClusters.matching {it.name == "follow-cluster" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  user username: 'admin', password: 'admin-password', role: 'superuser'
-  setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
-  setting 'cluster.remote.middle_cluster.seeds',
-    { "\"${middleCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
-}
-
-
-testClusters.configureEach {
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-}
-
-tasks.named("check").configure { dependsOn "follow-cluster" }

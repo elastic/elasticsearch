@@ -21,7 +21,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.index.store.ByteSizeCachingDirectory;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
@@ -61,6 +62,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         ensureSnapshotIsLoaded(indexShard);
+        var sizeCachingDirectory = ByteSizeCachingDirectory.unwrapDirectory(indexShard.store().directory());
+        if (sizeCachingDirectory != null) {
+            // Marks the cached estimation of the directory size as stale in ByteSizeCachingDirectory since we just loaded the snapshot
+            // files list into the searchable snapshot directory.
+            sizeCachingDirectory.markEstimatedSizeAsStale();
+        }
         listener.onResponse(null);
     }
 
@@ -106,8 +113,18 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                             shardId
                         );
                     }
-                    if (sharedBlobCacheService != null) {
-                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                    if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot() && sharedBlobCacheService != null) {
+                        switch (reason) {
+                            // This index was deleted, it's not coming back - we can evict asynchronously
+                            case DELETED -> sharedBlobCacheService.forceEvictAsync(
+                                SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
+                            );
+                            // A failure occurred - we should eagerly clear the state
+                            case FAILURE -> sharedBlobCacheService.forceEvict(
+                                SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
+                            );
+                            // Any other reason - we let the cache entries expire naturally
+                        }
                     }
                 }
             }

@@ -20,7 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumDoubleAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class SumDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -59,73 +59,83 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      DoubleBlock block = page.getBlock(channels.get(0));
-      DoubleVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    DoubleBlock block = page.getBlock(channels.get(0));
-    DoubleVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(DoubleVector vector) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    DoubleBlock vBlock = page.getBlock(channels.get(0));
+    DoubleVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    DoubleBlock vBlock = page.getBlock(channels.get(0));
+    DoubleVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(DoubleVector vVector) {
     state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SumDoubleAggregator.combine(state, vector.getDouble(i));
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      SumDoubleAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(DoubleVector vector, BooleanVector mask) {
+  private void addRawVector(DoubleVector vVector, BooleanVector mask) {
     state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      SumDoubleAggregator.combine(state, vector.getDouble(i));
+      double vValue = vVector.getDouble(valuesPosition);
+      SumDoubleAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(DoubleBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(DoubleBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SumDoubleAggregator.combine(state, block.getDouble(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        SumDoubleAggregator.combine(state, vValue);
       }
     }
   }
 
-  private void addRawBlock(DoubleBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(DoubleBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SumDoubleAggregator.combine(state, block.getDouble(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        SumDoubleAggregator.combine(state, vValue);
       }
     }
   }

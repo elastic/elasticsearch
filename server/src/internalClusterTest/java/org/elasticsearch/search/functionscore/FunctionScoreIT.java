@@ -43,7 +43,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -137,41 +137,25 @@ public class FunctionScoreIT extends ESIntegTestCase {
         ensureYellow();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore))
-                )
-            ),
-            response -> {
-                if (score < minScore) {
-                    assertThat(response.getHits().getTotalHits().value(), is(0L));
-                } else {
-                    assertThat(response.getHits().getTotalHits().value(), is(1L));
-                }
-            }
-        );
 
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(
-                            new MatchAllQueryBuilder(),
-                            new FilterFunctionBuilder[] {
-                                new FilterFunctionBuilder(scriptFunction(script)),
-                                new FilterFunctionBuilder(scriptFunction(script)) }
-                        ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
-                    )
-                )
-            ),
-            response -> {
-                if (score < minScore) {
-                    assertThat(response.getHits().getTotalHits().value(), is(0L));
-                } else {
-                    assertThat(response.getHits().getTotalHits().value(), is(1L));
-                }
+        assertResponses(response -> {
+            if (score < minScore) {
+                assertThat(response.getHits().getTotalHits().value(), is(0L));
+            } else {
+                assertThat(response.getHits().getTotalHits().value(), is(1L));
             }
+        },
+            prepareSearch().setSource(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore))),
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(
+                        new MatchAllQueryBuilder(),
+                        new FilterFunctionBuilder[] {
+                            new FilterFunctionBuilder(scriptFunction(script)),
+                            new FilterFunctionBuilder(scriptFunction(script)) }
+                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                )
+            )
         );
     }
 
@@ -195,31 +179,20 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
         final int finalNumMatchingDocs = numMatchingDocs;
 
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs)
-                )
-            ),
-            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs)
+        assertResponses(
+            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs),
+            prepareSearch().setSource(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs)),
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(
+                        new MatchAllQueryBuilder(),
+                        new FilterFunctionBuilder[] {
+                            new FilterFunctionBuilder(scriptFunction(script)),
+                            new FilterFunctionBuilder(scriptFunction(script)) }
+                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                ).size(numDocs)
+            )
         );
-
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(
-                            new MatchAllQueryBuilder(),
-                            new FilterFunctionBuilder[] {
-                                new FilterFunctionBuilder(scriptFunction(script)),
-                                new FilterFunctionBuilder(scriptFunction(script)) }
-                        ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
-                    ).size(numDocs)
-                )
-            ),
-            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs)
-        );
-
     }
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {

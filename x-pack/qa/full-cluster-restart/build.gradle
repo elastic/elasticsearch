@@ -1,8 +1,15 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
@@ -15,10 +22,19 @@ dependencies {
 
 }
 
-BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     maxParallelForks = 1
+  }
+}
+
+tasks.named("bcUpgradeTest").configure {
+  filter {
+    // Mute testSnapshotRestore: it uses string compare of Version (from the cluster, saved in the snapshot) with tests.bwc.main.version,
+    // which does not work for SNAPSHOT builds
+    excludeTestsMatching("org.elasticsearch.xpack.restart.CoreFullClusterRestartIT.testSnapshotRestore")
+    excludeTestsMatching("org.elasticsearch.xpack.restart.CoreFullClusterRestartIT.testSnapshotRestore *")
   }
 }

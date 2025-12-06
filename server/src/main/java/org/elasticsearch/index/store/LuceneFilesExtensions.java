@@ -11,6 +11,7 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
@@ -83,7 +84,12 @@ public enum LuceneFilesExtensions {
     VEMQ("vemq", "Scalar Quantized Vector Metadata", true, false),
     VEQ("veq", "Scalar Quantized Vector Data", false, true),
     VEMB("vemb", "Binarized Vector Metadata", true, false),
-    VEB("veb", "Binarized Vector Data", false, true);
+    VEB("veb", "Binarized Vector Data", false, true),
+    VFI("vfi", "Vector Format Information", true, false),
+    // ivf vectors format
+    MIVF("mivf", "IVF Metadata", true, false),
+    CENIVF("cenivf", "IVF Centroid Data", false, true),
+    CLIVF("clivf", "IVF Cluster Data", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}
@@ -91,7 +97,7 @@ public enum LuceneFilesExtensions {
      * In the future, we would like to add a proper plugin extension point for this.
      */
     private static boolean allowUnknownLuceneFileExtensions() {
-        return Boolean.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
+        return Booleans.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
     }
 
     /**
@@ -155,6 +161,11 @@ public enum LuceneFilesExtensions {
             return extension;
         }
         return null;
+    }
+
+    @Nullable
+    public static boolean isLuceneExtension(String ext) {
+        return extensions.containsKey(ext);
     }
 
     @Nullable

@@ -52,7 +52,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
-        return new FieldCapabilitiesResponse(indices, responses);
+        return FieldCapabilitiesResponse.builder().withIndices(indices).withFields(responses).build();
     }
 
     @Override
@@ -87,7 +87,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
             }
         }
         // TODO pass real list
-        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
+        return FieldCapabilitiesResponse.builder().withFields(mutatedResponses).build();
     }
 
     @Override
@@ -152,47 +152,25 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
         Map<String, FieldCapabilities> titleCapabilities = new HashMap<>();
-        titleCapabilities.put(
-            "text",
-            new FieldCapabilities("title", "text", false, true, false, false, null, null, null, null, null, null, Collections.emptyMap())
-        );
+        titleCapabilities.put("text", new FieldCapabilitiesBuilder("title", "text").isAggregatable(false).build());
 
         Map<String, FieldCapabilities> ratingCapabilities = new HashMap<>();
         ratingCapabilities.put(
             "long",
-            new FieldCapabilities(
-                "rating",
-                "long",
-                false,
-                true,
-                false,
-                false,
-                TimeSeriesParams.MetricType.COUNTER,
-                new String[] { "index1", "index2" },
-                null,
-                new String[] { "index1" },
-                new String[] { "index4" },
-                null,
-                Collections.emptyMap()
-            )
+            new FieldCapabilitiesBuilder("rating", "long").isAggregatable(false)
+                .metricType(TimeSeriesParams.MetricType.COUNTER)
+                .indices("index1", "index2")
+                .nonAggregatableIndices("index1")
+                .nonDimensionIndices("index4")
+                .build()
         );
         ratingCapabilities.put(
             "keyword",
-            new FieldCapabilities(
-                "rating",
-                "keyword",
-                false,
-                false,
-                true,
-                true,
-                null,
-                new String[] { "index3", "index4" },
-                new String[] { "index4" },
-                null,
-                null,
-                null,
-                Collections.emptyMap()
-            )
+            new FieldCapabilitiesBuilder("rating", "keyword").isSearchable(false)
+                .isDimension(true)
+                .indices("index3", "index4")
+                .nonSearchableIndices("index4")
+                .build()
         );
 
         Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
@@ -202,7 +180,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSeriali
         List<FieldCapabilitiesFailure> failureMap = List.of(
             new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
         );
-        return new FieldCapabilitiesResponse(new String[] { "index1", "index2", "index3", "index4" }, responses, failureMap);
+        return FieldCapabilitiesResponse.builder()
+            .withIndices(new String[] { "index1", "index2", "index3", "index4" })
+            .withFields(responses)
+            .withFailures(failureMap)
+            .build();
     }
 
     public void testChunking() {

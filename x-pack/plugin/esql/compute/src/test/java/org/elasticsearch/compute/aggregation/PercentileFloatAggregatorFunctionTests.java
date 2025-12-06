@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
@@ -32,8 +33,8 @@ public class PercentileFloatAggregatorFunctionTests extends AggregatorFunctionTe
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new PercentileFloatAggregatorFunctionSupplier(inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileFloatAggregatorFunctionSupplier(percentile);
     }
 
     @Override
@@ -47,9 +48,9 @@ public class PercentileFloatAggregatorFunctionTests extends AggregatorFunctionTe
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
+    protected void assertSimpleOutput(List<Page> input, Block result) {
         try (TDigestState td = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), QuantileStates.DEFAULT_COMPRESSION)) {
-            input.stream().flatMap(AggregatorFunctionTestCase::allFloats).forEach(td::add);
+            input.stream().flatMap(p -> allFloats(p.getBlock(0))).forEach(td::add);
             double expected = td.quantile(percentile / 100);
             double value = ((DoubleBlock) result).getDouble(0);
             assertThat(value, closeTo(expected, expected * 0.1));

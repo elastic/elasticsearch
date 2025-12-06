@@ -42,16 +42,25 @@ public class EsqlMediaTypeParser {
      * combinations are detected.
      */
     public static MediaType getResponseMediaType(RestRequest request, EsqlQueryRequest esqlRequest) {
-        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        var mediaType = getResponseMediaType(request, (MediaType) null);
         validateColumnarRequest(esqlRequest.columnar(), mediaType);
         validateIncludeCCSMetadata(esqlRequest.includeCCSMetadata(), mediaType);
+        validateIncludeExecutionMetadata(esqlRequest.includeExecutionMetadata(), mediaType);
+        validateProfile(esqlRequest.profile(), mediaType);
         return checkNonNullMediaType(mediaType, request);
+    }
+
+    /*
+     * Retrieve the mediaType of a REST request. If no mediaType can be established from the request, return the provided default.
+     */
+    public static MediaType getResponseMediaType(RestRequest request, MediaType defaultMediaType) {
+        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        return mediaType == null ? defaultMediaType : mediaType;
     }
 
     private static MediaType mediaTypeFromHeaders(RestRequest request) {
         ParsedMediaType acceptType = request.getParsedAccept();
-        MediaType mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
-        return checkNonNullMediaType(mediaType, request);
+        return acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
     }
 
     private static MediaType mediaTypeFromParams(RestRequest request) {
@@ -60,22 +69,36 @@ public class EsqlMediaTypeParser {
 
     private static void validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
         if (requestIsColumnar && fromMediaType instanceof TextFormat) {
-            throw new IllegalArgumentException(
-                "Invalid use of [columnar] argument: cannot be used in combination with "
-                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
-                    + " formats"
-            );
+            throw invalid("columnar");
         }
     }
 
-    private static void validateIncludeCCSMetadata(boolean includeCCSMetadata, MediaType fromMediaType) {
-        if (includeCCSMetadata && fromMediaType instanceof TextFormat) {
-            throw new IllegalArgumentException(
-                "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with "
-                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
-                    + " formats"
-            );
+    private static void validateIncludeCCSMetadata(Boolean includeCCSMetadata, MediaType fromMediaType) {
+        if (Boolean.TRUE.equals(includeCCSMetadata) && fromMediaType instanceof TextFormat) {
+            throw invalid("include_ccs_metadata");
         }
+    }
+
+    private static void validateIncludeExecutionMetadata(Boolean includeExecutionMetadata, MediaType fromMediaType) {
+        if (Boolean.TRUE.equals(includeExecutionMetadata) && fromMediaType instanceof TextFormat) {
+            throw invalid("include_execution_metadata");
+        }
+    }
+
+    private static void validateProfile(boolean profile, MediaType fromMediaType) {
+        if (profile && fromMediaType instanceof TextFormat) {
+            throw invalid("profile");
+        }
+    }
+
+    private static IllegalArgumentException invalid(String argument) {
+        return new IllegalArgumentException(
+            "Invalid use of ["
+                + argument
+                + "] argument: cannot be used in combination with "
+                + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
+                + " formats"
+        );
     }
 
     private static MediaType checkNonNullMediaType(MediaType mediaType, RestRequest request) {

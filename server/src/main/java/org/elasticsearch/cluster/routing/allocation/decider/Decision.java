@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,132 +25,158 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
- * This abstract class defining basic {@link Decision} used during shard
- * allocation process.
+ * A {@link Decision} used during shard allocation process.
  *
  * @see AllocationDecider
  */
-public abstract class Decision implements ToXContent, Writeable {
+public sealed interface Decision extends ToXContent, Writeable permits Decision.Single, Decision.Multi {
 
-    public static final Decision ALWAYS = new Single(Type.YES);
-    public static final Decision YES = new Single(Type.YES);
-    public static final Decision NO = new Single(Type.NO);
-    public static final Decision THROTTLE = new Single(Type.THROTTLE);
+    Single ALWAYS = new Single(Type.YES);
+    Single YES = new Single(Type.YES);
+    Single NOT_PREFERRED = new Single(Type.NOT_PREFERRED);
+    Single NO = new Single(Type.NO);
+    Single THROTTLE = new Single(Type.THROTTLE);
 
     /**
-     * Creates a simple decision
+     * Creates a new {@link Decision} instance including some (optional) extra details to explain it. Do not call this method to create a
+     * new {@link Decision} instance in an {@link AllocationDecider} implementation unless the explanation is required, because allocation
+     * decision-making is a hot path and constructing fresh instances for each decision can be very expensive. Instead, check
+     * {@link RoutingAllocation#debugDecision()} before doing nontrivial explanation work, and use one of the constants above such as
+     * {@link #YES} or {@link #NO} if no explanation is required. See also {@link RoutingAllocation#decision} for a utility method to
+     * perform this check automatically.
+     *
      * @param type {@link Type} of the decision
      * @param label label for the Decider that produced this decision
      * @param explanation explanation of the decision
      * @param explanationParams additional parameters for the decision
      * @return new {@link Decision} instance
      */
-    public static Decision single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
+    static Decision single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
         return new Single(type, label, explanation, explanationParams);
     }
 
-    public static Decision readFrom(StreamInput in) throws IOException {
+    static Decision readFrom(StreamInput in) throws IOException {
         // Determine whether to read a Single or Multi Decision
         if (in.readBoolean()) {
             Multi result = new Multi();
             int decisionCount = in.readVInt();
             for (int i = 0; i < decisionCount; i++) {
-                Decision s = readFrom(in);
-                result.decisions.add(s);
+                var flag = in.readBoolean();
+                assert flag == false : "nested multi decision is not permitted";
+                var single = readSingleFrom(in);
+                result.decisions.add(single);
             }
             return result;
         } else {
-            final Type type = Type.readFrom(in);
-            final String label = in.readOptionalString();
-            final String explanation = in.readOptionalString();
-            if (label == null && explanation == null) {
-                return switch (type) {
-                    case YES -> YES;
-                    case THROTTLE -> THROTTLE;
-                    case NO -> NO;
-                };
-            }
-            return new Single(type, label, explanation);
+            return readSingleFrom(in);
         }
     }
 
-    /**
-     * This enumeration defines the
-     * possible types of decisions
-     */
-    public enum Type implements Writeable {
-        YES(1),
-        THROTTLE(2),
-        NO(0);
-
-        private final int id;
-
-        Type(int id) {
-            this.id = id;
-        }
-
-        public static Type readFrom(StreamInput in) throws IOException {
-            int i = in.readVInt();
-            return switch (i) {
-                case 0 -> NO;
-                case 1 -> YES;
-                case 2 -> THROTTLE;
-                default -> throw new IllegalArgumentException("No Type for integer [" + i + "]");
+    private static Single readSingleFrom(StreamInput in) throws IOException {
+        final Type type = Type.readFrom(in);
+        final String label = in.readOptionalString();
+        final String explanation = in.readOptionalString();
+        if (label == null && explanation == null) {
+            return switch (type) {
+                case YES -> YES;
+                case NOT_PREFERRED -> NOT_PREFERRED;
+                case THROTTLE -> THROTTLE;
+                case NO -> NO;
             };
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(id);
-        }
-
-        public boolean higherThan(Type other) {
-            if (this == NO) {
-                return false;
-            } else if (other == NO) {
-                return true;
-            } else if (other == THROTTLE && this == YES) {
-                return true;
-            }
-            return false;
-        }
-
+        return new Single(type, label, explanation);
     }
 
     /**
      * Get the {@link Type} of this decision
      * @return {@link Type} of this decision
      */
-    public abstract Type type();
+    Type type();
 
     /**
      * Get the description label for this decision.
      */
     @Nullable
-    public abstract String label();
+    String label();
 
     /**
      * Get the explanation for this decision.
      */
     @Nullable
-    public abstract String getExplanation();
+    String getExplanation();
 
     /**
      * Return the list of all decisions that make up this decision
      */
-    public abstract List<Decision> getDecisions();
+    List<Decision> getDecisions();
+
+    /**
+     * This enumeration defines the possible types of decisions
+     */
+    enum Type implements Writeable {
+        // ordered by positiveness; order matters for serialization and comparison
+        NO,
+        THROTTLE,
+        NOT_PREFERRED,
+        YES;
+
+        private static final TransportVersion ALLOCATION_DECISION_NOT_PREFERRED = TransportVersion.fromName(
+            "allocation_decision_not_preferred"
+        );
+
+        public static Type readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                return in.readEnum(Type.class);
+            } else {
+                int i = in.readVInt();
+                return switch (i) {
+                    case 0 -> NO;
+                    case 1 -> YES;
+                    case 2 -> THROTTLE;
+                    default -> throw new IllegalArgumentException("No Type for integer [" + i + "]");
+                };
+            }
+        }
+
+        /**
+         * @return lowest decision by natural order
+         */
+        public static Type min(Type a, Type b) {
+            return a.compareTo(b) < 0 ? a : b;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(ALLOCATION_DECISION_NOT_PREFERRED)) {
+                out.writeEnum(this);
+            } else {
+                out.writeVInt(switch (this) {
+                    case NO -> 0;
+                    case NOT_PREFERRED, YES -> 1;
+                    case THROTTLE -> 2;
+                });
+            }
+        }
+
+        public boolean higherThan(Type other) {
+            return this.compareTo(other) > 0;
+        }
+
+        /**
+         * @return true if Type is one of {NOT_PREFERRED, YES}
+         */
+        public boolean allowed() {
+            return this.compareTo(NOT_PREFERRED) >= 0;
+        }
+
+    }
 
     /**
      * Simple class representing a single decision
      */
-    public static class Single extends Decision implements ToXContentObject {
-        private final Type type;
-        private final String label;
-        private final String explanationString;
-
+    record Single(Type type, String label, String explanationString) implements Decision, ToXContentObject {
         /**
          * Creates a new {@link Single} decision of a given type
          * @param type {@link Type} of the decision
@@ -165,24 +193,13 @@ public abstract class Decision implements ToXContent, Writeable {
          * @param explanationParams A set of additional parameters
          */
         public Single(Type type, @Nullable String label, @Nullable String explanation, @Nullable Object... explanationParams) {
-            this.type = type;
-            this.label = label;
-            if (explanationParams != null && explanationParams.length > 0) {
-                this.explanationString = String.format(Locale.ROOT, explanation, explanationParams);
-            } else {
-                this.explanationString = explanation;
-            }
-        }
-
-        @Override
-        public Type type() {
-            return this.type;
-        }
-
-        @Override
-        @Nullable
-        public String label() {
-            return this.label;
+            this(
+                type,
+                label,
+                explanationParams != null && explanationParams.length > 0
+                    ? String.format(Locale.ROOT, explanation, explanationParams)
+                    : explanation
+            );
         }
 
         @Override
@@ -197,29 +214,6 @@ public abstract class Decision implements ToXContent, Writeable {
         @Nullable
         public String getExplanation() {
             return this.explanationString;
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            Decision.Single s = (Decision.Single) object;
-            return this.type == s.type && Objects.equals(label, s.label) && Objects.equals(explanationString, s.explanationString);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = type.hashCode();
-            result = 31 * result + (label == null ? 0 : label.hashCode());
-            String explanationStr = explanationString;
-            result = 31 * result + (explanationStr == null ? 0 : explanationStr.hashCode());
-            return result;
         }
 
         @Override
@@ -254,9 +248,11 @@ public abstract class Decision implements ToXContent, Writeable {
     /**
      * Simple class representing a list of decisions
      */
-    public static class Multi extends Decision implements ToXContentFragment {
+    record Multi(List<Single> decisions) implements Decision, ToXContentFragment {
 
-        private final List<Decision> decisions = new ArrayList<>();
+        public Multi() {
+            this(new ArrayList<>());
+        }
 
         /**
          * Add a decision to this {@link Multi}decision instance
@@ -264,22 +260,15 @@ public abstract class Decision implements ToXContent, Writeable {
          * @return {@link Multi}decision instance with the given decision added
          */
         public Multi add(Decision decision) {
-            decisions.add(decision);
+            assert decision instanceof Single;
+            decisions.add((Single) decision);
             return this;
         }
 
         @Override
         public Type type() {
-            Type ret = Type.YES;
-            for (int i = 0; i < decisions.size(); i++) {
-                Type type = decisions.get(i).type();
-                if (type == Type.NO) {
-                    return type;
-                } else if (type == Type.THROTTLE) {
-                    ret = type;
-                }
-            }
-            return ret;
+            // returns most negative decision
+            return decisions.stream().map(Single::type).reduce(Type.YES, Type::min);
         }
 
         @Override
@@ -298,26 +287,6 @@ public abstract class Decision implements ToXContent, Writeable {
         @Override
         public List<Decision> getDecisions() {
             return Collections.unmodifiableList(this.decisions);
-        }
-
-        @Override
-        public boolean equals(final Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            final Decision.Multi m = (Decision.Multi) object;
-
-            return this.decisions.equals(m.decisions);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * decisions.hashCode();
         }
 
         @Override

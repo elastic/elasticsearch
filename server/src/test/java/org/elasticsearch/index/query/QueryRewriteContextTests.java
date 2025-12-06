@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
+import static org.elasticsearch.index.query.CoordinatorRewriteContext.TIER_FIELD_TYPE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -51,7 +52,13 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false
             );
 
             assertThat(context.getTierPreference(), is("data_cold"));
@@ -78,7 +85,13 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false
             );
 
             assertThat(context.getTierPreference(), is(nullValue()));
@@ -86,13 +99,6 @@ public class QueryRewriteContextTests extends ESTestCase {
 
         {
             // coordinator rewrite context
-            IndexMetadata metadata = newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(DataTier.TIER_PREFERENCE, "data_cold,data_warm,data_hot")
-                    .build()
-            );
             CoordinatorRewriteContext coordinatorRewriteContext = new CoordinatorRewriteContext(
                 parserConfig(),
                 null,
@@ -103,15 +109,9 @@ public class QueryRewriteContextTests extends ESTestCase {
 
             assertThat(coordinatorRewriteContext.getTierPreference(), is("data_frozen"));
         }
+
         {
             // coordinator rewrite context empty tier
-            IndexMetadata metadata = newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(DataTier.TIER_PREFERENCE, "data_cold,data_warm,data_hot")
-                    .build()
-            );
             CoordinatorRewriteContext coordinatorRewriteContext = new CoordinatorRewriteContext(
                 parserConfig(),
                 null,
@@ -121,6 +121,25 @@ public class QueryRewriteContextTests extends ESTestCase {
             );
 
             assertThat(coordinatorRewriteContext.getTierPreference(), is(nullValue()));
+        }
+
+        {
+            // null date field range info
+            CoordinatorRewriteContext coordinatorRewriteContext = new CoordinatorRewriteContext(
+                parserConfig(),
+                null,
+                System::currentTimeMillis,
+                null,
+                "data_frozen"
+            );
+            assertThat(coordinatorRewriteContext.getFieldRange(IndexMetadata.EVENT_INGESTED_FIELD_NAME), is(nullValue()));
+            assertThat(coordinatorRewriteContext.getFieldRange(IndexMetadata.EVENT_INGESTED_FIELD_NAME), is(nullValue()));
+            // tier field doesn't have a range
+            assertThat(coordinatorRewriteContext.getFieldRange(CoordinatorRewriteContext.TIER_FIELD_NAME), is(nullValue()));
+            assertThat(coordinatorRewriteContext.getFieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME), is(nullValue()));
+            assertThat(coordinatorRewriteContext.getFieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME), is(nullValue()));
+            // _tier field type should still work even without the data field info
+            assertThat(coordinatorRewriteContext.getFieldType(CoordinatorRewriteContext.TIER_FIELD_NAME), is(TIER_FIELD_TYPE));
         }
     }
 

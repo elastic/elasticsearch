@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -39,7 +40,7 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
         Integer dims = null;
         var isTextEmbeddingModel = randomBoolean();
         if (isTextEmbeddingModel) {
-            similarityMeasure = randomFrom(SimilarityMeasure.values());
+            similarityMeasure = randomSimilarityMeasure();
             dims = randomIntBetween(32, 256);
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
@@ -199,7 +200,21 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected HuggingFaceServiceSettings mutateInstance(HuggingFaceServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, HuggingFaceServiceSettingsTests::createRandom);
+        var uri = instance.uri();
+        var similarity = instance.similarity();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(4)) {
+            case 0 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createUri(randomAlphaOfLength(15)));
+            case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(32, 256), null));
+            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new HuggingFaceServiceSettings(uri, similarity, dimensions, maxInputTokens, rateLimitSettings);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String url) {

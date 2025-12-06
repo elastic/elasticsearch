@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,15 +39,6 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readLong(); // memoryInBytes
-            in.readLong(); // termsMemoryInBytes
-            in.readLong(); // storedFieldsMemoryInBytes
-            in.readLong(); // termVectorsMemoryInBytes
-            in.readLong(); // normsMemoryInBytes
-            in.readLong(); // pointsMemoryInBytes
-            in.readLong(); // docValuesMemoryInBytes
-        }
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
@@ -221,15 +211,6 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeLong(0L); // memoryInBytes
-            out.writeLong(0L); // termsMemoryInBytes
-            out.writeLong(0L); // storedFieldsMemoryInBytes
-            out.writeLong(0L); // termVectorsMemoryInBytes
-            out.writeLong(0L); // normsMemoryInBytes
-            out.writeLong(0L); // pointsMemoryInBytes
-            out.writeLong(0L); // docValuesMemoryInBytes
-        }
         out.writeLong(indexWriterMemoryInBytes);
         out.writeLong(versionMapMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);
@@ -251,19 +232,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         private final long max;
 
         FileStats(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                this.ext = in.readString();
-                this.total = in.readVLong();
-                this.count = in.readVLong();
-                this.min = in.readVLong();
-                this.max = in.readVLong();
-            } else {
-                this.ext = in.readString();
-                this.total = in.readLong();
-                this.count = 0L;
-                this.min = 0L;
-                this.max = 0L;
-            }
+            this.ext = in.readString();
+            this.total = in.readVLong();
+            this.count = in.readVLong();
+            this.min = in.readVLong();
+            this.max = in.readVLong();
         }
 
         public FileStats(String ext, long total, long count, long min, long max) {
@@ -296,16 +269,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                out.writeString(ext);
-                out.writeVLong(total);
-                out.writeVLong(count);
-                out.writeVLong(min);
-                out.writeVLong(max);
-            } else {
-                out.writeString(ext);
-                out.writeLong(total);
-            }
+            out.writeString(ext);
+            out.writeVLong(total);
+            out.writeVLong(count);
+            out.writeVLong(min);
+            out.writeVLong(max);
         }
 
         @Override

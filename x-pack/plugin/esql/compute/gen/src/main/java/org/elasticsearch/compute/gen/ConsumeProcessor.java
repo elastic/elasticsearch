@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 
 import java.util.List;
 import java.util.Set;
@@ -23,7 +24,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 
 /**
- * Consumes the "Nullable" and "Inject" annotations and does nothing with them
+ * Consumes the "Nullable", "Inject" and "SuppressForbidden" annotations and does nothing with them
  * to prevent warnings when running annotation processors.
  */
 public class ConsumeProcessor implements Processor {
@@ -35,14 +36,17 @@ public class ConsumeProcessor implements Processor {
     @Override
     public Set<String> getSupportedAnnotationTypes() {
         return Set.of(
+            "org.elasticsearch.xpack.esql.SupportsObservabilityTier",
             "org.elasticsearch.core.Nullable",
             "org.elasticsearch.injection.guice.Inject",
+            "org.elasticsearch.core.SuppressForbidden",
             "org.elasticsearch.xpack.esql.expression.function.FunctionInfo",
             "org.elasticsearch.xpack.esql.expression.function.Param",
+            "org.elasticsearch.xpack.esql.expression.function.MapParam",
             "org.elasticsearch.rest.ServerlessScope",
             "org.elasticsearch.xcontent.ParserConstructor",
-            "org.elasticsearch.core.UpdateForV9",
-            Fixed.class.getName()
+            Fixed.class.getName(),
+            Position.class.getName()
         );
     }
 

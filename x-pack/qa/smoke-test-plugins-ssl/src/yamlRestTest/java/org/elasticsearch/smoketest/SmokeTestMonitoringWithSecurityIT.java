@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -53,26 +52,25 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
     private static final String USER = "test_user";
     private static final SecureString PASS = new SecureString("x-pack-test-password".toCharArray());
-    private static final String KEYSTORE_PASS = "testnode";
     private static final String MONITORING_PATTERN = ".monitoring-*";
 
-    static Path keyStore;
+    static Path trustStore;
 
     @BeforeClass
     public static void getKeyStore() {
         try {
-            keyStore = PathUtils.get(SmokeTestMonitoringWithSecurityIT.class.getResource("/testnode.jks").toURI());
+            trustStore = PathUtils.get(SmokeTestMonitoringWithSecurityIT.class.getResource("/testnode.crt").toURI());
         } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
+            throw new ElasticsearchException("exception while reading the truststore", e);
         }
-        if (Files.exists(keyStore) == false) {
-            throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
+        if (Files.exists(trustStore) == false) {
+            throw new IllegalStateException("Truststore file [" + trustStore + "] does not exist.");
         }
     }
 
     @AfterClass
     public static void clearKeyStore() {
-        keyStore = null;
+        trustStore = null;
     }
 
     @Override
@@ -85,24 +83,17 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         String token = basicAuthHeaderValue(USER, PASS);
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)
-            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
+            .put(ESRestTestCase.CERTIFICATE_AUTHORITIES, trustStore)
             .build();
     }
 
     @Before
     public void enableExporter() throws Exception {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", "x-pack-test-password");
         Settings exporterSettings = Settings.builder()
             .put("xpack.monitoring.collection.enabled", true)
             .put("xpack.monitoring.exporters._http.enabled", true)
             .put("xpack.monitoring.exporters._http.type", "http")
             .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
-            .put("xpack.monitoring.exporters._http.auth.username", "monitoring_agent")
-            .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
-            .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
-            .setSecureSettings(secureSettings)
             .build();
         updateClusterSettingsIgnoringWarnings(client(), exporterSettings);
     }
@@ -140,7 +131,6 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         return exporters != null && exporters.isEmpty() == false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testHTTPExporterWithSSL() throws Exception {
         // Ensures that the exporter is actually on
         assertBusy(() -> assertThat("[_http] exporter is not defined", getMonitoringUsageExportersDefined(), is(true)));
@@ -193,12 +183,11 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testSettingsFilter() throws IOException {
         final Request request = new Request("GET", "/_cluster/settings");
         final Response response = client().performRequest(request);
         final ObjectPath path = ObjectPath.createFromResponse(response);
-        final Map<String, Object> settings = path.evaluate("transient.xpack.monitoring.exporters._http");
+        final Map<String, Object> settings = path.evaluate("persistent.xpack.monitoring.exporters._http");
         assertThat(settings, hasKey("type"));
         assertThat(settings, not(hasKey("auth")));
         assertThat(settings, not(hasKey("ssl")));

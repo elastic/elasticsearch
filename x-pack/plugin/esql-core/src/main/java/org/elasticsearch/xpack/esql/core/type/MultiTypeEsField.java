@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * During IndexResolution it could occur that the same field is mapped to different types in different indices.
@@ -33,26 +32,34 @@ public class MultiTypeEsField extends EsField {
 
     private final Map<String, Expression> indexToConversionExpressions;
 
-    public MultiTypeEsField(String name, DataType dataType, boolean aggregatable, Map<String, Expression> indexToConversionExpressions) {
-        super(name, dataType, Map.of(), aggregatable);
+    public MultiTypeEsField(
+        String name,
+        DataType dataType,
+        boolean aggregatable,
+        Map<String, Expression> indexToConversionExpressions,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, dataType, Map.of(), aggregatable, timeSeriesFieldType);
         this.indexToConversionExpressions = indexToConversionExpressions;
     }
 
     protected MultiTypeEsField(StreamInput in) throws IOException {
         this(
-            readCachedStringWithVersionCheck(in),
+            ((PlanStreamInput) in).readCachedString(),
             DataType.readFrom(in),
             in.readBoolean(),
-            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class))
+            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
+            readTimeSeriesFieldType(in)
         );
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, getName());
+        ((PlanStreamOutput) out).writeCachedString(getName());
         getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {
@@ -86,7 +93,13 @@ public class MultiTypeEsField extends EsField {
                 indexToConversionExpressions.put(indexName, convertExpr);
             }
         }
-        return new MultiTypeEsField(invalidMappedField.getName(), resolvedDataType, false, indexToConversionExpressions);
+        return new MultiTypeEsField(
+            invalidMappedField.getName(),
+            resolvedDataType,
+            false,
+            indexToConversionExpressions,
+            invalidMappedField.getTimeSeriesFieldType()
+        );
     }
 
     @Override

@@ -65,7 +65,7 @@ setup:
 
   # [-128, 127, 10] - is encoded as '807f0a'
   - do:
-      catch: /Failed to parse object./
+      catch: bad_request
       index:
         index: knn_hex_vector_index
         id: "5"

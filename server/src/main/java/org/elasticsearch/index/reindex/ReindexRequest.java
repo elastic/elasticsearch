@@ -21,7 +21,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -39,6 +38,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -84,6 +84,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
+    public boolean supportsRemoteIndicesSearch() {
+        return true;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
@@ -115,6 +120,18 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
+            }
+            if (getSearchRequest().source().slice() != null) {
+                e = addValidationError(
+                    "reindex from remote sources doesn't support source.slice but was [" + getSearchRequest().source().slice() + "]",
+                    e
+                );
+            }
+            if (getRemoteInfo().getUsername() != null && getRemoteInfo().getPassword() == null) {
+                e = addValidationError("reindex from remote source included username but not password", e);
+            }
+            if (getRemoteInfo().getPassword() != null && getRemoteInfo().getUsername() == null) {
+                e = addValidationError("reindex from remote source included password but not username", e);
             }
         }
         return e;
@@ -355,10 +372,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         );
 
         PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
-
-        // avoid silently accepting an ignored size.
-        PARSER.declareInt((r, s) -> failOnSizeSpecified(), new ParseField("size"));
-
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
@@ -422,6 +435,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
 
         Map<String, String> headers = extractStringStringMap(remote, "headers");
+        String apiKey = extractString(remote, "api_key");
+        if (apiKey != null) {
+            headers = headersWithApiKey(headers, apiKey);
+        }
+
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
@@ -499,9 +517,17 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
-    // do we still need this ref to [max_docs] or can we remove the field entirely so it's rejected with the default message?
-    private static void failOnSizeSpecified() {
-        throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
+    /**
+     * Returns a headers map with the {@code Authorization} key set to the value {@code "ApiKey <apiKey>"}. If the original map is a
+     * {@link HashMap}, it is mutated; if not (e.g. it is {@link java.util.Collections#EMPTY_MAP}), it is copied. If the headers already
+     * include an {@code Authorization} key, an {@link IllegalArgumentException} is thrown.
+     */
+    private static Map<String, String> headersWithApiKey(Map<String, String> original, String apiKey) {
+        if (original.keySet().stream().anyMatch(key -> key.equalsIgnoreCase("Authorization"))) {
+            throw new IllegalArgumentException("Cannot specify both [api_key] and [headers] including [Authorization] key");
+        }
+        Map<String, String> updated = (original instanceof HashMap) ? original : new HashMap<>(original);
+        updated.put("Authorization", "ApiKey " + apiKey);
+        return updated;
     }
 }

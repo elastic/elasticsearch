@@ -28,9 +28,11 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -67,6 +69,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -81,6 +84,7 @@ public class Reindexer {
     private static final Logger logger = LogManager.getLogger(Reindexer.class);
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final Client client;
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
@@ -89,6 +93,7 @@ public class Reindexer {
 
     Reindexer(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client client,
         ThreadPool threadPool,
         ScriptService scriptService,
@@ -96,6 +101,7 @@ public class Reindexer {
         @Nullable ReindexMetrics reindexMetrics
     ) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.client = client;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
@@ -127,19 +133,64 @@ public class Reindexer {
                     assigningBulkClient,
                     threadPool,
                     scriptService,
-                    clusterService.state(),
+                    projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    ActionListener.runAfter(listener, () -> {
-                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-                        if (reindexMetrics != null) {
-                            reindexMetrics.recordTookTime(elapsedTime);
-                        }
-                    })
+                    wrapWithMetrics(listener, reindexMetrics, startTime, request.getRemoteInfo() != null)
                 );
                 searchAction.start();
             }
         );
+    }
+
+    // Visible for testing
+    static ActionListener<BulkByScrollResponse> wrapWithMetrics(
+        ActionListener<BulkByScrollResponse> listener,
+        @Nullable ReindexMetrics metrics,
+        long startTime,
+        boolean isRemote
+    ) {
+        if (metrics == null) {
+            return listener;
+        }
+
+        // add completion metrics
+        var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(ScrollableHitSource.SearchFailure::getReason)
+                    .findFirst();
+                var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(BulkItemResponse.Failure::getCause)
+                    .findFirst();
+                if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
+                    // record only the first sample error in metric
+                    Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
+                    metrics.recordFailure(isRemote, e);
+                    listener.onResponse(bulkByScrollResponse);
+                } else {
+                    metrics.recordSuccess(isRemote);
+                    listener.onResponse(bulkByScrollResponse);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                metrics.recordFailure(isRemote, e);
+                listener.onFailure(e);
+            }
+        };
+
+        // add duration metric
+        return ActionListener.runAfter(withCompletionMetrics, () -> {
+            long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+            metrics.recordTookTime(elapsedTime, isRemote);
+        });
     }
 
     /**
@@ -219,7 +270,7 @@ public class Reindexer {
             ParentTaskAssigningClient bulkClient,
             ThreadPool threadPool,
             ScriptService scriptService,
-            ClusterState state,
+            ProjectState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener
@@ -232,6 +283,7 @@ public class Reindexer {
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
                 false,
+                true,
                 logger,
                 searchClient,
                 bulkClient,
@@ -244,17 +296,20 @@ public class Reindexer {
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
         }
 
-        private IndexMode destinationIndexMode(ClusterState state) {
-            IndexMetadata destMeta = state.metadata().index(mainRequest.getDestination().index());
+        private IndexMode destinationIndexMode(ProjectState state) {
+            ProjectMetadata projectMetadata = state.metadata();
+            IndexMetadata destMeta = projectMetadata.index(mainRequest.getDestination().index());
             if (destMeta != null) {
                 return IndexSettings.MODE.get(destMeta.getSettings());
             }
-            String template = MetadataIndexTemplateService.findV2Template(state.metadata(), mainRequest.getDestination().index(), false);
+            String template = MetadataIndexTemplateService.findV2Template(projectMetadata, mainRequest.getDestination().index(), false);
             if (template == null) {
                 return IndexMode.STANDARD;
             }
-            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
-            return IndexSettings.MODE.get(settings);
+            Settings settings = MetadataIndexTemplateService.resolveSettings(projectMetadata, template);
+            // We retrieve the setting without performing any validation because that the template has already been validated
+            String indexMode = settings.get(IndexSettings.MODE.getKey());
+            return indexMode == null ? IndexMode.STANDARD : IndexMode.fromString(indexMode);
         }
 
         @Override

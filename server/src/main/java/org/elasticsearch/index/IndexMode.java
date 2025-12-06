@@ -11,8 +11,8 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,16 +23,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFields;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -62,7 +63,7 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            IndexMode.validateTimeSeriesSettings(settings);
+            validateRoutingPathSettings(settings);
         }
 
         @Override
@@ -89,7 +90,7 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
@@ -111,8 +112,8 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return DocumentDimensions.Noop.INSTANCE;
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return RoutingFields.Noop.INSTANCE;
         }
 
         @Override
@@ -134,18 +135,25 @@ public enum IndexMode {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
                 throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
             }
+
+            var settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();
+
             for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
-                if (false == Objects.equals(unsupported.getDefault(Settings.EMPTY), settings.get(unsupported))) {
+                if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
+            if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
+                // index.dimensions is a private setting that only gets populated for data streams.
+                // We don't include it in the error message to not confuse users that are manually creating time series indices
+                // which is the only case where this error can occur.
+                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + routingPath.getKey() + "]");
+            }
         }
 
-        private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
-            if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
-            }
+        private static boolean isEmpty(Map<Setting<?>, Object> settings, Setting<List<String>> setting) {
+            return Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting));
         }
 
         private static String error(Setting<?> unsupported) {
@@ -154,9 +162,6 @@ public enum IndexMode {
 
         @Override
         public void validateMapping(MappingLookup lookup) {
-            if (lookup.nestedLookup() != NestedLookup.EMPTY) {
-                throw new IllegalArgumentException("cannot have nested fields when index is in " + tsdbMode());
-            }
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }
@@ -176,7 +181,7 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+            return DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -189,8 +194,8 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
-            return TimeSeriesIdFieldMapper.INSTANCE;
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
+            return TimeSeriesIdFieldMapper.getInstance(c);
         }
 
         @Override
@@ -209,9 +214,15 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
-            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            IndexRouting indexRouting = settings.getIndexRouting();
+            if (indexRouting instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
+                return new RoutingPathFields(forRoutingPath.builder());
+            } else if (indexRouting instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
+                return RoutingFields.Noop.INSTANCE;
+            } else {
+                throw new IllegalStateException("Index routing strategy not supported for index_mode=time_series: " + indexRouting);
+            }
         }
 
         @Override
@@ -230,11 +241,24 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
+        }
     },
     LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            IndexMode.validateTimeSeriesSettings(settings);
+            var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
+            if (setting.equals(Boolean.FALSE)) {
+                validateRoutingPathSettings(settings);
+            }
         }
 
         @Override
@@ -254,9 +278,9 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return indexSettings != null && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
-                ? DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME
-                : DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+            return indexSettings != null && indexSettings.logsdbAddHostNameField()
+                ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
+                : DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -275,7 +299,7 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
@@ -287,8 +311,8 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return DocumentDimensions.Noop.INSTANCE;
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return RoutingFields.Noop.INSTANCE;
         }
 
         @Override
@@ -311,6 +335,16 @@ public enum IndexMode {
         @Override
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
+        }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
         }
     },
     LOOKUP("lookup") {
@@ -346,7 +380,7 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
@@ -368,8 +402,8 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return DocumentDimensions.Noop.INSTANCE;
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return RoutingFields.Noop.INSTANCE;
         }
 
         @Override
@@ -386,12 +420,10 @@ public enum IndexMode {
         }
     };
 
-    private static final String HOST_NAME = "host.name";
+    static final String HOST_NAME = "host.name";
 
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+    private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
 
     private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
@@ -423,14 +455,14 @@ public enum IndexMode {
         });
     }
 
-    private static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP;
 
-    private static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP_HOSTNAME;
 
     static {
         try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createDefaultMapping(false);
-            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createDefaultMapping(true);
+            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(false);
+            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -449,6 +481,8 @@ public enum IndexMode {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_ROUTING_PATH,
+                IndexMetadata.INDEX_DIMENSIONS,
+                IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
             ),
@@ -512,7 +546,7 @@ public enum IndexMode {
      * the _tsid field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
+    public abstract MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c);
 
     /**
      * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
@@ -524,7 +558,7 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
+    public abstract RoutingFields buildRoutingFields(IndexSettings settings);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.
@@ -543,6 +577,21 @@ public enum IndexMode {
 
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;
+    }
+
+    /**
+     * Whether by default to use the ES 8.12 {@link org.apache.lucene.codecs.PostingsFormat}. This is a historical PostingsFormat we used
+     * for all indices by default. However, starting with Lucene 10.3, we began using a new, more modern format, for standard indices.
+     */
+    public boolean useEs812PostingsFormat() {
+        return false;
+    }
+
+    /**
+     * Whether by default to use the time series doc values codec.
+     */
+    public boolean useTimeSeriesDocValuesCodec() {
+        return false;
     }
 
     /**
@@ -580,7 +629,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.INDEX_MODE_LOOKUP) ? 3 : 0;
+            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
         };
         out.writeByte((byte) code);
     }
@@ -596,14 +645,16 @@ public enum IndexMode {
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void provideAdditionalSettings(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
-            Metadata metadata,
+            ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
-            List<CompressedXContent> combinedTemplateMappings
+            List<CompressedXContent> combinedTemplateMappings,
+            IndexVersion indexVersion,
+            Settings.Builder additionalSettings
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
@@ -613,12 +664,7 @@ public enum IndexMode {
                 }
             }
             if (indexMode == LOOKUP) {
-                return Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                    .build();
-            } else {
-                return Settings.EMPTY;
+                additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
             }
         }
     }

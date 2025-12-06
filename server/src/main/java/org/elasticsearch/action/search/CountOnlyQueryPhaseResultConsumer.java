@@ -27,8 +27,8 @@ import java.util.stream.Stream;
  * store any other information.
  */
 class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseResult> {
-    AtomicReference<TotalHits.Relation> relationAtomicReference = new AtomicReference<>(TotalHits.Relation.EQUAL_TO);
-    LongAdder totalHits = new LongAdder();
+    final AtomicReference<TotalHits.Relation> relationAtomicReference = new AtomicReference<>(TotalHits.Relation.EQUAL_TO);
+    final LongAdder totalHits = new LongAdder();
 
     private final AtomicBoolean terminatedEarly = new AtomicBoolean(false);
     private final AtomicBoolean timedOut = new AtomicBoolean(false);
@@ -86,7 +86,8 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
             1,
             0,
             0,
-            results.isEmpty()
+            results.isEmpty(),
+            null
         );
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyFinalReduce(

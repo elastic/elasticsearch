@@ -25,6 +25,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -359,7 +360,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testTonsOfBucketsTriggersBreaker() throws IOException {
         // Build a "simple" circuit breaker that trips at 20k
         CircuitBreakerService breaker = mock(CircuitBreakerService.class);
-        ByteSizeValue max = new ByteSizeValue(20, ByteSizeUnit.KB);
+        ByteSizeValue max = ByteSizeValue.of(20, ByteSizeUnit.KB);
         when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, max));
 
         // Collect some buckets with it
@@ -518,7 +519,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType textFieldType(String name) {
-        return new TextFieldMapper.TextFieldType(name, randomBoolean());
+        return new TextFieldMapper.TextFieldType(name, randomBoolean(), false);
     }
 
     private MappedFieldType geoPointFieldType(String name) {
@@ -624,7 +625,13 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             return field.getValue();
         }), emptyMap());
         Map<String, ScriptEngine> engines = singletonMap(scriptEngine.getType(), scriptEngine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @Override

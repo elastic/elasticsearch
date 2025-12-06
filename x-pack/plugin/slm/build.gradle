@@ -1,16 +1,24 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'x-pack-slm'
-  description 'Elasticsearch Expanded Pack Plugin - Snapshot Lifecycle Management'
-  classname 'org.elasticsearch.xpack.slm.SnapshotLifecycle'
+  name = 'x-pack-slm'
+  description = 'Elasticsearch Expanded Pack Plugin - Snapshot Lifecycle Management'
+  classname = 'org.elasticsearch.xpack.slm.SnapshotLifecycle'
   extendedPlugins = ['x-pack-core']
-  hasNativeController false
-  requiresKeystore true
+  hasNativeController = false
+  requiresKeystore = true
 }
+
 base {
   archivesName = 'x-pack-slm'
 }
@@ -21,6 +29,20 @@ dependencies {
   testImplementation project(xpackModule('ccr'))
   testImplementation project(xpackModule('ilm'))
   testImplementation project(':modules:data-streams')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('slm'))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  clusterModules project(xpackModule("ilm"))
+  clusterModules project(xpackModule("searchable-snapshots"))
+  clusterModules project(":modules:data-streams")
 }
 
-addQaCheckDependencies(project)
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'slm', 'health_report'
+  }
+}
+
+tasks.named("javaRestTest") {
+  usesDefaultDistribution("uses _xpack/usage api")
+}

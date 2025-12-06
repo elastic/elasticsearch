@@ -93,9 +93,9 @@
  *     <li><a href="https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/date-and-time-functions.html">Oracle</a>
  *         is pretty good about dates. It's fine about a lot of things but PostgreSQL is better.</li>
  *     <li>MS <a href="https://learn.microsoft.com/en-us/sql/sql-server/?view=sql-server-ver16">SQL Server</a>
- *         has a silly name but it's documentation is <strong>wonderful</strong>.</li>
+ *         has a silly name but its documentation is <strong>wonderful</strong>.</li>
  *     <li><a href="https://docs.splunk.com/Documentation/SCS/current/SearchReference/UnderstandingSPLSyntax">SPL</a>
- *         is super familiar to our users and it's a piped query language.</li>
+ *         is super familiar to our users, and is a piped query language.</li>
  * </ul>
  *
  * <h2>Major Components</h2>
@@ -121,8 +121,7 @@
  *         function implementations.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction Sync} and
  *         {@link org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction async} HTTP API entry points</li>
- *     <li>{@link org.elasticsearch.xpack.esql.plan.logical.Phased} - Marks a {@link org.elasticsearch.xpack.esql.plan.logical.LogicalPlan}
- *         node as requiring multiple ESQL executions to run. </li>
+
  * </ul>
  *
  * <h3>Query Planner</h3>
@@ -144,7 +143,7 @@
  *     <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer Analyzer} resolves references</li>
  *     <li>{@link org.elasticsearch.xpack.esql.analysis.Verifier Verifier} does type checking</li>
  *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer LogicalPlanOptimizer} applies many optimizations</li>
- *     <li>{@link org.elasticsearch.xpack.esql.planner.Mapper Mapper} translates logical plans to phyisical plans</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.planner.mapper.Mapper Mapper} translates logical plans to phyisical plans</li>
  *     <li>{@link org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer PhysicalPlanOptimizer} - decides what plan fragments to
  *     send to which data nodes</li>
  *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer LocalLogicalPlanOptimizer} applies index-specific

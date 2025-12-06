@@ -96,7 +96,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     @Before
     public void setupTestIndex() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()

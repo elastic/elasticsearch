@@ -51,16 +51,13 @@ public class RRFQueryPhaseRankShardContext extends QueryPhaseRankShardContext {
                         value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
                     }
 
-                    // calculate the current rrf score for this document
-                    // later used to sort and covert to a rank
+                    // calculate the current rrf score for this document, later used to sort and covert to a rank
                     value.score += 1.0f / (rankConstant + frank);
 
-                    // record the position for each query
-                    // for explain and debugging
+                    // record the position for each query, for explain and debugging
+                    assert value.positions != null && value.scores != null;
                     value.positions[findex] = frank - 1;
-
-                    // record the score for each query
-                    // used to later re-rank on the coordinator
+                    // record the score for each query, used to later re-rank on the coordinator
                     value.scores[findex] = scoreDoc.score;
 
                     return value;
@@ -76,6 +73,9 @@ public class RRFQueryPhaseRankShardContext extends QueryPhaseRankShardContext {
             if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
             }
+
+            assert rrf1.positions != null && rrf1.scores != null;
+            assert rrf2.positions != null && rrf2.scores != null;
             assert rrf1.positions.length == rrf2.positions.length;
             for (int qi = 0; qi < rrf1.positions.length; ++qi) {
                 if (rrf1.positions[qi] != NO_RANK && rrf2.positions[qi] != NO_RANK) {

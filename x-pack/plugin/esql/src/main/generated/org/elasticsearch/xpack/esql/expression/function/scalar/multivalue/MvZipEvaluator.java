@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvZip}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvZipEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator leftField;
@@ -55,6 +58,15 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += leftField.baseRamBytesUsed();
+    baseRamBytesUsed += rightField.baseRamBytesUsed();
+    baseRamBytesUsed += delim.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BytesRefBlock eval(int positionCount, BytesRefBlock leftFieldBlock,
       BytesRefBlock rightFieldBlock, BytesRefBlock delimBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
@@ -67,22 +79,23 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
         if (!rightFieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (delimBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (delimBlock.getValueCount(p) != 1) {
-          if (delimBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (delimBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch));
+        BytesRef delim = delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch);
+        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delim);
       }
       return result.build();
     }

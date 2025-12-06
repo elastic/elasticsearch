@@ -20,7 +20,7 @@ import java.util.Optional;
 public class DebertaV2TokenizationUpdate extends AbstractTokenizationUpdate {
     public static final ParseField NAME = new ParseField(DebertaV2Tokenization.NAME);
 
-    public static ConstructingObjectParser<DebertaV2TokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DebertaV2TokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
         "deberta_v2_tokenization_update",
         a -> new DebertaV2TokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]), (Integer) a[1])
     );

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.monitoring.exporter.BaseFilteredMonitoringDocTest
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -227,7 +228,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                       "stat": {
                         "number_of_elapsed_periods": 39,
                         "number_of_times_throttled": 40,
-                        "time_throttled_nanos": 41
+                        "time_throttled_nanos": 9223372036854775848
                       }
                     },
                     "memory": {
@@ -343,8 +344,12 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             no,
             no,
             no,
+            no,
             false,
             ++iota,
+            no,
+            no,
+            no,
             no,
             no
         );
@@ -352,7 +357,23 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         indicesCommonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
 
-        final SearchStats.Stats searchStats = new SearchStats.Stats(++iota, ++iota, no, no, no, no, no, no, no, no, no, no, no, no);
+        final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
+            ++iota,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            Double.valueOf(no)
+        );
         indicesCommonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
         final SegmentsStats segmentsStats = new SegmentsStats();
@@ -362,7 +383,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         segmentsStats.addBitsetMemoryInBytes(++iota);
         indicesCommonStats.getSegments().add(segmentsStats);
 
-        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap(), emptyMap(), randomBoolean());
+        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap(), emptyMap(), emptyMap(), randomBoolean());
 
         // Filesystem
         final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats(
@@ -392,11 +413,15 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[] { new FsInfo.Path(null, null, ++iota, ++iota, ++iota) });
 
         // Os
-        final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[] { ++iota, ++iota, ++iota });
-        final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(++iota, ++iota, ++iota);
+        final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[] { ++iota, ++iota, ++iota }, (int) no);
+        final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(
+            BigInteger.valueOf(++iota),
+            BigInteger.valueOf(++iota),
+            BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(++iota))
+        );
         final OsStats.Cgroup osCgroup = new OsStats.Cgroup(
             "_cpu_acct_ctrl_group",
-            ++iota,
+            BigInteger.valueOf(++iota),
             "_cpu_ctrl_group",
             ++iota,
             ++iota,

@@ -9,26 +9,27 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -41,9 +42,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.dfs.DfsKnnResults;
-import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
@@ -57,12 +55,16 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -71,6 +73,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
+
+    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
 
     private final BiFunction<
         Supplier<Boolean>,
@@ -81,97 +85,6 @@ public final class SearchPhaseController {
         BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
-    }
-
-    public static AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
-        Map<Term, TermStatistics> termStatistics = new HashMap<>();
-        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
-        long aggMaxDoc = 0;
-        for (DfsSearchResult lEntry : results) {
-            final Term[] terms = lEntry.terms();
-            final TermStatistics[] stats = lEntry.termStatistics();
-            assert terms.length == stats.length;
-            for (int i = 0; i < terms.length; i++) {
-                assert terms[i] != null;
-                if (stats[i] == null) {
-                    continue;
-                }
-                TermStatistics existing = termStatistics.get(terms[i]);
-                if (existing != null) {
-                    assert terms[i].bytes().equals(existing.term());
-                    termStatistics.put(
-                        terms[i],
-                        new TermStatistics(
-                            existing.term(),
-                            existing.docFreq() + stats[i].docFreq(),
-                            existing.totalTermFreq() + stats[i].totalTermFreq()
-                        )
-                    );
-                } else {
-                    termStatistics.put(terms[i], stats[i]);
-                }
-
-            }
-
-            assert lEntry.fieldStatistics().containsKey(null) == false;
-            for (var entry : lEntry.fieldStatistics().entrySet()) {
-                String key = entry.getKey();
-                CollectionStatistics value = entry.getValue();
-                if (value == null) {
-                    continue;
-                }
-                assert key != null;
-                CollectionStatistics existing = fieldStatistics.get(key);
-                if (existing != null) {
-                    CollectionStatistics merged = new CollectionStatistics(
-                        key,
-                        existing.maxDoc() + value.maxDoc(),
-                        existing.docCount() + value.docCount(),
-                        existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
-                        existing.sumDocFreq() + value.sumDocFreq()
-                    );
-                    fieldStatistics.put(key, merged);
-                } else {
-                    fieldStatistics.put(key, value);
-                }
-            }
-            aggMaxDoc += lEntry.maxDoc();
-        }
-        return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
-    }
-
-    public static List<DfsKnnResults> mergeKnnResults(SearchRequest request, List<DfsSearchResult> dfsSearchResults) {
-        if (request.hasKnnSearch() == false) {
-            return null;
-        }
-        SearchSourceBuilder source = request.source();
-        List<List<TopDocs>> topDocsLists = new ArrayList<>(source.knnSearch().size());
-        List<SetOnce<String>> nestedPath = new ArrayList<>(source.knnSearch().size());
-        for (int i = 0; i < source.knnSearch().size(); i++) {
-            topDocsLists.add(new ArrayList<>());
-            nestedPath.add(new SetOnce<>());
-        }
-
-        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
-            if (dfsSearchResult.knnResults() != null) {
-                for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
-                    DfsKnnResults knnResults = dfsSearchResult.knnResults().get(i);
-                    ScoreDoc[] scoreDocs = knnResults.scoreDocs();
-                    TotalHits totalHits = new TotalHits(scoreDocs.length, Relation.EQUAL_TO);
-                    TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
-                    setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
-                    topDocsLists.get(i).add(shardTopDocs);
-                    nestedPath.get(i).trySet(knnResults.getNestedPath());
-                }
-            }
-        }
-
-        List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
-        for (int i = 0; i < source.knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
-        }
-        return mergedResults;
     }
 
     /**
@@ -190,7 +103,7 @@ public final class SearchPhaseController {
      */
     static SortedTopDocs sortDocs(
         boolean ignoreFrom,
-        final Collection<TopDocs> topDocs,
+        final List<TopDocs> topDocs,
         int from,
         int size,
         List<CompletionSuggestion> reducedCompletionSuggestions
@@ -233,36 +146,44 @@ public final class SearchPhaseController {
         return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, groupField, groupValues, numSuggestDocs);
     }
 
-    static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
-        if (results.isEmpty()) {
+    static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
+        List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
+        if (topDocsList.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.stream().findFirst().get();
-        final TopDocs mergedTopDocs;
-        final int numShards = results.size();
+        final TopDocs topDocs = topDocsList.getFirst();
+        final int numShards = topDocsList.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
-            final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
-            mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
-        } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
-        } else {
-            final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+        }
+        final TopDocs mergedTopDocs;
+        try {
+            if (topDocs instanceof TopFieldGroups firstTopDocs) {
+                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
+                mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
+            } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
+                TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+            } else {
+                final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
+                mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+            }
+        } catch (IllegalArgumentException e) {
+            logger.debug("Failed to merge top docs: ", e);
+            throw e;
         }
         return mergedTopDocs;
     }
 
-    private static Sort checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
+    private static Sort validateSameSortTypesAndMaybeRewrite(Collection<TopDocs> results, SortField[] firstSortFields) {
         Sort sort = new Sort(firstSortFields);
         if (results.size() < 2) return sort;
 
         SortField.Type[] firstTypes = null;
         boolean isFirstResult = true;
+        Set<Integer> fieldIdsWithMixedIntAndLongSorts = new HashSet<>();
         for (TopDocs topDocs : results) {
             // We don't actually merge in empty score docs, so ignore potentially mismatched types if there are no docs
             if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
@@ -288,20 +209,53 @@ public final class SearchPhaseController {
                             // for custom types that we can't resolve, we can't do the check
                             return sort;
                         }
-                        throw new IllegalArgumentException(
-                            "Can't sort on field ["
-                                + curSortFields[i].getField()
-                                + "]; the field has incompatible sort types: ["
-                                + firstTypes[i]
-                                + "] and ["
-                                + curType
-                                + "] across shards!"
-                        );
+                        // Check if we are mixing INT and LONG sort types, which is allowed
+                        if ((firstTypes[i] == SortField.Type.INT && curType == SortField.Type.LONG)
+                            || (firstTypes[i] == SortField.Type.LONG && curType == SortField.Type.INT)) fieldIdsWithMixedIntAndLongSorts
+                                .add(i);
+                        else {
+                            throw new IllegalArgumentException(
+                                "Can't sort on field ["
+                                    + curSortFields[i].getField()
+                                    + "]; the field has incompatible sort types: ["
+                                    + firstTypes[i]
+                                    + "] and ["
+                                    + curType
+                                    + "] across shards!"
+                            );
+                        }
                     }
                 }
             }
         }
+        if (fieldIdsWithMixedIntAndLongSorts.size() > 0) {
+            sort = rewriteSortAndResultsToLong(sort, results, fieldIdsWithMixedIntAndLongSorts);
+        }
         return sort;
+    }
+
+    /**
+     * Rewrite Sort objects and shards results for long sort for mixed fields:
+     * convert Sort to Long sort and convert fields' values to Long values.
+     * This is necessary to enable comparison of fields' values across shards for merging.
+     */
+    private static Sort rewriteSortAndResultsToLong(Sort sort, Collection<TopDocs> results, Set<Integer> fieldIdsWithMixedIntAndLongSorts) {
+        SortField[] newSortFields = sort.getSort();
+        for (int fieldIdx : fieldIdsWithMixedIntAndLongSorts) {
+            for (TopDocs topDocs : results) {
+                if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) continue;
+                SortField[] sortFields = ((TopFieldDocs) topDocs).fields;
+                if (getType(sortFields[fieldIdx]) == SortField.Type.INT) {
+                    for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                        fieldDoc.fields[fieldIdx] = ((Number) fieldDoc.fields[fieldIdx]).longValue();
+                    }
+                } else { // SortField.Type.LONG
+                    newSortFields[fieldIdx] = sortFields[fieldIdx];
+                }
+            }
+        }
+        return new Sort(newSortFields);
     }
 
     private static SortField.Type getType(SortField sortField) {
@@ -371,26 +325,28 @@ public final class SearchPhaseController {
         if (reducedQueryPhase.isEmptyResult) {
             return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
         }
-        ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
         try {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
-            return reducedQueryPhase.buildResponse(hits, fetchResults);
+            var res = reducedQueryPhase.buildResponse(hits, fetchResults);
+            hits = null;
+            return res;
         } finally {
-            hits.decRef();
+            if (hits != null) {
+                hits.decRef();
+            }
         }
     }
 
     private static void mergeSuggest(
         ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray,
-        SearchHits hits,
+        int currentOffset,
         ScoreDoc[] sortedDocs
     ) {
-        int currentOffset = hits.getHits().length;
         for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
             final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
             for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
@@ -498,49 +454,7 @@ public final class SearchPhaseController {
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
-     */
-    static ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        AggregationReduceContext.Builder aggReduceContextBuilder = new AggregationReduceContext.Builder() {
-            @Override
-            public AggregationReduceContext forPartialReduction() {
-                throw new UnsupportedOperationException("Scroll requests don't have aggs");
-            }
-
-            @Override
-            public AggregationReduceContext forFinalReduction() {
-                throw new UnsupportedOperationException("Scroll requests don't have aggs");
-            }
-        };
-        final TopDocsStats topDocsStats = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        final List<TopDocs> topDocs = new ArrayList<>();
-        for (SearchPhaseResult sortedResult : queryResults) {
-            QuerySearchResult queryResult = sortedResult.queryResult();
-            final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
-            assert td != null;
-            topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
-            // make sure we set the shard index before we add it - the consumer didn't do that yet
-            if (td.topDocs.scoreDocs.length > 0) {
-                setShardIndex(td.topDocs, queryResult.getShardIndex());
-                topDocs.add(td.topDocs);
-            }
-        }
-        return reducedQueryPhase(
-            queryResults,
-            Collections.emptyList(),
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            null,
-            true
-        );
-    }
-
-    /**
-     * Reduces the given query results and consumes all aggregations and profile results.
-     * @param queryResults a list of non-null query shard results
-     * @param bufferedAggs a list of pre-collected aggregations.
+     * @param reducedAggs already reduced aggregations
      * @param bufferedTopDocs a list of pre-collected top docs.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
      * @see QuerySearchResult#getAggs()
@@ -548,21 +462,18 @@ public final class SearchPhaseController {
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        List<DelayableWriteable<InternalAggregations>> bufferedAggs,
+        @Nullable InternalAggregations reducedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        AggregationReduceContext.Builder aggReduceContextBuilder,
-        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
-        boolean performFinalReduce
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
-            final TotalHits totalHits = topDocsStats.getTotalHits();
             return new ReducedQueryPhase(
-                totalHits,
+                topDocsStats.getTotalHits(),
                 topDocsStats.fetchHits,
                 topDocsStats.getMaxScore(),
                 false,
@@ -576,11 +487,11 @@ public final class SearchPhaseController {
                 numReducePhases,
                 0,
                 0,
-                true
+                true,
+                null
             );
         }
-        int total = queryResults.size();
-        final Collection<SearchPhaseResult> nonNullResults = new ArrayList<>();
+        final List<QuerySearchResult> nonNullResults = new ArrayList<>();
         boolean hasSuggest = false;
         boolean hasProfileResults = false;
         for (SearchPhaseResult queryResult : queryResults) {
@@ -590,12 +501,11 @@ public final class SearchPhaseController {
             }
             hasSuggest |= res.suggest() != null;
             hasProfileResults |= res.hasProfileResults();
-            nonNullResults.add(queryResult);
+            nonNullResults.add(res);
         }
-        queryResults = nonNullResults;
-        validateMergeSortValueFormats(queryResults);
-        if (queryResults.isEmpty()) {
-            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + total);
+        validateMergeSortValueFormats(nonNullResults);
+        if (nonNullResults.isEmpty()) {
+            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + queryResults.size());
             assert false : ex;
             throw ex;
         }
@@ -603,13 +513,13 @@ public final class SearchPhaseController {
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults
-            ? Maps.newMapWithExpectedSize(queryResults.size())
+            ? Maps.newMapWithExpectedSize(nonNullResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        Long timeRangeFilterFromMillis = null;
         DocValueFormat[] sortValueFormats = null;
-        for (SearchPhaseResult entry : queryResults) {
-            QuerySearchResult result = entry.queryResult();
+        for (QuerySearchResult result : nonNullResults) {
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
@@ -617,11 +527,20 @@ public final class SearchPhaseController {
                 sortValueFormats = result.sortValueFormats();
             }
 
+            if (result.getTimeRangeFilterFromMillis() != null) {
+                if (timeRangeFilterFromMillis == null) {
+                    timeRangeFilterFromMillis = result.getTimeRangeFilterFromMillis();
+                } else {
+                    // all shards should hold the same value, besides edge cases like different mappings
+                    // for event.ingested and @timestamp across indices being searched
+                    timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
+                }
+            }
+
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
-                    List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
-                    suggestionList.add(suggestion);
+                    groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>()).add(suggestion);
                     if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                         completionSuggestion.setShardIndex(result.getShardIndex());
                     }
@@ -629,69 +548,52 @@ public final class SearchPhaseController {
             }
             assert bufferedTopDocs.isEmpty() || result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             if (hasProfileResults) {
-                String key = result.getSearchShardTarget().toString();
-                profileShardResults.put(key, result.consumeProfileResult());
+                profileShardResults.put(result.getSearchShardTarget().toString(), result.consumeProfileResult());
             }
         }
-        final Suggest reducedSuggest;
-        final List<CompletionSuggestion> reducedCompletionSuggestions;
-        if (groupedSuggestions.isEmpty()) {
-            reducedSuggest = null;
-            reducedCompletionSuggestions = Collections.emptyList();
-        } else {
-            reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
-            reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
-        }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
-            ? null
-            : new SearchProfileResultsBuilder(profileShardResults);
+        final Suggest reducedSuggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         final SortedTopDocs sortedTopDocs;
         if (queryPhaseRankCoordinatorContext == null) {
-            sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
-        } else {
-            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
-                queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
-                topDocsStats
+            sortedTopDocs = sortDocs(
+                isScrollRequest,
+                bufferedTopDocs,
+                from,
+                size,
+                reducedSuggest == null ? Collections.emptyList() : reducedSuggest.filter(CompletionSuggestion.class)
             );
-            sortedTopDocs = new SortedTopDocs(rankedDocs, false, null, null, null, 0);
+        } else {
+            sortedTopDocs = new SortedTopDocs(
+                queryPhaseRankCoordinatorContext.rankQueryPhaseResults(nonNullResults, topDocsStats),
+                false,
+                null,
+                null,
+                null,
+                0
+            );
             size = sortedTopDocs.scoreDocs.length;
             // we need to reset from here as pagination and result trimming has already taken place
             // within the `QueryPhaseRankCoordinatorContext#rankQueryPhaseResults` and we don't want
             // to apply it again in the `getHits` method.
             from = 0;
         }
-        final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
-            totalHits,
+            topDocsStats.getTotalHits(),
             topDocsStats.fetchHits,
             topDocsStats.getMaxScore(),
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
             reducedSuggest,
-            aggregations,
-            profileBuilder,
+            reducedAggs,
+            profileShardResults.isEmpty() ? null : new SearchProfileResultsBuilder(profileShardResults),
             sortedTopDocs,
             sortValueFormats,
             queryPhaseRankCoordinatorContext,
             numReducePhases,
             size,
             from,
-            false
+            false,
+            timeRangeFilterFromMillis
         );
-    }
-
-    private static InternalAggregations reduceAggs(
-        AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        List<DelayableWriteable<InternalAggregations>> toReduce
-    ) {
-        return toReduce.isEmpty()
-            ? null
-            : InternalAggregations.topLevelReduceDelayable(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
     }
 
     /**
@@ -773,7 +675,8 @@ public final class SearchPhaseController {
         // the offset into the merged top hits
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
-        boolean isEmptyResult
+        boolean isEmptyResult,
+        Long timeRangeFilterFromMillis
     ) {
 
         public ReducedQueryPhase {
@@ -794,7 +697,8 @@ public final class SearchPhaseController {
                 timedOut,
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
-                numReducePhases
+                numReducePhases,
+                timeRangeFilterFromMillis
             );
         }
 
@@ -850,7 +754,7 @@ public final class SearchPhaseController {
         );
     }
 
-    public static final class TopDocsStats {
+    public static final class TopDocsStats implements Writeable {
         final int trackTotalHitsUpTo;
         long totalHits;
         private TotalHits.Relation totalHitsRelation;
@@ -890,6 +794,29 @@ public final class SearchPhaseController {
             }
         }
 
+        void add(TopDocsStats other) {
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                totalHits += other.totalHits;
+                if (other.totalHitsRelation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                    totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
+                }
+            }
+            fetchHits += other.fetchHits;
+            if (Float.isNaN(other.maxScore) == false) {
+                maxScore = Math.max(maxScore, other.maxScore);
+            }
+            if (other.timedOut) {
+                this.timedOut = true;
+            }
+            if (other.terminatedEarly != null) {
+                if (this.terminatedEarly == null) {
+                    this.terminatedEarly = other.terminatedEarly;
+                } else if (terminatedEarly) {
+                    this.terminatedEarly = true;
+                }
+            }
+        }
+
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value();
@@ -911,6 +838,30 @@ public final class SearchPhaseController {
                     this.terminatedEarly = true;
                 }
             }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(trackTotalHitsUpTo);
+            out.writeFloat(maxScore);
+            Lucene.writeTotalHits(out, new TotalHits(totalHits, totalHitsRelation));
+            out.writeVLong(fetchHits);
+            out.writeFloat(maxScore);
+            out.writeBoolean(timedOut);
+            out.writeOptionalBoolean(terminatedEarly);
+        }
+
+        public static TopDocsStats readFrom(StreamInput in) throws IOException {
+            TopDocsStats res = new TopDocsStats(in.readVInt());
+            res.maxScore = in.readFloat();
+            TotalHits totalHits = Lucene.readTotalHits(in);
+            res.totalHits = totalHits.value();
+            res.totalHitsRelation = totalHits.relation();
+            res.fetchHits = in.readVLong();
+            res.maxScore = in.readFloat();
+            res.timedOut = in.readBoolean();
+            res.terminatedEarly = in.readOptionalBoolean();
+            return res;
         }
     }
 

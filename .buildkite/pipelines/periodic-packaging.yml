@@ -8,21 +8,21 @@ steps:
         matrix:
           setup:
             image:
-              - debian-11
+              - debian-12
+              - debian-13
               - opensuse-leap-15
-              - oraclelinux-7
               - oraclelinux-8
-              - sles-12
+              - oraclelinux-9
               - sles-15
-              - ubuntu-1804
-              - ubuntu-2004
               - ubuntu-2204
+              - ubuntu-2404
               - rocky-8
               - rocky-9
-              - rhel-7
               - rhel-8
               - rhel-9
+              - rhel-10
               - almalinux-8
+              - almalinux-9
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -39,7 +39,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -55,7 +55,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -71,7 +71,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -87,7 +87,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -103,7 +103,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -119,7 +119,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -135,7 +135,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -151,7 +151,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -167,7 +167,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -183,7 +183,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -199,7 +199,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -215,7 +215,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -231,7 +231,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -247,7 +247,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -263,7 +263,7 @@ steps:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -272,69 +272,149 @@ steps:
         env:
           BWC_VERSION: 8.14.3
 
-      - label: "{{matrix.image}} / 8.15.4 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.15.4
+      - label: "{{matrix.image}} / 8.15.5 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.15.5
         timeout_in_minutes: 300
         matrix:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.15.4
+          BWC_VERSION: 8.15.5
 
-      - label: "{{matrix.image}} / 8.16.0 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.0
+      - label: "{{matrix.image}} / 8.16.6 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.6
         timeout_in_minutes: 300
         matrix:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.16.0
+          BWC_VERSION: 8.16.6
 
-      - label: "{{matrix.image}} / 8.17.0 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.0
+      - label: "{{matrix.image}} / 8.17.10 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.10
         timeout_in_minutes: 300
         matrix:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.17.0
+          BWC_VERSION: 8.17.10
 
-      - label: "{{matrix.image}} / 9.0.0 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.0
+      - label: "{{matrix.image}} / 8.18.8 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.18.8
         timeout_in_minutes: 300
         matrix:
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.0.0
+          BWC_VERSION: 8.18.8
+
+      - label: "{{matrix.image}} / 8.19.9 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.9
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2404
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.19.9
+
+      - label: "{{matrix.image}} / 9.0.8 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.8
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2404
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 9.0.8
+
+      - label: "{{matrix.image}} / 9.1.9 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.1.9
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2404
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 9.1.9
+
+      - label: "{{matrix.image}} / 9.2.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.2.3
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2404
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 9.2.3
+
+      - label: "{{matrix.image}} / 9.3.0 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.3.0
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2404
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 9.3.0
 
   - group: packaging-tests-windows
     steps:
@@ -345,9 +425,8 @@ steps:
         matrix:
           setup:
             image:
-              - windows-2016
-              - windows-2019
               - windows-2022
+              - windows-2025
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

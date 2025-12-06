@@ -10,13 +10,12 @@
 package org.elasticsearch.test.fixtures.krb5kdc;
 
 import com.github.dockerjava.api.model.ExposedPort;
-import com.github.dockerjava.api.model.Ports;
 
+import org.apache.commons.io.IOUtils;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TemporaryFolder;
-import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.RemoteDockerImage;
-import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 import org.testcontainers.utility.MountableFile;
 
 import java.io.IOException;
@@ -25,11 +24,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer {
-    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.0";
+    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.1";
+    public static final int KDC_PORT = 88;
+    public static final int KDC_ADMIN_PORT = 4444;
+
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private final ProvisioningId provisioningId;
     private Path krb5ConfFile;
@@ -39,14 +40,14 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
     public enum ProvisioningId {
         HDFS(
             "hdfs",
-            "/fixture/src/main/resources/provision/hdfs.sh",
+            "/fixture/provision/hdfs.sh",
             "/fixture/build/keytabs/hdfs_hdfs.build.elastic.co.keytab",
             "/fixture/build/keytabs/elasticsearch.keytab",
             "hdfs/hdfs.build.elastic.co@BUILD.ELASTIC.CO"
         ),
         PEPPA(
             "peppa",
-            "/fixture/src/main/resources/provision/peppa.sh",
+            "/fixture/provision/peppa.sh",
             "/fixture/build/keytabs/peppa.keytab",
             "/fixture/build/keytabs/HTTP_localhost.keytab",
             "peppa@BUILD.ELASTIC.CO"
@@ -74,27 +75,29 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
     public Krb5kDcContainer(ProvisioningId provisioningId) {
         super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
         this.provisioningId = provisioningId;
-        withNetwork(Network.newNetwork());
-        addExposedPorts(88, 4444);
+        addExposedPorts(KDC_PORT, KDC_ADMIN_PORT);
         withStartupTimeout(Duration.ofMinutes(2));
         withCreateContainerCmdModifier(cmd -> {
-            // Add previously exposed ports and UDP port
+            // Expose UDP port using --expose with -P flag approach
+            // This works around Docker Desktop macOS bug with random UDP port bindings
+            // See: https://github.com/docker/for-mac/issues/7754
+            // Note: publishAllPorts is required; direct port binding with Ports.Binding.empty() doesn't work
             List<ExposedPort> exposedPorts = new ArrayList<>();
             for (ExposedPort p : cmd.getExposedPorts()) {
                 exposedPorts.add(p);
             }
-            exposedPorts.add(ExposedPort.udp(88));
+            exposedPorts.add(ExposedPort.udp(KDC_PORT));
             cmd.withExposedPorts(exposedPorts);
-
-            // Add previous port bindings and UDP port binding
-            Ports ports = cmd.getPortBindings();
-            ports.bind(ExposedPort.udp(88), Ports.Binding.empty());
-            cmd.withPortBindings(ports);
+            // Enable publish all ports (-P flag) - only publishes ports that are exposed
+            // The krb5dc-fixture image only exposes port 88 (TCP+UDP), so this is safe
+            cmd.withPublishAllPorts(true);
         });
+        // HostPortWaitStrategy doesn't support UDP ports, so wait for TCP ports only
+        setWaitStrategy(Wait.forListeningPorts(KDC_PORT, KDC_ADMIN_PORT).withStartupTimeout(Duration.ofMinutes(2)));
         withNetworkAliases("kerberos.build.elastic.co", "build.elastic.co");
         withCopyFileToContainer(MountableFile.forHostPath("/dev/urandom"), "/dev/random");
         withExtraHost("kerberos.build.elastic.co", "127.0.0.1");
-        withCommand("bash", provisioningId.scriptPath);
+        withCommand("sh", provisioningId.scriptPath);
     }
 
     @Override
@@ -115,14 +118,31 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         temporaryFolder.delete();
     }
 
-    @SuppressWarnings("all")
+    @SuppressWarnings("unchecked")
     public String getConf() {
-        var bindings = Arrays.asList(getCurrentContainerInfo().getNetworkSettings().getPorts().getBindings().get(ExposedPort.udp(88)))
-            .stream()
-            .findFirst();
-        String hostPortSpec = bindings.get().getHostPortSpec();
+        // Retrieve the dynamically assigned UDP port
+        var portBindings = getCurrentContainerInfo().getNetworkSettings().getPorts().getBindings();
+        if (portBindings == null) {
+            throw new IllegalStateException(
+                "Port bindings are null - container may not be properly started. "
+                    + "Ensure the container has been started before calling getConf(). Container ID: "
+                    + getContainerId()
+            );
+        }
+        var udpBindings = portBindings.get(ExposedPort.udp(KDC_PORT));
+        if (udpBindings == null || udpBindings.length == 0) {
+            throw new IllegalStateException(
+                "UDP port "
+                    + KDC_PORT
+                    + " binding not found - container may not have properly exposed the UDP port. "
+                    + "This may indicate a Docker Desktop configuration issue or the container failed to start properly. "
+                    + "Container ID: "
+                    + getContainerId()
+            );
+        }
+        String hostPortSpec = udpBindings[0].getHostPortSpec();
         String s = copyFileFromContainer("/fixture/build/krb5.conf.template", i -> IOUtils.toString(i, StandardCharsets.UTF_8));
-        return s.replace("${MAPPED_PORT}", hostPortSpec);
+        return s.replace("#KDC_DOCKER_HOST", "kdc = 127.0.0.1:" + hostPortSpec);
     }
 
     public Path getKeytab() {
@@ -158,7 +178,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         }
         try {
             krb5ConfFile = temporaryFolder.newFile("krb5.conf").toPath();
-            Files.write(krb5ConfFile, getConf().getBytes(StandardCharsets.UTF_8));
+            Files.writeString(krb5ConfFile, getConf());
             return krb5ConfFile;
         } catch (IOException e) {
             throw new RuntimeException(e);

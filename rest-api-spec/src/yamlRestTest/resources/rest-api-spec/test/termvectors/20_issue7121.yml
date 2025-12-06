@@ -7,7 +7,6 @@
               index:
                 translog.flush_threshold_size: "512MB"
                 number_of_shards: 1
-                number_of_replicas: 0
                 refresh_interval: -1
             mappings:
               properties:
@@ -17,7 +16,7 @@
 
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_no_initializing_shards: true
 
   - do:
       index:

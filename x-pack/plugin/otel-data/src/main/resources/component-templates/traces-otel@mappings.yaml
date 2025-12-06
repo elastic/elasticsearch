@@ -10,8 +10,6 @@ template:
       sort:
         field: [ "resource.attributes.host.name", "@timestamp" ]
   mappings:
-    _source:
-      mode: synthetic
     properties:
       trace_id:
         type: keyword
@@ -43,6 +41,13 @@ template:
           unit: nanos
       dropped_events_count:
         type: long
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 20
+        properties:
+          elastic.profiler_stack_trace_ids:
+            type: counted_keyword
       links:
         synthetic_source_keep: arrays
         properties:

@@ -71,8 +71,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             // make between 0 and 5 different values of the same type
             String fieldName = randomValueOtherThanMany(
                 choice -> choice.equals(GEO_POINT_FIELD_NAME)
+                    || choice.equals(BINARY_FIELD_NAME)
                     || choice.equals(GEO_POINT_ALIAS_FIELD_NAME)
                     || choice.equals(INT_RANGE_FIELD_NAME)
+                    || choice.equals(DATE_ALIAS_FIELD_NAME)
                     || choice.equals(DATE_RANGE_FIELD_NAME)
                     || choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
                 AbstractQueryTestCase::getRandomFieldName
@@ -115,6 +117,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
             // we only do the check below for string fields (otherwise we'd have to decode the values)
             if (queryBuilder.fieldName().equals(INT_FIELD_NAME)
+                || queryBuilder.fieldName().equals(INT_ALIAS_FIELD_NAME)
                 || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
                 || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME)
                 || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {

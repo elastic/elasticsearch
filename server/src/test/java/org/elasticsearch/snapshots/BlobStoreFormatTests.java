@@ -11,6 +11,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -95,8 +97,9 @@ public class BlobStoreFormatTests extends ESTestCase {
         checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true);
 
         // Assert that all checksum blobs can be read
-        assertEquals(normalText, checksumSMILE.read("repo", blobContainer, "check-smile", xContentRegistry()).getText());
-        assertEquals(compressedText, checksumSMILE.read("repo", blobContainer, "check-smile-comp", xContentRegistry()).getText());
+        final var projectRepo = new ProjectRepo(ProjectId.DEFAULT, "repo");
+        assertEquals(normalText, checksumSMILE.read(projectRepo, blobContainer, "check-smile", xContentRegistry()).getText());
+        assertEquals(compressedText, checksumSMILE.read(projectRepo, blobContainer, "check-smile-comp", xContentRegistry()).getText());
     }
 
     public void testCompressionIsApplied() throws IOException {
@@ -133,10 +136,11 @@ public class BlobStoreFormatTests extends ESTestCase {
             Function.identity()
         );
         checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean());
-        assertEquals(checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry()).getText(), testString);
+        final var projectRepo = new ProjectRepo(ProjectId.DEFAULT, "repo");
+        assertEquals(checksumFormat.read(projectRepo, blobContainer, "test-path", xContentRegistry()).getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {
-            checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry());
+            checksumFormat.read(projectRepo, blobContainer, "test-path", xContentRegistry());
             fail("Should have failed due to corruption");
         } catch (ElasticsearchCorruptionException | EOFException ex) {
             // expected exceptions from random byte corruption

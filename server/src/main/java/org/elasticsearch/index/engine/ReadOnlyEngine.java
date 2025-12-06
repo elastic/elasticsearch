@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.PointValues;
@@ -21,6 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -97,8 +99,8 @@ public class ReadOnlyEngine extends Engine {
     @SuppressWarnings("this-escape")
     public ReadOnlyEngine(
         EngineConfig config,
-        SeqNoStats seqNoStats,
-        TranslogStats translogStats,
+        @Nullable SeqNoStats seqNoStats,
+        @Nullable TranslogStats translogStats,
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
         boolean requireCompleteHistory,
@@ -220,7 +222,7 @@ public class ReadOnlyEngine extends Engine {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         DirectoryReader directoryReader = DirectoryReader.open(
             commit,
-            org.apache.lucene.util.Version.MIN_SUPPORTED_MAJOR,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major,
             engineConfig.getLeafSorter()
         );
         if (lazilyLoadSoftDeletes) {
@@ -243,14 +245,8 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
-        final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
-        long maxSeqNo = seqNoStats.maxSeqNo();
-        long localCheckpoint = seqNoStats.localCheckpoint();
-        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
-    }
-
     private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
+        assert config.getTranslogConfig().hasTranslog();
         final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
         if (translogUuid == null) {
             throw new IllegalStateException("commit doesn't contain translog unique id");
@@ -266,7 +262,8 @@ public class ReadOnlyEngine extends Engine {
                 translogDeletionPolicy,
                 config.getGlobalCheckpointSupplier(),
                 config.getPrimaryTermSupplier(),
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             return translog.stats();
@@ -356,7 +353,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true)) {
+        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true, -1)) {
             return snapshot.totalOperations();
         }
     }
@@ -368,7 +365,8 @@ public class ReadOnlyEngine extends Engine {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) {
         return Translog.Snapshot.EMPTY;
     }
@@ -443,7 +441,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
-        listener.onResponse(RefreshResult.NO_REFRESH);
+        ActionListener.completeWith(listener, () -> refresh(source));
     }
 
     @Override
@@ -456,7 +454,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        listener.onResponse(new FlushResult(true, lastCommittedSegmentInfos.getGeneration()));
+        listener.onResponse(new FlushResult(false, lastCommittedSegmentInfos.getGeneration()));
     }
 
     @Override
@@ -503,6 +501,12 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void deactivateThrottling() {}
+
+    @Override
+    public void suspendThrottling() {}
+
+    @Override
+    public void resumeThrottling() {}
 
     @Override
     public void trimUnreferencedTranslogFiles() {}
@@ -573,7 +577,8 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader openDirectory(Directory directory) throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
-        final DirectoryReader reader = DirectoryReader.open(directory);
+        var commit = Lucene.getIndexCommit(Lucene.readSegmentInfos(directory), directory);
+        final DirectoryReader reader = DirectoryReader.open(commit, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major, null);
         if (lazilyLoadSoftDeletes) {
             return new LazySoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {
@@ -598,19 +603,27 @@ public class ReadOnlyEngine extends Engine {
             final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);
             final byte[] maxPackedValue = PointValues.getMaxPackedValue(directoryReader, field);
 
-            if (minPackedValue == null || maxPackedValue == null) {
-                assert minPackedValue == null && maxPackedValue == null
-                    : Arrays.toString(minPackedValue) + "-" + Arrays.toString(maxPackedValue);
-                return ShardLongFieldRange.EMPTY;
+            if (minPackedValue != null && maxPackedValue != null) {
+                return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
             }
 
-            return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
+            long minValue = DocValuesSkipper.globalMinValue(searcher, field);
+            long maxValue = DocValuesSkipper.globalMaxValue(searcher, field);
+            if (minValue == Long.MAX_VALUE && maxValue == Long.MIN_VALUE) {
+                // no skipper
+                return ShardLongFieldRange.EMPTY;
+            }
+            return ShardLongFieldRange.of(minValue, maxValue);
         }
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
+        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
         return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {

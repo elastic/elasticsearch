@@ -1,0 +1,194 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+plugins {
+  id "elasticsearch.internal-java-rest-test"
+}
+
+esplugin {
+  name = "microsoft-graph-authz"
+  description = "Microsoft Graph Delegated Authorization Realm Plugin"
+  classname = "org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPlugin"
+  extendedPlugins = ["x-pack-security"]
+}
+
+def patched = Attribute.of('patched', Boolean)
+
+configurations {
+  compileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  runtimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+}
+
+dependencies {
+  compileOnly project(":x-pack:plugin:core")
+
+  implementation "com.microsoft.graph:microsoft-graph:6.36.0"
+  implementation "com.microsoft.graph:microsoft-graph-core:3.6.1"
+  implementation project(path: "kiota-merged", configuration: 'shadow')
+  implementation "com.azure:azure-identity:1.15.4"
+  implementation "com.azure:azure-core:1.55.3"
+  implementation "com.azure:azure-json:1.5.0"
+  implementation "com.azure:azure-xml:1.2.0"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  implementation "org.reactivestreams:reactive-streams:1.0.4"
+  implementation "io.projectreactor:reactor-core:3.7.5"
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "com.microsoft.azure:msal4j:1.19.1"
+  runtimeOnly "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
+  runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
+  runtimeOnly "net.java.dev.jna:jna-platform:${versions.jna}"
+  runtimeOnly "io.opentelemetry:opentelemetry-api:1.50.0"
+  runtimeOnly "io.opentelemetry:opentelemetry-context:1.50.0"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:1.6.20"
+  implementation "com.squareup.okhttp3:okhttp:4.11.0"
+  runtimeOnly "com.squareup.okio:okio:3.4.0"
+  runtimeOnly "com.squareup.okio:okio-jvm:3.4.0"
+  runtimeOnly "io.github.std-uritemplate:std-uritemplate:2.0.0"
+  implementation "com.azure:azure-core-http-okhttp:1.12.10"
+  implementation "com.google.code.gson:gson:2.10"
+
+  testRuntimeOnly "net.minidev:json-smart:2.5.2"
+  testRuntimeOnly "com.nimbusds:oauth2-oidc-sdk:11.22.2"
+  testRuntimeOnly "com.nimbusds:content-type:2.3"
+  testImplementation testArtifact(project(":x-pack:plugin:core"))
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.azurecore.AzureCoreClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+  }
+}
+
+tasks.named("javadoc").configure { enabled = false }
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: "microsoft-graph-core", to: "microsoft-graph"
+  mapping from: /azure-.*/, to: "azure"
+  mapping from: /jackson.*/, to: "jackson"
+  mapping from: /kotlin.*/, to: "kotlin"
+  mapping from: /msal4j.*/, to: "msal4j"
+  mapping from: /jna.*/, to: "jna"
+  mapping from: /opentelemetry.*/, to: "opentelemetry"
+  mapping from: /okio.*/, to: "okio"
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
+  )
+
+  ignoreMissingClasses(
+    'android.net.http.X509TrustManagerExtensions',
+    'android.net.ssl.SSLSockets',
+    'android.os.Build$VERSION',
+    'android.security.NetworkSecurityPolicy',
+    'android.util.Log',
+    'com.auth0.jwk.Jwk',
+    'com.auth0.jwk.JwkProvider',
+    'com.nimbusds.common.contenttype.ContentType',
+    'com.nimbusds.jose.JWSAlgorithm',
+    'com.nimbusds.jose.JWSHeader$Builder',
+    'com.nimbusds.jose.util.Base64URL',
+    'com.nimbusds.jose.util.StandardCharset',
+    'com.nimbusds.jwt.JWT',
+    'com.nimbusds.jwt.JWTClaimsSet',
+    'com.nimbusds.jwt.JWTClaimsSet$Builder',
+    'com.nimbusds.jwt.JWTParser',
+    'com.nimbusds.jwt.SignedJWT',
+    'com.nimbusds.oauth2.sdk.AuthorizationGrant',
+    'com.nimbusds.oauth2.sdk.GrantType',
+    'com.nimbusds.oauth2.sdk.ParseException',
+    'com.nimbusds.oauth2.sdk.ResourceOwnerPasswordCredentialsGrant',
+    'com.nimbusds.oauth2.sdk.SAML2BearerGrant',
+    'com.nimbusds.oauth2.sdk.auth.ClientAuthentication',
+    'com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod',
+    'com.nimbusds.oauth2.sdk.auth.JWTAuthenticationClaimsSet',
+    'com.nimbusds.oauth2.sdk.auth.PrivateKeyJWT',
+    'com.nimbusds.oauth2.sdk.auth.Secret',
+    'com.nimbusds.oauth2.sdk.http.HTTPRequest',
+    'com.nimbusds.oauth2.sdk.http.HTTPRequest$Method',
+    'com.nimbusds.oauth2.sdk.http.HTTPResponse',
+    'com.nimbusds.oauth2.sdk.id.ClientID',
+    'com.nimbusds.oauth2.sdk.token.AccessToken',
+    'com.nimbusds.oauth2.sdk.token.RefreshToken',
+    'com.nimbusds.oauth2.sdk.util.JSONObjectUtils',
+    'com.nimbusds.oauth2.sdk.util.URLUtils',
+    'com.nimbusds.openid.connect.sdk.OIDCTokenResponse',
+    'com.nimbusds.openid.connect.sdk.token.OIDCTokens',
+    'io.jsonwebtoken.Claims',
+    'io.jsonwebtoken.JweHeader',
+    'io.jsonwebtoken.Jws',
+    'io.jsonwebtoken.JwsHeader',
+    'io.jsonwebtoken.JwtParser',
+    'io.jsonwebtoken.JwtParserBuilder',
+    'io.jsonwebtoken.Jwts',
+    'io.jsonwebtoken.LocatorAdapter',
+    'io.micrometer.context.ContextAccessor',
+    'io.micrometer.context.ContextRegistry',
+    'io.micrometer.context.ContextSnapshot',
+    'io.micrometer.context.ContextSnapshot$Scope',
+    'io.micrometer.context.ContextSnapshotFactory',
+    'io.micrometer.context.ContextSnapshotFactory$Builder',
+    'io.micrometer.context.ThreadLocalAccessor',
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+    'kotlin.io.path.PathsKt',
+    'net.minidev.json.JSONObject',
+    'org.bouncycastle.jsse.BCSSLParameters',
+    'org.bouncycastle.jsse.BCSSLSocket',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.Conscrypt$Version',
+    'org.conscrypt.ConscryptHostnameVerifier',
+    'org.openjsse.javax.net.ssl.SSLParameters',
+    'org.openjsse.javax.net.ssl.SSLSocket',
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
+  )
+}

@@ -7,17 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.test-build-info'
+apply plugin: 'elasticsearch.transport-version-references'
+apply plugin: 'elasticsearch.transport-version-resources'
 
 publishing {
   publications {
     elastic {
-      artifactId 'elasticsearch'
+      artifactId = 'elasticsearch'
     }
   }
 }
@@ -28,17 +29,18 @@ base {
 
 dependencies {
 
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-logging')
-  api project(':libs:elasticsearch-secure-sm')
-  api project(':libs:elasticsearch-x-content')
-  api project(":libs:elasticsearch-geo")
-  api project(":libs:elasticsearch-lz4")
-  api project(":libs:elasticsearch-plugin-api")
-  api project(":libs:elasticsearch-plugin-analysis-api")
-  api project(':libs:elasticsearch-grok')
-  api project(":libs:elasticsearch-tdigest")
-  implementation project(":libs:elasticsearch-simdvec")
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:x-content')
+  api project(":libs:geo")
+  api project(":libs:lz4")
+  api project(":libs:plugin-api")
+  api project(":libs:plugin-analysis-api")
+  api project(':libs:grok')
+  api project(":libs:tdigest")
+  api project(":libs:exponential-histogram")
+  implementation project(":libs:simdvec")
+  implementation project(":libs:entitlement")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -56,7 +58,7 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
   // precentil ranks aggregation
@@ -67,7 +69,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // access to native functions
-  implementation project(':libs:elasticsearch-native')
+  implementation project(':libs:native')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -76,11 +78,17 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
+  testImplementation(testArtifact(project(":libs:exponential-histogram"))) {
+    // The test framework is manually included with excludes above
+    exclude group: 'org.elasticsearch.test', module: 'framework'
+  }
+
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
+  internalClusterTestImplementation(project(':modules:data-streams'))
 }
 
 spotless {
@@ -132,31 +140,17 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
 }
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
-  excludes << '**/IndexSettingsOverrideTests.class'
-}
-
-TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOverrideTest", Test) {
-  include '**/IndexSettingsOverrideTests.class'
-  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
-  classpath = sourceSets.test.runtimeClasspath
-  testClassesDirs = sourceSets.test.output.classesDirs
-}
-
-tasks.named("check").configure {
-  dependsOn(indexSettingsOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -274,3 +268,10 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
+
+tasks.named("generateTestBuildInfo").configure {
+  t -> {
+    t.getComponentName().set("server")
+    t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/server-test-build-info.json"))
+  }
+}

@@ -10,11 +10,11 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-  name 'rest-handler'
-  description 'An example plugin showing how to register a REST handler'
-  classname 'org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
-  licenseFile rootProject.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  name = 'rest-handler'
+  description = 'An example plugin showing how to register a REST handler'
+  classname ='org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
+  licenseFile = layout.settingsDirectory.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
 }
 
 dependencies {

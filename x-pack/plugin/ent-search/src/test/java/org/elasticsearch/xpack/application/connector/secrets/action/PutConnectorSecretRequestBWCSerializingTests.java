@@ -28,7 +28,14 @@ public class PutConnectorSecretRequestBWCSerializingTests extends AbstractBWCWir
 
     @Override
     protected PutConnectorSecretRequest mutateInstance(PutConnectorSecretRequest instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String id = instance.id();
+        String value = instance.value();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> id = randomValueOtherThan(id, () -> randomAlphaOfLengthBetween(5, 15));
+            case 1 -> value = randomValueOtherThan(value, () -> randomAlphaOfLengthBetween(1, 20));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutConnectorSecretRequest(id, value);
     }
 
     @Override

@@ -10,8 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,7 +32,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -44,11 +40,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
 
-    public static final NodeFeature RANGE_FLOAT_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.range_float_processors");
-    public static final NodeFeature DOUBLE_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.double_processors");
-    public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated");
-
-    public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
+    private static final TransportVersion REMOVE_DESIRED_NODE_VERSION = TransportVersion.fromName("remove_desired_node_version");
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -159,20 +151,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var settings = Settings.readSettingsFromStream(in);
         final Processors processors;
         final ProcessorsRange processorsRange;
-        if (in.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            processors = in.readOptionalWriteable(Processors::readFrom);
-            processorsRange = in.readOptionalWriteable(ProcessorsRange::readFrom);
-        } else {
-            processors = Processors.readFrom(in);
-            processorsRange = null;
-        }
+        processors = in.readOptionalWriteable(Processors::readFrom);
+        processorsRange = in.readOptionalWriteable(ProcessorsRange::readFrom);
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
-        final String version;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            version = in.readOptionalString();
-        } else {
-            version = Version.readVersion(in).toString();
+        if (in.getTransportVersion().supports(REMOVE_DESIRED_NODE_VERSION) == false) {
+            in.readOptionalString();
         }
         return new DesiredNode(settings, processors, processorsRange, memory, storage);
     }
@@ -180,20 +164,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         settings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            out.writeOptionalWriteable(processors);
-            out.writeOptionalWriteable(processorsRange);
-        } else {
-            assert processorsRange == null;
-            assert processors != null;
-            processors.writeTo(out);
-        }
+        out.writeOptionalWriteable(processors);
+        out.writeOptionalWriteable(processorsRange);
         memory.writeTo(out);
         storage.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+        if (out.getTransportVersion().supports(REMOVE_DESIRED_NODE_VERSION) == false) {
             out.writeOptionalString(null);
-        } else {
-            Version.writeVersion(Version.CURRENT, out);
         }
     }
 
@@ -284,10 +260,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     public Set<DiscoveryNodeRole> getRoles() {
         return roles;
-    }
-
-    public boolean clusterHasRequiredFeatures(Predicate<NodeFeature> clusterHasFeature) {
-        return (processorsRange == null && processors.hasDecimals() == false) || clusterHasFeature.test(RANGE_FLOAT_PROCESSORS_SUPPORTED);
     }
 
     @Override

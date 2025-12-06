@@ -13,33 +13,40 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettingsTests;
@@ -49,42 +56,51 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModelTests;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.API_KEY_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.API_KEY_HEADER;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AzureAiStudioServiceTests extends ESTestCase {
+public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -93,7 +109,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -130,34 +146,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null);
-
-            var config = getRequestConfigMap(
-                serviceSettings,
-                getEmbeddingsTaskSettingsMap("user"),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
-            );
-
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> fail("Expected exception, but got model: " + model),
-                exception -> {
-                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
-                }
-            );
-
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
-        }
-    }
-
-    public void testParseRequestConfig_CreatesAnAzureAiStudioEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnAzureAiStudioEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -185,9 +174,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAnAzureAiStudioEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParseRequestConfig_CreatesAnAzureAiStudioEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
@@ -241,6 +228,33 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
+    public void testParseRequestConfig_CreatesAnAzureAiStudioRerankModel() throws IOException {
+        try (var service = createService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
+
+                var rerankModel = (AzureAiStudioRerankModel) model;
+                assertThat(rerankModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(rerankModel.getServiceSettings().provider(), is(AzureAiStudioProvider.COHERE));
+                assertThat(rerankModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+                assertThat(rerankModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertNull(rerankModel.getTaskSettings().returnDocuments());
+                assertNull(rerankModel.getTaskSettings().topN());
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.RERANK,
+                getRequestConfigMap(
+                    getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                    getRerankTaskSettingsMap(null, null),
+                    getSecretSettingsMap("secret")
+                ),
+                modelVerificationListener
+            );
+        }
+    }
+
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -279,7 +293,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -301,7 +315,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -350,7 +364,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -376,7 +390,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -402,7 +416,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -428,7 +442,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
@@ -454,12 +468,86 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
                         exception.getMessage(),
-                        is("Model configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
                     );
                 }
             );
 
             service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInRerankServiceSettingsMap() throws IOException {
+        try (var service = createService()) {
+            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            serviceSettings.put("extra_key", "value");
+
+            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInRerankTaskSettingsMap() throws IOException {
+        try (var service = createService()) {
+            var taskSettings = getRerankTaskSettingsMap(null, null);
+            taskSettings.put("extra_key", "value");
+
+            var config = getRequestConfigMap(
+                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                taskSettings,
+                getSecretSettingsMap("secret")
+            );
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInRerankSecretSettingsMap() throws IOException {
+        try (var service = createService()) {
+            var secretSettings = getSecretSettingsMap("secret");
+            secretSettings.put("extra_key", "value");
+
+            var config = getRequestConfigMap(
+                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                getRerankTaskSettingsMap(null, null),
+                secretSettings
+            );
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("Configuration contains settings [{extra_key=value}] unknown to the [azureaistudio] service")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
         }
     }
 
@@ -527,6 +615,45 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
+    public void testParseRequestConfig_ThrowsWhenProviderIsNotValidForRerank() throws IOException {
+        try (var service = createService()) {
+            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "databricks", "token");
+
+            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(exception.getMessage(), is("The [rerank] task type for provider [databricks] is not available"));
+                }
+            );
+
+            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsWhenEndpointTypeIsNotValidForRerankProvider() throws IOException {
+        try (var service = createService()) {
+            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "realtime");
+
+            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(
+                        exception.getMessage(),
+                        is("The [realtime] endpoint type with [rerank] task type for provider [cohere] is not available")
+                    );
+                }
+            );
+
+            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+        }
+    }
+
     public void testParsePersistedConfig_CreatesAnAzureAiStudioEmbeddingsModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
@@ -551,37 +678,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createService()) {
-            var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
-                getEmbeddingsTaskSettingsMap("user"),
-                createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
-
-            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
-
-            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
-            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
-            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
-            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
-            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
@@ -607,9 +704,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
@@ -657,6 +752,27 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfig_CreatesAnAzureAiStudioRerankModel() throws IOException {
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                getRerankTaskSettingsMap(true, 2),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
+
+            var chatCompletionModel = (AzureAiStudioRerankModel) model;
+            assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.COHERE));
+            assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(chatCompletionModel.getTaskSettings().returnDocuments(), is(true));
+            assertThat(chatCompletionModel.getTaskSettings().topN(), is(2));
+        }
+    }
+
     public void testParsePersistedConfig_ThrowsUnsupportedModelType() throws IOException {
         try (var service = createService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -693,9 +809,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 () -> service.parsePersistedConfigWithSecrets("id", TaskType.SPARSE_EMBEDDING, config.config(), config.secrets())
             );
 
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [azureaistudio] service"));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [azureaistudio] service, please delete and add the service again")
+                containsString("The [azureaistudio] service does not support task type [sparse_embedding]")
             );
         }
     }
@@ -801,6 +918,48 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInRerankServiceSettingsMap() throws IOException {
+        try (var service = createService()) {
+            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            serviceSettings.put("extra_key", "value");
+            var taskSettings = getRerankTaskSettingsMap(true, 2);
+            var secretSettings = getSecretSettingsMap("secret");
+            var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
+        }
+    }
+
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInRerankTaskSettingsMap() throws IOException {
+        try (var service = createService()) {
+            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            var taskSettings = getRerankTaskSettingsMap(true, 2);
+            taskSettings.put("extra_key", "value");
+            var secretSettings = getSecretSettingsMap("secret");
+            var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
+        }
+    }
+
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInRerankSecretSettingsMap() throws IOException {
+        try (var service = createService()) {
+            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            var taskSettings = getRerankTaskSettingsMap(true, 2);
+            var secretSettings = getSecretSettingsMap("secret");
+            secretSettings.put("extra_key", "value");
+            var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
+
+            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+
+            assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
+        }
+    }
+
     public void testParsePersistedConfig_WithoutSecretsCreatesEmbeddingsModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
@@ -824,35 +983,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_WithoutSecretsCreatesAnEmbeddingsModelWithoutChunkingSettingsFeatureFlagDisabled()
-        throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
-        try (var service = createService()) {
-            var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
-                getEmbeddingsTaskSettingsMap("user"),
-                createRandomChunkingSettingsMap(),
-                Map.of()
-            );
-
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
-
-            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
-
-            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
-            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
-            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
-            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
-            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
-            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
-        }
-    }
-
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
@@ -877,8 +1008,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
@@ -925,150 +1055,147 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testCheckModelConfig_ForEmbeddingsModel_Works() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingResultJson));
-
-            var model = AzureAiStudioEmbeddingsModelTests.createModel(
-                "id",
-                getUrl(webServer),
-                AzureAiStudioProvider.OPENAI,
-                AzureAiStudioEndpointType.TOKEN,
-                "apikey",
-                null,
-                false,
-                null,
-                null,
-                null,
-                null
+    public void testParsePersistedConfig_WithoutSecretsCreatesRerankModel() throws IOException {
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                getRerankTaskSettingsMap(true, 2),
+                Map.of()
             );
 
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
+            var model = service.parsePersistedConfig("id", TaskType.RERANK, config.config());
 
-            var result = listener.actionGet(TIMEOUT);
-            assertThat(
-                result,
-                is(
-                    AzureAiStudioEmbeddingsModelTests.createModel(
-                        "id",
-                        getUrl(webServer),
-                        AzureAiStudioProvider.OPENAI,
-                        AzureAiStudioEndpointType.TOKEN,
-                        "apikey",
-                        2,
-                        false,
-                        null,
-                        SimilarityMeasure.DOT_PRODUCT,
-                        null,
-                        null
-                    )
-                )
-            );
+            assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
 
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"))));
+            var rerankModel = (AzureAiStudioRerankModel) model;
+            assertThat(rerankModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(rerankModel.getServiceSettings().provider(), is(AzureAiStudioProvider.COHERE));
+            assertThat(rerankModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(rerankModel.getTaskSettings().returnDocuments(), is(true));
+            assertThat(rerankModel.getTaskSettings().topN(), is(2));
         }
     }
 
-    public void testCheckModelConfig_ForEmbeddingsModel_ThrowsIfEmbeddingSizeDoesNotMatchValueSetByUser() throws IOException {
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingResultJson));
-
-            var model = AzureAiStudioEmbeddingsModelTests.createModel(
-                "id",
-                getUrl(webServer),
-                AzureAiStudioProvider.OPENAI,
-                AzureAiStudioEndpointType.TOKEN,
-                "apikey",
-                3,
-                true,
-                null,
-                null,
-                null,
-                null
-            );
-
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
-
-            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(
-                exception.getMessage(),
-                is(
-                    "The retrieved embeddings size [2] does not match the size specified in the settings [3]. "
-                        + "Please recreate the [id] configuration with the correct dimensions"
-                )
-            );
-
-            assertThat(webServer.requests(), hasSize(1));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "dimensions", 3)));
-        }
-    }
-
-    public void testCheckModelConfig_WorksForChatCompletionsModel() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
-
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AzureAiStudioChatCompletionModelTests.createModel(
-                "id",
-                getUrl(webServer),
-                AzureAiStudioProvider.OPENAI,
-                AzureAiStudioEndpointType.TOKEN,
-                "apikey",
-                null,
-                null,
-                null,
-                null,
-                null
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomFrom(AzureAiStudioProvider.values()),
+                randomFrom(AzureAiStudioEndpointType.values()),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = AzureAiStudioEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomFrom(AzureAiStudioProvider.values()),
+                randomFrom(AzureAiStudioEndpointType.values()),
+                randomAlphaOfLength(10),
+                randomNonNegativeInt(),
+                randomBoolean(),
+                randomNonNegativeInt(),
+                similarityMeasure,
+                randomAlphaOfLength(10),
+                RateLimitSettingsTests.createRandom()
             );
 
-            PlainActionFuture<Model> listener = new PlainActionFuture<>();
-            service.checkModelConfig(model, listener);
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
 
-            var result = listener.actionGet(TIMEOUT);
-            assertThat(
-                result,
-                is(
-                    AzureAiStudioChatCompletionModelTests.createModel(
-                        "id",
-                        getUrl(webServer),
-                        AzureAiStudioProvider.OPENAI,
-                        AzureAiStudioEndpointType.TOKEN,
-                        "apikey",
-                        null,
-                        null,
-                        null,
-                        AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS,
-                        null
-                    )
-                )
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
+    public void testUpdateModelWithChatCompletionDetails_InvalidModelProvided() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = AzureAiStudioEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomFrom(AzureAiStudioProvider.values()),
+                randomFrom(AzureAiStudioEndpointType.values()),
+                randomAlphaOfLength(10),
+                randomNonNegativeInt(),
+                randomBoolean(),
+                randomNonNegativeInt(),
+                randomFrom(SimilarityMeasure.values()),
+                randomAlphaOfLength(10),
+                RateLimitSettingsTests.createRandom()
             );
+            assertThrows(ElasticsearchStatusException.class, () -> { service.updateModelWithChatCompletionDetails(model); });
+        }
+    }
+
+    public void testUpdateModelWithChatCompletionDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithChatCompletionDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithChatCompletionDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithChatCompletionDetails_Successful(randomNonNegativeInt());
+    }
+
+    private void testUpdateModelWithChatCompletionDetails_Successful(Integer maxNewTokens) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = AzureAiStudioChatCompletionModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomFrom(AzureAiStudioProvider.values()),
+                randomFrom(AzureAiStudioEndpointType.values()),
+                randomAlphaOfLength(10),
+                randomDouble(),
+                randomDouble(),
+                randomBoolean(),
+                maxNewTokens,
+                RateLimitSettingsTests.createRandom()
+            );
+
+            Model updatedModel = service.updateModelWithChatCompletionDetails(model);
+            assertThat(updatedModel, instanceOf(AzureAiStudioChatCompletionModel.class));
+            AzureAiStudioChatCompletionTaskSettings updatedTaskSettings = (AzureAiStudioChatCompletionTaskSettings) updatedModel
+                .getTaskSettings();
+            Integer expectedMaxNewTokens = maxNewTokens == null
+                ? AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS
+                : maxNewTokens;
+            assertEquals(expectedMaxNewTokens, updatedTaskSettings.maxNewTokens());
         }
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotAzureAiStudioModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -1085,7 +1212,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1093,25 +1220,46 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testChunkedInfer() throws IOException {
-        var model = AzureAiStudioEmbeddingsModelTests.createModel(
-            "id",
-            getUrl(webServer),
-            AzureAiStudioProvider.OPENAI,
-            AzureAiStudioEndpointType.TOKEN,
-            "apikey",
-            null,
-            false,
-            null,
-            null,
-            "user",
-            null
-        );
-        testChunkedInfer(model);
+    public void testInfer_ThrowsValidationErrorForInvalidInputType() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var mockModel = getInvalidModel("model_id", "service_name");
+
+        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            service.infer(
+                mockModel,
+                null,
+                null,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.CLASSIFICATION,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Input type [classification] is not supported for [Azure AI Studio];")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).startAsynchronously(any());
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
     }
 
-    public void testChunkedInfer_ChunkingSettingsSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = AzureAiStudioEmbeddingsModelTests.createModel(
             "id",
             getUrl(webServer),
@@ -1129,8 +1277,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         testChunkedInfer(model);
     }
 
-    public void testChunkedInfer_ChunkingSettingsNotSetAndFeatureFlagEnabled() throws IOException {
-        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+    public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = AzureAiStudioEmbeddingsModelTests.createModel(
             "id",
             getUrl(webServer),
@@ -1148,10 +1295,31 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         testChunkedInfer(model);
     }
 
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = AzureAiStudioEmbeddingsModelTests.createModel(
+            "id",
+            getUrl(webServer),
+            AzureAiStudioProvider.OPENAI,
+            AzureAiStudioEndpointType.TOKEN,
+            "apikey"
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            List<ChunkInferenceInput> input = List.of();
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
     private void testChunkedInfer(AzureAiStudioEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1183,14 +1351,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 null,
-                List.of("foo", "bar"),
+                List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INGEST,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1198,18 +1365,28 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertArrayEquals(
+                    new float[] { 0.0123f, -0.0123f },
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    0.0f
+                );
             }
             {
-                assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 1.0123f, -1.0123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
+                assertArrayEquals(
+                    new float[] { 1.0123f, -1.0123f },
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    0.0f
+                );
             }
 
             assertThat(webServer.requests(), hasSize(1));
@@ -1218,16 +1395,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("foo", "bar")));
+            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+            assertThat(requestMap.get("input_type"), Matchers.is("document"));
         }
     }
 
     public void testInfer_WithChatCompletionModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
 
             var model = AzureAiStudioChatCompletionModelTests.createModel(
@@ -1241,6 +1419,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1259,10 +1439,51 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
+    public void testInfer_WithRerankModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
+
+            var model = AzureAiStudioRerankModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.COHERE,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey"
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                "query",
+                false,
+                2,
+                List.of("abc"),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(result, CoreMatchers.instanceOf(RankedDocsResults.class));
+
+            var rankedDocsResults = (RankedDocsResults) result;
+            var rankedDocs = rankedDocsResults.getRankedDocs();
+            assertThat(rankedDocs.size(), is(2));
+            assertThat(rankedDocs.get(0).relevanceScore(), is(0.1111111F));
+            assertThat(rankedDocs.get(0).index(), is(0));
+            assertThat(rankedDocs.get(1).relevanceScore(), is(0.2222222F));
+            assertThat(rankedDocs.get(1).index(), is(1));
+        }
+    }
+
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -1292,6 +1513,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,
@@ -1331,15 +1554,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello, world"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException, URISyntaxException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AzureAiStudioChatCompletionModelTests.createModel(
                 "id",
                 getUrl(webServer),
@@ -1351,6 +1572,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 true,
                 new HashMap<>(),
@@ -1359,7 +1582,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -1375,19 +1598,124 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-        var result = streamChatCompletion();
+        var e = assertThrows(ElasticsearchStatusException.class, this::streamChatCompletion);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an authentication error status code for request from inference entity id [id] status [401]. "
+                    + "Error message: [You didn't provide an API key...]"
+            )
+        );
+    }
 
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
-            .hasErrorWithStatusCode(401)
-            .hasErrorContaining("You didn't provide an API key...");
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws Exception {
+        try (var service = createService()) {
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                        "service": "azureaistudio",
+                        "name": "Azure AI Studio",
+                        "task_types": ["text_embedding", "rerank", "completion"],
+                        "configurations": {
+                            "dimensions": {
+                                "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-studio/reference/reference-model-inference-embeddings.",
+                                "label": "Dimensions",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding"]
+                            },
+                            "endpoint_type": {
+                                "description": "Specifies the type of endpoint that is used in your model deployment.",
+                                "label": "Endpoint Type",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank", "completion"]
+                            },
+                            "provider": {
+                                "description": "The model provider for your deployment.",
+                                "label": "Provider",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank", "completion"]
+                            },
+                            "api_key": {
+                                "description": "API Key for the provider you're connecting to.",
+                                "label": "API Key",
+                                "required": true,
+                                "sensitive": true,
+                                "updatable": true,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank", "completion"]
+                            },
+                            "rate_limit.requests_per_minute": {
+                                "description": "Minimize the number of rate limit errors.",
+                                "label": "Rate Limit",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding", "rerank", "completion"]
+                            },
+                            "target": {
+                                "description": "The target URL of your Azure AI Studio model deployment.",
+                                "label": "Target",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank", "completion"]
+                            }
+                        }
+                    }
+                    """
+            );
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AzureAiStudioService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
+        }
     }
 
     // ----------------------------------------------------------------
 
     private AzureAiStudioService createService() {
-        return new AzureAiStudioService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new AzureAiStudioService(
+            mock(HttpRequestSender.Factory.class),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("Any model"), is(300));
     }
 
     private Map<String, Object> getRequestConfigMap(
@@ -1444,6 +1772,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         return AzureAiStudioChatCompletionServiceSettingsTests.createRequestSettingsMap(target, provider, endpointType);
     }
 
+    private static HashMap<String, Object> getRerankServiceSettingsMap(String target, String provider, String endpointType) {
+        return AzureAiStudioRerankServiceSettingsTests.createRequestSettingsMap(target, provider, endpointType);
+    }
+
     public static Map<String, Object> getChatCompletionTaskSettingsMap(
         @Nullable Double temperature,
         @Nullable Double topP,
@@ -1451,6 +1783,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         @Nullable Integer maxNewTokens
     ) {
         return AzureAiStudioChatCompletionTaskSettingsTests.getTaskSettingsMap(temperature, topP, doSample, maxNewTokens);
+    }
+
+    public static Map<String, Object> getRerankTaskSettingsMap(@Nullable Boolean returnDocuments, @Nullable Integer topN) {
+        return AzureAiStudioRerankTaskSettingsTests.getTaskSettingsMap(returnDocuments, topN);
     }
 
     private static Map<String, Object> getSecretSettingsMap(String apiKey) {
@@ -1499,6 +1835,30 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 "completion_tokens": 35,
                 "prompt_tokens": 8,
                 "total_tokens": 43
+            }
+        }
+        """;
+
+    private static final String testRerankTokenResponseJson = """
+        {
+            "id": "ff2feb42-5d3a-45d7-ba29-c3dabf59988b",
+            "results": [
+                {
+                    "index": 0,
+                    "relevance_score": 0.1111111
+                },
+                {
+                    "index": 1,
+                    "relevance_score": 0.2222222
+                }
+            ],
+            "meta": {
+                "api_version": {
+                    "version": "1"
+                },
+                "billed_units": {
+                    "search_units": 1
+                }
             }
         }
         """;

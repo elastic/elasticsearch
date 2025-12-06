@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -20,9 +21,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link SpatialIntersects}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class SpatialIntersectsGeoSourceAndSourceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SpatialIntersectsGeoSourceAndSourceEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator left;
@@ -49,6 +52,14 @@ public final class SpatialIntersectsGeoSourceAndSourceEvaluator implements EvalO
         return eval(page.getPositionCount(), leftBlock, rightBlock);
       }
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += left.baseRamBytesUsed();
+    baseRamBytesUsed += right.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock leftBlock, BytesRefBlock rightBlock) {

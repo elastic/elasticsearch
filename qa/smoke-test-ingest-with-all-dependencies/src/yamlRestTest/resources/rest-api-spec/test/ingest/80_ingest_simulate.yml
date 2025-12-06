@@ -222,10 +222,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.mapping.validation.templates"]
-      reason: "ingest simulate index mapping validation added in 8.16"
-
   - do:
       headers:
         Content-Type: application/json
@@ -312,10 +308,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.component.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
 
   - do:
       headers:
@@ -494,10 +486,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.component.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
-
   - do:
       headers:
         Content-Type: application/json
@@ -616,10 +604,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.component.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
 
   - do:
       headers:
@@ -816,10 +800,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.index.template.substitutions"]
-      reason: "ingest simulate index template substitutions added in 8.16"
-
   - do:
       headers:
         Content-Type: application/json
@@ -860,9 +840,9 @@ setup:
 
   - do:
       allowed_warnings:
-        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+        - "index template [foo_index_template] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [foo_index_template] will take precedence during new index creation"
       indices.put_index_template:
-        name: test-composable-1
+        name: foo_index_template
         body:
           index_patterns:
             - foo*
@@ -1009,10 +989,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.index.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
 
   - do:
       headers:
@@ -1226,10 +1202,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.mapping.addition"]
-      reason: "ingest simulate mapping addition added in 8.17"
 
   - do:
       headers:
@@ -1463,10 +1435,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.mapping.addition"]
-      reason: "ingest simulate mapping addition added in 8.17"
-
   - do:
       indices.put_template:
         name: my-legacy-template
@@ -1583,10 +1551,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.support.non.template.mapping"]
-      reason: "ingest simulate support for indices with mappings that didn't come from templates added in 8.17"
 
   # A global match-everything legacy template is added to the cluster sometimes (rarely). We have to get rid of this template if it exists
   # because this test is making sure we get correct behavior when an index matches *no* template:
@@ -1720,3 +1684,629 @@ setup:
   - match: { docs.0.doc._source.foo: 3 }
   - match: { docs.0.doc._source.bar: "some text value" }
   - not_exists: docs.0.doc.error
+
+---
+"Test ignored_fields":
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.ignored.fields"]
+      reason: "ingest simulate ignored fields added in 8.18"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: nonexistent
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "simulate-test",
+                "_id": "y9Es_JIBiw6_GgN-U0qy",
+                "_score": 1,
+                "_source": {
+                  "abc": "sfdsfsfdsfsfdsfsfdsfsfdsfsfdsf"
+                }
+              }
+            ],
+            "index_template_substitutions": {
+              "ind_temp": {
+                "index_patterns": ["simulate-test"],
+                "composed_of": ["simulate-test"]
+              }
+            },
+            "component_template_substitutions": {
+              "simulate-test": {
+                "template": {
+                  "mappings": {
+                    "dynamic": false,
+                    "properties": {
+                      "abc": {
+                        "type": "keyword",
+                        "ignore_above": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "simulate-test" }
+  - match: { docs.0.doc._source.abc: "sfdsfsfdsfsfdsfsfdsfsfdsfsfdsf" }
+  - match: { docs.0.doc.ignored_fields: [ {"field": "abc"} ] }
+  - not_exists: docs.0.doc.error
+
+---
+"Test mapping addition correctly respects mapping of indices without templates":
+  # In this test, we make sure that when we have an index that has mapping but was not built with a template, that the
+  # additional_mapping respects the existing mapping for validation.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  # A global match-everything legacy template is added to the cluster sometimes (rarely). We have to get rid of this template if it exists
+  # because this test is making sure we get correct behavior when an index matches *no* template:
+  - do:
+      indices.delete_template:
+        name:   '*'
+        ignore: 404
+
+  # We create the index no-template-index with an implicit mapping that has a foo field with type long:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "no-template-index"}}'
+          - '{"foo": 3}'
+
+  # Now we make sure that the existing mapping is taken into account when we simulate with a mapping_addition. Since
+  # the pre-existing mapping has foo mapped as a long, this ought to fail with a document_parsing_exception because
+  # we are attempting to write a boolean foo.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: no-template-index
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "test-id",
+                "_index": "no-template-index",
+                "_source": {
+                  "@timestamp": "2025-07-25T09:06:06.929Z",
+                  "is_valid": true,
+                  "foo": true
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "is_valid": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "no-template-index" }
+  - match: { docs.0.doc._source.foo: true }
+  - match: { docs.0.doc._source.is_valid: true }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+  # Now we add a template for this index.
+  - do:
+      indices.put_template:
+        name: my-template-1
+        body:
+          index_patterns: no-template-index
+          mappings:
+            properties:
+              foo:
+                type: boolean
+
+  # And we still expect the index's mapping to be used rather than the template:
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: no-template-index
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "test-id",
+                "_index": "no-template-index",
+                "_source": {
+                  "@timestamp": "2025-07-25T09:06:06.929Z",
+                  "is_valid": true,
+                  "foo": true
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "is_valid": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "no-template-index" }
+  - match: { docs.0.doc._source.foo: true }
+  - match: { docs.0.doc._source.is_valid: true }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+---
+"Test ingest simulate with mapping addition for data streams when write index has different mapping":
+  # In this test, we make sure that when a data stream's write index has a mapping that is different from the mapping
+  # in its template, and a mapping_override is given, then the mapping_override is applied to the mapping of the write
+  # index rather than the mapping of the template.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: mappings_template
+        body:
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: boolean
+                bar:
+                  type: boolean
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template-1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template-1
+        body:
+          index_patterns: [simple-data-stream1]
+          composed_of:
+            - mappings_template
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  # Now that the data stream exists, we change the template to remove the mapping for bar. The write index still has the
+  # old mapping.
+  - do:
+      cluster.put_component_template:
+        name: mappings_template
+        body:
+          template:
+            mappings:
+              properties:
+                foo:
+                  type: boolean
+
+  # We expect the mapping_addition to be added to the mapping of the write index, which has a boolean bar field. So this
+  # simulate ingest ought to fail.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: simple-data-stream1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "@timestamp": 1234,
+                  "bar": "baz"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "baz": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "simple-data-stream1" }
+  - match: { docs.0.doc._source.bar: "baz" }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+---
+"Test ingest simulate with mapping addition on subobjects":
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - do:
+      indices.put_index_template:
+        name: subobject-template
+        body:
+          index_patterns: subobject-index*
+          template:
+            mappings:
+              properties:
+                a.b:
+                  type: match_only_text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "a.b": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - match: { docs.0.doc.error.type: "mapper_parsing_exception" }
+
+  # Here we provide a mapping_substitution to the subobject, and make sure that it is applied rather than throwing an
+  # exception.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        merge_type: "template"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "a.b": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - not_exists: docs.0.doc.error
+
+  # Now we run the same test but with index_template_substitutions rather than mapping_addition. In this case though,
+  # the mappings are _substituted_, not merged. That is, the original template and its mappings are completely replaced
+  # with the new one. So the merge_type has no impact.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        merge_type: "index"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "index_template_substitutions": {
+              "subobject-template": {
+                "index_patterns": ["subobject-index*"],
+                "template": {
+                  "mappings": {
+                    "properties": {
+                      "a.b": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - not_exists: docs.0.doc.error
+
+  # This makes sure that we get the same result for merge_type "template" for index_template_substitutions
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        merge_type: "template"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "index_template_substitutions": {
+              "subobject-template": {
+                "index_patterns": ["subobject-index*"],
+                "template": {
+                  "mappings": {
+                    "properties": {
+                      "a.b": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - not_exists: docs.0.doc.error
+
+---
+"Simulate ingest with data stream with mapping overrides":
+  - skip:
+      features: headers
+
+  - do:
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test*
+          template:
+            lifecycle:
+              data_retention: "7d"
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: test
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      indices.put_data_stream_mappings:
+        name: test
+        body:
+          properties:
+            foo:
+              type: boolean
+
+  - match: { data_streams.0.applied_to_data_stream: true }
+
+  # For an ordinary simulate request with no overrides, we fetch the mapping from the write index, and do not take the
+  # data stream mapping override into account. So the foo field is unmapped, and we can write text to it.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: test
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "@timestamp": 1234,
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "test" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - not_exists: docs.0.doc.error
+
+  # If template overrides are given, we go to the data stream's template and mapping override (even if the given
+  # template overrides are irrelevant as is the case in this test). Now we see that the foo field is mapped as a
+  # boolean, so we get a validation error when trying to write text to that field.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: test
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "@timestamp": 1234,
+                  "foo": "bar"
+                }
+              }
+            ],
+            "component_template_substitutions": {
+              "mappings_template": {
+                "template": {
+                  "mappings": {
+                    "dynamic": "true",
+                    "properties": {
+                      "foo": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "test" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+---
+"Test effective mapping":
+
+  # This creates two templates, where the first reroutes to the second. Then we simulate ingesting and make sure that
+  # the effective_mapping is for the index where the document eventually would land. Also, the second index is really
+  # a data stream, so we expect to see a @timestamp field.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "reroute-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "reroute": {
+                  "destination": "second-index"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [first-index-template] has index patterns [first-index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [first-index-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: first-index-template
+        body:
+          index_patterns: first-index*
+          template:
+            settings:
+              default_pipeline: "reroute-pipeline"
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+
+  - do:
+      allowed_warnings:
+        - "index template [second-index-template] has index patterns [second-index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [second-index-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: second-index-template
+        body:
+          index_patterns: second-index*
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                bar:
+                  type: text
+
+  - do:
+      indices.put_index_template:
+        name: second-index-template
+        body:
+          index_patterns: second-index*
+          template:
+            lifecycle:
+              data_retention: "7d"
+            mappings:
+              dynamic: strict
+              properties:
+                bar:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: second-index
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      indices.put_data_stream_mappings:
+        name: second-index
+        body:
+          properties:
+            foo:
+              type: boolean
+
+  - match: { data_streams.0.applied_to_data_stream: true }
+
+  # Here is the meat of the test. We simulate ingesting into first-index, knowing it will be rerouted to second-index,
+  # which is actually a data stream. So we expect the effective_mapping to contain the fields from second-index
+  # (including the implicit @timestamp field) and not second-index. Plus, it ought to include fields from the
+  # mapping_addition that we pass in.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "first-index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "baz": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "second-index" }
+  - not_exists: docs.0.doc.effective_mapping._doc.properties.foo
+  - match: { docs.0.doc.effective_mapping._doc.properties.@timestamp.type: "date" }
+  - match: { docs.0.doc.effective_mapping._doc.properties.bar.type: "text" }
+  - match: { docs.0.doc.effective_mapping._doc.properties.baz.type: "keyword" }

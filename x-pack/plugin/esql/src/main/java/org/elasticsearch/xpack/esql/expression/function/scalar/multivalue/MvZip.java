@@ -12,7 +12,9 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -45,7 +47,7 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvZip", MvZip::new);
 
     private final Expression mvLeft, mvRight, delim;
-    private static final Literal COMMA = new Literal(Source.EMPTY, ",", DataType.TEXT);
+    private static final Literal COMMA = new Literal(Source.EMPTY, BytesRefs.toBytesRef(","), DataType.TEXT);
 
     @FunctionInfo(
         returnType = { "keyword" },
@@ -162,7 +164,13 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Evaluator
-    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock leftField, BytesRefBlock rightField, BytesRef delim) {
+    static void process(
+        BytesRefBlock.Builder builder,
+        @Position int position,
+        BytesRefBlock leftField,
+        BytesRefBlock rightField,
+        BytesRef delim
+    ) {
         int leftFieldValueCount = leftField.getValueCount(position);
         int rightFieldValueCount = rightField.getValueCount(position);
 

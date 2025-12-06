@@ -108,7 +108,8 @@ created the data stream:
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.system: false }
   - match: { data_streams.0.time_series.temporal_ranges.0.start: 2021-04-28T00:00:00.000Z }
-  - match: { data_streams.0.time_series.temporal_ranges.0.end: 2021-04-29T00:00:00.000Z }
+  # We can't match on time_series.temporal_ranges.0.end in this test because UpdateTimeSeriesRangeService updates it every 5 minutes, so every
+  # once in a while it is not what we expect it to be. See #124575.
   - set:  { data_streams.0.indices.0.index_name: backing_index }
 
   - do:
@@ -147,13 +148,12 @@ fetch the tsid:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" ]}
 
 ---
 "aggregate the tsid":
   - requires:
       cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hahing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -168,9 +168,8 @@ fetch the tsid:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
+  - length: {aggregations.tsids.buckets: 2}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
@@ -185,9 +184,12 @@ index without timestamp:
 ---
 TSDB failures go to failure store:
   - requires:
-      cluster_features: ["data_stream.failure_store.tsdb_fix"]
-      reason: "tests tsdb failure store fixes in 8.16.0 that catch timestamp errors that happen earlier in the process and redirect them to the failure store."
-
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [fs-k8s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
@@ -195,8 +197,7 @@ TSDB failures go to failure store:
         name: my-template2
         body:
           index_patterns: [ "fs-k8s*" ]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               index:
@@ -207,6 +208,9 @@ TSDB failures go to failure store:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
+            data_stream_options:
+              failure_store:
+                enabled: true
             mappings:
               properties:
                 "@timestamp":
@@ -244,17 +248,17 @@ TSDB failures go to failure store:
         refresh: true
         body:
           - '{ "create": { "_index": "fs-k8s"} }'
-          - '{"@timestamp":"2021-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"@timestamp":"2021-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
           - '{ "create": { "_index": "k8s"} }'
-          - '{ "@timestamp": "2021-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "@timestamp": "2021-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
           - '{ "create": { "_index": "fs-k8s"} }'
           - '{ "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
           - '{ "create": { "_index": "fs-k8s"} }'
-          - '{ "@timestamp":"2000-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "@timestamp":"2000-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
           - '{ "create": { "_index": "k8s"} }'
           - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
           - '{ "create": { "_index": "k8s"} }'
-          - '{ "@timestamp":"2000-04-28T01:00:00ZZ", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{ "@timestamp":"2000-04-28T01:00:00Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
   - is_true: errors
 
   # Successfully indexed to backing index
@@ -295,9 +299,6 @@ index without timestamp with pipeline:
 
 ---
 dynamic templates:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority"]
-      reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -365,7 +366,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -384,7 +384,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -403,7 +402,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -422,7 +420,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
   - do:
       search:
@@ -440,14 +437,10 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
 dynamic templates - conflicting aliases:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority"]
-      reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -520,7 +513,6 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -539,14 +531,10 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
 dynamic templates - conflicting aliases with top-level field:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority"]
-      reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [otel] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -627,9 +615,6 @@ dynamic templates - conflicting aliases with top-level field:
 
 ---
 dynamic templates with nesting:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority"]
-      reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -705,7 +690,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -724,7 +708,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -743,7 +726,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -762,7 +744,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -781,7 +762,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -800,15 +780,10 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
 dynamic templates with incremental indexing:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority"]
-      reason: support for priority in passthrough objects
-
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -1033,9 +1008,6 @@ dynamic templates with incremental indexing:
 
 ---
 subobject in passthrough object auto flatten:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority"]
-      reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
         - "index template [my-passthrough-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-passthrough-template] will take precedence during new index creation"
@@ -1103,9 +1075,6 @@ enable subobjects in passthrough object:
 
 ---
 passthrough objects with duplicate priority:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority"]
-      reason: support for priority in passthrough objects
   - do:
       catch: /has a conflicting param/
       indices.put_index_template:
@@ -1130,9 +1099,6 @@ passthrough objects with duplicate priority:
 
 ---
 dimensions with ignore_malformed and ignore_above:
-  - requires:
-      cluster_features: ["mapper.keyword_dimension_ignore_above"]
-      reason: support for ignore_above on keyword dimensions
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -1224,9 +1190,6 @@ dimensions with ignore_malformed and ignore_above:
 
 ---
 non string dimension fields:
-  - requires:
-      cluster_features: ["mapper.pass_through_priority", "routing.boolean_routing_path", "mapper.boolean_dimension"]
-      reason: support for priority in passthrough objects
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"
@@ -1334,10 +1297,6 @@ non string dimension fields:
 
 ---
 multi value dimensions:
-  - requires:
-      cluster_features: ["routing.multi_value_routing_path"]
-      reason: support for multi-value dimensions
-
   - do:
       allowed_warnings:
         - "index template [my-dynamic-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-dynamic-template] will take precedence during new index creation"

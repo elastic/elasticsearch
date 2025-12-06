@@ -13,11 +13,13 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -69,6 +71,8 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                     null,
                     randomInt(10),
                     randomIntBetween(10, 100),
+                    randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
+                    randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
                     randomFloat()
                 );
                 if (randomBoolean()) {
@@ -95,12 +99,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
     }
 
     private RankDocsRetrieverBuilder createRandomRankDocsRetrieverBuilder(QueryRewriteContext queryRewriteContext) throws IOException {
-        return new RankDocsRetrieverBuilder(
-            randomIntBetween(1, 100),
-            innerRetrievers(queryRewriteContext),
-            rankDocsSupplier(),
-            preFilters(queryRewriteContext)
-        );
+        return new RankDocsRetrieverBuilder(randomIntBetween(1, 100), innerRetrievers(queryRewriteContext), rankDocsSupplier(), null);
     }
 
     public void testExtractToSearchSourceBuilder() throws IOException {
@@ -126,6 +125,9 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             }
         }
         assertNull(source.postFilter());
+
+        // the default `from` is -1, when `extractToSearchSourceBuilder` is run, it should modify this to the default
+        assertEquals(SearchService.DEFAULT_FROM, source.from());
     }
 
     public void testTopDocsQuery() throws IOException {

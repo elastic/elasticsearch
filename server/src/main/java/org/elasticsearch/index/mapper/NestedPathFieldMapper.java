@@ -52,7 +52,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public static final class NestedPathFieldType extends StringFieldType {
 
         private NestedPathFieldType(String name) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, false), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -67,7 +67,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

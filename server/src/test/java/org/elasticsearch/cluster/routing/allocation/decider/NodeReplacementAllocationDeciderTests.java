@@ -420,6 +420,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         return new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(sourceNodeId)
+                .setNodeEphemeralId(sourceNodeId)
                 .setTargetNodeName(targetNodeName)
                 .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                 .setReason(this.getTestName())

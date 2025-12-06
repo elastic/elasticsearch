@@ -20,7 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class MinIntAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -58,73 +58,83 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      IntBlock block = page.getBlock(channels.get(0));
-      IntVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(IntVector vector) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(IntVector vVector) {
     state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      state.intValue(MinIntAggregator.combine(state.intValue(), vector.getInt(i)));
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
     }
   }
 
-  private void addRawVector(IntVector vector, BooleanVector mask) {
+  private void addRawVector(IntVector vVector, BooleanVector mask) {
     state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      state.intValue(MinIntAggregator.combine(state.intValue(), vector.getInt(i)));
+      int vValue = vVector.getInt(valuesPosition);
+      state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
     }
   }
 
-  private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(IntBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        state.intValue(MinIntAggregator.combine(state.intValue(), block.getInt(i)));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
       }
     }
   }
 
-  private void addRawBlock(IntBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(IntBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        state.intValue(MinIntAggregator.combine(state.intValue(), block.getInt(i)));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        state.intValue(MinIntAggregator.combine(state.intValue(), vValue));
       }
     }
   }

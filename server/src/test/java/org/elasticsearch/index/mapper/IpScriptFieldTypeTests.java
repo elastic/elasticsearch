@@ -30,6 +30,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
@@ -43,19 +44,26 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
+
+    private static final BytesRef EMPTY_IP = null;
+    private static final BytesRef MALFORMED_IP = null;
 
     @Override
     protected ScriptFactory parseFromSource() {
@@ -273,10 +281,146 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                     new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"))),
                     new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")))
                 );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(expected.subList(1, 2)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(expected));
             }
         }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeField() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            // given
+            // try multiple variations of boolean as they're all encoded slightly differently
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"192.168.0.1\"]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"2001:db8::1\"]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"\"]}"))),
+                    // ensure a malformed value doesn't crash
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"potato\"]}")))
+                )
+            );
+            IpScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+            List<BytesRef> expected = Arrays.asList(
+                new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"))),
+                new BytesRef(InetAddressPoint.encode(InetAddresses.forString("2001:db8::1"))),
+                EMPTY_IP,
+                MALFORMED_IP
+            );
+
+            try (DirectoryReader reader = iw.getReader()) {
+                // when
+                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
+
+                // then
+
+                // assert loader is of expected instance type
+                assertThat(loader, instanceOf(IpScriptBlockDocValuesReader.IpScriptBlockLoader.class));
+
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, instanceOf(IpScriptBlockDocValuesReader.class));
+
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(rowStrideReader, instanceOf(IpScriptBlockDocValuesReader.class));
+
+                // assert values
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(expected));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            // given
+            // try multiple variations of boolean as they're all encoded slightly differently
+            iw.addDocuments(
+                List.of(
+                    createDocumentWithIgnoredSource("[\"192.168.0.1\"]"),
+                    createDocumentWithIgnoredSource("[\"2001:db8::1\"]"),
+                    createDocumentWithIgnoredSource("[\"\"]"),
+                    // ensure a malformed value doesn't crash
+                    createDocumentWithIgnoredSource("[\"potato\"]")
+                )
+            );
+
+            Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+            IpScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+            List<BytesRef> expected = Arrays.asList(
+                new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"))),
+                new BytesRef(InetAddressPoint.encode(InetAddresses.forString("2001:db8::1"))),
+                EMPTY_IP,
+                MALFORMED_IP
+            );
+
+            try (DirectoryReader reader = iw.getReader()) {
+                // when
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+
+                // then
+
+                // assert loader is of expected instance type
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, nullValue());
+
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(
+                    rowStrideReader.getClass().getName(),
+                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                );
+
+                // assert values
+                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(expected));
+            }
+        }
+    }
+
+    /**
+     * Returns a source only mapped field type. This is useful, since the available build() function doesn't override isParsedFromSource()
+     */
+    private IpScriptFieldType simpleSourceOnlyMappedFieldType() {
+        Script script = new Script(ScriptType.INLINE, "test", "", emptyMap());
+        IpFieldScript.Factory factory = new IpFieldScript.Factory() {
+            @Override
+            public IpFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
+                return ctx -> new IpFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public void execute() {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("test")) {
+                            try {
+                                emit(foo.toString());
+                            } catch (Exception e) {
+                                // skip
+                            }
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public boolean isParsedFromSource() {
+                return true;
+            }
+        };
+        return new IpScriptFieldType("test", factory, script, emptyMap(), OnScriptError.FAIL);
     }
 
     @Override

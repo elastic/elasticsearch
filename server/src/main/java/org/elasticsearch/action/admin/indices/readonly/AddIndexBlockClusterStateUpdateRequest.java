@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.readonly;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 
@@ -20,13 +21,16 @@ import java.util.Objects;
 public record AddIndexBlockClusterStateUpdateRequest(
     TimeValue masterNodeTimeout,
     TimeValue ackTimeout,
+    ProjectId projectId,
     APIBlock block,
+    boolean markVerified,
     long taskId,
     Index[] indices
 ) {
     public AddIndexBlockClusterStateUpdateRequest {
         Objects.requireNonNull(masterNodeTimeout);
         Objects.requireNonNull(ackTimeout);
+        Objects.requireNonNull(projectId);
         Objects.requireNonNull(block);
         Objects.requireNonNull(indices);
     }

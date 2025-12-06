@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -24,7 +24,8 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
@@ -40,10 +41,11 @@ import java.util.List;
 /**
  * Transport action handling the explain the data stream lifecycle requests for one or more data stream lifecycle managed indices.
  */
-public class TransportExplainDataStreamLifecycleAction extends TransportMasterNodeReadAction<
+public class TransportExplainDataStreamLifecycleAction extends TransportMasterNodeReadProjectAction<
     ExplainDataStreamLifecycleAction.Request,
     ExplainDataStreamLifecycleAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DataStreamLifecycleErrorStore errorStore;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
@@ -53,6 +55,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore,
         DataStreamGlobalRetentionSettings globalRetentionSettings
@@ -64,10 +67,11 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             threadPool,
             actionFilters,
             ExplainDataStreamLifecycleAction.Request::new,
-            indexNameExpressionResolver,
+            projectResolver,
             ExplainDataStreamLifecycleAction.Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.errorStore = dataLifecycleServiceErrorStore;
         this.globalRetentionSettings = globalRetentionSettings;
     }
@@ -76,13 +80,13 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     protected void masterOperation(
         Task task,
         ExplainDataStreamLifecycleAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<ExplainDataStreamLifecycleAction.Response> listener
     ) throws Exception {
 
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        ProjectMetadata metadata = state.metadata();
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(metadata, request);
         List<ExplainIndexDataStreamLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
-        Metadata metadata = state.metadata();
         for (String index : concreteIndices) {
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
             if (indexAbstraction == null) {
@@ -108,8 +112,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
-                parentDataStream.getLifecycle(),
-                errorStore.getError(index)
+                parentDataStream.getDataLifecycleForIndex(idxMetadata.getIndex()),
+                errorStore.getError(state.projectId(), index)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
         }
@@ -119,14 +123,19 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                globalRetentionSettings.get()
+                globalRetentionSettings.get(false),
+                globalRetentionSettings.get(true)
             )
         );
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ExplainDataStreamLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(ExplainDataStreamLifecycleAction.Request request, ProjectState state) {
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                state.projectId(),
+                ClusterBlockLevel.METADATA_READ,
+                indexNameExpressionResolver.concreteIndexNames(state.metadata(), request)
+            );
     }
 }

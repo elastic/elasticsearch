@@ -36,11 +36,7 @@ public class MockHttpProxyServerTests extends ESTestCase {
         var httpClient = HttpClients.custom()
             .setRoutePlanner(new DefaultProxyRoutePlanner(new HttpHost(InetAddress.getLoopbackAddress(), proxyServer.getPort())))
             .build();
-        try (
-            proxyServer;
-            httpClient;
-            var httpResponse = SocketAccess.doPrivilegedIOException(() -> httpClient.execute(new HttpGet("http://googleapis.com/")))
-        ) {
+        try (proxyServer; httpClient; var httpResponse = httpClient.execute(new HttpGet("http://googleapis.com/"))) {
             assertEquals(httpBody.length(), httpResponse.getEntity().getContentLength());
             assertEquals(httpBody, EntityUtils.toString(httpResponse.getEntity()));
         }

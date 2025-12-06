@@ -54,7 +54,8 @@ import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.ALLOW_NO_INDICES;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -157,12 +158,12 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionResponse actionResponse = mock(ActionResponse.class);
         mockChain(task, "_action", request, actionResponse);
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-        assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+        assertNull(INDICES_PERMISSIONS_VALUE.get(threadContext));
 
         filter.apply(task, "_action", request, listener, chain);
 
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-        assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+        assertNull(INDICES_PERMISSIONS_VALUE.get(threadContext));
         verify(authzService).authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());
         verify(auditTrail).coordinatingActionResponse(eq(requestId), eq(authentication), eq("_action"), eq(request), eq(actionResponse));
     }
@@ -180,7 +181,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         SetOnce<String> requestIdOnActionHandler = new SetOnce<>();
         ActionFilterChain chain = (task, action, request1, listener1) -> {
             authenticationSetOnce.set(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
-            accessControlSetOnce.set(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+            accessControlSetOnce.set(INDICES_PERMISSIONS_VALUE.get(threadContext));
             requestIdOnActionHandler.set(AuditUtil.extractRequestId(threadContext));
         };
         Task task = mock(Task.class);
@@ -191,7 +192,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             AuditUtil.generateRequestId(threadContext);
             threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
             threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "foo");
-            threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+            AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
             if (hasExistingAccessControl) {
                 new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             }
@@ -217,7 +218,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         if (hasExistingAuthentication) {
             assertEquals(authentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
             if (hasExistingAccessControl) {
-                assertThat(threadContext.getTransient(INDICES_PERMISSIONS_KEY), sameInstance(IndicesAccessControl.ALLOW_NO_INDICES));
+                assertThat(INDICES_PERMISSIONS_VALUE.get(threadContext), sameInstance(ALLOW_NO_INDICES));
             }
         } else {
             assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
@@ -407,7 +408,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
-            assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
+            assertNull(INDICES_PERMISSIONS_VALUE.get(threadContext));
             new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
             callback.onResponse(null);
             return Void.TYPE;

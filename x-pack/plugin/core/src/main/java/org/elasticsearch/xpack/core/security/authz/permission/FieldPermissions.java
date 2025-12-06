@@ -18,6 +18,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
@@ -31,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -147,7 +151,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         List<Automaton> automatonList = groups.stream()
             .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
             .collect(Collectors.toList());
-        return Automatons.unionAndDeterminize(automatonList);
+        return Automatons.unionAndMinimize(automatonList);
     }
 
     /**
@@ -172,12 +176,8 @@ public final class FieldPermissions implements Accountable, CacheKey {
             deniedFieldsAutomaton = Automatons.patterns(deniedFields);
         }
 
-        grantedFieldsAutomaton = Operations.removeDeadStates(
-            Operations.determinize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
-        );
-        deniedFieldsAutomaton = Operations.removeDeadStates(
-            Operations.determinize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
-        );
+        grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
         if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
             throw new ElasticsearchSecurityException(
@@ -189,7 +189,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
             );
         }
 
-        grantedFieldsAutomaton = Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton);
+        grantedFieldsAutomaton = Automatons.minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
         return grantedFieldsAutomaton;
     }
 
@@ -206,10 +206,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
     public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
         if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
             // TODO: cache the automaton computation with FieldPermissionsCache
-            Automaton _permittedFieldsAutomaton = Automatons.intersectAndDeterminize(
-                getIncludeAutomaton(),
-                limitedBy.getIncludeAutomaton()
-            );
+            Automaton _permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
             return new FieldPermissions(
                 CollectionUtils.concatLists(fieldPermissionsDefinitions, limitedBy.fieldPermissionsDefinitions),
                 _permittedFieldsAutomaton
@@ -249,11 +246,17 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader) throws IOException {
+    public DirectoryReader filter(DirectoryReader reader, IndexVersion indexVersionCreated, Function<String, Boolean> isMapped)
+        throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
         }
-        return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton);
+        return FieldSubsetReader.wrap(
+            reader,
+            permittedFieldsAutomaton,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersionCreated),
+            isMapped
+        );
     }
 
     Automaton getIncludeAutomaton() {

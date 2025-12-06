@@ -34,7 +34,7 @@ public record QueryExtractorBuilder(String featureName, QueryProvider query, flo
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField DEFAULT_SCORE = new ParseField("default_score");
 
-    public static float DEFAULT_SCORE_DEFAULT = 0f;
+    public static final float DEFAULT_SCORE_DEFAULT = 0f;
 
     private static final ConstructingObjectParser<QueryExtractorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),

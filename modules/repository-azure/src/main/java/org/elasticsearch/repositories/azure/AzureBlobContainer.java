@@ -106,6 +106,22 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return true;
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        blobStore.writeBlobAtomic(purpose, buildKey(blobName), blobSize, provider, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(
         OperationPurpose purpose,
         String blobName,
@@ -144,7 +160,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(purpose, new Iterator<>() {
+        blobStore.deleteBlobs(purpose, new Iterator<>() {
             @Override
             public boolean hasNext() {
                 return blobNames.hasNext();
@@ -180,7 +196,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     private boolean skipRegisterOperation(ActionListener<?> listener) {
-        return skipCas(listener) || skipIfNotPrimaryOnlyLocationMode(listener);
+        return skipIfNotPrimaryOnlyLocationMode(listener);
     }
 
     private boolean skipIfNotPrimaryOnlyLocationMode(ActionListener<?> listener) {

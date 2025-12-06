@@ -20,13 +20,26 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_DOWNSAMPLING_METHOD;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE;
+import static org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction.SUPPORTS_FAILURE_STORE_LIFECYCLE;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
+
+    private static final String INDEX_TEMPLATE_TRACKING_INFO = "index_template_tracking_info";
+
+    private static final Set<String> CAPABILITIES = Set.of(
+        SUPPORTS_FAILURE_STORE,
+        SUPPORTS_FAILURE_STORE_LIFECYCLE,
+        INDEX_TEMPLATE_TRACKING_INFO,
+        SUPPORTS_DOWNSAMPLING_METHOD
+    );
 
     @Override
     public List<Route> routes() {
@@ -52,5 +65,10 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         }
 
         return channel -> client.execute(TransportPutComposableIndexTemplateAction.TYPE, putRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

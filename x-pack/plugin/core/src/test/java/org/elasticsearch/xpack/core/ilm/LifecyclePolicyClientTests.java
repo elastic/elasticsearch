@@ -21,7 +21,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -56,7 +55,7 @@ public class LifecyclePolicyClientTests extends ESTestCase {
 
         SearchRequest request = new SearchRequest("foo");
 
-        final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, Collections.emptyMap());
+        final var policyClient = new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, Map.of());
         policyClient.execute(TransportSearchAction.TYPE, request, listener);
 
         latch.await();

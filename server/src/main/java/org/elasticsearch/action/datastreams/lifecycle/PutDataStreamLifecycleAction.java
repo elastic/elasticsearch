@@ -19,21 +19,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.AbstractObjectParser;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_FIELD;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIELD;
 
 /**
  * Sets the data stream lifecycle that was provided in the request to the requested data streams.
@@ -45,37 +36,6 @@ public class PutDataStreamLifecycleAction {
     private PutDataStreamLifecycleAction() {/* no instances */}
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
-
-        public interface Factory {
-            Request create(@Nullable TimeValue dataRetention, @Nullable Boolean enabled, @Nullable Downsampling downsampling);
-        }
-
-        public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
-            "put_data_stream_lifecycle_request",
-            false,
-            (args, factory) -> factory.create((TimeValue) args[0], (Boolean) args[1], (Downsampling) args[2])
-        );
-
-        static {
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
-                DATA_RETENTION_FIELD,
-                ObjectParser.ValueType.STRING_OR_NULL
-            );
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
-            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                    return Downsampling.NULL;
-                } else {
-                    return new Downsampling(AbstractObjectParser.parseArray(p, null, Downsampling.Round::fromXContent));
-                }
-            }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
-        }
-
-        public static Request parseRequest(XContentParser parser, Factory factory) {
-            return PARSER.apply(parser, factory);
-        }
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
@@ -94,7 +54,7 @@ public class PutDataStreamLifecycleAction {
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(false)
+                    .allowSelectors(false)
                     .build()
             )
             .build();
@@ -116,7 +76,7 @@ public class PutDataStreamLifecycleAction {
         }
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, @Nullable TimeValue dataRetention) {
-            this(masterNodeTimeout, ackTimeout, names, dataRetention, null, null);
+            this(masterNodeTimeout, ackTimeout, names, dataRetention, null);
         }
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, DataStreamLifecycle lifecycle) {
@@ -132,24 +92,12 @@ public class PutDataStreamLifecycleAction {
             @Nullable TimeValue dataRetention,
             @Nullable Boolean enabled
         ) {
-            this(masterNodeTimeout, ackTimeout, names, dataRetention, enabled, null);
-        }
-
-        public Request(
-            TimeValue masterNodeTimeout,
-            TimeValue ackTimeout,
-            String[] names,
-            @Nullable TimeValue dataRetention,
-            @Nullable Boolean enabled,
-            @Nullable Downsampling downsampling
-        ) {
-            super(masterNodeTimeout, ackTimeout);
-            this.names = names;
-            this.lifecycle = DataStreamLifecycle.newBuilder()
-                .dataRetention(dataRetention)
-                .enabled(enabled == null || enabled)
-                .downsampling(downsampling)
-                .build();
+            this(
+                masterNodeTimeout,
+                ackTimeout,
+                names,
+                DataStreamLifecycle.dataLifecycleBuilder().enabled(enabled == null || enabled).dataRetention(dataRetention).build()
+            );
         }
 
         public String[] getNames() {

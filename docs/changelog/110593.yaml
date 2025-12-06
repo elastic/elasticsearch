@@ -1,6 +1,0 @@
-pr: 110593
-summary: "[ES|QL] add tests for stats by constant"
-area: ES|QL
-type: bug
-issues:
- - 105383

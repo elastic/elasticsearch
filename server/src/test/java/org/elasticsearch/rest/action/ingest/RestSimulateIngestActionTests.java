@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -157,9 +159,9 @@ public class RestSimulateIngestActionTests extends ESTestCase {
     public void testSimulateIngestRestToXContentListener() throws Exception {
         // First, make sure it works with success responses:
         BulkItemResponse[] responses = new BulkItemResponse[3];
-        responses[0] = getSuccessBulkItemResponse("123", "{\"foo\": \"bar\"}");
+        responses[0] = getSuccessBulkItemResponse("123", "{\"foo\": \"bar\"}", false);
         responses[1] = getFailureBulkItemResponse("678", "This has failed");
-        responses[2] = getSuccessBulkItemResponse("456", "{\"bar\": \"baz\"}");
+        responses[2] = getSuccessBulkItemResponse("456", "{\"bar\": \"baz\"}", true);
         BulkResponse bulkResponse = new BulkResponse(responses, randomLongBetween(0, 50000));
         String expectedXContent = """
             {
@@ -175,7 +177,16 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                     "executed_pipelines" : [
                       "pipeline1",
                       "pipeline2"
-                    ]
+                    ],
+                    "ignored_fields" : [
+                      {
+                        "field" : "abc"
+                      },
+                      {
+                        "field" : "def"
+                      }
+                    ],
+                    "effective_mapping" : { }
                   }
                 },
                 {
@@ -199,7 +210,22 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                     "executed_pipelines" : [
                       "pipeline1",
                       "pipeline2"
-                    ]
+                    ],
+                    "ignored_fields" : [
+                      {
+                        "field" : "abc"
+                      },
+                      {
+                        "field" : "def"
+                      }
+                    ],
+                    "effective_mapping" : {
+                      "properties" : {
+                        "foo" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    }
                   }
                 }
               ]
@@ -215,7 +241,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
         );
     }
 
-    private BulkItemResponse getSuccessBulkItemResponse(String id, String source) {
+    private BulkItemResponse getSuccessBulkItemResponse(String id, String source, boolean hasMapping) throws IOException {
         ByteBuffer[] sourceByteBuffer = new ByteBuffer[1];
         sourceByteBuffer[0] = ByteBuffer.wrap(source.getBytes(StandardCharsets.UTF_8));
         return BulkItemResponse.success(
@@ -228,7 +254,9 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                 BytesReference.fromByteBuffers(sourceByteBuffer),
                 XContentType.JSON,
                 List.of("pipeline1", "pipeline2"),
-                null
+                List.of("abc", "def"),
+                null,
+                hasMapping ? new CompressedXContent("{\"properties\":{\"foo\":{\"type\":\"keyword\"}}}") : null
             )
         );
     }

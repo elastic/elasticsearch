@@ -46,7 +46,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();
-        numLeaves = in.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS) ? in.readVInt() : 0;
+        numLeaves = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVInt() : 0;
     }
 
     @Override
@@ -100,7 +100,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         out.writeLong(generation);
         out.writeOptionalString(id);
         out.writeInt(numDocs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVInt(numLeaves);
         }
     }

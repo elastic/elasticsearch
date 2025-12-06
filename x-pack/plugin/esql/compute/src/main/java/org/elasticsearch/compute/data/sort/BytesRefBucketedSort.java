@@ -8,10 +8,12 @@
 package org.elasticsearch.compute.data.sort;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
@@ -22,13 +24,17 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.Arrays;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 /**
  * Aggregates the top N variable length {@link BytesRef} values per bucket.
  * See {@link BucketedSort} for more information.
+ * <p>
+ *     This is substantially different from {@link IpBucketedSort} because
+ *     this has to handle variable length byte strings. To do that it allocates
+ *     a heap of {@link BreakingBytesRefBuilder}s.
+ * </p>
  */
 public class BytesRefBucketedSort implements Releasable {
     private final BucketedSortCommon common;
@@ -115,7 +121,7 @@ public class BytesRefBucketedSort implements Releasable {
         if (common.inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex).bytesRefView())) {
                 clearedBytesAt(rootIndex).append(value);
-                downHeap(rootIndex, 0);
+                downHeap(rootIndex, 0, common.bucketSize);
             }
             checkInvariant(bucket);
             return;
@@ -123,7 +129,7 @@ public class BytesRefBucketedSort implements Releasable {
         // Gathering mode
         long requiredSize = common.endIndex(rootIndex);
         if (values.size() < requiredSize) {
-            grow(requiredSize);
+            grow(bucket);
         }
         int next = getNextGatherOffset(rootIndex);
         common.assertValidNextOffset(next);
@@ -131,7 +137,7 @@ public class BytesRefBucketedSort implements Releasable {
         clearedBytesAt(index).append(value);
         if (next == 0) {
             common.enableHeapMode(bucket);
-            heapify(rootIndex);
+            heapify(rootIndex, common.bucketSize);
         } else {
             ByteUtils.writeIntLE(next - 1, values.get(rootIndex).bytes(), 0);
         }
@@ -147,7 +153,7 @@ public class BytesRefBucketedSort implements Releasable {
             // The value was never collected.
             return;
         }
-        other.checkInvariant(bucket);
+        other.checkInvariant(otherBucket);
         long otherStart = other.startIndex(otherBucket, otherRootIndex);
         long otherEnd = other.common.endIndex(otherRootIndex);
         // TODO: This can be improved for heapified buckets by making use of the heap structures
@@ -175,9 +181,6 @@ public class BytesRefBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        // Used to sort the values in the bucket.
-        BytesRef[] bucketValues = new BytesRef[common.bucketSize];
-
         try (var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
@@ -200,29 +203,24 @@ public class BytesRefBucketedSort implements Releasable {
                 if (size == 1) {
                     try (BreakingBytesRefBuilder bytes = values.get(start)) {
                         builder.appendBytesRef(bytes.bytesRefView());
+                    } finally {
+                        values.set(start, null);
                     }
-                    values.set(start, null);
                     continue;
                 }
 
-                for (int i = 0; i < size; i++) {
-                    try (BreakingBytesRefBuilder bytes = values.get(start + i)) {
-                        bucketValues[i] = bytes.bytesRefView();
-                    }
-                    values.set(start + i, null);
+                // If we are in the gathering mode, we need to heapify before sorting.
+                if (common.inHeapMode(bucket) == false) {
+                    heapify(start, (int) size);
                 }
-
-                // TODO: Make use of heap structures to faster iterate in order instead of copying and sorting
-                Arrays.sort(bucketValues, 0, (int) size);
+                heapSort(start, (int) size);
 
                 builder.beginPositionEntry();
-                if (common.order == SortOrder.ASC) {
-                    for (int i = 0; i < size; i++) {
-                        builder.appendBytesRef(bucketValues[i]);
-                    }
-                } else {
-                    for (int i = (int) size - 1; i >= 0; i--) {
-                        builder.appendBytesRef(bucketValues[i]);
+                for (int i = 0; i < size; i++) {
+                    try (BreakingBytesRefBuilder bytes = values.get(start + i)) {
+                        builder.appendBytesRef(bytes.bytesRefView());
+                    } finally {
+                        values.set(start + i, null);
                     }
                 }
                 builder.endPositionEntry();
@@ -271,13 +269,23 @@ public class BytesRefBucketedSort implements Releasable {
 
     /**
      * Allocate storage for more buckets and store the "next gather offset"
-     * for those new buckets.
+     * for those new buckets. We always grow the storage by whole bucket's
+     * worth of slots at a time. We never allocate space for partial buckets.
      */
-    private void grow(long requiredSize) {
+    private void grow(int bucket) {
         long oldMax = values.size();
-        values = common.bigArrays.grow(values, requiredSize);
+        assert oldMax % common.bucketSize == 0;
+
+        long newSize = BigArrays.overSize(
+            ((long) bucket + 1) * common.bucketSize,
+            PageCacheRecycler.OBJECT_PAGE_SIZE,
+            RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
+        // Round up to the next full bucket.
+        newSize = (newSize + common.bucketSize - 1) / common.bucketSize;
+        values = common.bigArrays.resize(values, newSize * common.bucketSize);
         // Set the next gather offsets for all newly allocated buckets.
-        fillGatherOffsets(oldMax - (oldMax % common.bucketSize));
+        fillGatherOffsets(oldMax);
     }
 
     /**
@@ -296,6 +304,7 @@ public class BytesRefBucketedSort implements Releasable {
             bytes.grow(Integer.BYTES);
             bytes.setLength(Integer.BYTES);
             ByteUtils.writeIntLE(nextOffset, bytes.bytes(), 0);
+            checkInvariant(Math.toIntExact(bucketRoot / common.bucketSize));
         }
     }
 
@@ -321,10 +330,28 @@ public class BytesRefBucketedSort implements Releasable {
      * </ul>
      * @param rootIndex the index the start of the bucket
      */
-    private void heapify(long rootIndex) {
-        int maxParent = common.bucketSize / 2 - 1;
+    private void heapify(long rootIndex, int heapSize) {
+        int maxParent = heapSize / 2 - 1;
         for (int parent = maxParent; parent >= 0; parent--) {
-            downHeap(rootIndex, parent);
+            downHeap(rootIndex, parent, heapSize);
+        }
+    }
+
+    /**
+     * Sorts all the values in the heap using heap sort algorithm.
+     * This runs in {@code O(n log n)} time.
+     * @param rootIndex index of the start of the bucket
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
+     */
+    private void heapSort(long rootIndex, int heapSize) {
+        while (heapSize > 0) {
+            swap(rootIndex, rootIndex + heapSize - 1);
+            heapSize--;
+            downHeap(rootIndex, 0, heapSize);
         }
     }
 
@@ -334,24 +361,27 @@ public class BytesRefBucketedSort implements Releasable {
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
      *               For example, 0 is the "root".
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
      */
-    private void downHeap(long rootIndex, int parent) {
+    private void downHeap(long rootIndex, int parent, int heapSize) {
         while (true) {
             long parentIndex = rootIndex + parent;
             int worst = parent;
             long worstIndex = parentIndex;
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
-            if (leftChild < common.bucketSize) {
+            if (leftChild < heapSize) {
                 if (betterThan(values.get(worstIndex).bytesRefView(), values.get(leftIndex).bytesRefView())) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < common.bucketSize
-                    && betterThan(values.get(worstIndex).bytesRefView(), values.get(rightIndex).bytesRefView())) {
-
+                if (rightChild < heapSize && betterThan(values.get(worstIndex).bytesRefView(), values.get(rightIndex).bytesRefView())) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

@@ -13,19 +13,35 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -49,8 +65,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
@@ -60,14 +76,22 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
 
 public final class CsvTestUtils {
-    private static final int MAX_WIDTH = 20;
+    private static final int MAX_WIDTH = 80;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
     private static final char ESCAPE_CHAR = '\\';
     public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
     public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
+
+    public record Range(Object lowerBound, Object upperBound) {
+        @SuppressWarnings("unchecked")
+        <T extends Comparable<T>> boolean includes(Object value) {
+            return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
+        }
+    }
 
     private CsvTestUtils() {}
 
@@ -135,21 +159,26 @@ public final class CsvTestUtils {
                         return;
                     }
                     stringValue = mvStrings[0].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                } else if (stringValue.contains(",")) {// multi-value field
+                } else if (stringValue.matches(".*" + COMMA_ESCAPING_REGEX + ".*") && type != Type.AGGREGATE_METRIC_DOUBLE) {// multi-value
+                                                                                                                             // field
                     builderWrapper().builder().beginPositionEntry();
 
-                    String[] arrayOfValues = delimitedListToStringArray(stringValue, ",");
+                    String[] arrayOfValues = stringValue.split(COMMA_ESCAPING_REGEX, -1);
                     List<Object> convertedValues = new ArrayList<>(arrayOfValues.length);
                     for (String value : arrayOfValues) {
-                        convertedValues.add(type.convert(value));
+                        convertedValues.add(type.convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
                     }
-                    convertedValues.stream().sorted().forEach(v -> builderWrapper().append().accept(v));
+                    Stream<Object> convertedValuesStream = convertedValues.stream();
+                    if (type.sortMultiValues()) {
+                        convertedValuesStream = convertedValuesStream.sorted();
+                    }
+                    convertedValuesStream.forEach(v -> builderWrapper().append().accept(v));
                     builderWrapper().builder().endPositionEntry();
 
                     return;
                 }
 
-                var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
+                var converted = stringValue.length() == 0 ? null : type.convert(stringValue.replace(ESCAPED_COMMA_SEQUENCE, ","));
                 builderWrapper().append().accept(converted);
             }
 
@@ -471,13 +500,31 @@ public final class CsvTestUtils {
                 return null;
             }
             Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
-            return parsed.getEpochSecond() * 1_000_000_000 + parsed.getNano();
+            return DateUtils.toLong(parsed);
         }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
-        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        GEOHASH(x -> x == null ? null : Geohash.longEncode(x), Long.class),
+        GEOTILE(x -> x == null ? null : GeoTileUtils.longEncode(x), Long.class),
+        GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
+        AGGREGATE_METRIC_DOUBLE(
+            x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
+            AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
+        ),
+        DENSE_VECTOR(Float::parseFloat, Float.class, false),
+        EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
+        TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
+        UNSUPPORTED(Type::convertUnsupported, Void.class);
+
+        private static Void convertUnsupported(String s) {
+            if (s != null) {
+                throw new IllegalArgumentException(Strings.format("Unsupported type should always be null, was '%s'", s));
+            }
+            return null;
+        }
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -485,6 +532,9 @@ public final class CsvTestUtils {
             for (Type value : Type.values()) {
                 LOOKUP.put(value.name(), value);
             }
+            // Types with a different field caps family type
+            LOOKUP.put("SEMANTIC_TEXT", TEXT);
+
             // widen smaller types
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);
@@ -509,25 +559,38 @@ public final class CsvTestUtils {
             LOOKUP.put("DATE", DATETIME);
             LOOKUP.put("DT", DATETIME);
             LOOKUP.put("V", VERSION);
+
+            LOOKUP.put("DENSE_VECTOR", DENSE_VECTOR);
         }
 
         private final Function<String, Object> converter;
         private final Class<?> clazz;
         private final Comparator<Object> comparator;
+        private final boolean sortMultiValues;
+
+        Type(Function<String, Object> converter, Class<?> clazz) {
+            this(converter, clazz, true);
+        }
 
         @SuppressWarnings("unchecked")
-        Type(Function<String, Object> converter, Class<?> clazz) {
+        Type(Function<String, Object> converter, Class<?> clazz, boolean sortMultiValues) {
             this(
                 converter,
                 Comparable.class.isAssignableFrom(clazz) ? (a, b) -> ((Comparable) a).compareTo(b) : Comparator.comparing(Object::toString),
-                clazz
+                clazz,
+                sortMultiValues
             );
         }
 
         Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz) {
+            this(converter, comparator, clazz, true);
+        }
+
+        Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz, boolean sortMultiValues) {
             this.converter = converter;
             this.comparator = comparator;
             this.clazz = clazz;
+            this.sortMultiValues = sortMultiValues;
         }
 
         public static Type asType(String name) {
@@ -535,6 +598,9 @@ public final class CsvTestUtils {
         }
 
         public static Type asType(ElementType elementType, Type actualType) {
+            if (actualType == Type.UNSUPPORTED) {
+                return UNSUPPORTED;
+            }
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
@@ -545,23 +611,35 @@ public final class CsvTestUtils {
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
+                case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
+                case TDIGEST -> TDIGEST;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }
 
         private static Type bytesRefBlockType(Type actualType) {
-            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT || actualType == GEO_SHAPE || actualType == CARTESIAN_SHAPE) {
-                return actualType;
-            } else {
-                return KEYWORD;
-            }
+            return switch (actualType) {
+                case NULL -> NULL;
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
+                default -> KEYWORD;
+            };
         }
 
         Object convert(String value) {
             if (value == null) {
                 return null;
             }
-            return converter.apply(value);
+            if (Number.class.isAssignableFrom(clazz) && value.contains("..")) {
+                // Numbers of the form "lower..upper" are parsed to a Range, indicating that
+                // the expected value is within that range.
+                int separator = value.indexOf("..");
+                Object lowerBound = converter.apply(value.substring(0, separator).trim());
+                Object upperBound = converter.apply(value.substring(separator + 2).trim());
+                return new Range(lowerBound, upperBound);
+            } else {
+                return converter.apply(value);
+            }
         }
 
         Class<?> clazz() {
@@ -570,6 +648,10 @@ public final class CsvTestUtils {
 
         public Comparator<Object> comparator() {
             return comparator;
+        }
+
+        public boolean sortMultiValues() {
+            return sortMultiValues;
         }
     }
 
@@ -644,8 +726,38 @@ public final class CsvTestUtils {
 
     private static double scaledFloat(String value, String factor) {
         double scalingFactor = Double.parseDouble(factor);
-        // this extra division introduces extra imprecision in the following multiplication, but this is how ScaledFloatFieldMapper works.
-        double scalingFactorInverse = 1d / scalingFactor;
-        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() * scalingFactorInverse;
+        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() / scalingFactor;
+    }
+
+    private static ExponentialHistogram parseExponentialHistogram(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return ExponentialHistogramXContent.parseForTesting(parser);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private static TDigestHolder parseTDigest(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
+            }
+            parser.nextToken();
+            TDigestParser.ParsedTDigest parsed = TDigestParser.parse(
+                "field from test data",
+                parser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
+            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

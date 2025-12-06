@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -23,16 +24,14 @@ import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -85,11 +84,12 @@ public class SerializationTestUtils {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
             serializer.write(planStreamOutput, orig);
+
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config, new TestNameIdMapper());
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -114,18 +114,29 @@ public class SerializationTestUtils {
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, WildcardQueryBuilder.NAME, WildcardQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, RegexpQueryBuilder.NAME, RegexpQueryBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, ExistsQueryBuilder.NAME, ExistsQueryBuilder::new));
+        entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new));
         entries.add(SingleValueQuery.ENTRY);
-        entries.addAll(Attribute.getNamedWriteables());
-        entries.add(UnsupportedAttribute.ENTRY);
-        entries.addAll(NamedExpression.getNamedWriteables());
-        entries.add(UnsupportedAttribute.NAMED_EXPRESSION_ENTRY);
-        entries.addAll(Expression.getNamedWriteables());
-        entries.addAll(EsqlScalarFunction.getNamedWriteables());
-        entries.addAll(AggregateFunction.getNamedWriteables());
-        entries.addAll(Block.getNamedWriteables());
-        entries.addAll(LogicalPlan.getNamedWriteables());
-        entries.addAll(PhysicalPlan.getNamedWriteables());
-        entries.addAll(FullTextFunction.getNamedWriteables());
+        entries.addAll(ExpressionWritables.getNamedWriteables());
+        entries.addAll(PlanWritables.getNamedWriteables());
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                GenericNamedWriteable.class,
+                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY.name,
+                AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
+            )
+        );
+        entries.add(WriteableExponentialHistogram.ENTRY);
         return new NamedWriteableRegistry(entries);
+    }
+
+    /**
+     * Maps NameIds seen in a plan to themselves rather than creating new, unique ones.
+     * This makes equality checks easier when comparing a plan to itself after serialization and deserialization.
+     */
+    public static class TestNameIdMapper extends PlanStreamInput.NameIdMapper {
+        @Override
+        public NameId apply(long streamNameId) {
+            return new NameId(streamNameId);
+        }
     }
 }

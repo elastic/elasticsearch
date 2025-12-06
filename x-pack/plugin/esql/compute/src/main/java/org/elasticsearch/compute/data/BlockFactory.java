@@ -14,15 +14,17 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.BitSet;
 
 public class BlockFactory {
     public static final String LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING = "esql.block_factory.local_breaker.over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(4);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(8);
 
     public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(16);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(512);
 
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
@@ -81,7 +83,7 @@ public class BlockFactory {
      * be adjusted without tripping.
      * @throws CircuitBreakingException if the breaker was put above its limit
      */
-    void adjustBreaker(final long delta) throws CircuitBreakingException {
+    public void adjustBreaker(final long delta) throws CircuitBreakingException {
         // checking breaker means potentially tripping, but it doesn't
         // have to if the delta is negative
         if (delta > 0) {
@@ -432,10 +434,120 @@ public class BlockFactory {
         return b;
     }
 
+    public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
+        return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        Block minBlock,
+        Block maxBlock,
+        Block sumBlock,
+        Block countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
+    }
+
+    public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
+        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
+        int positions
+    ) {
+        try (AggregateMetricDoubleBlockBuilder builder = newAggregateMetricDoubleBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.min() != null) {
+                    builder.min().appendDouble(value.min());
+                } else {
+                    builder.min().appendNull();
+                }
+                if (value.max() != null) {
+                    builder.max().appendDouble(value.max());
+                } else {
+                    builder.max().appendNull();
+                }
+                if (value.sum() != null) {
+                    builder.sum().appendDouble(value.sum());
+                } else {
+                    builder.sum().appendNull();
+                }
+                if (value.count() != null) {
+                    builder.count().appendInt(value.count());
+                } else {
+                    builder.count().appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    public BlockLoader.Block newAggregateMetricDoubleBlockFromDocValues(
+        DoubleBlock minBlock,
+        DoubleBlock maxBlock,
+        DoubleBlock sumBlock,
+        IntBlock countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
+    public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
+        return new ExponentialHistogramBlockBuilder(estimatedSize, this);
+    }
+
+    public TDigestBlockBuilder newTDigestBlockBuilder(int estimatedSize) {
+        return new TDigestBlockBuilder(estimatedSize, this);
+    }
+
+    public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
+        return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlock(TDigestHolder value, int positions) {
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
+    public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        DoubleBlock valueCounts,
+        DoubleBlock zeroThresholds,
+        BytesRefBlock encodedHistograms
+    ) {
+        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
+    public BlockLoader.Block newTDigestBlockFromDocValues(
+        BytesRefBlock encodedDigests,
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock counts
+    ) {
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        double[] minValues,
+        double[] maxValues,
+        double[] sumValues,
+        int[] countValues,
+        int positions
+    ) {
+        DoubleBlock min = newDoubleArrayVector(minValues, positions).asBlock();
+        DoubleBlock max = newDoubleArrayVector(maxValues, positions).asBlock();
+        DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
+        IntBlock count = newIntArrayVector(countValues, positions).asBlock();
+        return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
+    }
+
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */
     public long maxPrimitiveArrayBytes() {
         return maxPrimitiveArrayBytes;
     }
+
 }

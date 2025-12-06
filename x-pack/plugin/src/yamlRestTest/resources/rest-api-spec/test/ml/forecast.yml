@@ -45,7 +45,7 @@ setup:
       catch: /\[duration\] must be positive[:] \[-1\]/
       ml.forecast:
         job_id: "forecast-job"
-        duration: "-1s"
+        duration: "-1"
 
 ---
 "Test forecast given duration is too large":
@@ -61,7 +61,7 @@ setup:
       catch: /\[expires_in\] must be non-negative[:] \[-1\]/
       ml.forecast:
         job_id: "forecast-job"
-        expires_in: "-1s"
+        expires_in: "-1"
 ---
 "Test forecast given max_model_memory is too large":
   - do:

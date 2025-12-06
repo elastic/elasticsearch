@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -18,7 +19,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,6 +33,9 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
     public static final GetInferenceDiagnosticsAction INSTANCE = new GetInferenceDiagnosticsAction();
     public static final String NAME = "cluster:monitor/xpack/inference/diagnostics/get";
+
+    private static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = TransportVersion.fromName("ml_inference_endpoint_cache");
+    private static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = TransportVersion.fromName("inference_api_eis_diagnostics");
 
     public GetInferenceDiagnosticsAction() {
         super(NAME);
@@ -56,7 +61,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
@@ -115,30 +120,71 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
     }
 
     public static class NodeResponse extends BaseNodeResponse implements ToXContentFragment {
-        static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
+        private static final String EXTERNAL_FIELD = "external";
+        private static final String EIS_FIELD = "eis_mtls";
+        private static final String CONNECTION_POOL_STATS_FIELD_NAME = "connection_pool_stats";
+        static final String INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME = "inference_endpoint_registry";
 
-        private final ConnectionPoolStats connectionPoolStats;
+        private final ConnectionPoolStats externalConnectionPoolStats;
+        private final ConnectionPoolStats eisMtlsConnectionPoolStats;
+        @Nullable
+        private final Stats inferenceEndpointRegistryStats;
 
-        public NodeResponse(DiscoveryNode node, PoolStats poolStats) {
+        public NodeResponse(
+            DiscoveryNode node,
+            PoolStats poolStats,
+            PoolStats eisPoolStats,
+            @Nullable Stats inferenceEndpointRegistryStats
+        ) {
             super(node);
-            connectionPoolStats = ConnectionPoolStats.of(poolStats);
+            externalConnectionPoolStats = ConnectionPoolStats.of(poolStats);
+            eisMtlsConnectionPoolStats = ConnectionPoolStats.of(eisPoolStats);
+            this.inferenceEndpointRegistryStats = inferenceEndpointRegistryStats;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
 
-            connectionPoolStats = new ConnectionPoolStats(in);
+            externalConnectionPoolStats = new ConnectionPoolStats(in);
+            if (in.getTransportVersion().supports(INFERENCE_API_EIS_DIAGNOSTICS)) {
+                eisMtlsConnectionPoolStats = new ConnectionPoolStats(in);
+            } else {
+                eisMtlsConnectionPoolStats = ConnectionPoolStats.EMPTY;
+            }
+            inferenceEndpointRegistryStats = in.getTransportVersion().supports(ML_INFERENCE_ENDPOINT_CACHE)
+                ? in.readOptionalWriteable(Stats::new)
+                : null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            connectionPoolStats.writeTo(out);
+            externalConnectionPoolStats.writeTo(out);
+
+            if (out.getTransportVersion().supports(INFERENCE_API_EIS_DIAGNOSTICS)) {
+                eisMtlsConnectionPoolStats.writeTo(out);
+            }
+            if (out.getTransportVersion().supports(ML_INFERENCE_ENDPOINT_CACHE)) {
+                out.writeOptionalWriteable(inferenceEndpointRegistryStats);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(CONNECTION_POOL_STATS_FIELD_NAME, connectionPoolStats, params);
+            builder.startObject(EXTERNAL_FIELD);
+            {
+                builder.field(CONNECTION_POOL_STATS_FIELD_NAME, externalConnectionPoolStats, params);
+            }
+            builder.endObject();
+
+            builder.startObject(EIS_FIELD);
+            {
+                builder.field(CONNECTION_POOL_STATS_FIELD_NAME, eisMtlsConnectionPoolStats, params);
+            }
+            builder.endObject();
+            if (inferenceEndpointRegistryStats != null) {
+                builder.field(INFERENCE_ENDPOINT_REGISTRY_STATS_FIELD_NAME, inferenceEndpointRegistryStats, params);
+            }
             return builder;
         }
 
@@ -147,23 +193,34 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse response = (NodeResponse) o;
-            return Objects.equals(connectionPoolStats, response.connectionPoolStats);
+            return Objects.equals(externalConnectionPoolStats, response.externalConnectionPoolStats)
+                && Objects.equals(eisMtlsConnectionPoolStats, response.eisMtlsConnectionPoolStats)
+                && Objects.equals(inferenceEndpointRegistryStats, response.inferenceEndpointRegistryStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectionPoolStats);
+            return Objects.hash(externalConnectionPoolStats, eisMtlsConnectionPoolStats, inferenceEndpointRegistryStats);
         }
 
-        ConnectionPoolStats getConnectionPoolStats() {
-            return connectionPoolStats;
+        ConnectionPoolStats getExternalConnectionPoolStats() {
+            return externalConnectionPoolStats;
+        }
+
+        ConnectionPoolStats getEisMtlsConnectionPoolStats() {
+            return eisMtlsConnectionPoolStats;
+        }
+
+        public Stats getInferenceEndpointRegistryStats() {
+            return inferenceEndpointRegistryStats;
         }
 
         static class ConnectionPoolStats implements ToXContentObject, Writeable {
-            static final String LEASED_CONNECTIONS = "leased_connections";
-            static final String PENDING_CONNECTIONS = "pending_connections";
-            static final String AVAILABLE_CONNECTIONS = "available_connections";
-            static final String MAX_CONNECTIONS = "max_connections";
+            private static final String LEASED_CONNECTIONS = "leased_connections";
+            private static final String PENDING_CONNECTIONS = "pending_connections";
+            private static final String AVAILABLE_CONNECTIONS = "available_connections";
+            private static final String MAX_CONNECTIONS = "max_connections";
+            private static final ConnectionPoolStats EMPTY = new ConnectionPoolStats(0, 0, 0, 0);
 
             static ConnectionPoolStats of(PoolStats poolStats) {
                 return new ConnectionPoolStats(poolStats.getLeased(), poolStats.getPending(), poolStats.getAvailable(), poolStats.getMax());
@@ -238,6 +295,36 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
             int getMaxConnections() {
                 return maxConnections;
+            }
+        }
+
+        public record Stats(int entryCount, long hits, long misses, long evictions) implements ToXContentObject, Writeable {
+
+            private static final String NUM_OF_CACHE_ENTRIES = "cache_count";
+            private static final String CACHE_HITS = "cache_hits";
+            private static final String CACHE_MISSES = "cache_misses";
+            private static final String CACHE_EVICTIONS = "cache_evictions";
+
+            public Stats(StreamInput in) throws IOException {
+                this(in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong());
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeVInt(entryCount);
+                out.writeVLong(hits);
+                out.writeVLong(misses);
+                out.writeVLong(evictions);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.startObject()
+                    .field(NUM_OF_CACHE_ENTRIES, entryCount)
+                    .field(CACHE_HITS, hits)
+                    .field(CACHE_MISSES, misses)
+                    .field(CACHE_EVICTIONS, evictions)
+                    .endObject();
             }
         }
     }

@@ -10,19 +10,28 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
+import org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -86,11 +95,16 @@ public class DataGenerationTests extends ESTestCase {
                 return testChildFieldGenerator;
             }
 
+            private static final FieldType[] SUPPORTED_FIELD_TYPES = Arrays.asList(FieldType.values())
+                .stream()
+                .filter(fieldType -> fieldType != FieldType.PASSTHROUGH)
+                .toArray(FieldType[]::new);
+
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
                     () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(
-                        FieldType.values()[generatedFields++ % FieldType.values().length]
+                        SUPPORTED_FIELD_TYPES[generatedFields++ % SUPPORTED_FIELD_TYPES.length].toString()
                     )
                 );
 
@@ -110,7 +124,13 @@ public class DataGenerationTests extends ESTestCase {
         var mappingService = new MapperServiceTestCase() {
             @Override
             protected Collection<? extends Plugin> getPlugins() {
-                return List.of(new UnsignedLongMapperPlugin(), new MapperExtrasPlugin());
+                return List.of(
+                    new UnsignedLongMapperPlugin(),
+                    new MapperExtrasPlugin(),
+                    new CountedKeywordMapperPlugin(),
+                    new ConstantKeywordMapperPlugin(),
+                    new Wildcard()
+                );
             }
         }.createMapperService(mappingXContent);
 
@@ -165,7 +185,7 @@ public class DataGenerationTests extends ESTestCase {
             @Override
             public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                 return new DataSourceResponse.FieldTypeGenerator(
-                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG)
+                    () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG.toString())
                 );
             }
         };

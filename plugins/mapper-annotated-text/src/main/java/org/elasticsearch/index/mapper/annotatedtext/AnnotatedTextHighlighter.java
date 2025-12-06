@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
@@ -52,7 +53,7 @@ public class AnnotatedTextHighlighter extends DefaultHighlighter {
     }
 
     @Override
-    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {
         return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer, maxAnalyzedOffset));
     }
 

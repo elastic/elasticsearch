@@ -73,7 +73,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
                 );
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (valid, position) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static TestCaseSupplier.TestCase testCase(

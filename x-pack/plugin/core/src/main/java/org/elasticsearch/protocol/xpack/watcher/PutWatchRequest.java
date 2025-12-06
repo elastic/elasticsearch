@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.protocol.xpack.watcher;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * This request class contains the data needed to create a watch along with the name of the watch.
  * The name of the watch will become the ID of the indexed document.
  */
-public final class PutWatchRequest extends ActionRequest {
+public final class PutWatchRequest extends LegacyActionRequest {
 
     private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");
 
@@ -38,7 +38,7 @@ public final class PutWatchRequest extends ActionRequest {
     private boolean active = true;
     private long version = Versions.MATCH_ANY;
 
-    private long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public PutWatchRequest() {}
@@ -135,9 +135,9 @@ public final class PutWatchRequest extends ActionRequest {
     /**
      * only performs this put request if the watch's last modification was assigned the given
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
-     *
+     * <p>
      * If the watch's last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link VersionConflictEngineException} will be thrown.
      */
     public PutWatchRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
@@ -150,9 +150,9 @@ public final class PutWatchRequest extends ActionRequest {
     /**
      * only performs this put request if the watch's last modification was assigned the given
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
-     *
+     * <p>
      * If the watch last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link VersionConflictEngineException} will be thrown.
      */
     public PutWatchRequest setIfPrimaryTerm(long term) {
         if (term < 0) {
@@ -165,7 +165,7 @@ public final class PutWatchRequest extends ActionRequest {
     /**
      * If set, only perform this put watch request if the watch's last modification was assigned this sequence number.
      * If the watch last last modification was assigned a different sequence number a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link VersionConflictEngineException} will be thrown.
      */
     public long getIfSeqNo() {
         return ifSeqNo;
@@ -173,9 +173,9 @@ public final class PutWatchRequest extends ActionRequest {
 
     /**
      * If set, only perform this put watch request if the watch's last modification was assigned this primary term.
-     *
+     * <p>
      * If the watch's last modification was assigned a different term a
-     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     * {@link VersionConflictEngineException} will be thrown.
      */
     public long getIfPrimaryTerm() {
         return ifPrimaryTerm;

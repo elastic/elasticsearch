@@ -11,31 +11,28 @@ package org.elasticsearch.monitor.metrics;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.OnScriptError;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,6 +77,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String STANDARD_INDEXING_COUNT = "es.indices.standard.indexing.total";
     static final String STANDARD_INDEXING_TIME = "es.indices.standard.indexing.time";
     static final String STANDARD_INDEXING_FAILURE = "es.indices.standard.indexing.failure.total";
+    static final String STANDARD_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT = "es.indices.standard.indexing.failure.version_conflict.total";
 
     static final String TIME_SERIES_INDEX_COUNT = "es.indices.time_series.total";
     static final String TIME_SERIES_BYTES_SIZE = "es.indices.time_series.size";
@@ -93,6 +91,8 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String TIME_SERIES_INDEXING_COUNT = "es.indices.time_series.indexing.total";
     static final String TIME_SERIES_INDEXING_TIME = "es.indices.time_series.indexing.time";
     static final String TIME_SERIES_INDEXING_FAILURE = "es.indices.time_series.indexing.failure.total";
+    static final String TIME_SERIES_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT =
+        "es.indices.time_series.indexing.failure.version_conflict.total";
 
     static final String LOGSDB_INDEX_COUNT = "es.indices.logsdb.total";
     static final String LOGSDB_BYTES_SIZE = "es.indices.logsdb.size";
@@ -106,6 +106,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String LOGSDB_INDEXING_COUNT = "es.indices.logsdb.indexing.total";
     static final String LOGSDB_INDEXING_TIME = "es.indices.logsdb.indexing.time";
     static final String LOGSDB_INDEXING_FAILURE = "es.indices.logsdb.indexing.failure.total";
+    static final String LOGSDB_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT = "es.indices.logsdb.indexing.failure.version_conflict.total";
 
     public void testIndicesMetrics() {
         String indexNode = internalCluster().startNode();
@@ -136,7 +137,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 STANDARD_INDEXING_TIME,
                 greaterThanOrEqualTo(0L),
                 STANDARD_INDEXING_FAILURE,
-                equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexCount())
+                equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexFailedCount()),
+                STANDARD_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(indexing1.getIndexFailedDueToVersionConflictCount() - indexing0.getIndexFailedDueToVersionConflictCount())
             )
         );
 
@@ -159,7 +162,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 TIME_SERIES_INDEXING_TIME,
                 greaterThanOrEqualTo(0L),
                 TIME_SERIES_INDEXING_FAILURE,
-                equalTo(indexing2.getIndexFailedCount() - indexing1.getIndexFailedCount())
+                equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexFailedCount()),
+                TIME_SERIES_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(indexing1.getIndexFailedDueToVersionConflictCount() - indexing0.getIndexFailedDueToVersionConflictCount())
             )
         );
 
@@ -181,13 +186,14 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 LOGSDB_INDEXING_TIME,
                 greaterThanOrEqualTo(0L),
                 LOGSDB_INDEXING_FAILURE,
-                equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount())
+                equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount()),
+                LOGSDB_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(indexing3.getIndexFailedDueToVersionConflictCount() - indexing2.getIndexFailedDueToVersionConflictCount())
             )
         );
         // already collected indexing stats
-        collectThenAssertMetrics(
-            telemetry,
-            4,
+        Map<String, Matcher<Long>> zeroMatchers = new HashMap<>();
+        zeroMatchers.putAll(
             Map.of(
                 STANDARD_INDEXING_COUNT,
                 equalTo(0L),
@@ -195,22 +201,35 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(0L),
                 STANDARD_INDEXING_FAILURE,
                 equalTo(0L),
-
+                STANDARD_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(0L)
+            )
+        );
+        zeroMatchers.putAll(
+            Map.of(
                 TIME_SERIES_INDEXING_COUNT,
                 equalTo(0L),
                 TIME_SERIES_INDEXING_TIME,
                 equalTo(0L),
                 TIME_SERIES_INDEXING_FAILURE,
                 equalTo(0L),
-
+                TIME_SERIES_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(0L)
+            )
+        );
+        zeroMatchers.putAll(
+            Map.of(
                 LOGSDB_INDEXING_COUNT,
                 equalTo(0L),
                 LOGSDB_INDEXING_TIME,
                 equalTo(0L),
                 LOGSDB_INDEXING_FAILURE,
+                equalTo(0L),
+                LOGSDB_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
                 equalTo(0L)
             )
         );
+        collectThenAssertMetrics(telemetry, 4, zeroMatchers);
         String searchNode = internalCluster().startDataOnlyNode();
         indicesService = internalCluster().getInstance(IndicesService.class, searchNode);
         telemetry = internalCluster().getInstance(PluginsService.class, searchNode)
@@ -329,6 +348,10 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 equalTo(0L)
             )
         );
+
+        verifyStatsPerIndexMode(
+            Map.of(IndexMode.STANDARD, numStandardDocs, IndexMode.LOGSDB, numLogsdbDocs, IndexMode.TIME_SERIES, numTimeSeriesDocs)
+        );
     }
 
     void collectThenAssertMetrics(TestTelemetryPlugin telemetry, int times, Map<String, Matcher<Long>> matchers) {
@@ -434,53 +457,19 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         return totalDocs;
     }
 
-    private Map<String, Object> parseMapping(String mapping) throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mapping)) {
-            return parser.map();
+    private void verifyStatsPerIndexMode(Map<IndexMode, Long> expectedDocs) {
+        var nodes = clusterService().state().nodes().stream().toArray(DiscoveryNode[]::new);
+        var request = new IndexModeStatsActionType.StatsRequest(nodes);
+        var resp = client().execute(IndexModeStatsActionType.TYPE, request).actionGet();
+        var stats = resp.stats();
+        for (Map.Entry<IndexMode, Long> e : expectedDocs.entrySet()) {
+            assertThat(stats.get(e.getKey()).numDocs(), equalTo(e.getValue()));
         }
     }
 
-    public static class FailingFieldPlugin extends Plugin implements ScriptPlugin {
-
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
-                @Override
-                public String getType() {
-                    return "failing_field";
-                }
-
-                @Override
-                @SuppressWarnings("unchecked")
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> params
-                ) {
-                    return (FactoryType) new LongFieldScript.Factory() {
-                        @Override
-                        public LongFieldScript.LeafFactory newFactory(
-                            String fieldName,
-                            Map<String, Object> params,
-                            SearchLookup searchLookup,
-                            OnScriptError onScriptError
-                        ) {
-                            return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
-                                @Override
-                                public void execute() {
-                                    throw new IllegalStateException("Accessing failing field");
-                                }
-                            };
-                        }
-                    };
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(LongFieldScript.CONTEXT);
-                }
-            };
+    private Map<String, Object> parseMapping(String mapping) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mapping)) {
+            return parser.map();
         }
     }
 }

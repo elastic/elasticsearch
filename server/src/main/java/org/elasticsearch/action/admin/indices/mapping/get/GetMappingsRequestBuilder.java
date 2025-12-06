@@ -9,15 +9,30 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 
-public class GetMappingsRequestBuilder extends ClusterInfoRequestBuilder<
-    GetMappingsRequest,
-    GetMappingsResponse,
-    GetMappingsRequestBuilder> {
+public class GetMappingsRequestBuilder extends ActionRequestBuilder<GetMappingsRequest, GetMappingsResponse> {
 
-    public GetMappingsRequestBuilder(ElasticsearchClient client, String... indices) {
-        super(client, GetMappingsAction.INSTANCE, new GetMappingsRequest().indices(indices));
+    public GetMappingsRequestBuilder(ElasticsearchClient client, TimeValue masterTimeout, String... indices) {
+        super(client, GetMappingsAction.INSTANCE, new GetMappingsRequest(masterTimeout).indices(indices));
+    }
+
+    public GetMappingsRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    public GetMappingsRequestBuilder addIndices(String... indices) {
+        request.indices(ArrayUtils.concat(request.indices(), indices));
+        return this;
+    }
+
+    public GetMappingsRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return this;
     }
 }

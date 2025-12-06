@@ -9,13 +9,11 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.action.EmptyResponseListener;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
 
 /**
  * Base class for responses to action requests.
@@ -24,24 +22,23 @@ public abstract class ActionResponse extends TransportResponse {
 
     public ActionResponse() {}
 
-    public ActionResponse(StreamInput in) throws IOException {
-        super(in);
-    }
+    /**
+     * A response with no payload. This is deliberately not an implementation of {@link ToXContent} or similar because an empty response
+     * has no valid {@link XContent} representation. Use {@link EmptyResponseListener} to convert this to a valid (plain-text) REST
+     * response instead.
+     */
+    public static final class Empty extends ActionResponse {
 
-    public static final class Empty extends ActionResponse implements ToXContentObject {
+        private Empty() { /* singleton */ }
+
         public static final ActionResponse.Empty INSTANCE = new ActionResponse.Empty();
 
         @Override
         public String toString() {
-            return "EmptyActionResponse{}";
+            return "ActionResponse.Empty{}";
         }
 
         @Override
         public void writeTo(StreamOutput out) {}
-
-        @Override
-        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) {
-            return builder;
-        }
     }
 }

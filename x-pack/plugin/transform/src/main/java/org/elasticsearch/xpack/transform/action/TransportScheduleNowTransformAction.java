@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -21,11 +22,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Response;
@@ -72,6 +75,15 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        if (TransformMetadata.upgradeMode(clusterState)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot schedule any Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
 
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {
             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(request.getId(), clusterState);
@@ -116,6 +128,10 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
         TransformTask transformTask,
         ActionListener<Response> listener
     ) {
+        if (transformTask.getContext().isWaitingForIndexToUnblock()) {
+            logger.debug("[{}] Destination index is blocked. User requested a retry.", transformTask.getTransformId());
+            transformTask.getContext().setIsWaitingForIndexToUnblock(false);
+        }
         transformScheduler.scheduleNow(request.getId());
         listener.onResponse(Response.TRUE);
     }

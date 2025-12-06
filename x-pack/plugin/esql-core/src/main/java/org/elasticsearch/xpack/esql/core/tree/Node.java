@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -35,7 +37,7 @@ import static java.util.Collections.emptyList;
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {
     private static final int TO_STRING_MAX_PROP = 10;
-    private static final int TO_STRING_MAX_WIDTH = 110;
+    public static final int TO_STRING_MAX_WIDTH = 110;
 
     private final Source source;
     private final List<T> children;
@@ -67,7 +69,38 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public void forEachDown(Consumer<? super T> action) {
         action.accept((T) this);
-        children().forEach(c -> c.forEachDown(action));
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachDown(action);
+        }
+    }
+
+    /**
+     * Same as forEachDown, but can end the traverse early, by setting the boolean argument in the action.
+     */
+    public boolean forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action) {
+        var breakEarly = new Holder<>(false);
+        forEachDownMayReturnEarly(action, breakEarly);
+        return breakEarly.get();
+    }
+
+    @SuppressWarnings("unchecked")
+    void forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action, Holder<Boolean> breakEarly) {
+        action.accept((T) this, breakEarly);
+        if (breakEarly.get()) {
+            // Early return.
+            return;
+        }
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachDownMayReturnEarly(action, breakEarly);
+            if (breakEarly.get()) {
+                // Early return.
+                return;
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -81,7 +114,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     @SuppressWarnings("unchecked")
     public void forEachUp(Consumer<? super T> action) {
-        children().forEach(c -> c.forEachUp(action));
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachUp(action);
+        }
         action.accept((T) this);
     }
 
@@ -110,7 +147,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     protected <E> void forEachProperty(Class<E> typeToken, Consumer<? super E> rule) {
         for (Object prop : info().properties()) {
             // skip children (only properties are interesting)
-            if (prop != children && children.contains(prop) == false && typeToken.isInstance(prop)) {
+            if (prop != children && typeToken.isInstance(prop) && children.contains(prop) == false) {
                 rule.accept((E) prop);
             }
         }
@@ -134,6 +171,23 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         forEachDown(n -> {
             if (predicate.test(n)) {
                 l.add(n);
+            }
+        });
+        return l.isEmpty() ? emptyList() : l;
+    }
+
+    public <E extends T> List<E> collect(Class<E> typeToken) {
+        return collect(typeToken, n -> true);
+    }
+
+    public <E extends T> List<E> collect(Class<E> typeToken, Predicate<? super E> predicate) {
+        List<E> l = new ArrayList<>();
+        forEachDown(n -> {
+            if (typeToken.isInstance(n)) {
+                E e = typeToken.cast(n);
+                if (predicate.test(e)) {
+                    l.add(e);
+                }
             }
         });
         return l.isEmpty() ? emptyList() : l;
@@ -176,14 +230,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     public T transformDown(Function<? super T, ? extends T> rule) {
         T root = rule.apply((T) this);
         Node<T> node = this.equals(root) ? this : root;
-
         return node.transformChildren(child -> child.transformDown(rule));
     }
 
     @SuppressWarnings("unchecked")
     public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
-        // type filtering function
         return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformDown(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
+        return transformDown((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
     }
 
     @SuppressWarnings("unchecked")
@@ -195,28 +252,33 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     @SuppressWarnings("unchecked")
     public <E extends T> T transformUp(Class<E> typeToken, Function<E, ? extends T> rule) {
-        // type filtering function
         return transformUp((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformUp(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
+        return transformUp((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
     }
 
     @SuppressWarnings("unchecked")
     protected <R extends Function<? super T, ? extends T>> T transformChildren(Function<T, ? extends T> traversalOperation) {
         boolean childrenChanged = false;
 
-        // stream() could be used but the code is just as complicated without any advantages
-        // further more, it would include bring in all the associated stream/collector object creation even though in
-        // most cases the immediate tree would be quite small (0,1,2 elements)
-        List<T> transformedChildren = new ArrayList<>(children().size());
+        // Avoid creating a new array of children if no change is needed.
+        // And when it happens, look at using replacement to minimize the amount of method invocations.
+        List<T> transformedChildren = null;
 
-        for (T child : children) {
+        for (int i = 0, s = children.size(); i < s; i++) {
+            T child = children.get(i);
             T next = traversalOperation.apply(child);
-            if (child.equals(next)) {
-                // use the initial value
-                next = child;
-            } else {
-                childrenChanged = true;
+            if (child.equals(next) == false) {
+                // lazy copy + replacement in place
+                if (childrenChanged == false) {
+                    childrenChanged = true;
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, next);
             }
-            transformedChildren.add(next);
         }
 
         return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
@@ -262,13 +324,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Return the information about this node.
-     * <p>
      * Normally, you want to use one of the static {@code create} methods to implement this.
      * <p>
      * For {@code QueryPlan}s, it is very important that
      * the properties contain all of the expressions and references relevant to this node, and
-     * that all of the properties are used in the provided constructor; otherwise query plan
+     * that all the properties are used in the provided constructor; otherwise query plan
      * transformations like
      * {@code QueryPlan#transformExpressionsOnly(Function)}
      * will not have an effect.

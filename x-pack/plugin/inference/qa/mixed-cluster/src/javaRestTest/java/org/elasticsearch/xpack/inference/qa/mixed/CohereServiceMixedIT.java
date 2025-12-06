@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecTestCase.bwcVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
@@ -135,6 +134,7 @@ public class CohereServiceMixedIT extends BaseMixedTestCase {
 
         final String inferenceId = "mixed-cluster-rerank";
 
+        cohereRerankServer.enqueue(new MockResponse().setResponseCode(200).setBody(rerankResponse()));
         put(inferenceId, rerankConfig(getUrl(cohereRerankServer)), TaskType.RERANK);
         assertRerank(inferenceId);
 

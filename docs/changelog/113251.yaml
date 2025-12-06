@@ -1,5 +1,0 @@
-pr: 113251
-summary: Span term query to convert to match no docs when unmapped field is targeted
-area: Search
-type: bug
-issues: []

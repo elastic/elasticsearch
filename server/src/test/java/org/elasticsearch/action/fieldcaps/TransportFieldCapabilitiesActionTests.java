@@ -10,7 +10,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -52,7 +51,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
+        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
@@ -84,6 +83,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 threadPool,
                 actionFilters,
                 indicesService,
+                null,
                 null
             );
 

@@ -1,10 +1,4 @@
 ---
-setup:
-  - requires:
-      cluster_features: ["geoip.downloader.database.configuration", "get_database_configuration_action.multi_node"]
-      reason: "geoip downloader database configuration APIs added in 8.15, and updated in 8.16 to return more results"
-
----
 teardown:
   - do:
       ingest.delete_ip_location_database:
@@ -75,7 +69,7 @@ teardown:
 
   - do:
       ingest.get_geoip_database: {}
-  - length: { databases: 6 }
+  - length: { databases: 7 }
 
   - do:
       ingest.get_geoip_database:
@@ -101,7 +95,7 @@ teardown:
 
   - do:
       ingest.get_geoip_database: {}
-  - length: { databases: 5 }
+  - length: { databases: 6 }
 
   - do:
       ingest.get_geoip_database:

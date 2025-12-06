@@ -1,0 +1,151 @@
+simpleKeep
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | sort _index desc, emp_no | limit 2 | keep emp_no, _index, _version;
+
+emp_no:integer |_index:keyword                |_version:long
+10001          |remote_cluster:employees      |1
+10002          |remote_cluster:employees      |1
+;
+
+aliasWithSameName
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | sort _index desc, emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
+
+emp_no:integer |_index:keyword                |_version:long
+10001          |remote_cluster:employees      |1
+10002          |remote_cluster:employees      |1
+;
+
+inComparison
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | sort emp_no | where _index == "remote_cluster:employees" | where _version == 1 | keep emp_no | limit 2;
+
+emp_no:integer
+10001
+10002
+;
+
+metaIndexInAggs
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+FROM employees METADATA _index, _id
+| STATS max = MAX(emp_no) BY _index | SORT _index;
+
+max:integer |_index:keyword
+10100       |remote_cluster:employees
+;
+
+metaIndexAliasedInAggs
+required_capability: index_metadata_field
+required_capability: metadata_fields_remote_test
+from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i | SORT _i;
+
+max:integer |_i:keyword
+10100       |remote_cluster:employees
+;
+
+metaVersionInAggs
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _version | stats min = min(emp_no) by _version;
+
+min:integer |_version:long
+10001       |1
+;
+
+metaVersionAliasedInAggs
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _version | eval _v = _version | stats min = min(emp_no) by _v;
+
+min:integer |_v:long
+10001       |1
+;
+
+inAggsAndAsGroups
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | stats max = max(_version) by _index | SORT _index;
+
+max:long |_index:keyword
+1        |remote_cluster:employees
+;
+
+inAggsAndAsGroupsAliased
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | eval _i = _index, _v = _version | stats max = max(_v) by _i | SORT _i;
+
+max:long |_i:keyword
+1        |remote_cluster:employees
+;
+
+inFunction
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | sort emp_no | where length(_index) == length("remote_cluster:employees") | where abs(_version) == 1 | keep emp_no | limit 2;
+
+emp_no:integer
+10001
+10002
+;
+
+inArithmetics
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | eval i = _version + 2 | stats min = min(emp_no) by i;
+
+min:integer |i:long
+10001       |3
+;
+
+inSort
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | sort _version, _index desc, emp_no | keep emp_no, _version, _index | limit 2;
+
+emp_no:integer |_version:long |_index:keyword
+10001          |1             |remote_cluster:employees
+10002          |1             |remote_cluster:employees
+;
+
+withMvFunction
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _version | eval i = mv_avg(_version) + 2 | stats min = min(emp_no) by i;
+
+min:integer |i:double
+10001       |3.0
+;
+
+overwritten
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+from employees metadata _index, _version | sort emp_no | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
+
+emp_no:integer |_index:integer |_version:keyword
+10001          |3              |version
+10002          |3              |version
+10003          |3              |version
+;
+
+multipleIndices
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+FROM ul_logs, apps METADATA _index, _version
+| WHERE id IN (13, 14) AND _version == 1
+| EVAL key = CONCAT(_index, "_", TO_STR(id))
+| SORT id, _index
+| KEEP id, _index, _version, key
+;
+
+ id:long |_index:keyword          |_version:long  |key:keyword
+13       |remote_cluster:apps     |1              |remote_cluster:apps_13        
+13       |remote_cluster:ul_logs  |1              |remote_cluster:ul_logs_13     
+14       |remote_cluster:apps     |1              |remote_cluster:apps_14        
+14       |remote_cluster:ul_logs  |1              |remote_cluster:ul_logs_14     
+    
+;

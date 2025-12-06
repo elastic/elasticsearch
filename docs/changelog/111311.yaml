@@ -1,6 +1,0 @@
-pr: 111311
-summary: Adding support for data streams with a match-all template
-area: Data streams
-type: bug
-issues:
- - 111204

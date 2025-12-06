@@ -15,9 +15,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -365,13 +366,14 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 );
             }
 
-            ClusterService clusterService = clusterService();
-            final ClusterState state = clusterService.state();
+            ClusterState state = clusterService().state();
+            ProjectMetadata project = state.getMetadata().getProject();
             for (int shard = 0; shard < numberOfShards; shard++) {
                 for (String id : ids) {
-                    ShardId docShard = clusterService.operationRouting().shardId(state, "test", id, null);
+                    ShardId docShard = OperationRouting.shardId(project, "test", id, null);
                     if (docShard.id() == shard) {
-                        final IndexShardRoutingTable indexShardRoutingTable = state.routingTable().shardRoutingTable("test", shard);
+                        final IndexShardRoutingTable indexShardRoutingTable = state.routingTable(project.id())
+                            .shardRoutingTable("test", shard);
                         for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
                             ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                             GetResponse response = client().prepareGet("test", id)

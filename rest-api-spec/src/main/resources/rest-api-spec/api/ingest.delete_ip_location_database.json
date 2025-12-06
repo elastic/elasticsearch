@@ -1,31 +1,43 @@
 {
-  "ingest.delete_ip_location_database":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-ip-location-database-api.html",
-      "description":"Deletes an ip location database configuration"
+  "ingest.delete_ip_location_database": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-delete-ip-location-database",
+      "description": "Delete IP geolocation database configurations"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ingest/ip_location/database/{id}",
-          "methods":[
+          "path": "/_ingest/ip_location/database/{id}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "id":{
-              "type":"list",
-              "description":"A comma-separated list of ip location database configurations to delete"
+          "parts": {
+            "id": {
+              "type": "list",
+              "description": "A comma-separated list of ip location database configurations to delete"
             }
           }
         }
       ]
     },
-    "params":{
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
     }
   }
 }

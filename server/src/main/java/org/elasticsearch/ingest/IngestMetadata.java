@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -18,7 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,7 +34,7 @@ import java.util.Map;
 /**
  * Holds the ingest pipelines that are available in the cluster
  */
-public final class IngestMetadata implements Metadata.Custom {
+public final class IngestMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
@@ -63,7 +62,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     public Map<String, PipelineConfiguration> getPipelines() {
@@ -98,8 +97,8 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).array(PIPELINES_FIELD.getPreferredName(), pipelines.values().iterator());
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.array(PIPELINES_FIELD.getPreferredName(), pipelines.values().iterator());
     }
 
     @Override
@@ -108,15 +107,15 @@ public final class IngestMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new IngestMetadataDiff((IngestMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new IngestMetadataDiff(in);
     }
 
-    static class IngestMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class IngestMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, PipelineConfiguration>> pipelines;
 
@@ -134,7 +133,7 @@ public final class IngestMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new IngestMetadata(pipelines.apply(((IngestMetadata) part).pipelines));
         }
 
@@ -150,7 +149,7 @@ public final class IngestMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
     }
 
@@ -168,5 +167,40 @@ public final class IngestMetadata implements Metadata.Custom {
     @Override
     public int hashCode() {
         return pipelines.hashCode();
+    }
+
+    /**
+     * Returns a copy of this object with processor upgrades applied, if necessary. Otherwise, returns this object.
+     *
+     * <p>The given upgrader is applied to the config map for any processor of the given type.
+     */
+    public IngestMetadata maybeUpgradeProcessors(String processorType, ProcessorConfigUpgrader processorConfigUpgrader) {
+        Map<String, PipelineConfiguration> newPipelines = null; // as an optimization, we will lazily copy the map only if needed
+        for (Map.Entry<String, PipelineConfiguration> entry : pipelines.entrySet()) {
+            String pipelineId = entry.getKey();
+            PipelineConfiguration originalPipeline = entry.getValue();
+            PipelineConfiguration upgradedPipeline = originalPipeline.maybeUpgradeProcessors(processorType, processorConfigUpgrader);
+            if (upgradedPipeline.equals(originalPipeline) == false) {
+                if (newPipelines == null) {
+                    newPipelines = new HashMap<>(pipelines);
+                }
+                newPipelines.put(pipelineId, upgradedPipeline);
+            }
+        }
+        return newPipelines != null ? new IngestMetadata(newPipelines) : this;
+    }
+
+    /**
+     * Functional interface for upgrading processor configs. An implementation of this will be associated with a specific processor type.
+     */
+    public interface ProcessorConfigUpgrader {
+
+        /**
+         * Upgrades the config for an individual processor of the appropriate type, if necessary.
+         *
+         * @param processorConfig The config to upgrade, which will be mutated if required
+         * @return Whether an upgrade was required
+         */
+        boolean maybeUpgrade(Map<String, Object> processorConfig);
     }
 }

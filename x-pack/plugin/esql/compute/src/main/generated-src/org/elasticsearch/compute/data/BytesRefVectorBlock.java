@@ -7,14 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link BytesRefVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
 
@@ -65,6 +67,11 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public BytesRefBlock keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public BytesRefBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

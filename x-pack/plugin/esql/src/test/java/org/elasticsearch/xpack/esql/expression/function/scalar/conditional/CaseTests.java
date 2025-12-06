@@ -14,7 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -25,13 +25,13 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -47,6 +47,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.BOOLEAN,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.INTEGER,
             DataType.LONG,
@@ -57,10 +58,17 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.GEO_POINT,
             DataType.CARTESIAN_SHAPE,
             DataType.GEO_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX,
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
-            t.add(DataType.DATE_NANOS);
+            t.addAll(
+                DataType.UNDER_CONSTRUCTION.stream()
+                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
+                    .toList()
+            );
         }
         TYPES = unmodifiableList(t);
     }
@@ -90,10 +98,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        suppliers = errorsForCasesWithoutExamples(
-            suppliers,
-            (includeOrdinal, validPerPosition, types) -> typeErrorMessage(includeOrdinal, types)
-        );
 
         for (DataType type : TYPES) {
             fourAndFiveArgs(suppliers, true, randomSingleValuedCondition(), 0, type, List.of());
@@ -151,6 +155,33 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 return testCase(type, typedData, lhsOrRhs ? lhs : rhs, toStringMatcher(1, false), false, null, addWarnings(warnings));
             })
         );
+        if (type.noText() == DataType.KEYWORD) {
+            DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
+            suppliers.add(
+                new TestCaseSupplier(
+                    TestCaseSupplier.nameFrom(Arrays.asList(cond, type, otherType)),
+                    List.of(DataType.BOOLEAN, type, otherType),
+                    () -> {
+                        Object lhs = randomLiteral(type).value();
+                        Object rhs = randomLiteral(otherType).value();
+                        List<TestCaseSupplier.TypedData> typedData = List.of(
+                            cond(cond, "cond"),
+                            new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                            new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
+                        );
+                        return testCase(
+                            type,
+                            typedData,
+                            lhsOrRhs ? lhs : rhs,
+                            toStringMatcher(1, false),
+                            false,
+                            null,
+                            addWarnings(warnings)
+                        );
+                    }
+                )
+            );
+        }
         if (lhsOrRhs) {
             suppliers.add(
                 new TestCaseSupplier(
@@ -222,7 +253,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-
         suppliers.add(
             new TestCaseSupplier(
                 "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)),
@@ -292,6 +322,33 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     }
                 )
             );
+            if (type.noText() == DataType.KEYWORD) {
+                DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
+                suppliers.add(
+                    new TestCaseSupplier(
+                        TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type, otherType)),
+                        List.of(DataType.NULL, type, otherType),
+                        () -> {
+                            Object lhs = randomLiteral(type).value();
+                            Object rhs = randomLiteral(otherType).value();
+                            List<TestCaseSupplier.TypedData> typedData = List.of(
+                                new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
+                                new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                                new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
+                            );
+                            return testCase(
+                                type,
+                                typedData,
+                                lhsOrRhs ? lhs : rhs,
+                                startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
+                                false,
+                                null,
+                                addWarnings(warnings)
+                            );
+                        }
+                    )
+                );
+            }
         }
         suppliers.add(
             new TestCaseSupplier(
@@ -484,7 +541,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 suppliers.add(
                     new TestCaseSupplier(
                         "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
+                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
                             Object r1 = randomLiteral(type).value();
                             Object r2 = randomLiteral(type).value();
@@ -722,17 +779,13 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testFancyFolding() {
-        if (testCase.getExpectedTypeError() != null) {
-            // Nothing to do
-            return;
-        }
         Expression e = buildFieldExpression(testCase);
         if (extra().foldable == false) {
             assertThat(e.foldable(), equalTo(false));
             return;
         }
         assertThat(e.foldable(), equalTo(true));
-        Object result = e.fold();
+        Object result = e.fold(FoldContext.small());
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
@@ -746,24 +799,24 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testPartialFold() {
-        if (testCase.getExpectedTypeError() != null || extra().foldable()) {
+        if (extra().foldable()) {
             // Nothing to do
             return;
         }
         Case c = (Case) buildFieldExpression(testCase);
         if (extra().expectedPartialFold == null) {
-            assertThat(c.partiallyFold(), sameInstance(c));
+            assertThat(c.partiallyFold(FoldContext.small()), sameInstance(c));
             return;
         }
         if (extra().expectedPartialFold.size() == 1) {
-            assertThat(c.partiallyFold(), equalTo(extra().expectedPartialFold.get(0).asField()));
+            assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(extra().expectedPartialFold.get(0).asField()));
             return;
         }
         Case expected = build(
             Source.synthetic("expected"),
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
-        assertThat(c.partiallyFold(), equalTo(expected));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(expected));
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {
@@ -798,32 +851,5 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return testCase.getMatcher();
         }
         return super.allNullsMatcher();
-    }
-
-    private static String typeErrorMessage(boolean includeOrdinal, List<DataType> types) {
-        if (types.get(0) != DataType.BOOLEAN && types.get(0) != DataType.NULL) {
-            return typeErrorMessage(includeOrdinal, types, 0, "boolean");
-        }
-        DataType mainType = types.get(1);
-        for (int i = 2; i < types.size(); i++) {
-            if (i % 2 == 0 && i != types.size() - 1) {
-                // condition
-                if (types.get(i) != DataType.BOOLEAN && types.get(i) != DataType.NULL) {
-                    return typeErrorMessage(includeOrdinal, types, i, "boolean");
-                }
-            } else {
-                // value
-                if (types.get(i) != mainType) {
-                    return typeErrorMessage(includeOrdinal, types, i, mainType.typeName());
-                }
-            }
-        }
-        throw new IllegalStateException("can't find bad arg for " + types);
-    }
-
-    private static String typeErrorMessage(boolean includeOrdinal, List<DataType> types, int badArgPosition, String expectedTypeString) {
-        String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
-        String name = types.get(badArgPosition).typeName();
-        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 }

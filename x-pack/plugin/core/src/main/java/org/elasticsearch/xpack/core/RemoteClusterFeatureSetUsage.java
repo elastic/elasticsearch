@@ -10,14 +10,13 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
+public class RemoteClusterFeatureSetUsage extends XPackFeatureUsage {
 
     private final List<RemoteConnectionInfo> remoteConnectionInfos;
 
@@ -33,7 +32,7 @@ public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

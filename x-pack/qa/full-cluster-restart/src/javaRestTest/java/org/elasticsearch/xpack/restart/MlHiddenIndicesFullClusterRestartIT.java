@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -46,8 +45,8 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-read"),
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-write"),
         Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
+        Tuple.tuple(List.of(".ml-anomalies-shared-000001"), ".ml-anomalies-" + JOB_ID),
+        Tuple.tuple(List.of(".ml-anomalies-shared-000001"), ".ml-anomalies-.write-" + JOB_ID)
     );
 
     public MlHiddenIndicesFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -64,11 +63,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
     public void waitForMlTemplates() throws Exception {
         // We shouldn't wait for ML templates during the upgrade - production won't
         if (isRunningAgainstOldCluster()) {
-            XPackRestTestHelper.waitForTemplates(
-                client(),
-                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)
-            );
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
         }
     }
 

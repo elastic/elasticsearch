@@ -12,11 +12,24 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.ClassRule;
 
 import static org.hamcrest.Matchers.is;
 
 public class StackTemplatesRestIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .user("x_pack_rest_user", "x-pack-test-password")
+        .systemProperty("es.queryable_built_in_roles_enabled", "false")
+        .build();
 
     private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password"));
 
@@ -55,5 +68,10 @@ public class StackTemplatesRestIT extends ESRestTestCase {
         assertOK(client.performRequest(deleteRequest));
         ResponseException exception = expectThrows(ResponseException.class, () -> client.performRequest(deleteRequest));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(404));
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

@@ -1,5 +1,0 @@
-pr: 112707
-summary: Deduplicate `BucketOrder` when deserializing
-area: Aggregations
-type: enhancement
-issues: []

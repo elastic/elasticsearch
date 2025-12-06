@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -72,7 +73,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         String defaultIndex = request.param("index");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
-        Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
+        Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
         Map<String, Object> sourceMap = XContentHelper.convertToMap(sourceTuple.v2(), false, sourceTuple.v1()).v2();
         Map<String, Map<String, Object>> pipelineSubstitutions = (Map<String, Map<String, Object>>) sourceMap.remove(
             "pipeline_substitutions"
@@ -84,11 +85,13 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             "index_template_substitutions"
         );
         Object mappingAddition = sourceMap.remove("mapping_addition");
+        String mappingMergeType = request.param("merge_type");
         SimulateBulkRequest bulkRequest = new SimulateBulkRequest(
             pipelineSubstitutions == null ? Map.of() : pipelineSubstitutions,
             componentTemplateSubstitutions == null ? Map.of() : componentTemplateSubstitutions,
             indexTemplateSubstitutions == null ? Map.of() : indexTemplateSubstitutions,
-            mappingAddition == null ? Map.of() : Map.of("_doc", mappingAddition)
+            mappingAddition == null ? Map.of() : Map.of("_doc", mappingAddition),
+            mappingMergeType
         );
         BytesReference transformedData = convertToBulkRequestXContentBytes(sourceMap);
         bulkRequest.add(

@@ -22,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -85,7 +86,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = internalCluster().clusterService(masterNode).state();
-        final Index index = clusterState.metadata().index(indexName).getIndex();
+        final Index index = clusterState.metadata().getProject().index(indexName).getIndex();
         final Map<String, List<ShardRouting>> shardsByNodes = shardRoutingsByNodes(clusterState, index);
         assertThat(shardsByNodes.values().stream().mapToInt(List::size).sum(), equalTo(numShards.totalNumShards));
 
@@ -152,7 +153,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = internalCluster().clusterService(masterNode).state();
-        final Index index = clusterState.metadata().index(indexName).getIndex();
+        final Index index = clusterState.metadata().getProject().index(indexName).getIndex();
         final Map<String, List<ShardRouting>> shardsByNodes = shardRoutingsByNodes(clusterState, index);
         assertThat(shardsByNodes.values().stream().mapToInt(List::size).sum(), equalTo(numShards.totalNumShards));
 
@@ -218,7 +219,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         );
 
         final ClusterState clusterState = internalCluster().clusterService(masterNode).state();
-        final Index index = clusterState.metadata().index(indexName).getIndex();
+        final Index index = clusterState.metadata().getProject().index(indexName).getIndex();
         final Map<String, List<ShardRouting>> shardsByNodes = shardRoutingsByNodes(clusterState, index);
         assertThat(shardsByNodes.values().stream().mapToInt(List::size).sum(), equalTo(numShards.totalNumShards));
 
@@ -263,7 +264,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
             final String indexName = "index-" + i;
             createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
             ensureGreen(indexName);
-            leftovers[i] = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
+            leftovers[i] = internalCluster().clusterService(masterNode).state().metadata().getProject().index(indexName).getIndex();
         }
 
         logger.debug("--> stopping data node [{}], the data left on disk will be injected as left-overs in a newer data node", dataNode);
@@ -282,7 +283,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
                 .setWaitForActiveShards(ActiveShardCount.NONE)
         );
 
-        final Index index = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
+        final Index index = internalCluster().clusterService(masterNode).state().metadata().getProject().index(indexName).getIndex();
         logger.debug("--> index [{}] created", index);
 
         final List<Path> dataPaths = new ArrayList<>();
@@ -345,12 +346,22 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
             return List.of(new IndexFoldersDeletionListener() {
                 @Override
-                public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+                public void beforeIndexFoldersDeleted(
+                    Index index,
+                    IndexSettings indexSettings,
+                    Path[] indexPaths,
+                    IndexRemovalReason reason
+                ) {
                     deletedIndices.add(index);
                 }
 
                 @Override
-                public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
+                public void beforeShardFoldersDeleted(
+                    ShardId shardId,
+                    IndexSettings indexSettings,
+                    Path[] shardPaths,
+                    IndexRemovalReason reason
+                ) {
                     deletedShards.computeIfAbsent(shardId.getIndex(), i -> Collections.synchronizedList(new ArrayList<>())).add(shardId);
                 }
             });

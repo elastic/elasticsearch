@@ -1,6 +1,0 @@
-pr: 112645
-summary: Add support for multi-value dimensions
-area: Mapping
-type: enhancement
-issues:
- - 110387

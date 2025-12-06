@@ -1,0 +1,739 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      created_at:
+                        type: date_nanos
+                      running:
+                        type: boolean
+                      number_of_containers:
+                        type: integer
+                      ip:
+                        type: ip
+                      tags:
+                        type: keyword
+                      values:
+                        type: integer
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001810, "rx": 802133}, "created_at": "2021-04-28T19:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.26", "network": {"tx": 2005177, "rx": 801479}, "created_at": "2021-04-28T19:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.41", "network": {"tx": 2006223, "rx": 802337}, "created_at": "2021-04-28T19:36:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west2"], "values": [4, 1, 2]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.22", "network": {"tx": 2012916, "rx": 803685}, "created_at": "2021-04-28T19:37:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.33", "network": {"tx": 1434521, "rx": 530575}, "created_at": "2021-04-28T19:42:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test"], "values": [2, 3, 4]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.56", "network": {"tx": 1434577, "rx": 530600}, "created_at": "2021-04-28T19:43:00.000Z", "running": false, "number_of_containers": 1, "tags": ["backend", "test", "us-west2"], "values": [2, 1, 1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.37", "network": {"tx": 1434587, "rx": 530604}, "created_at": "2021-04-28T19:44:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [4, 5, 2]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "network": {"tx": 1434595, "rx": 530605}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
+---
+"Query stats on downsampled index":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for aggregate_metric_double"
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-downsample |
+          STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx)
+          | LIMIT 100"
+
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "max(k8s.pod.network.rx)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(k8s.pod.network.rx)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(k8s.pod.network.rx)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(k8s.pod.network.rx)"}
+  - match: {columns.3.type: "long"}
+  - match: {values.0.0: 803685.0}
+  - match: {values.0.1: 530575.0}
+  - match: {values.0.2: 5332018.0}
+  - match: {values.0.3: 8}
+
+---
+"Render stats from downsampled index":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-downsample | WHERE @timestamp == \"2021-04-28T19:00:00.000Z\" | KEEP k8s.pod.network.rx | LIMIT 100"
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "k8s.pod.network.rx"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {values.0.0: '{"min":530604.0,"max":530605.0,"sum":1061209.0,"value_count":2}'}
+
+---
+"Stats from downsampled and non-downsampled index simultaneously":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for to_aggregate_metric_double function"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-29T00:00:00Z
+                end_time: 2021-04-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      created_at:
+                        type: date_nanos
+                      running:
+                        type: boolean
+                      number_of_containers:
+                        type: integer
+                      ip:
+                        type: ip
+                      tags:
+                        type: keyword
+                      values:
+                        type: integer
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-2
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001810, "rx": 802339}, "created_at": "2021-04-28T19:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.26", "network": {"tx": 2000177, "rx": 800479}, "created_at": "2021-04-28T19:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
+          - '{"index": {}}'
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-* |
+          WHERE k8s.pod.uid == \"947e4ced-1786-4e53-9e0c-5c447e959507\" |
+          EVAL rx = to_aggregate_metric_double(k8s.pod.network.rx) |
+          STATS max(rx), min(rx), sum(rx), count(rx) |
+          LIMIT 100"
+
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "max(rx)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(rx)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(rx)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(rx)"}
+  - match: {columns.3.type: "long"}
+  - match: {values.0.0: 803685.0}
+  - match: {values.0.1: 800479.0}
+  - match: {values.0.2: 4812452.0}
+  - match: {values.0.3: 6}
+
+---
+"Stats from downsampled and non-downsampled index simultaneously with implicit casting":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for casting aggregate metric double implicitly when present in aggregations"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-29T00:00:00Z
+                end_time: 2021-04-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      created_at:
+                        type: date_nanos
+                      running:
+                        type: boolean
+                      number_of_containers:
+                        type: integer
+                      ip:
+                        type: ip
+                      tags:
+                        type: keyword
+                      values:
+                        type: integer
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-2
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001810, "rx": 802339}, "created_at": "2021-04-28T19:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.26", "network": {"tx": 2000177, "rx": 800479}, "created_at": "2021-04-28T19:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
+          - '{"index": {}}'
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-* |
+          WHERE k8s.pod.uid == \"947e4ced-1786-4e53-9e0c-5c447e959507\" |
+          STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx), avg(k8s.pod.network.rx) |
+          LIMIT 100"
+
+  - length: {values: 1}
+  - length: {values.0: 5}
+  - match: {columns.0.name: "max(k8s.pod.network.rx)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(k8s.pod.network.rx)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(k8s.pod.network.rx)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(k8s.pod.network.rx)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "avg(k8s.pod.network.rx)"}
+  - match: {columns.4.type: "double"}
+  - match: {values.0.0: 803685.0}
+  - match: {values.0.1: 800479.0}
+  - match: {values.0.2: 4812452.0}
+  - match: {values.0.3: 6}
+  - match: {values.0.4: 802075.3333333334}
+
+  - do:
+      esql.query:
+        body:
+          query: "TS test-* | STATS max = max(k8s.pod.network.rx)  | LIMIT 100"
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "max"}
+  - match: {columns.0.type: "double"}
+  - match: {values.0.0: 800479.0}
+
+---
+"Over time functions from downsampled and non-downsampled indices simultaneously, no grouping":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for casting aggregate metric double implicitly when present in aggregations"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-29T00:00:00Z
+                end_time: 2021-04-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      created_at:
+                        type: date_nanos
+                      running:
+                        type: boolean
+                      number_of_containers:
+                        type: integer
+                      ip:
+                        type: ip
+                      tags:
+                        type: keyword
+                      values:
+                        type: integer
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-2
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.10", "network": {"tx": 2005820, "rx": 802339}, "created_at": "2021-04-29T21:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.28", "network": {"tx": 2000481, "rx": 800479}, "created_at": "2021-04-29T21:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:14.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.192", "network": {"tx": 1458377, "rx": 530184}, "created_at": "2021-04-29T21:36:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "test"], "values": [3, 3, 1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.206", "network": {"tx": 1434104, "rx": 535020}, "created_at": "2021-04-29T21:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west2"], "values": [4, 1, 3]}}}'
+          - '{"index": {}}'
+
+  - do:
+      esql.query:
+        body:
+          query: "TS test-* |
+          STATS avg = sum(avg_over_time(k8s.pod.network.rx)),
+                count = sum(count_over_time(k8s.pod.network.rx)),
+                sum = sum(sum_over_time(k8s.pod.network.rx))
+                BY time_bucket = bucket(@timestamp, 1 hour) |
+          SORT time_bucket | LIMIT 10"
+
+  - length: {values: 4}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "avg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "sum"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "time_bucket"}
+  - match: {columns.3.type: "date"}
+  - match: {values.0.0: 1332393.5}
+  - match: {values.0.1: 4}
+  - match: {values.0.2: 2664787.0}
+  - match: {values.0.3: "2021-04-28T18:00:00.000Z"}
+  - match: {values.1.0: 530604.5}
+  - match: {values.1.1: 2}
+  - match: {values.1.2: 1061209.0}
+  - match: {values.1.3: "2021-04-28T19:00:00.000Z"}
+  - match: {values.2.0: 803011.0}
+  - match: {values.2.1: 2}
+  - match: {values.2.2: 1606022.0}
+  - match: {values.2.3: "2021-04-28T20:00:00.000Z"}
+  - match: {values.3.0: 1334011.0}
+  - match: {values.3.1: 4}
+  - match: {values.3.2: 2668022.0}
+  - match: {values.3.3: "2021-04-29T21:00:00.000Z"}
+
+---
+"Over time functions from downsampled and non-downsampled indices simultaneously, with grouping":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0]
+      reason: "Support for casting aggregate metric double implicitly when present in aggregations"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-29T00:00:00Z
+                end_time: 2021-04-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      created_at:
+                        type: date_nanos
+                      running:
+                        type: boolean
+                      number_of_containers:
+                        type: integer
+                      ip:
+                        type: ip
+                      tags:
+                        type: keyword
+                      values:
+                        type: integer
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-2
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.10", "network": {"tx": 2005820, "rx": 802339}, "created_at": "2021-04-29T21:34:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "prod"], "values": [2, 3, 6]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.28", "network": {"tx": 2000481, "rx": 800479}, "created_at": "2021-04-29T21:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west1"], "values": [1, 1, 3]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:14.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.192", "network": {"tx": 1458377, "rx": 530184}, "created_at": "2021-04-29T21:36:00.000Z", "running": false, "number_of_containers": 2, "tags": ["backend", "test"], "values": [3, 3, 1]}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-29T21:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.206", "network": {"tx": 1434104, "rx": 535020}, "created_at": "2021-04-29T21:35:00.000Z", "running": true, "number_of_containers": 2, "tags": ["backend", "prod", "us-west2"], "values": [4, 1, 3]}}}'
+          - '{"index": {}}'
+
+  - do:
+      esql.query:
+        body:
+          query: "TS test-* |
+          STATS avg = sum(avg_over_time(k8s.pod.network.rx)),
+                count = sum(count_over_time(k8s.pod.network.rx)),
+                sum = sum(sum_over_time(k8s.pod.network.rx))
+          BY k8s.pod.name, time_bucket = bucket(@timestamp, 1 hour) |
+          SORT time_bucket, k8s.pod.name |
+          LIMIT 10"
+
+  - length: {values: 6}
+  - length: {values.0: 5}
+  - match: {columns.0.name: "avg"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "sum"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "k8s.pod.name"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "time_bucket"}
+  - match: {columns.4.type: "date"}
+  - match: {values.0.0: 801806.0}
+  - match: {values.0.1: 2}
+  - match: {values.0.2: 1603612.0}
+  - match: {values.0.3: "cat"}
+  - match: {values.0.4: "2021-04-28T18:00:00.000Z"}
+  - match: {values.1.0: 530587.5}
+  - match: {values.1.1: 2}
+  - match: {values.1.2: 1061175.0}
+  - match: {values.1.3: "dog"}
+  - match: {values.1.4: "2021-04-28T18:00:00.000Z"}
+  - match: {values.2.0: 530604.5}
+  - match: {values.2.1: 2}
+  - match: {values.2.2: 1061209.0}
+  - match: {values.2.3: "dog"}
+  - match: {values.2.4: "2021-04-28T19:00:00.000Z"}
+  - match: {values.3.0: 803011.0}
+  - match: {values.3.1: 2}
+  - match: {values.3.2: 1606022.0}
+  - match: {values.3.3: "cat"}
+  - match: {values.3.4: "2021-04-28T20:00:00.000Z"}
+  - match: {values.4.0: 801409.0}
+  - match: {values.4.1: 2}
+  - match: {values.4.2: 1602818.0}
+  - match: {values.4.3: "cat"}
+  - match: {values.4.4: "2021-04-29T21:00:00.000Z"}
+  - match: {values.5.0: 532602.0}
+  - match: {values.5.1: 2}
+  - match: {values.5.2: 1065204.0}
+  - match: {values.5.3: "dog"}
+  - match: {values.5.4: "2021-04-29T21:00:00.000Z"}
+
+---
+"Sort from multiple indices one with aggregate metric double":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0]
+      reason: "Fix sorting for rows comprised of docs from multiple indices where agg metric is missing from some"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          mappings:
+            properties:
+              some_field:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-2
+        body:
+          - '{"index": {}}'
+          - '{"some_field": "im a keyword!!!!!"}'
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-* | SORT some_field, @timestamp, k8s.pod.uid | KEEP k8s.pod.network.rx, some_field, @timestamp | LIMIT 10"
+
+  - length: {values: 5}
+  - length: {values.0: 3}
+  - match: {columns.0.name: "k8s.pod.network.rx"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {columns.1.name: "some_field"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "@timestamp"}
+  - match: {columns.2.type: "date"}
+  - match: {values.0.0: null}
+  - match: {values.0.1: "im a keyword!!!!!"}
+  - match: {values.0.2: null}
+  - match: {values.1.0: '{"min":801479.0,"max":802133.0,"sum":1603612.0,"value_count":2}'}
+  - match: {values.1.1: null}
+  - match: {values.1.2: "2021-04-28T18:00:00.000Z"}
+  - match: {values.2.0: '{"min":530575.0,"max":530600.0,"sum":1061175.0,"value_count":2}'}
+  - match: {values.2.1: null}
+  - match: {values.2.2: "2021-04-28T18:00:00.000Z"}
+  - match: {values.3.0: '{"min":530604.0,"max":530605.0,"sum":1061209.0,"value_count":2}'}
+  - match: {values.3.1: null}
+  - match: {values.3.2: "2021-04-28T19:00:00.000Z"}
+  - match: {values.4.0: '{"min":802337.0,"max":803685.0,"sum":1606022.0,"value_count":2}'}
+  - match: {values.4.1: null}
+  - match: {values.4.2: "2021-04-28T20:00:00.000Z"}
+
+---
+"MV_EXPAND on non-MV aggregate metric double":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Have MV_EXPAND not error out when applied to aggregate_metric_doubles (is a no-op)"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-downsample | MV_EXPAND k8s.pod.network.rx | SORT @timestamp, k8s.pod.uid | KEEP k8s.pod.network.rx, @timestamp | LIMIT 10"
+
+  - length: {values: 4}
+  - length: {values.0: 2}
+  - match: {columns.0.name: "k8s.pod.network.rx"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {columns.1.name: "@timestamp"}
+  - match: {columns.1.type: "date"}
+  - match: {values.0.0: '{"min":801479.0,"max":802133.0,"sum":1603612.0,"value_count":2}'}
+  - match: {values.0.1: "2021-04-28T18:00:00.000Z"}
+  - match: {values.1.0: '{"min":530575.0,"max":530600.0,"sum":1061175.0,"value_count":2}'}
+  - match: {values.1.1: "2021-04-28T18:00:00.000Z"}
+  - match: {values.2.0: '{"min":530604.0,"max":530605.0,"sum":1061209.0,"value_count":2}'}
+  - match: {values.2.1: "2021-04-28T19:00:00.000Z"}
+  - match: {values.3.0: '{"min":802337.0,"max":803685.0,"sum":1606022.0,"value_count":2}'}
+  - match: {values.3.1: "2021-04-28T20:00:00.000Z"}

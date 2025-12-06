@@ -73,4 +73,5 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     public boolean canTripCircuitBreaker() {
         return false;
     }
+
 }

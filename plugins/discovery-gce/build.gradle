@@ -1,9 +1,9 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
-  classname 'org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'
+  description = 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
+  classname ='org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'
 }
 
 versions << [
@@ -44,9 +44,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-tasks.named("check").configure {
-  // also execute the QA tests when testing the plugin
-  dependsOn 'qa:gce:check'
+esplugin.bundleSpec.from('config/discovery-gce') {
+  into 'config'
 }
 
 tasks.named("test").configure {

@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +33,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -65,6 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_NAME_FORMAT;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
@@ -391,18 +396,25 @@ public final class BlobStoreTestUtil {
     /**
      * Creates a mocked {@link ClusterService} for use in {@link BlobStoreRepository} related tests that mocks out all the necessary
      * functionality to make {@link BlobStoreRepository} work. Initializes the cluster state with a {@link RepositoriesMetadata} instance
-     * that contains the given {@code metadata}.
+     * that contains the given {@code repositoryMetadata}.
      *
-     * @param metadata RepositoryMetadata to initialize the cluster state with
+     * @param repositoryMetadata RepositoryMetadata to initialize the cluster state with
      * @return Mock ClusterService
      */
-    public static ClusterService mockClusterService(RepositoryMetadata metadata) {
+    public static ClusterService mockClusterService(ProjectId projectId, RepositoryMetadata repositoryMetadata) {
         return mockClusterService(
             ClusterState.builder(ClusterState.EMPTY_STATE)
                 .metadata(
-                    Metadata.builder()
+                    Metadata.builder(ClusterState.EMPTY_STATE.metadata())
                         .clusterUUID(UUIDs.randomBase64UUID(random()))
-                        .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(metadata)))
+                        .put(
+                            ProjectMetadata.builder(projectId)
+                                .putCustom(
+                                    RepositoriesMetadata.TYPE,
+                                    new RepositoriesMetadata(Collections.singletonList(repositoryMetadata))
+                                )
+                                .build()
+                        )
                         .build()
                 )
                 .build()
@@ -448,6 +460,10 @@ public final class BlobStoreTestUtil {
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
+        Set<Setting<?>> settingSet = new HashSet<>();
+        settingSet.add(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING);
+        ClusterSettings mockClusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
+        when(clusterService.getClusterSettings()).thenReturn(mockClusterSettings);
         return clusterService;
     }
 

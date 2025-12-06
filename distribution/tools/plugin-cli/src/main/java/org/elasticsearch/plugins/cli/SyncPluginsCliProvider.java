@@ -37,7 +37,7 @@ public class SyncPluginsCliProvider implements CliToolProvider {
             @Override
             public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
                 var action = new SyncPluginsAction(terminal, env);
-                if (Files.exists(env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML)) == false) {
+                if (Files.exists(env.configDir().resolve(ELASTICSEARCH_PLUGINS_YML)) == false) {
                     return;
                 }
                 if (Build.current().type() != Build.Type.DOCKER) {

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -54,7 +55,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             @Override
             public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
                 nodesInvoked.add(connection.getNode());
-                Thread t = new Thread(() -> listener.onResponse(TransportResponse.Empty.INSTANCE)); // response is unused
+                Thread t = new Thread(() -> listener.onResponse(ActionResponse.Empty.INSTANCE)); // response is unused
                 t.start();
             }
 

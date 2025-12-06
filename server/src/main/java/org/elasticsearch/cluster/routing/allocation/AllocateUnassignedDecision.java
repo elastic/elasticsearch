@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -187,7 +187,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         final Type decisionType = decision.type();
-        AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
+        AllocationStatus allocationStatus = switch (decisionType) {
+            case YES, NOT_PREFERRED -> null;
+            default -> AllocationStatus.fromDecision(decisionType);
+        };
         return new AllocateUnassignedDecision(assignedNode, nodeDecisions, allocationStatus, null, false, 0L, 0L);
     }
 
@@ -296,7 +299,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         checkDecisionState();
-        return ChunkedToXContent.builder(params).append((builder, p) -> {
+        return Iterators.concat(Iterators.single((builder, p) -> {
             builder.field("can_allocate", getAllocationDecision());
             builder.field("allocate_explanation", getExplanation());
             if (targetNode != null) {
@@ -320,7 +323,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 );
             }
             return builder;
-        }).append(nodeDecisionsToXContentChunked(nodeDecisions));
+        }), nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

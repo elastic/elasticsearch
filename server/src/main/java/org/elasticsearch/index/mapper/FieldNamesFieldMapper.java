@@ -120,7 +120,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         private FieldNamesFieldType(boolean enabled) {
-            super(Defaults.NAME, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(Defaults.NAME, IndexType.terms(true, false), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.enabled = enabled;
         }
 
@@ -135,7 +135,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override

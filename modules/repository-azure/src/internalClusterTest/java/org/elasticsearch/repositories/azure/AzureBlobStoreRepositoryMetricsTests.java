@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -34,7 +35,6 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
     );
     private static final int MAX_RETRIES = 3;
 
-    private final Queue<RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
+    private final Queue<ResponseInjectingHttpHandler.RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
@@ -69,7 +69,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         assert httpHandlers.size() == 1 : "This assumes there's a single handler";
         return httpHandlers.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new ResponseInjectingAzureHttpHandler(requestHandlers, e.getValue())));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new ResponseInjectingHttpHandler(requestHandlers, e.getValue())));
     }
 
     /**
@@ -106,7 +106,8 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
 
         // Queue up some throttle responses
         final int numThrottles = randomIntBetween(1, MAX_RETRIES);
-        IntStream.range(0, numThrottles).forEach(i -> requestHandlers.offer(new FixedRequestHandler(RestStatus.TOO_MANY_REQUESTS)));
+        IntStream.range(0, numThrottles)
+            .forEach(i -> requestHandlers.offer(new ResponseInjectingHttpHandler.FixedRequestHandler(RestStatus.TOO_MANY_REQUESTS)));
 
         // Check that the blob exists
         blobContainer.blobExists(purpose, blobName);
@@ -131,7 +132,9 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         clearMetrics(dataNodeName);
 
         // Queue up a range-not-satisfied error
-        requestHandlers.offer(new FixedRequestHandler(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, null, GET_BLOB_REQUEST_PREDICATE));
+        requestHandlers.offer(
+            new ResponseInjectingHttpHandler.FixedRequestHandler(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, null, GET_BLOB_REQUEST_PREDICATE)
+        );
 
         // Attempt to read the blob
         assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
@@ -163,7 +166,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             if (status == RestStatus.TOO_MANY_REQUESTS) {
                 throttles.incrementAndGet();
             }
-            requestHandlers.offer(new FixedRequestHandler(status));
+            requestHandlers.offer(new ResponseInjectingHttpHandler.FixedRequestHandler(status));
         });
 
         // Check that the blob exists
@@ -259,7 +262,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         clearMetrics(dataNodeName);
 
         // Handler will fail one or more of the batch requests
-        final RequestHandler failNRequestRequestHandler = createFailNRequestsHandler(failedBatches);
+        final ResponseInjectingHttpHandler.RequestHandler failNRequestRequestHandler = createFailNRequestsHandler(failedBatches);
 
         // Exhaust the retries
         IntStream.range(0, (numberOfBatches - failedBatches) + (failedBatches * (MAX_RETRIES + 1)))
@@ -287,14 +290,29 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             .reduce(0L, Long::sum);
     }
 
+    private void clearMetrics(String discoveryNode) {
+        internalCluster().getInstance(PluginsService.class, discoveryNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .forEach(TestTelemetryPlugin::resetMeter);
+    }
+
+    private MetricsAsserter metricsAsserter(
+        String dataNodeName,
+        OperationPurpose operationPurpose,
+        AzureBlobStore.Operation operation,
+        String repository
+    ) {
+        return new MetricsAsserter(dataNodeName, operationPurpose, operation, repository);
+    }
+
     /**
-     * Creates a {@link RequestHandler} that will persistently fail the first <code>numberToFail</code> distinct requests
-     * it sees. Any other requests are passed through to the delegate.
+     * Creates a {@link ResponseInjectingHttpHandler.RequestHandler} that will persistently fail the first <code>numberToFail</code>
+     * distinct requests it sees. Any other requests are passed through to the delegate.
      *
      * @param numberToFail The number of requests to fail
      * @return the handler
      */
-    private static RequestHandler createFailNRequestsHandler(int numberToFail) {
+    private static ResponseInjectingHttpHandler.RequestHandler createFailNRequestsHandler(int numberToFail) {
         final List<String> requestsToFail = new ArrayList<>(numberToFail);
         return (exchange, delegate) -> {
             final Headers requestHeaders = exchange.getRequestHeaders();
@@ -314,21 +332,6 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
                 delegate.handle(exchange);
             }
         };
-    }
-
-    private void clearMetrics(String discoveryNode) {
-        internalCluster().getInstance(PluginsService.class, discoveryNode)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .forEach(TestTelemetryPlugin::resetMeter);
-    }
-
-    private MetricsAsserter metricsAsserter(
-        String dataNodeName,
-        OperationPurpose operationPurpose,
-        AzureBlobStore.Operation operation,
-        String repository
-    ) {
-        return new MetricsAsserter(dataNodeName, operationPurpose, operation, repository);
     }
 
     private class MetricsAsserter {
@@ -478,82 +481,6 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
                 );
 
             assertion.accept(measurement);
-        }
-    }
-
-    @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
-    private static class ResponseInjectingAzureHttpHandler implements DelegatingHttpHandler {
-
-        private final HttpHandler delegate;
-        private final Queue<RequestHandler> requestHandlerQueue;
-
-        ResponseInjectingAzureHttpHandler(Queue<RequestHandler> requestHandlerQueue, HttpHandler delegate) {
-            this.delegate = delegate;
-            this.requestHandlerQueue = requestHandlerQueue;
-        }
-
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            RequestHandler nextHandler = requestHandlerQueue.peek();
-            if (nextHandler != null && nextHandler.matchesRequest(exchange)) {
-                requestHandlerQueue.poll().writeResponse(exchange, delegate);
-            } else {
-                delegate.handle(exchange);
-            }
-        }
-
-        @Override
-        public HttpHandler getDelegate() {
-            return delegate;
-        }
-    }
-
-    @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
-    @FunctionalInterface
-    private interface RequestHandler {
-        void writeResponse(HttpExchange exchange, HttpHandler delegate) throws IOException;
-
-        default boolean matchesRequest(HttpExchange exchange) {
-            return true;
-        }
-    }
-
-    @SuppressForbidden(reason = "we use a HttpServer to emulate Azure")
-    private static class FixedRequestHandler implements RequestHandler {
-
-        private final RestStatus status;
-        private final String responseBody;
-        private final Predicate<HttpExchange> requestMatcher;
-
-        FixedRequestHandler(RestStatus status) {
-            this(status, null, req -> true);
-        }
-
-        /**
-         * Create a handler that only gets executed for requests that match the supplied predicate. Note
-         * that because the errors are stored in a queue this will prevent any subsequently queued errors from
-         * being returned until after it returns.
-         */
-        FixedRequestHandler(RestStatus status, String responseBody, Predicate<HttpExchange> requestMatcher) {
-            this.status = status;
-            this.responseBody = responseBody;
-            this.requestMatcher = requestMatcher;
-        }
-
-        @Override
-        public boolean matchesRequest(HttpExchange exchange) {
-            return requestMatcher.test(exchange);
-        }
-
-        @Override
-        public void writeResponse(HttpExchange exchange, HttpHandler delegateHandler) throws IOException {
-            if (responseBody != null) {
-                byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(status.getStatus(), responseBytes.length);
-                exchange.getResponseBody().write(responseBytes);
-            } else {
-                exchange.sendResponseHeaders(status.getStatus(), -1);
-            }
         }
     }
 }

@@ -24,11 +24,9 @@ public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        MMapDirectory mMapDirectory = adjustSharedArenaGrouping(new MMapDirectory(location, lockFactory));
         return new SmbDirectoryWrapper(
-            setPreload(
-                new MMapDirectory(location, lockFactory),
-                new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING))
-            )
+            setMMapFunctions(mMapDirectory, new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING)))
         );
     }
 }

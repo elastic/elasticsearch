@@ -12,7 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -21,12 +26,26 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.NoopChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
+
+    protected record ChunkedInput(String input, int startOffset, int endOffset) {}
+
+    protected static final Random random = new Random(
+        System.getProperty("tests.seed") == null
+            ? System.currentTimeMillis()
+            : Long.parseUnsignedLong(System.getProperty("tests.seed").split(":")[0], 16)
+    );
 
     protected static int stringWeight(String input, int position) {
         int hashCode = input.hashCode();
@@ -69,7 +88,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
         return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
     }
@@ -82,20 +101,62 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
         return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
+    }
+
+    protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
+        return TestTaskSettings.fromMap(taskSettingsMap);
     }
 
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
 
     @Override
-    public void start(Model model, ActionListener<Boolean> listener) {
+    public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
     @Override
     public void close() throws IOException {}
+
+    protected List<ChunkedInput> chunkInputs(ChunkInferenceInput chunkInput) {
+        ChunkingSettings chunkingSettings = chunkInput.chunkingSettings();
+        InferenceString inferenceString = chunkInput.input().value();
+        String inferenceStringValue = inferenceString.value();
+        if (chunkingSettings == null || inferenceString.isText() == false) {
+            return List.of(new ChunkedInput(inferenceStringValue, 0, inferenceStringValue.length()));
+        }
+
+        List<ChunkedInput> chunkedInputs = new ArrayList<>();
+        if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
+            var offsets = NoopChunker.INSTANCE.chunk(inferenceStringValue, chunkingSettings);
+            List<ChunkedInput> ret = new ArrayList<>();
+            for (var offset : offsets) {
+                ret.add(new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+            }
+            return ret;
+        } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
+            WordBoundaryChunker chunker = new WordBoundaryChunker();
+            WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
+            List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
+                inferenceStringValue,
+                wordBoundaryChunkingSettings.maxChunkSize(),
+                wordBoundaryChunkingSettings.overlap()
+            );
+            for (WordBoundaryChunker.ChunkOffset offset : offsets) {
+                chunkedInputs.add(
+                    new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end())
+                );
+            }
+
+        } else {
+            // Won't implement till we need it
+            throw new UnsupportedOperationException("Test inference service only supports word chunking strategies");
+        }
+
+        return chunkedInputs;
+    }
 
     public static class TestServiceModel extends Model {
 
@@ -104,15 +165,15 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TaskType taskType,
             String service,
             ServiceSettings serviceSettings,
-            TestTaskSettings taskSettings,
+            TaskSettings taskSettings,
             TestSecretSettings secretSettings
         ) {
             super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
         }
 
         @Override
-        public TestTaskSettings getTaskSettings() {
-            return (TestTaskSettings) super.getTaskSettings();
+        public TaskSettings getTaskSettings() {
+            return super.getTaskSettings();
         }
 
         @Override

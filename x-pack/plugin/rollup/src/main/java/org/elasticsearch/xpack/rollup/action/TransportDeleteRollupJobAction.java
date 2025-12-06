@@ -15,7 +15,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
@@ -31,14 +34,26 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
+
 public class TransportDeleteRollupJobAction extends TransportTasksAction<
     RollupJobTask,
     DeleteRollupJobAction.Request,
     DeleteRollupJobAction.Response,
     DeleteRollupJobAction.Response> {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportDeleteRollupJobAction.class);
+
+    private final ProjectResolver projectResolver;
+
     @Inject
-    public TransportDeleteRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+    public TransportDeleteRollupJobAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) {
         super(
             DeleteRollupJobAction.NAME,
             clusterService,
@@ -48,15 +63,17 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
             DeleteRollupJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, DeleteRollupJobAction.Request request, ActionListener<DeleteRollupJobAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         final ClusterState state = clusterService.state();
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster()) {
-            PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata pTasksMeta = projectResolver.getProjectMetadata(state).custom(PersistentTasksCustomMetadata.TYPE);
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
                 super.doExecute(task, request, listener);
             } else {
@@ -93,7 +110,6 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
         RollupJobTask jobTask,
         ActionListener<DeleteRollupJobAction.Response> listener
     ) {
-
         assert jobTask.getConfig().getId().equals(request.getId());
         IndexerState state = ((RollupJobStatus) jobTask.getStatus()).getIndexerState();
         if (state.equals(IndexerState.STOPPED)) {

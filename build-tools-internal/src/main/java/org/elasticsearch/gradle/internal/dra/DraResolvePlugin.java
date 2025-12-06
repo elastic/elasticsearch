@@ -73,6 +73,16 @@ public class DraResolvePlugin implements Plugin<Project> {
                 patternLayout.artifact(
                     String.format("/%s/%s/downloads/%s/[module]/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey)
                 );
+
+                if ("beats".equals(draKey)) {
+                    // we don't have a good pattern here for beats fips specific images
+                    patternLayout.artifact(
+                        String.format("/%s/%s/downloads/%s/metricbeat/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey)
+                    );
+                    patternLayout.artifact(
+                        String.format("/%s/%s/downloads/%s/filebeat/[module]-[revision]-[classifier].[ext]", draKey, buildId, draKey)
+                    );
+                }
             });
             repo.metadataSources(metadataSources -> metadataSources.artifact());
             repo.content(repositoryContentDescriptor -> repositoryContentDescriptor.includeVersionByRegex(".*", ".*", includeVersionRegex));

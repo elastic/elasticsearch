@@ -16,6 +16,7 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.RandomDocumentPicks.randomIngestDocument;
@@ -48,7 +49,7 @@ public class TerminateProcessorTests extends ESTestCase {
                 )
             )
         );
-        IngestDocument input = randomIngestDocument(random(), Map.of("foo", "bar"));
+        IngestDocument input = randomIngestDocument(random(), new HashMap<>(Map.of("foo", "bar")));
         PipelineOutput output = new PipelineOutput();
 
         pipeline.execute(input, output::set);

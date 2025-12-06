@@ -11,7 +11,6 @@ package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -79,8 +78,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    assert getVersion().equals(TransportVersion.current());
-                    listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
+                    assert version.equals(TransportVersion.current());
+                    listener.onResponse(TransportVersion.minimumCompatible());
                 }
             }
         };

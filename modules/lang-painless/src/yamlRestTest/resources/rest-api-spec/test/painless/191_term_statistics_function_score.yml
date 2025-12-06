@@ -1,8 +1,4 @@
 setup:
-  - requires:
-      cluster_features: ["script.term_stats"]
-      reason: "support for term stats has been added in 8.16"
-
   - do:
       indices.create:
         index: test-index

@@ -22,7 +22,7 @@ public class SwedishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Swedi
     private final SwedishAnalyzer analyzer;
 
     SwedishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new SwedishAnalyzer(
             Analysis.parseStopWords(env, settings, SwedishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

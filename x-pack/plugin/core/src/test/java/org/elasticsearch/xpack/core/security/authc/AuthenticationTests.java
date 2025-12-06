@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -20,7 +19,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,11 +42,15 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_REALM_DOMAINS;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCloudApiKeyAuthentication;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -57,6 +61,16 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationTests extends ESTestCase {
+
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
+    public static final TransportVersion[] AUTHENTICATION_TRANSPORT_VERSIONS = {
+        VERSION_7_0_0,
+        Authentication.VERSION_SYNTHETIC_ROLE_NAMES,
+        Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+        Authentication.VERSION_REALM_DOMAINS,
+        Authentication.VERSION_METADATA_BEYOND_GENERIC_MAP,
+        Authentication.VERSION_CROSS_CLUSTER_ACCESS,
+        TransportVersion.current() };
 
     public void testIsFailedRunAs() {
         final Authentication failedAuthentication = randomRealmAuthentication(randomBoolean()).runAs(randomUser(), null);
@@ -110,9 +124,15 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20))
         );
 
+        // realms are different, it's not the same owner
+        assertCannotAccessResources(randomAuthentication(user1, realm1), randomCloudApiKeyAuthentication(user1));
+
         // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         assertCanAccessResources(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
+
+        // cloud API key is the user subject it represents, it's not tied to an owner (creator user)
+        assertCanAccessResources(randomCloudApiKeyAuthentication(user1), randomCloudApiKeyAuthentication(user1));
 
         // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
@@ -120,6 +140,8 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
         );
+        assertCannotAccessResources(randomCloudApiKeyAuthentication(apiKeyId1), randomCloudApiKeyAuthentication(apiKeyId2));
+
         final User user3 = randomValueOtherThanMany(
             u -> u.principal().equals(user1.principal()) || u.principal().equals(user2.principal()),
             AuthenticationTests::randomUser
@@ -664,13 +686,12 @@ public class AuthenticationTests extends ESTestCase {
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersions.V_8_0_0);
+            out.setTransportVersion(TransportVersion.minimumCompatible());
             test.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(TransportVersions.V_8_0_0);
+            in.setTransportVersion(TransportVersion.minimumCompatible());
             Authentication testBack = new Authentication(in);
-            assertThat(testBack.getDomain(), nullValue());
-            assertThat(testBack.isAssignedToDomain(), is(false));
+            assertThat(testBack.getDomain(), equalTo(test.getDomain()));
         }
     }
 
@@ -755,6 +776,9 @@ public class AuthenticationTests extends ESTestCase {
 
         // Remote access cannot run-as
         assertThat(AuthenticationTestHelper.builder().crossClusterAccess().build().supportsRunAs(anonymousUser), is(false));
+
+        // Cloud API key cannot run-as
+        assertThat(AuthenticationTestHelper.randomCloudApiKeyAuthentication().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
@@ -772,7 +796,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication1,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
 
@@ -792,7 +821,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
     }
@@ -839,46 +873,9 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV7.encode(), equalTo(headerV7));
     }
 
-    public void testMaybeRewriteForOlderVersionWithCrossClusterAccessThrowsOnUnsupportedVersion() {
-        final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
-            : AuthenticationTestHelper.builder().build();
-
-        final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
-            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-        );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,  // the minimum compatible version of 8.x
-            versionBeforeCrossClusterAccessRealm
-        );
-
-        if (authentication.isCrossClusterAccess()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.maybeRewriteForOlderVersion(version));
-            assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before ["
-                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                        + version.toReleaseVersion()
-                        + "]"
-                )
-            );
-        } else {
-            // Assert that rewriting took place; the details of rewriting logic are checked in other tests
-            assertThat(authentication.maybeRewriteForOlderVersion(version), not(equalTo(authentication)));
-        }
-    }
-
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        final TransportVersion crossClusterAccessRealmVersion =
-            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            crossClusterAccessRealmVersion,
-            TransportVersion.current()
-        );
+        randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
+        final TransportVersion version = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(
@@ -886,11 +883,7 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            crossClusterAccessRealmVersion,
-            version
-        );
+        final TransportVersion maybeOldVersion = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
@@ -911,7 +904,7 @@ public class AuthenticationTests extends ESTestCase {
         // pick a version before that of the authentication instance to force a rewrite
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getTransportVersion())
         );
 
@@ -951,29 +944,10 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
     }
 
-    public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-        );
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            .transportVersion(TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null))
-            .build();
-        assertThat(authentication.getEffectiveSubject().getTransportVersion().after(olderVersion), is(true));
-
-        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
-
-        assertThat(actual.getEffectiveSubject().getTransportVersion(), equalTo(olderVersion));
-        assertThat(actual.getAuthenticatingSubject().getRealm().getDomain(), nullValue());
-        assertThat(actual.getEffectiveSubject().getRealm().getDomain(), nullValue());
-    }
-
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            Authentication.VERSION_REALM_DOMAINS,
+            TransportVersion.minimumCompatible(),
             // Don't include CURRENT, so we always have at least one newer version available below
             TransportVersionUtils.getPreviousVersion()
         );
@@ -1020,31 +994,6 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
-    public void testMaybeRewriteRealmRef() {
-        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
-        assertThat(realmRefWithDomain.getDomain(), notNullValue());
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    null,
-                    TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-                ),
-                realmRefWithDomain
-            ).getDomain(),
-            nullValue()
-        );
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
-                realmRefWithDomain
-            ),
-            equalTo(realmRefWithDomain)
-        );
-    }
-
     public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteIndices() {
         final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
         final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
@@ -1064,14 +1013,13 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
             .metadata(metadata)
-            .transportVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+            .transportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS)
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
-            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+        final TransportVersion olderVersion = randomTransportVersionBetween(
+            VERSION_API_KEY_ROLES_AS_BYTES,
+            original.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
@@ -1113,10 +1061,9 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
-            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+        final TransportVersion olderVersion = randomTransportVersionBetween(
+            VERSION_API_KEY_ROLES_AS_BYTES,
+            original.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
@@ -1133,6 +1080,84 @@ public class AuthenticationTests extends ESTestCase {
             equalTo(new BytesArray("""
                 {"limited_by_role":{"cluster":["*"]}}""").toBytesRef())
         );
+    }
+
+    public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteClusterRemovePrivs() throws IOException {
+        final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
+        final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
+        Map<String, Object> metadata = Map.ofEntries(
+            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
+            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
+            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"base_role":{"cluster":["all"],
+                 "remote_cluster":[{"privileges":["monitor_enrich", "monitor_stats"],"clusters":["*"]}]
+                }}""")),
+            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"limited_by_role":{"cluster":["*"],
+                 "remote_cluster":[{"privileges":["monitor_enrich", "monitor_stats"],"clusters":["*"]}]
+                }}"""))
+        );
+
+        final Authentication with2privs = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(metadata)
+            .transportVersion(TransportVersion.current())
+            .build();
+
+        // pick a version that will only remove one of the two privileges
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            ROLE_REMOTE_CLUSTER_PRIVS,
+            TransportVersionUtils.getPreviousVersion(ROLE_MONITOR_STATS)
+        );
+
+        Map<String, Object> rewrittenMetadata = with2privs.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();
+        assertThat(rewrittenMetadata.keySet(), equalTo(with2privs.getAuthenticatingSubject().getMetadata().keySet()));
+
+        // only one of the two privileges are left after the rewrite
+        BytesReference baseRoleBytes = (BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
+        Map<String, Object> baseRoleAsMap = XContentHelper.convertToMap(baseRoleBytes, false, XContentType.JSON).v2();
+        assertThat(ObjectPath.eval("base_role.remote_cluster.0.privileges", baseRoleAsMap), Matchers.contains("monitor_enrich"));
+        assertThat(ObjectPath.eval("base_role.remote_cluster.0.clusters", baseRoleAsMap), notNullValue());
+        BytesReference limitedByRoleBytes = (BytesReference) rewrittenMetadata.get(
+            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY
+        );
+        Map<String, Object> limitedByRoleAsMap = XContentHelper.convertToMap(limitedByRoleBytes, false, XContentType.JSON).v2();
+        assertThat(ObjectPath.eval("limited_by_role.remote_cluster.0.privileges", limitedByRoleAsMap), Matchers.contains("monitor_enrich"));
+        assertThat(ObjectPath.eval("limited_by_role.remote_cluster.0.clusters", limitedByRoleAsMap), notNullValue());
+
+        // same version, but it removes the only defined privilege
+        metadata = Map.ofEntries(
+            entry(AuthenticationField.API_KEY_ID_KEY, apiKeyId),
+            entry(AuthenticationField.API_KEY_NAME_KEY, apiKeyName),
+            entry(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"base_role":{"cluster":["all"],
+                 "remote_cluster":[{"privileges":["monitor_stats"],"clusters":["*"]}]
+                }}""")),
+            entry(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
+                {"limited_by_role":{"cluster":["*"],
+                 "remote_cluster":[{"privileges":["monitor_stats"],"clusters":["*"]}]
+                }}"""))
+        );
+
+        final Authentication with1priv = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(metadata)
+            .transportVersion(TransportVersion.current())
+            .build();
+
+        rewrittenMetadata = with1priv.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();
+        assertThat(rewrittenMetadata.keySet(), equalTo(with1priv.getAuthenticatingSubject().getMetadata().keySet()));
+
+        // the one privileges is removed after the rewrite, which removes the full "remote_cluster" object
+        baseRoleBytes = (BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
+        baseRoleAsMap = XContentHelper.convertToMap(baseRoleBytes, false, XContentType.JSON).v2();
+        assertThat(ObjectPath.eval("base_role.remote_cluster", baseRoleAsMap), nullValue());
+        assertThat(ObjectPath.eval("base_role.cluster", baseRoleAsMap), notNullValue());
+        limitedByRoleBytes = (BytesReference) rewrittenMetadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
+        limitedByRoleAsMap = XContentHelper.convertToMap(limitedByRoleBytes, false, XContentType.JSON).v2();
+        assertThat(ObjectPath.eval("limited_by_role.remote_cluster", limitedByRoleAsMap), nullValue());
+        assertThat(ObjectPath.eval("limited_by_role.cluster", limitedByRoleAsMap), notNullValue());
     }
 
     public void testMaybeRemoveRemoteIndicesFromRoleDescriptors() {
@@ -1158,7 +1183,7 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         // check null value
-        assertThat(null, equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
+        assertThat(null, equalBytes(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
 
         // and an empty map
         final BytesReference empty = randomBoolean() ? new BytesArray("""
@@ -1218,8 +1243,8 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         // If the realm is expected to have a domain, we need a version that's at least compatible with domains
-        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : TransportVersions.V_7_0_0;
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), minVersion, TransportVersion.current());
+        final TransportVersion minVersion = realmRef.getDomain() != null ? VERSION_REALM_DOMAINS : VERSION_7_0_0;
+        final TransportVersion version = randomTransportVersion(minVersion);
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -1232,11 +1257,35 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
-        return randomApiKeyAuthentication(
-            user,
-            apiKeyId,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersion.current())
+        return randomApiKeyAuthentication(user, apiKeyId, randomTransportVersion());
+    }
+
+    /**
+     * @param minVersion minimum version, inclusive
+     * @param maxVersion maximum version, exclusive
+     */
+    public static TransportVersion randomTransportVersionBetween(TransportVersion minVersion, TransportVersion maxVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS)
+                .filter(v -> v.onOrAfter(minVersion) && v.before(maxVersion))
+                .toArray(TransportVersion[]::new)
         );
+    }
+
+    public static TransportVersion randomTransportVersionBefore(TransportVersion maxVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.before(maxVersion)).toArray(TransportVersion[]::new)
+        );
+    }
+
+    public static TransportVersion randomTransportVersion(TransportVersion minVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.onOrAfter(minVersion)).toArray(TransportVersion[]::new)
+        );
+    }
+
+    public static TransportVersion randomTransportVersion() {
+        return randomFrom(AUTHENTICATION_TRANSPORT_VERSIONS);
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, TransportVersion version) {

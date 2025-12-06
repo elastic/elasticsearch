@@ -1,0 +1,5 @@
+pr: 137706
+summary: Use DEFAULT_UNSORTABLE topN encoder for the TSID_DATA_TYPE
+area: ES|QL
+type: bug
+issues: []

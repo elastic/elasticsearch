@@ -199,7 +199,8 @@ null               | null      | null
 ;
 
 
-overwriteName
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteName#[skip:-8.12.99]
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -209,7 +210,8 @@ Parto Bamford     | Parto          | Bamford
 ;
 
 
-overwriteNameWhere
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteNameWhere#[skip:-8.12.99]
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "%{WORD:emp_no} %{WORD:b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -288,6 +290,24 @@ emp_no:integer | a:keyword                         | b:keyword                  
 10005          | null                              | null                               | null           | null
 ;
 
+multiPatterns
+required_capability: grok_multi_pattern
+row text = "XYZ extractme" | grok text "ABC %{WORD:foo}","XYZ %{WORD:bar}" | keep foo, bar;
+
+foo:keyword | bar:keyword
+null        | extractme
+;
+
+multiPatterns2
+required_capability: grok_multi_pattern
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "Georgi %{WORD:georgis_last_name}", "%{WORD:first_name} %{WORD:last_name}" | keep full_name, first_name, last_name, georgis_last_name | limit 3;
+
+full_name:keyword      | first_name:keyword   | last_name:keyword | georgis_last_name:keyword 
+Georgi Facello         | null                 | null              | Facello
+Bezalel Simmel         | Bezalel              | Simmel            | null
+Parto Bamford          | Parto                | Bamford           | null
+;
+
 overwriteInputName
 required_capability: grok_dissect_masking
 row text = "123 abc", int = 5 | sort int asc | grok text "%{NUMBER:text:int} %{WORD:description}" | keep text, int, description;
@@ -295,3 +315,35 @@ row text = "123 abc", int = 5 | sort int asc | grok text "%{NUMBER:text:int} %{W
 text:integer | int:integer | description:keyword
 123          | 5           | abc
 ;
+
+avoidAttributesRemoval
+// https://github.com/elastic/elasticsearch/issues/127468
+required_capability: union_types
+required_capability: join_lookup_v12
+required_capability: keep_regex_extract_attributes
+from multivalue_points,h*,messa* 
+| eval  `card` = true, PbehoQUqKSF = "VLGjhcgNkQiEVyCLo", DsxMWtGL = true, qSxTIvUorMim = true, `location` = 8593178066470220111, type = -446161601, FSkGQkgmS = false 
+| eval  PbehoQUqKSF = 753987034, HLNMQfQj = true, `within` = true, `id` = "JDKKkYwhhh", lk = null, aecuvjTkgZza = 510616700, aDAMpuVtNX = null, qCopgNZPt = "AjhJUtZefqKdJYH", BxHHlFoA = "isBrmhKLc"
+| rename message as message 
+| lookup join message_types_lookup on message 
+| sort PbehoQUqKSF DESC, ip1 DESC NULLS LAST 
+| limit 5845 
+| drop `subset`, ip*, `card`, `within`, host.v*, description, `aecuvjTkgZza`, host.version, `ip0`, height_range, DsxMWtGL, host_group, `aDAMpuVtNX`, PbehoQUqKSF, `intersects`, `host.os`, aDAMpuVtNX, *ight_range, HLNMQfQj, `FSkGQkgmS`, BxHHlFoA, card 
+| grok type "%{WORD:GknCxQFo}" 
+| eval  `location` = null, ZjWUUvGusyyz = null, HeeKIpzgh = false, `id` = 4325287503714500302, host = false, `lk` = null, HvTQdOqFajpH = false, fKNlsYoT = true, `location` = -1158449473, `qCopgNZPt` = 1219986202615280617 
+| drop HeeKIpzg*, `ZjWUUvGusyyz`, `message`, `type`, `lk` 
+| grok GknCxQFo "%{WORD:location} %{WORD:HvTQdOqFajpH}" 
+| drop HvTQdOqFajpH, `location`, centroid 
+| mv_expand GknCxQFo 
+| limit 410 
+| limit 3815 
+| rename `id` AS `GknCxQFo` 
+| grok host.name "%{WORD:oGQQZHxQHj} %{WORD:qCopgNZPt} %{WORD:vHKOmmocPcTO}" 
+| stats  BkQXJRMeAM = min(GknCxQFo) 
+| keep `BkQXJRMeAM`
+;
+
+BkQXJRMeAM:long
+4325287503714500302
+;
+

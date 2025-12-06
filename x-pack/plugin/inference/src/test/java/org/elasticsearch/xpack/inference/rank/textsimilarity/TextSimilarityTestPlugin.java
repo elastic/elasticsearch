@@ -30,14 +30,11 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
@@ -51,8 +48,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Plugin for text similarity tests. Defines a filter for modifying inference call behavior, as well as a {@code TextSimilarityRankBuilder}
@@ -138,7 +133,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                         request.getInferenceEntityId(),
                         request.getTaskType(),
                         CohereService.NAME,
-                        new CohereRerankServiceSettings("uri", "model", null),
+                        new CohereRerankServiceSettings("uri", "model", null, CohereServiceSettings.CohereApiVersion.V2),
                         topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
                     )
                 )
@@ -172,53 +167,19 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
     public static class ThrowingMockRequestActionBasedRankBuilder extends TextSimilarityRankBuilder {
 
-        public static final ParseField FIELD_FIELD = new ParseField("field");
-        public static final ParseField INFERENCE_ID = new ParseField("inference_id");
-        public static final ParseField INFERENCE_TEXT = new ParseField("inference_text");
-        public static final ParseField THROWING_TYPE_FIELD = new ParseField("throwing-type");
-
-        static final ConstructingObjectParser<ThrowingMockRequestActionBasedRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
-            "throwing_request_action_based_rank",
-            args -> {
-                int rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
-                String field = (String) args[1];
-                if (field == null || field.isEmpty()) {
-                    throw new IllegalArgumentException("Field cannot be null or empty");
-                }
-                final String inferenceId = (String) args[2];
-                final String inferenceText = (String) args[3];
-                final float minScore = (float) args[4];
-                String throwingType = (String) args[5];
-                return new ThrowingMockRequestActionBasedRankBuilder(
-                    rankWindowSize,
-                    field,
-                    inferenceId,
-                    inferenceText,
-                    minScore,
-                    throwingType
-                );
-            }
-        );
-
-        static {
-            PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-            PARSER.declareString(constructorArg(), FIELD_FIELD);
-            PARSER.declareString(constructorArg(), INFERENCE_ID);
-            PARSER.declareString(constructorArg(), INFERENCE_TEXT);
-            PARSER.declareString(constructorArg(), THROWING_TYPE_FIELD);
-        }
-
         protected final AbstractRerankerIT.ThrowingRankBuilderType throwingRankBuilderType;
 
         public ThrowingMockRequestActionBasedRankBuilder(
-            final int rankWindowSize,
-            final String field,
-            final String inferenceId,
-            final String inferenceText,
-            final float minScore,
-            final String throwingType
+            int rankWindowSize,
+            String field,
+            String inferenceId,
+            String inferenceText,
+            Float minScore,
+            boolean failuresAllowed,
+            String throwingType,
+            ChunkScorerConfig chunkScorerConfig
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, chunkScorerConfig);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 
@@ -231,12 +192,6 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         public void doWriteTo(StreamOutput out) throws IOException {
             super.doWriteTo(out);
             out.writeEnum(throwingRankBuilderType);
-        }
-
-        @Override
-        public void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            super.doXContent(builder, params);
-            builder.field(THROWING_TYPE_FIELD.getPreferredName(), throwingRankBuilderType);
         }
 
         @Override
@@ -263,7 +218,9 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     client,
                     inferenceId,
                     inferenceText,
-                    minScore
+                    minScore,
+                    failuresAllowed(),
+                    null
                 ) {
                     @Override
                     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -271,9 +228,11 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                             TaskType.RERANK,
                             inferenceId,
                             inferenceText,
+                            null,
+                            null,
                             docFeatures,
                             Map.of("throwing", true),
-                            InputType.SEARCH,
+                            InputType.INTERNAL_SEARCH,
                             InferenceAction.Request.DEFAULT_TIMEOUT,
                             false
                         );

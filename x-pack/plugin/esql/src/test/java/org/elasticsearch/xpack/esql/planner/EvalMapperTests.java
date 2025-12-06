@@ -14,16 +14,14 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -34,10 +32,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
@@ -70,13 +73,17 @@ public class EvalMapperTests extends ESTestCase {
         Locale.US,
         "test",
         null,
-        null,
+        QueryPragmas.EMPTY,
         10000000,
         10000,
         StringUtils.EMPTY,
         false,
         Map.of(),
-        System.nanoTime()
+        System.nanoTime(),
+        false,
+        10000000,
+        100000,
+        null
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -115,12 +122,13 @@ public class EvalMapperTests extends ESTestCase {
             new Pow(Source.EMPTY, DOUBLE1, DOUBLE2),
             DOUBLE1,
             literal,
+            new ByteLength(Source.EMPTY, literal),
             new Length(Source.EMPTY, literal),
             new DateFormat(Source.EMPTY, datePattern, DATE, TEST_CONFIG),
             new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
-            new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {
+            new DateTrunc(Source.EMPTY, dateInterval, DATE, TEST_CONFIG) }) {
             params.add(new Object[] { e.nodeString(), e });
         }
 
@@ -143,7 +151,7 @@ public class EvalMapperTests extends ESTestCase {
         lb.append(LONG);
         Layout layout = lb.build();
 
-        var supplier = EvalMapper.toEvaluator(expression, layout);
+        var supplier = EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
         EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
         EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
         assertNotNull(evaluator1);
@@ -157,7 +165,11 @@ public class EvalMapperTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+        return new FieldAttribute(
+            Source.EMPTY,
+            name,
+            new EsField(name, type, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     static DriverContext driverContext() {

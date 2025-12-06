@@ -40,13 +40,13 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
 
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-        if (Files.exists(env.pluginsFile()) == false) {
-            throw new IOException("Plugins directory missing: " + env.pluginsFile());
+        if (Files.exists(env.pluginsDir()) == false) {
+            throw new IOException("Plugins directory missing: " + env.pluginsDir());
         }
 
-        terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsFile());
+        terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsDir());
         final List<Path> plugins = new ArrayList<>();
-        try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsDir())) {
             for (Path path : paths) {
                 if (path.getFileName().toString().equals(ELASTICSEARCH_PLUGINS_YML_CACHE) == false) {
                     plugins.add(path);
@@ -61,7 +61,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
 
     private static void printPlugin(Environment env, Terminal terminal, Path plugin, String prefix) throws IOException {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
-        PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(plugin));
+        PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsDir().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
 
         // When PluginDescriptor#getElasticsearchVersion returns a string, we can revisit the need

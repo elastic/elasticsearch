@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,20 +32,15 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    "Now Test",
-                    List.of(),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(),
-                        matchesPattern("LiteralsEvaluator\\[lit=.*]"),
-                        DataType.DATETIME,
-                        equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli())
-                    )
-                )
-            )
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, List.of(new TestCaseSupplier("Now Test", List.of(), () -> {
+            var configuration = ConfigurationTestUtils.randomConfigurationBuilder().query(TestCaseSupplier.TEST_SOURCE.text()).build();
+            return new TestCaseSupplier.TestCase(
+                List.of(),
+                matchesPattern("LiteralsEvaluator\\[lit=.*]"),
+                DataType.DATETIME,
+                equalTo(configuration.now().toInstant().toEpochMilli())
+            ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configuration);
+        })));
     }
 
     @Override
@@ -55,7 +50,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli());
+        return equalTo(testCase.getConfiguration().now().toInstant().toEpochMilli());
     }
 
 }

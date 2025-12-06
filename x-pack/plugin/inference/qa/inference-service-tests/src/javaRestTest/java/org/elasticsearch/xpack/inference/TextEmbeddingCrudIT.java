@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,8 +19,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-// This test was previously disabled in CI due to the models being too large
-// See "https://github.com/elastic/elasticsearch/issues/105198".
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
     public void testPutE5Small_withNoModelVariant() {
@@ -43,9 +42,9 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
             TaskType.TEXT_EMBEDDING,
             List.of("hello world", "this is the second document")
         );
-        assertTrue(((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+        assertTrue(((List) ((Map) ((List) results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING)).get(0)).get("embedding")).size() > 1);
         // there exists embeddings
-        assertTrue(((List) results.get("text_embedding")).size() == 2);
+        assertTrue(((List) results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING)).size() == 2);
         // there are two sets of embeddings
         deleteTextEmbeddingModel(inferenceEntityId);
     }
@@ -62,9 +61,9 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
                 TaskType.TEXT_EMBEDDING,
                 List.of("hello world", "this is the second document")
             );
-            assertTrue(((List) ((Map) ((List) results.get("text_embedding")).get(0)).get("embedding")).size() > 1);
+            assertTrue(((List) ((Map) ((List) results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING)).get(0)).get("embedding")).size() > 1);
             // there exists embeddings
-            assertTrue(((List) results.get("text_embedding")).size() == 2);
+            assertTrue(((List) results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING)).size() == 2);
             // there are two sets of embeddings
             deleteTextEmbeddingModel(inferenceEntityId);
         } else {
@@ -94,7 +93,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         var endpoint = Strings.format("_inference/%s/%s", "text_embedding", inferenceEntityId);
         var request = new Request("DELETE", endpoint);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -104,7 +103,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
         request.setJsonEntity(jsonEntity);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 

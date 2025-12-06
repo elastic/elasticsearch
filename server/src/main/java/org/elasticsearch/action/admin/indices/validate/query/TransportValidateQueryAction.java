@@ -18,11 +18,13 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
@@ -59,6 +61,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
 
     private final SearchService searchService;
     private final RemoteClusterService remoteClusterService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportValidateQueryAction(
@@ -66,6 +69,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -80,6 +84,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         );
         this.searchService = searchService;
         this.remoteClusterService = transportService.getRemoteClusterService();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -87,10 +92,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
+        final ProjectState project = getProjectState();
         // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             request,
-            clusterService.state(),
+            project.metadata(),
             indexNameExpressionResolver,
             remoteClusterService,
             request.nowInMillis
@@ -122,19 +128,35 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
+            // We can safely set the cluster alias and CCS minimize round-trips to null because the validate endpoint can only reference
+            // local indices
             Rewriteable.rewriteAndFetch(
                 request.query(),
-                searchService.getRewriteContext(timeProvider, resolvedIndices, null),
+                searchService.getRewriteContext(
+                    timeProvider,
+                    clusterService.state().getMinTransportVersion(),
+                    null,
+                    resolvedIndices,
+                    null,
+                    null
+                ),
                 rewriteListener
             );
         }
     }
 
+    private ProjectState getProjectState() {
+        return projectResolver.getProjectState(clusterService.state());
+    }
+
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        final ClusterState clusterState = clusterService.state();
-        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, shard.getIndexName(), indicesAndAliases);
+        final ProjectState projectState = getProjectState();
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            projectState.metadata(),
+            request.indices()
+        );
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(projectState, shard.getIndexName(), indicesAndAliases);
         return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
     }
 
@@ -144,7 +166,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
+    protected List<SearchShardRouting> shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
         final String routing;
         if (request.allShards()) {
             routing = null;
@@ -152,18 +174,24 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             // Random routing to limit request to a single shard
             routing = Integer.toString(Randomness.get().nextInt(1000));
         }
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, "_local");
+        ProjectState project = getProjectState();
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
+            project.metadata(),
+            routing,
+            request.indices()
+        );
+        return clusterService.operationRouting().searchShards(project, concreteIndices, routingMap, "_local");
+
     }
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ValidateQueryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ValidateQueryRequest countRequest, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ, concreteIndices);
     }
 
     @Override

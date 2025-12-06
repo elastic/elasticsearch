@@ -16,10 +16,6 @@ setup:
   - match: { result: "created" }
 
   - do:
-      cluster.health:
-        wait_for_no_initializing_shards: true
-
-  - do:
       synonyms.get_synonym:
         id: test-update-synonyms
 
@@ -63,15 +59,36 @@ setup:
   - match: { result: "created" }
 
   - do:
-      cluster.health:
-        wait_for_no_initializing_shards: true
-
-  - do:
       synonyms.get_synonym:
         id: test-empty-synonyms
 
   - match: { count: 0 }
   - match: { synonyms_set: [] }
+
+---
+"Refresh can be specified":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: "synonyms refresh param capability needed"
+
+  - do:
+      synonyms.put_synonym:
+        id: test-update-synonyms
+        refresh: false
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+            - synonyms: "bye => goodbye"
+              id: "test-id"
+
+  - match: { result: "created" }
+  # Reload analyzers info is not included
+  - not_exists: reload_analyzers_details
 
 ---
 "Validation fails tests":
@@ -114,3 +131,4 @@ setup:
         body:
           synonyms_set:
             - synonyms: "bye, goodbye,  "
+

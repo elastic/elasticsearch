@@ -53,7 +53,6 @@ import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -67,7 +66,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -132,7 +131,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
 
-        CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
+        CombinedBits bitSet = new CombinedBits(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
             Scorable scorer;
 
@@ -149,7 +148,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -158,7 +157,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -167,7 +166,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         };
         intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
+        bitSet = new CombinedBits(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -308,19 +307,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
         w.deleteDocuments(new Term("delete", "yes"));
 
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        };
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
-        BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
+        BitsetFilterCache cache = new BitsetFilterCache(settings, BitsetFilterCache.Listener.NOOP);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
         if (sparse) {
@@ -410,6 +398,29 @@ public class ContextIndexSearcherTests extends ESTestCase {
             sumDocs += sliceDocs;
         }
         assertThat(sumDocs, equalTo(numDocs));
+    }
+
+    public void testClearQueryCancellations() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        w.addDocument(new Document());
+        DirectoryReader reader = w.getReader();
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
+
+        assertFalse(searcher.hasCancellations());
+        searcher.addQueryCancellation(() -> {});
+        assertTrue(searcher.hasCancellations());
+
+        searcher.clearQueryCancellations();
+        assertFalse(searcher.hasCancellations());
+
+        IOUtils.close(reader, w, dir);
     }
 
     public void testExitableTermsMinAndMax() throws IOException {
@@ -704,7 +715,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 return roleQueryBits;
             } else {
                 // apply deletes when needed:
-                return new CombinedBitSet(roleQueryBits, actualLiveDocs);
+                return new CombinedBits(roleQueryBits, actualLiveDocs);
             }
         }
 

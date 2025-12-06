@@ -9,9 +9,9 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.env.Environment;
@@ -20,9 +20,9 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -31,18 +31,28 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 
 public class MapperTestUtils {
-
     public static MapperService newMapperService(
         NamedXContentRegistry xContentRegistry,
         Path tempDir,
         Settings indexSettings,
         String indexName
     ) throws IOException {
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+        return newMapperService(List.of(), xContentRegistry, tempDir, indexSettings, indexName);
+    }
+
+    public static MapperService newMapperService(
+        List<MapperPlugin> extraMappers,
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings indexSettings,
+        String indexName
+    ) throws IOException {
+        IndicesModule indicesModule = new IndicesModule(extraMappers);
         return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName);
     }
 
@@ -53,22 +63,27 @@ public class MapperTestUtils {
         IndicesModule indicesModule,
         String indexName
     ) throws IOException {
+        return newMapperService(xContentRegistry, tempDir, settings, indicesModule, indexName, new Setting<?>[0]);
+    }
+
+    public static MapperService newMapperService(
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings settings,
+        IndicesModule indicesModule,
+        String indexName,
+        Setting<?>[] additionalSettings
+    ) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).put(settings);
         if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
             settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         }
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexName, finalSettings);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexName, finalSettings, additionalSettings);
         IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {}
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {}
-        });
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         return new MapperService(
             () -> TransportVersion.current(),
             indexSettings,

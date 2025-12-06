@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
@@ -17,10 +18,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores $type$ values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 $if(BytesRef)$
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
@@ -58,6 +60,19 @@ $endif$
 
     @Override
     $Type$Block keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default $Type$Vector deepCopy(BlockFactory blockFactory) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
 
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
@@ -180,15 +195,15 @@ $if(BytesRef)$
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayVector v) {
+        } else if (this instanceof $Type$ArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+        } else if (this instanceof OrdinalBytesRefVector v && v.isDense()) {
             out.writeByte(SERIALIZE_VECTOR_ORDINAL);
             v.writeOrdinalVector(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayVector v) {
+        } else if (this instanceof $Type$BigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
 $endif$

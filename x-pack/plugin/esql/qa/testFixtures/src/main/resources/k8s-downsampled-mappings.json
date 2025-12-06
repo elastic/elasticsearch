@@ -1,0 +1,103 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date",
+      "meta" : {
+        "fixed_interval" : "1h",
+        "time_zone" : "UTC"
+      }
+    },
+    "cluster": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "pod": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "client": {
+      "properties": {
+        "ip": {
+          "type": "ip"
+        }
+      }
+    },
+    "event": {
+      "type": "keyword"
+    },
+    "event_log": {
+      "type": "text"
+    },
+    "events_received": {
+      "type": "long"
+    },
+    "event_city": {
+      "type": "geo_point"
+    },
+    "event_city_boundary": {
+      "type": "geo_shape"
+    },
+    "event_shape": {
+      "type": "shape"
+    },
+    "event_location": {
+      "type": "point"
+    },
+    "network": {
+      "properties": {
+        "bytes_in": {
+          "type": "long"
+        },
+        "total_bytes_in": {
+          "type": "long",
+          "time_series_metric": "counter"
+        },
+        "cost": {
+          "type": "double"
+        },
+        "total_cost": {
+          "type": "double",
+          "time_series_metric": "counter"
+        },
+        "eth0": {
+          "properties": {
+            "up": {
+              "type": "boolean"
+            },
+            "tx": {
+              "type" : "aggregate_metric_double",
+              "metrics" : [
+                "min",
+                "max",
+                "sum",
+                "value_count"
+              ],
+              "default_metric" : "max",
+              "time_series_metric": "gauge"
+            },
+            "rx": {
+              "type" : "aggregate_metric_double",
+              "metrics" : [
+                "min",
+                "max",
+                "sum",
+                "value_count"
+              ],
+              "default_metric" : "max",
+              "time_series_metric": "gauge"
+            },
+            "last_up": {
+              "type": "date_nanos"
+            },
+            "firmware_version": {
+              "type": "version"
+            },
+            "currently_connected_clients": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    }
+  }
+}

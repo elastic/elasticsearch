@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.Before;
@@ -22,9 +25,14 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 @SuppressWarnings("unchecked")
 public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     @ClassRule()
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -33,7 +41,8 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         .module("mapper-extras")
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.otel_data.registry.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
@@ -51,6 +60,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
     }
 
     private RestClient client;
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
 
     public void testOverrideIndexSorting() throws IOException {
         var indexSortOverrideTemplate = """
@@ -100,23 +114,23 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
               "template": {
                 "settings": {
                   "index": {
-                    "mode": "logsdb"
-                  }
-                },
-                "mappings": {
-                  "_source": {
-                    "mode": "stored"
+                    "mode": "logsdb",
+                    "mapping": {
+                      "source": {
+                        "mode": "stored"
+                      }
+                    }
                   }
                 }
               }
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
-
-        var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
-        String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
-        assertThat(sourceMode, equalTo("stored"));
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        assertOK(client.performRequest(request));
+        var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
+        var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
+        assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -150,12 +164,12 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
               "template": {
                 "settings": {
                   "index": {
-                    "mode": "logsdb"
-                  }
-                },
-                "mappings": {
-                  "_source": {
-                    "mode": "disabled"
+                    "mode": "logsdb",
+                    "mapping": {
+                      "source": {
+                        "mode": "disabled"
+                      }
+                    }
                   }
                 }
               }
@@ -173,20 +187,25 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var storedSourceMapping = """
             {
               "template": {
-                "mappings": {
-                  "_source": {
-                    "mode": "stored"
+                "settings": {
+                  "index": {
+                    "mapping": {
+                      "source": {
+                        "mode": "stored"
+                      }
+                    }
                   }
                 }
               }
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        assertOK(client.performRequest(request));
 
-        var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
-        String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
-        assertThat(sourceMode, equalTo("stored"));
+        var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
+        var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
+        assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {
@@ -210,9 +229,13 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var disabledModeMapping = """
             {
               "template": {
-                "mappings": {
-                  "_source": {
-                    "mode": "disabled"
+                "settings": {
+                  "index": {
+                    "mapping": {
+                      "source": {
+                        "mode": "disabled"
+                      }
+                    }
                   }
                 }
               }

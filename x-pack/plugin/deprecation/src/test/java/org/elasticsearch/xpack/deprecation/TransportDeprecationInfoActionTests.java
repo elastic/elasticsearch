@@ -6,21 +6,301 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.hamcrest.core.IsEqual;
+import org.junit.Assert;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Response.RESERVED_NAMES;
+import static org.elasticsearch.xpack.deprecation.DeprecationInfoActionResponseTests.createTestDeprecationIssue;
+import static org.elasticsearch.xpack.deprecation.TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportDeprecationInfoActionTests extends ESTestCase {
+
+    public void testCheckAndCreateResponse() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all");
+        mapping.field("enabled", false);
+        mapping.endObject().endObject();
+
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                IndexMetadata.builder("test")
+                    .putMapping(Strings.toString(mapping))
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        boolean clusterIssueFound = randomBoolean();
+        boolean nodeIssueFound = randomBoolean();
+        boolean indexIssueFound = randomBoolean();
+        boolean dataStreamIssueFound = randomBoolean();
+        boolean indexTemplateIssueFound = randomBoolean();
+        boolean componentTemplateIssueFound = randomBoolean();
+        boolean ilmPolicyIssueFound = randomBoolean();
+        DeprecationIssue foundIssue = createTestDeprecationIssue();
+        ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
+        when(clusterDeprecationChecker.check(any())).thenReturn(clusterIssueFound ? List.of(foundIssue) : List.of());
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
+            if (indexIssueFound) {
+                return Map.of("test", List.of(foundIssue));
+            }
+            return Map.of();
+        }), createResourceChecker("data_streams", (cs, req) -> {
+            if (dataStreamIssueFound) {
+                return Map.of("my-ds", List.of(foundIssue));
+            }
+            return Map.of();
+        }), createResourceChecker("templates", (cs, req) -> {
+            Map<String, List<DeprecationIssue>> issues = new HashMap<>();
+            if (componentTemplateIssueFound) {
+                issues.put("my-component-template", List.of(foundIssue));
+            }
+            if (indexTemplateIssueFound) {
+                issues.put("my-index-template", List.of(foundIssue));
+            }
+            return issues;
+        }), createResourceChecker("ilm_policies", (cs, req) -> {
+            if (ilmPolicyIssueFound) {
+                return Map.of("my-policy", List.of(foundIssue));
+            }
+            return Map.of();
+        }));
+
+        List<DeprecationIssue> nodeDeprecationIssues = nodeIssueFound ? List.of(foundIssue) : List.of();
+
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData(null);
+        precomputedData.setOnceTransformConfigs(List.of());
+        precomputedData.setOncePluginIssues(Map.of());
+        precomputedData.setOnceNodeSettingsIssues(nodeDeprecationIssues);
+        DeprecationInfoAction.Response response = TransportDeprecationInfoAction.checkAndCreateResponse(
+            project,
+            resolver,
+            request,
+            List.of(),
+            clusterDeprecationChecker,
+            resourceCheckers,
+            precomputedData
+        );
+
+        if (clusterIssueFound) {
+            assertThat(response.getClusterSettingsIssues(), IsEqual.equalTo(List.of(foundIssue)));
+        } else {
+            assertThat(response.getClusterSettingsIssues(), empty());
+        }
+
+        if (nodeIssueFound) {
+            assertThat(response.getNodeSettingsIssues(), IsEqual.equalTo(List.of(foundIssue)));
+        } else {
+            assertTrue(response.getNodeSettingsIssues().isEmpty());
+        }
+
+        if (indexIssueFound) {
+            assertThat(response.getIndexSettingsIssues(), IsEqual.equalTo(Map.of("test", List.of(foundIssue))));
+        } else {
+            assertTrue(response.getIndexSettingsIssues().isEmpty());
+        }
+        if (dataStreamIssueFound) {
+            assertThat(response.getDataStreamDeprecationIssues(), IsEqual.equalTo(Map.of("my-ds", List.of(foundIssue))));
+        } else {
+            assertTrue(response.getDataStreamDeprecationIssues().isEmpty());
+        }
+        if (ilmPolicyIssueFound) {
+            assertThat(response.getIlmPolicyDeprecationIssues(), IsEqual.equalTo(Map.of("my-policy", List.of(foundIssue))));
+        } else {
+            assertTrue(response.getIlmPolicyDeprecationIssues().isEmpty());
+        }
+        if (componentTemplateIssueFound == false && indexTemplateIssueFound == false) {
+            assertTrue(response.getTemplateDeprecationIssues().isEmpty());
+        } else {
+            if (componentTemplateIssueFound) {
+                assertThat(response.getTemplateDeprecationIssues().get("my-component-template"), IsEqual.equalTo(List.of(foundIssue)));
+            }
+            if (indexTemplateIssueFound) {
+                assertThat(response.getTemplateDeprecationIssues().get("my-index-template"), IsEqual.equalTo(List.of(foundIssue)));
+            }
+
+        }
+    }
+
+    public void testRemoveSkippedSettings() {
+        Settings.Builder settingsBuilder = settings(IndexVersion.current());
+        settingsBuilder.put("some.deprecated.property", "someValue1");
+        settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
+        settingsBuilder.put("some.undeprecated.property", "someValue3");
+        settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
+        Settings inputSettings = settingsBuilder.build();
+        IndexMetadata dataStreamIndexMetadata = IndexMetadata.builder("ds-test-index-1")
+            .settings(inputSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ComponentTemplate componentTemplate = new ComponentTemplate(Template.builder().settings(inputSettings).build(), null, null);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .template(Template.builder().settings(inputSettings))
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("test").settings(inputSettings).numberOfShards(1).numberOfReplicas(0))
+            .put(dataStreamIndexMetadata, true)
+            .put(DataStream.builder("ds-test", List.of(dataStreamIndexMetadata.getIndex())).build())
+            .indexTemplates(
+                Map.of(
+                    "my-index-template",
+                    indexTemplate,
+                    "empty-template",
+                    ComposableIndexTemplate.builder().indexPatterns(List.of("random")).build()
+                )
+            )
+            .componentTemplates(Map.of("my-component-template", componentTemplate))
+            .build();
+
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
+        AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleComponentTemplateSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleIndexTemplateSettings = new AtomicReference<>();
+        AtomicInteger backingIndicesCount = new AtomicInteger(0);
+        List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (pr, req) -> {
+            for (String indexName : resolver.concreteIndexNames(pr, req)) {
+                visibleIndexSettings.set(pr.index(indexName).getSettings());
+            }
+            return Map.of();
+        }), createResourceChecker("data_streams", (pr, req) -> {
+            pr.dataStreams().values().forEach(ds -> backingIndicesCount.set(ds.getIndices().size()));
+            return Map.of();
+        }), createResourceChecker("templates", (pr, req) -> {
+            pr.componentTemplates().values().forEach(template -> visibleComponentTemplateSettings.set(template.template().settings()));
+            pr.templatesV2().values().forEach(template -> {
+                if (template.template() != null && template.template().settings() != null) {
+                    visibleIndexTemplateSettings.set(template.template().settings());
+                }
+            });
+            return Map.of();
+        }));
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData(null);
+        precomputedData.setOnceTransformConfigs(List.of());
+        precomputedData.setOncePluginIssues(Map.of());
+        precomputedData.setOnceNodeSettingsIssues(List.of());
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
+        TransportDeprecationInfoAction.checkAndCreateResponse(
+            project,
+            resolver,
+            request,
+            List.of("some.deprecated.property", "some.other.*.deprecated.property"),
+            clusterDeprecationChecker,
+            resourceCheckers,
+            precomputedData
+        );
+
+        settingsBuilder = settings(IndexVersion.current());
+        settingsBuilder.put("some.undeprecated.property", "someValue3");
+        settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
+
+        Settings expectedSettings = settingsBuilder.build();
+        Settings resultIndexSettings = visibleIndexSettings.get();
+        Assert.assertNotNull(resultIndexSettings);
+        Assert.assertEquals("someValue3", resultIndexSettings.get("some.undeprecated.property"));
+        Assert.assertEquals(resultIndexSettings.getAsList("some.undeprecated.list.property"), List.of("someValue4", "someValue5"));
+        Assert.assertFalse(resultIndexSettings.hasValue("some.deprecated.property"));
+        Assert.assertFalse(resultIndexSettings.hasValue("some.other.bad.deprecated.property"));
+
+        assertThat(backingIndicesCount.get(), IsEqual.equalTo(1));
+
+        Assert.assertNotNull(visibleComponentTemplateSettings.get());
+        Assert.assertEquals(expectedSettings, visibleComponentTemplateSettings.get());
+        Assert.assertNotNull(visibleIndexTemplateSettings.get());
+        Assert.assertEquals(expectedSettings, visibleIndexTemplateSettings.get());
+    }
+
+    public void testCtorFailure() {
+        Map<String, List<DeprecationIssue>> indexNames = Stream.generate(() -> randomAlphaOfLength(10))
+            .limit(10)
+            .collect(Collectors.toMap(Function.identity(), (_k) -> List.of()));
+        Map<String, List<DeprecationIssue>> dataStreamNames = Stream.generate(() -> randomAlphaOfLength(10))
+            .limit(10)
+            .collect(Collectors.toMap(Function.identity(), (_k) -> List.of()));
+        Set<String> shouldCauseFailure = new HashSet<>(RESERVED_NAMES);
+        for (int i = 0; i < randomIntBetween(1, 100); i++) {
+            Map<String, List<DeprecationIssue>> pluginSettingsIssues = randomSubsetOf(3, shouldCauseFailure).stream()
+                .collect(Collectors.toMap(Function.identity(), (_k) -> List.of()));
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> new DeprecationInfoAction.Response(
+                    List.of(),
+                    List.of(),
+                    Map.of("data_streams", dataStreamNames, "index_settings", indexNames),
+                    pluginSettingsIssues
+                )
+            );
+        }
+    }
 
     public void testPluginSettingIssues() {
         DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
@@ -63,6 +343,191 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         );
         Exception exception = expectThrows(Exception.class, future::actionGet);
         assertThat(exception.getCause().getMessage(), containsString("boom"));
+    }
+
+    public void testCheckDiskLowWatermark() {
+        Settings settingsWithLowWatermark = Settings.builder().put("cluster.routing.allocation.disk.watermark.low", "10%").build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS);
+        String nodeId1 = "123";
+        String nodeId2 = "124";
+        String nodeId3 = "125";
+        long totalBytesOnMachine = 100;
+        long totalBytesFree = 70;
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .mostAvailableSpaceUsage(
+                Map.of(
+                    nodeId1,
+                    new DiskUsage(nodeId1, "", "", totalBytesOnMachine, totalBytesFree),
+                    nodeId2,
+                    new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesFree),
+                    nodeId3,
+                    new DiskUsage(nodeId2, "", "", totalBytesOnMachine, totalBytesOnMachine)
+                )
+            )
+            .build();
+        DiscoveryNode node1 = mock(DiscoveryNode.class);
+        when(node1.getId()).thenReturn(nodeId1);
+        when(node1.getName()).thenReturn("node1");
+        DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(discoveryNodes.get(nodeId1)).thenReturn(node1);
+        DiscoveryNode node2 = mock(DiscoveryNode.class);
+        when(node2.getId()).thenReturn(nodeId2);
+        when(node2.getName()).thenReturn("node2");
+        when(discoveryNodes.get(nodeId2)).thenReturn(node2);
+        DiscoveryNode node3 = mock(DiscoveryNode.class);
+        when(node3.getId()).thenReturn(nodeId3);
+        when(node3.getName()).thenReturn("node3");
+        when(discoveryNodes.get(nodeId3)).thenReturn(node3);
+
+        clusterSettings.applySettings(settingsWithLowWatermark);
+        DeprecationIssue issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
+
+        // Making sure there's no warning when we clear out the cluster settings:
+        clusterSettings.applySettings(Settings.EMPTY);
+        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
+        assertNull(issue);
+
+        // And make sure there is a warning when the setting is in the node settings but not the cluster settings:
+        clusterSettings = new ClusterSettings(settingsWithLowWatermark, BUILT_IN_CLUSTER_SETTINGS);
+        issue = TransportDeprecationInfoAction.checkDiskLowWatermark(clusterSettings, clusterInfo, discoveryNodes);
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
+        assertThat(issue.getDetails(), containsString("(nodes impacted: [node1, node2])"));
+    }
+
+    public void testMasterOperation() throws InterruptedException {
+        try (TestThreadPool threadPool = new TestThreadPool("TransportDeprecationInfoActionTests")) {
+            ClusterService clusterService = mock(ClusterService.class);
+
+            String nodeId = "node1";
+            DiscoveryNode node1 = mock(DiscoveryNode.class);
+            when(node1.getId()).thenReturn(nodeId);
+            when(node1.getName()).thenReturn(nodeId);
+            DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+            when(discoveryNodes.get(nodeId)).thenReturn(node1);
+
+            ClusterState state = mock(ClusterState.class);
+            when(state.nodes()).thenReturn(discoveryNodes);
+            when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
+            when(clusterService.state()).thenReturn(state);
+
+            ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
+
+            NodeClient client = new NoOpNodeClient(threadPool) {
+                @SuppressWarnings("unchecked")
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    switch (action.name()) {
+                        case NodesDeprecationCheckAction.NAME:
+                            NodesDeprecationCheckAction.NodeResponse nodeResponse = new NodesDeprecationCheckAction.NodeResponse(
+                                node1,
+                                List.of(
+                                    new DeprecationIssue(DeprecationIssue.Level.WARNING, "Node issue", "http://url", "details", false, null)
+                                )
+                            );
+                            NodesDeprecationCheckResponse nodesResponse = new NodesDeprecationCheckResponse(
+                                ClusterName.DEFAULT,
+                                List.of(nodeResponse),
+                                Collections.emptyList()
+                            );
+                            listener.onResponse((Response) nodesResponse);
+                            break;
+                        case GetTransformAction.NAME:
+                            listener.onResponse((Response) new GetTransformAction.Response(List.of(), 0, List.of()));
+                            break;
+                        default:
+                    }
+                }
+            };
+            ProjectResolver projectResolver = DefaultProjectResolver.INSTANCE;
+
+            // Disable ML to avoid MlDeprecationChecker making calls
+            Settings settings = Settings.builder().put("xpack.ml.enabled", false).build();
+            ClusterSettings clusterSettings = new ClusterSettings(
+                settings,
+                Set.copyOf(CollectionUtils.appendToCopy(BUILT_IN_CLUSTER_SETTINGS, SKIP_DEPRECATIONS_SETTING))
+            );
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
+
+            IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+            when(indexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any())).thenReturn(new String[0]);
+            TransportDeprecationInfoAction action = new TransportDeprecationInfoAction(
+                settings,
+                mock(TransportService.class),
+                clusterService,
+                threadPool,
+                mock(ActionFilters.class),
+                indexNameExpressionResolver,
+                client,
+                NamedXContentRegistry.EMPTY,
+                clusterInfoService,
+                projectResolver
+            );
+
+            DiskUsage diskUsage = new DiskUsage(nodeId, "node1", "/data", 100L, 0L);
+            ClusterInfo clusterInfo = mock(ClusterInfo.class);
+            when(clusterInfo.getNodeMostAvailableDiskUsages()).thenReturn(Map.of(nodeId, diskUsage));
+            when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
+
+            action.masterOperation(mock(Task.class), new DeprecationInfoAction.Request(TimeValue.MAX_VALUE), state, new ActionListener<>() {
+                @Override
+                public void onResponse(DeprecationInfoAction.Response response) {
+                    List<DeprecationIssue> nodeSettingsIssues = response.getNodeSettingsIssues();
+                    assertThat(nodeSettingsIssues, hasSize(2));
+
+                    DeprecationIssue nodeIssue = nodeSettingsIssues.stream()
+                        .filter(i -> i.getMessage().equals("Node issue"))
+                        .findFirst()
+                        .orElseThrow();
+
+                    DeprecationIssue diskIssue = nodeSettingsIssues.stream()
+                        .filter(i -> i.getMessage().equals("Disk usage exceeds low watermark"))
+                        .findFirst()
+                        .orElseThrow();
+
+                    assertThat(nodeIssue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+                    assertThat(nodeIssue.getUrl(), equalTo("http://url"));
+                    assertThat(nodeIssue.getDetails(), containsString("(nodes impacted: [node1])"));
+
+                    assertThat(diskIssue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+                    assertThat(diskIssue.getDetails(), containsString("(nodes impacted: [node1])"));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Test failed with exception: " + e.getMessage());
+                }
+            });
+        }
+    }
+
+    private static ResourceDeprecationChecker createResourceChecker(
+        String name,
+        BiFunction<ProjectMetadata, DeprecationInfoAction.Request, Map<String, List<DeprecationIssue>>> check
+    ) {
+        return new ResourceDeprecationChecker() {
+
+            @Override
+            public Map<String, List<DeprecationIssue>> check(
+                ProjectMetadata project,
+                DeprecationInfoAction.Request request,
+                TransportDeprecationInfoAction.PrecomputedData precomputedData
+            ) {
+                return check.apply(project, request);
+            }
+
+            @Override
+            public String getName() {
+                return name;
+            }
+        };
     }
 
     private static class NamedChecker implements DeprecationChecker {

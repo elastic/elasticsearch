@@ -110,13 +110,17 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        return new CcrRepository(
+        final var projectId = randomProjectIdOrDefault();
+        final CcrRepository ccrRepository = new CcrRepository(
+            projectId,
             repositoryMetadata,
             mock(Client.class),
             Settings.EMPTY,
             new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
             threadPool
         );
+        assertThat(ccrRepository.getProjectId(), equalTo(projectId));
+        return ccrRepository;
     }
 
     public void testWhenRetentionLeaseExpiresBeforeWeCanRenewIt() {

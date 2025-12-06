@@ -9,8 +9,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -40,8 +39,6 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  */
 public class RemoteClusterPortSettings {
 
-    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY = TransportVersions.V_8_10_X;
-
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
 
@@ -70,7 +67,13 @@ public class RemoteClusterPortSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> PORT = intSetting(REMOTE_CLUSTER_PREFIX + "port", 9443, 0, 65535, Setting.Property.NodeScope);
+    public static final Setting<Integer> PORT = intSetting(
+        REMOTE_CLUSTER_PREFIX + "port",
+        (settings) -> DiscoveryNode.isStateless(settings) ? "9400" : "9443",
+        0,
+        65535,
+        Setting.Property.NodeScope
+    );
 
     // The default value of -1 means it will use the default bind port as shown above
     public static final Setting<Integer> PUBLISH_PORT = intSetting(
@@ -135,9 +138,9 @@ public class RemoteClusterPortSettings {
 
     public static final Setting<ByteSizeValue> MAX_REQUEST_HEADER_SIZE = Setting.byteSizeSetting(
         REMOTE_CLUSTER_PREFIX + "max_request_header_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB), // should cover typical querying user/key authn serialized to the fulfilling cluster
-        new ByteSizeValue(64, ByteSizeUnit.BYTES), // toBytes must be higher than fixed header length
-        new ByteSizeValue(2, ByteSizeUnit.GB), // toBytes must be lower than INT_MAX (>2 GB)
+        ByteSizeValue.of(64, ByteSizeUnit.KB), // should cover typical querying user/key authn serialized to the fulfilling cluster
+        ByteSizeValue.of(64, ByteSizeUnit.BYTES), // toBytes must be higher than fixed header length
+        ByteSizeValue.of(2, ByteSizeUnit.GB), // toBytes must be lower than INT_MAX (>2 GB)
         Setting.Property.NodeScope
     );
 
@@ -158,7 +161,7 @@ public class RemoteClusterPortSettings {
     public static TcpTransport.ProfileSettings buildRemoteAccessProfileSettings(Settings settings) {
         validateRemoteAccessSettings(settings);
 
-        // Build a synthetic settings object with the `_remote_access` profile properly configured per the friendlier settings,
+        // Build a synthetic settings object with the REMOTE_CLUSTER_PROFILE properly configured per the friendlier settings,
         Settings syntheticRemoteAccessProfile = Settings.builder()
             .put(settings)
             .put(TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(REMOTE_CLUSTER_PROFILE).getKey(), TCP_KEEP_ALIVE.get(settings))

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -21,7 +22,9 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -40,7 +43,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     @FunctionInfo(
         returnType = "long",
         description = "Returns the total number (count) of input values.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "count"),
             @Example(description = "To count the number of rows, use `COUNT()` or `COUNT(*)`", file = "docs", tag = "countAll"),
@@ -52,13 +55,15 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             ),
             @Example(
                 description = "To count the number of times an expression returns `TRUE` use "
-                    + "a <<esql-where>> command to remove rows that shouldn't be included",
+                    + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
                 file = "stats",
                 tag = "count-where"
             ),
             @Example(
                 description = "To count the same stream of data based on two different expressions "
-                    + "use the pattern `COUNT(<expression> OR NULL)`",
+                    + "use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic "
+                    + "({wikipedia}/Three-valued_logic[3VL]) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, "
+                    + "plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.",
                 file = "stats",
                 tag = "count-or-null"
             ) }
@@ -69,11 +74,18 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             optional = true,
             name = "field",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -84,11 +96,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             description = "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public Count(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Count(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Count(StreamInput in) throws IOException {
@@ -102,17 +114,17 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected NodeInfo<Count> info() {
-        return NodeInfo.create(this, Count::new, field(), filter());
+        return NodeInfo.create(this, Count::new, field(), filter(), window());
     }
 
     @Override
     public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter);
+        return new Count(source(), field(), filter, window());
     }
 
     @Override
     public Count replaceChildren(List<Expression> newChildren) {
-        return new Count(source(), newChildren.get(0), newChildren.get(1));
+        return new Count(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -121,8 +133,8 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        return CountAggregatorFunction.supplier(inputChannels);
+    public AggregatorFunctionSupplier supplier() {
+        return CountAggregatorFunction.supplier();
     }
 
     @Override
@@ -132,13 +144,28 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR && dt != DataType.EXPONENTIAL_HISTOGRAM,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, dense_vector or exponential_histogram"
+        );
     }
 
     @Override
     public Expression surrogate() {
         var s = source();
         var field = field();
+        if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+                filter(),
+                window(),
+                SummationMode.COMPENSATED_LITERAL
+            );
+        }
 
         if (field.foldable()) {
             if (field instanceof Literal l) {
@@ -154,7 +181,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
-                new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
+                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window())
             );
         }
 

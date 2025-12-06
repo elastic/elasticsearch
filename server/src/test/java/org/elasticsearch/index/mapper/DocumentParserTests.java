@@ -10,8 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
@@ -1120,15 +1118,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "41.12,-71.34"), null, Map.of(field, "points")));
         List<IndexableField> fields = doc.rootDoc().getFields(field);
-        assertThat(fields, hasSize(2));
-        assertThat(fields.get(0).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(1).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
 
         doc = mapper.parse(source("1", b -> b.field(field, new double[] { -71.34, 41.12 }), null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
-        assertThat(fields, hasSize(2));
-        assertThat(fields.get(0).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(1).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startObject(field);
@@ -1137,16 +1133,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }, null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
-        assertThat(fields, hasSize(2));
-        assertThat(fields.get(0).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(1).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
         doc = mapper.parse(source("1", b -> b.field(field, new String[] { "41.12,-71.34", "43,-72.34" }), null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
-        assertThat(fields, hasSize(4));
-        assertThat(fields.get(0).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(1).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
-        assertThat(fields.get(2).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(3).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields, hasSize(2));
+        assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
+        assertThat(fields.get(1).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startArray(field);
@@ -1162,11 +1155,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         }, null, Map.of(field, "points")));
         fields = doc.rootDoc().getFields(field);
-        assertThat(fields, hasSize(4));
-        assertThat(fields.get(0).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(1).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
-        assertThat(fields.get(2).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(3).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields, hasSize(2));
+        assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
+        assertThat(fields.get(1).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
 
         doc = mapper.parse(source("1", b -> {
             b.startObject("address");
@@ -1174,9 +1165,47 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }, null, Map.of("address.home", "points")));
         fields = doc.rootDoc().getFields("address.home");
-        assertThat(fields, hasSize(2));
-        assertThat(fields.get(0).fieldType(), sameInstance(LatLonPoint.TYPE));
-        assertThat(fields.get(1).fieldType(), sameInstance(LatLonDocValuesField.TYPE));
+        assertThat(fields, hasSize(1));
+        assertThat(fields.get(0).fieldType(), sameInstance(GeoPointFieldMapper.LatLonPointWithDocValues.TYPE));
+    }
+
+    public void testWithDynamicTemplateParams() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("my_dynamic_template");
+                    {
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "keyword");
+                            b.startObject("meta");
+                            {
+                                b.field("unit", "{{unit}}");
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template")));
+        Mapper fieldMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        assertThat(fieldMapper, instanceOf(KeywordFieldMapper.class));
+        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo(""));
+
+        doc = mapper.parse(
+            source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template"), Map.of("foo", Map.of("unit", "By")))
+        );
+        fieldMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
+        assertThat(fieldMapper, instanceOf(KeywordFieldMapper.class));
+        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo("By"));
     }
 
     public void testDynamicTemplatesNotFound() throws Exception {
@@ -2053,6 +2082,38 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots.max"));
     }
 
+    public void testSubobjectsFalseWithInnerDottedObjectDynamicFalse() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics").field("type", "object").field("subobjects", false).field("dynamic", randomFrom("false", "runtime"));
+            b.startObject("properties").startObject("service.test.with.dots").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("""
+            { "metrics": { "service": { "test.with.dots": "foo" }  } }"""));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service.test": { "with.dots": "foo" }  } }"""));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service": { "test": { "with.dots": "foo" }  }  } }"""));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service": { "test.other.dots": "foo" }  } }"""));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service.test": { "other.dots": "foo" }  } }"""));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "metrics": { "service": { "test": { "other.dots": "foo" }  }  } }"""));
+        assertNull(doc.rootDoc().getField("metrics.service.test.other.dots"));
+    }
+
     public void testSubobjectsFalseRoot() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(xContentBuilder -> {}));
         ParsedDocument doc = mapper.parse(source("""
@@ -2072,6 +2133,37 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getField("metrics.service.time"));
         assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
         assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+    }
+
+    public void testSubobjectsFalseRootWithInnerDottedObjectDynamicFalse() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", randomFrom("false", "runtime"));
+            b.startObject("properties").startObject("service.test.with.dots").field("type", "keyword").endObject().endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source("""
+            { "service": { "test.with.dots": "foo" } }"""));
+        assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "service.test": { "with.dots": "foo" } }"""));
+        assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "service": { "test": { "with.dots": "foo" } } }"""));
+        assertNotNull(doc.rootDoc().getField("service.test.with.dots"));
+
+        doc = mapper.parse(source("""
+            { "service": { "test.other.dots": "foo" } }"""));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "service.test": { "other.dots": "foo" } }"""));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
+
+        doc = mapper.parse(source("""
+            { "service": { "test": { "other.dots": "foo" } } }"""));
+        assertNull(doc.rootDoc().getField("service.test.other.dots"));
     }
 
     public void testSubobjectsFalseStructuredPath() throws Exception {
@@ -2625,7 +2717,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             newMapping,
             newMapping.toCompressedXContent(),
             IndexVersion.current(),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            "myIndex"
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {
@@ -2939,7 +3032,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(location);
         assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lat"));
         assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lon"));
-        assertTrue(location instanceof LatLonPoint);
+        assertTrue(location instanceof GeoPointFieldMapper.LatLonPointWithDocValues);
         Mapper locationMapper = mapper.mappers().getMapper("metrics.service.location");
         assertNotNull(locationMapper);
         assertTrue(locationMapper instanceof GeoPointFieldMapper);
@@ -3044,7 +3137,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
             """));
         assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lat"));
         assertNull(parsedDocument.rootDoc().getField("metrics.service.location.lon"));
-        assertThat(parsedDocument.rootDoc().getField("metrics.service.location"), instanceOf(LatLonPoint.class));
+        assertThat(
+            parsedDocument.rootDoc().getField("metrics.service.location"),
+            instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class)
+        );
         assertThat(mapper.mappers().getMapper("metrics.service.location"), instanceOf(GeoPointFieldMapper.class));
     }
 
@@ -3158,7 +3254,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """));
 
-        assertThat(parsedDocument.rootDoc().getField("location"), instanceOf(LatLonPoint.class));
+        assertThat(parsedDocument.rootDoc().getField("location"), instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
         RootObjectMapper root = parsedDocument.dynamicMappingsUpdate().getRoot();
         assertEquals(1, root.mappers.size());
         assertThat(root.getMapper("location"), instanceOf(GeoPointFieldMapper.class));
@@ -3246,15 +3342,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
             @Override
             protected SyntheticSourceSupport syntheticSourceSupport() {
-                var loader = new StringStoredFieldFieldLoader(fullPath(), leafName()) {
+                return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {
                         BytesRef ref = (BytesRef) value;
                         b.utf8Value(ref.bytes, ref.offset, ref.length);
                     }
-                };
-
-                return new SyntheticSourceSupport.Native(loader);
+                });
             }
 
             private static final TypeParser PARSER = new FixedTypeParser(c -> new MockMetadataMapper());

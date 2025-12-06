@@ -25,8 +25,6 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
@@ -57,12 +55,16 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
                     hll.merge(0, bucketHll, 0);
                     cardinality = hll.cardinality(0);
                 }
-
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .collect(Collectors.toList());
-                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, metadata()));
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
-                newBuckets.add(newBucket);
+                newBuckets.add(
+                    factory.createBucket(
+                        factory.getKey(bucket),
+                        bucket.getDocCount(),
+                        InternalAggregations.append(
+                            bucket.getAggregations(),
+                            new InternalSimpleLongValue(name(), cardinality, formatter, metadata())
+                        )
+                    )
+                );
             }
             return factory.createAggregation(newBuckets);
         } finally {

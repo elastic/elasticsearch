@@ -8,20 +8,18 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.BiFunction;
 
 public class GetStackTracesResponse extends ActionResponse implements ChunkedToXContentObject {
     @Nullable
@@ -30,22 +28,43 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final Map<String, StackFrame> stackFrames;
     @Nullable
     private final Map<String, String> executables;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     @Nullable
-    private final Map<String, TraceEvent> stackTraceEvents;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
+    private final Map<TraceEventID, TraceEvent> stackTraceEvents;
     private final int totalFrames;
     private final double samplingRate;
+    private final double samplingFrequency;
     private final long totalSamples;
 
     public GetStackTracesResponse(
         Map<String, StackTrace> stackTraces,
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
-        Map<String, TraceEvent> stackTraceEvents,
+        Map<TraceEventID, TraceEvent> stackTraceEvents,
         int totalFrames,
         double samplingRate,
         long totalSamples
+    ) {
+        this(
+            stackTraces,
+            stackFrames,
+            executables,
+            stackTraceEvents,
+            totalFrames,
+            samplingRate,
+            totalSamples,
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
+    }
+
+    public GetStackTracesResponse(
+        Map<String, StackTrace> stackTraces,
+        Map<String, StackFrame> stackFrames,
+        Map<String, String> executables,
+        Map<TraceEventID, TraceEvent> stackTraceEvents,
+        int totalFrames,
+        double samplingRate,
+        long totalSamples,
+        double samplingFrequency
     ) {
         this.stackTraces = stackTraces;
         this.stackFrames = stackFrames;
@@ -54,6 +73,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.totalFrames = totalFrames;
         this.samplingRate = samplingRate;
         this.totalSamples = totalSamples;
+        this.samplingFrequency = samplingFrequency;
     }
 
     @Override
@@ -73,7 +93,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return executables;
     }
 
-    public Map<String, TraceEvent> getStackTraceEvents() {
+    public Map<TraceEventID, TraceEvent> getStackTraceEvents() {
         return stackTraceEvents;
     }
 
@@ -91,33 +111,35 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.execute(optional("stack_traces", stackTraces, ChunkedToXContentBuilder::xContentObjectFields));
-            ob.execute(optional("stack_frames", stackFrames, ChunkedToXContentBuilder::xContentObjectFields));
-            ob.execute(optional("executables", executables, ChunkedToXContentBuilder::object));
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentObjectFields),
+            optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentObjectFields),
+            optional("executables", executables, ChunkedToXContentHelper::object),
             // render only count for backwards-compatibility
-            ob.execute(
-                optional(
-                    "stack_trace_events",
-                    stackTraceEvents,
-                    (steb, n, v) -> steb.object(n, v.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey(), e.getValue().count))
+            optional(
+                "stack_trace_events",
+                stackTraceEvents,
+                (n, v) -> ChunkedToXContentHelper.object(
+                    n,
+                    Iterators.map(v.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey().stacktraceID(), e.getValue().count))
                 )
-            );
-            ob.field("total_frames", totalFrames);
-            ob.field("sampling_rate", samplingRate);
+            ),
+            Iterators.single((b, p) -> b.field("sampling_rate", samplingRate).field("sampling_frequency", samplingFrequency).endObject())
             // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
+            //
             // * start
             // * end
             // * totalSamples
-        });
+        );
     }
 
-    private static <T> Consumer<ChunkedToXContentBuilder> optional(
+    private static <K, T> Iterator<? extends ToXContent> optional(
         String name,
-        Map<String, T> values,
-        TriConsumer<ChunkedToXContentBuilder, String, Map<String, T>> function
+        Map<K, T> values,
+        BiFunction<String, Map<K, T>, Iterator<? extends ToXContent>> supplier
     ) {
-        return values != null ? b -> function.apply(b, name, values) : b -> {};
+        return (values != null) ? supplier.apply(name, values) : Collections.emptyIterator();
     }
 
     @Override
@@ -131,6 +153,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         GetStackTracesResponse response = (GetStackTracesResponse) o;
         return totalFrames == response.totalFrames
             && samplingRate == response.samplingRate
+            && samplingFrequency == response.samplingFrequency
             && Objects.equals(stackTraces, response.stackTraces)
             && Objects.equals(stackFrames, response.stackFrames)
             && Objects.equals(executables, response.executables)
@@ -139,11 +162,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
 
     @Override
     public int hashCode() {
-        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
+        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, samplingFrequency);
     }
 }

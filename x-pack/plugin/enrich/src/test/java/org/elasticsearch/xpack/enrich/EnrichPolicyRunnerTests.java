@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -346,7 +347,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     private GetIndexResponse getGetIndexResponseAndCheck(String createdEnrichIndex) {
-        GetIndexResponse enrichIndex = indicesAdmin().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        GetIndexResponse enrichIndex = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(".enrich-test1"))
+            .actionGet();
         assertThat(enrichIndex.getIndices().length, equalTo(1));
         assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
         Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
@@ -363,7 +365,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
-        GetIndexResponse sourceIndex = indicesAdmin().getIndex(new GetIndexRequest().indices(sourceIndexName)).actionGet();
+        GetIndexResponse sourceIndex = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndexName))
+            .actionGet();
         // Validate Mapping
         Map<String, Object> sourceIndexMapping = sourceIndex.getMappings().get(sourceIndexName).sourceAsMap();
         Map<?, ?> sourceIndexProperties = (Map<?, ?>) sourceIndexMapping.get("properties");
@@ -1785,6 +1788,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .field("field5", "value5")
             .endObject();
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -1965,6 +1969,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         };
 
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -2086,6 +2091,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         };
 
         EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,
@@ -2488,6 +2494,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         });
         ExecuteEnrichPolicyTask task = ((ExecuteEnrichPolicyTask) asyncTask);
         return new EnrichPolicyRunner(
+            Metadata.DEFAULT_PROJECT_ID,
             policyName,
             policy,
             task,

@@ -18,7 +18,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(
+            List.of(
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
                 new NamedWriteableRegistry.Entry(
                     LifecycleType.class,
@@ -65,7 +64,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentSerializingTes
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
-            Arrays.asList(
+            List.of(
                 new NamedXContentRegistry.Entry(
                     LifecycleType.class,
                     new ParseField(TimeseriesLifecycleType.TYPE),

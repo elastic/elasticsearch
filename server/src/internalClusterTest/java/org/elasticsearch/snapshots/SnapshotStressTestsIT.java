@@ -1201,10 +1201,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         private void startNodeShutdownMarker() {
             enqueueAction(() -> {
                 boolean rerun = true;
-                if (usually()) {
-                    return;
-                }
                 try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (usually()) {
+                        return;
+                    }
                     if (localReleasables.add(blockFullClusterRestart()) == null) {
                         return;
                     }
@@ -1235,15 +1235,16 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                             Strings.toString(currentState),
                                             currentState.metadata().nodeShutdowns().getAll().isEmpty()
                                         );
-                                        final var nodeId = currentState.nodes().resolveNode(node.nodeName).getId();
+                                        final var discoveryNode = currentState.nodes().resolveNode(node.nodeName);
                                         return currentState.copyAndUpdateMetadata(
                                             mdb -> mdb.putCustom(
                                                 NodesShutdownMetadata.TYPE,
                                                 new NodesShutdownMetadata(
                                                     Map.of(
-                                                        nodeId,
+                                                        discoveryNode.getId(),
                                                         SingleNodeShutdownMetadata.builder()
-                                                            .setNodeId(nodeId)
+                                                            .setNodeId(discoveryNode.getId())
+                                                            .setNodeEphemeralId(discoveryNode.getEphemeralId())
                                                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                                             .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
                                                             .setReason("test")

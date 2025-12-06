@@ -283,11 +283,11 @@ public class MockLog implements Releasable {
 
     public static class PatternSeenEventExpectation implements LoggingExpectation {
 
-        private final String name;
+        final String name;
         private final String logger;
         private final Level level;
         private final Pattern pattern;
-        private final CountDownLatch seenLatch = new CountDownLatch(1);
+        final CountDownLatch seenLatch = new CountDownLatch(1);
 
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
@@ -313,6 +313,58 @@ public class MockLog implements Releasable {
         @Override
         public void awaitMatched(long millis) throws InterruptedException {
             assertThat(name, seenLatch.await(millis, TimeUnit.MILLISECONDS), equalTo(true));
+        }
+    }
+
+    public static class PatternNotSeenEventExpectation extends PatternSeenEventExpectation {
+
+        public PatternNotSeenEventExpectation(String name, String logger, Level level, String pattern) {
+            super(name, logger, level, pattern);
+        }
+
+        @Override
+        public void assertMatched() {
+            assertThat("expected not to see " + name + " but did", seenLatch.getCount(), equalTo(1L));
+        }
+
+        @Override
+        public void awaitMatched(long millis) throws InterruptedException {
+            assertThat(name, seenLatch.await(millis, TimeUnit.MILLISECONDS), equalTo(false));
+        }
+    }
+
+    public static class PatternAndExceptionSeenEventExpectation extends SeenEventExpectation {
+
+        private final Pattern pattern;
+        private final Class<? extends Exception> clazz;
+        private final String exceptionMessage;
+
+        public PatternAndExceptionSeenEventExpectation(
+            String name,
+            String logger,
+            Level level,
+            String pattern,
+            Class<? extends Exception> clazz,
+            String exceptionMessage
+        ) {
+            super(name, logger, level, pattern);
+            this.pattern = Pattern.compile(pattern);
+            this.clazz = clazz;
+            this.exceptionMessage = exceptionMessage;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
+                boolean patternMatches = pattern.matcher(event.getMessage().getFormattedMessage()).matches();
+                boolean exceptionMatches = event.getThrown() != null
+                    && event.getThrown().getClass() == clazz
+                    && event.getThrown().getMessage().equals(exceptionMessage);
+
+                if (patternMatches && exceptionMatches) {
+                    seenLatch.countDown();
+                }
+            }
         }
     }
 
@@ -395,6 +447,13 @@ public class MockLog implements Releasable {
      * Executes an action and verifies expectations against the provided logger
      */
     public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLog.LoggingExpectation... expectations) {
+        assertThatLogger(action, loggerOwner.getCanonicalName(), expectations);
+    }
+
+    /**
+     * Executes an action and verifies expectations against the provided logger
+     */
+    public static void assertThatLogger(Runnable action, String loggerOwner, MockLog.LoggingExpectation... expectations) {
         try (var mockLog = MockLog.capture(loggerOwner)) {
             for (var expectation : expectations) {
                 mockLog.addExpectation(expectation);

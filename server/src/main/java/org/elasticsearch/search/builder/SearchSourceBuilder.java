@@ -19,7 +19,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
@@ -49,9 +48,7 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
-import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -92,7 +89,6 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -133,6 +129,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     public static final ParseField RETRIEVER = new ParseField("retriever");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
@@ -214,6 +211,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> runtimeMappings = emptyMap();
 
+    private boolean skipInnerHits = false;
+
     /**
      * Constructs a new search source builder.
      */
@@ -237,14 +236,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
-        } else {
-            QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-            if (queryBuilder != null) {
-                subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
-            }
-        }
+        subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
         }
@@ -279,16 +271,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-                KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
-                knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
-            } else {
-                knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
+        rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+            skipInnerHits = in.readBoolean();
+        } else {
+            skipInnerHits = false;
         }
     }
 
@@ -310,15 +298,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeCollection(subSearchSourceBuilders);
-        } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
-            throw new IllegalArgumentException(
-                "cannot serialize [sub_searches] to version [" + out.getTransportVersion().toReleaseVersion() + "]"
-            );
-        } else {
-            out.writeOptionalNamedWriteable(query());
-        }
+        out.writeCollection(subSearchSourceBuilders);
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
@@ -358,26 +338,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-                if (knnSearch.size() > 1) {
-                    throw new IllegalArgumentException(
-                        "Versions before ["
-                            + TransportVersions.V_8_7_0.toReleaseVersion()
-                            + "] don't support multiple [knn] search clauses and search was sent to ["
-                            + out.getTransportVersion().toReleaseVersion()
-                            + "]"
-                    );
-                }
-                out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
-            } else {
-                out.writeCollection(knnSearch);
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalNamedWriteable(rankBuilder);
-        } else if (rankBuilder != null) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        out.writeCollection(knnSearch);
+        out.writeOptionalNamedWriteable(rankBuilder);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+            out.writeBoolean(skipInnerHits);
         }
     }
 
@@ -872,7 +836,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetch,
+            fetchSourceContext.excludeVectors(),
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 
@@ -909,7 +878,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            fetchSourceContext.excludeVectors(),
+            includes,
+            excludes
+        );
         return this;
     }
 
@@ -918,6 +892,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
+        return this;
+    }
+
+    /**
+     * Indicate whether vectors should be excluded from the _source.
+     */
+    public SearchSourceBuilder excludeVectors(boolean excludeVectors) {
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            excludeVectors,
+            fetchSourceContext.excludeInferenceFields(),
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 
@@ -1157,9 +1146,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             )
         ));
+
         if (retrieverBuilder != null) {
             var newRetriever = retrieverBuilder.rewrite(context);
             if (newRetriever != retrieverBuilder) {
@@ -1173,6 +1164,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 retriever.extractToSearchSourceBuilder(this, false);
                 validate();
             }
+        }
+
+        RankBuilder rankBuilder = null;
+        if (this.rankBuilder != null) {
+            rankBuilder = this.rankBuilder.rewrite(context);
         }
 
         List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
@@ -1199,7 +1195,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             || aggregations != this.aggregations
             || rescoreBuilders != this.rescoreBuilders
             || sorts != this.sorts
-            || this.highlightBuilder != highlightBuilder;
+            || this.highlightBuilder != highlightBuilder
+            || this.rankBuilder != rankBuilder;
         if (rewritten) {
             return shallowCopy(
                 subSearchSourceBuilders,
@@ -1209,7 +1206,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 this.sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             );
         }
         return this;
@@ -1227,7 +1225,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             sliceBuilder,
             sorts,
             rescoreBuilders,
-            highlightBuilder
+            highlightBuilder,
+            rankBuilder
         );
     }
 
@@ -1244,7 +1243,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SliceBuilder slice,
         List<SortBuilder<?>> sorts,
         List<RescorerBuilder> rescoreBuilders,
-        HighlightBuilder highlightBuilder
+        HighlightBuilder highlightBuilder,
+        RankBuilder rankBuilder
     ) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;
@@ -1280,7 +1280,30 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.collapse = collapse;
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
+        rewrittenBuilder.skipInnerHits = skipInnerHits;
         return rewrittenBuilder;
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param searchUsageHolder holder for the search usage statistics
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
     }
 
     /**
@@ -1297,7 +1320,29 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     * This variant does not record search features usage. Most times the variant that accepts a {@link SearchUsageHolder} and records
+     * usage stats into it is the one to use.
+     *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     /**
@@ -1314,10 +1359,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean checkTrailingTokens,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     private SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
         XContentParser parser,
         boolean checkTrailingTokens,
         Consumer<SearchUsage> searchUsageConsumer,
@@ -1339,7 +1385,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (PROJECT_ROUTING.match(currentFieldName, parser.getDeprecationHandler()) && searchRequest != null) {
+                    /*
+                     * If project_routing was specified as a query parameter too, setProjectRouting() will throw
+                     * an error to prevent setting twice or overwriting previously set value.
+                     */
+                    searchRequest.setProjectRouting(parser.text());
+                } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     size(parser.intValue());
@@ -1393,9 +1445,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (clusterSupportsFeature.test(RetrieverBuilder.RETRIEVERS_SUPPORTED) == false) {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a START_OBJECT in [retriever].");
-                    }
                     retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
                         parser,
                         new RetrieverParserContext(searchUsage, clusterSupportsFeature)
@@ -1638,6 +1687,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
+        if (rankBuilder != null) {
+            if (retrieverBuilder != null) {
+                throw new IllegalArgumentException("Cannot specify both [rank] and [retriever].");
+            }
+            RetrieverBuilder transformedRetriever = rankBuilder.toRetriever(this, clusterSupportsFeature);
+            if (transformedRetriever != null) {
+                this.retriever(transformedRetriever);
+                rankBuilder = null;
+                subSearchSourceBuilders.clear();
+                knnSearch.clear();
+            }
+        }
         searchUsageConsumer.accept(searchUsage);
         return this;
     }
@@ -1836,6 +1897,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public SearchSourceBuilder skipInnerHits(boolean skipInnerHits) {
+        this.skipInnerHits = skipInnerHits;
+        return this;
+    }
+
+    public boolean skipInnerHits() {
+        return this.skipInnerHits;
     }
 
     public static class IndexBoost implements Writeable, ToXContentObject {
@@ -2092,7 +2162,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             collapse,
             trackTotalHitsUpTo,
             pointInTimeBuilder,
-            runtimeMappings
+            runtimeMappings,
+            skipInnerHits
         );
     }
 
@@ -2137,7 +2208,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(collapse, other.collapse)
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
-            && Objects.equals(runtimeMappings, other.runtimeMappings);
+            && Objects.equals(runtimeMappings, other.runtimeMappings)
+            && Objects.equals(skipInnerHits, other.skipInnerHits);
     }
 
     @Override
@@ -2305,18 +2377,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             for (@SuppressWarnings("rawtypes")
             var rescorer : rescores()) {
                 validationException = rescorer.validate(this, validationException);
-            }
-        }
-
-        if (pointInTimeBuilder() == null && sorts() != null) {
-            for (var sortBuilder : sorts()) {
-                if (sortBuilder instanceof FieldSortBuilder fieldSortBuilder
-                    && ShardDocSortField.NAME.equals(fieldSortBuilder.getFieldName())) {
-                    validationException = addValidationError(
-                        "[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME + "] sort field cannot be used without [point in time]",
-                        validationException
-                    );
-                }
             }
         }
         return validationException;

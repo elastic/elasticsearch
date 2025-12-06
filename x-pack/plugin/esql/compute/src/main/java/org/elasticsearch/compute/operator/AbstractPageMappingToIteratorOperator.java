@@ -50,9 +50,29 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
     private int pagesEmitted;
 
     /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
+
+    /**
      * Build and Iterator of results for a new page.
      */
     protected abstract ReleasableIterator<Page> receive(Page page);
+
+    /**
+     * Append an {@link Iterator} of arrays of {@link Block}s to a
+     * {@link Page}, one after the other. It's required that the
+     * iterator emit as many <strong>positions</strong> as there were
+     * in the page.
+     */
+    public static ReleasableIterator<Page> appendBlockArrays(Page page, ReleasableIterator<Block[]> toAdd) {
+        return new AppendBlocksIterator(page, toAdd);
+    }
 
     /**
      * Append an {@link Iterator} of {@link Block}s to a {@link Page}, one
@@ -60,7 +80,22 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
      * <strong>positions</strong> as there were in the page.
      */
     public static ReleasableIterator<Page> appendBlocks(Page page, ReleasableIterator<? extends Block> toAdd) {
-        return new AppendBlocksIterator(page, toAdd);
+        return appendBlockArrays(page, new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return toAdd.hasNext();
+            }
+
+            @Override
+            public Block[] next() {
+                return new Block[] { toAdd.next() };
+            }
+
+            @Override
+            public void close() {
+                toAdd.close();
+            }
+        });
     }
 
     @Override
@@ -76,12 +111,24 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         if (next != null) {
             assert next.hasNext() == false : "has pending input page";
             next.close();
+            next = null;
         }
         if (page.getPositionCount() == 0) {
             return;
         }
-        next = new RuntimeTrackingIterator(receive(page));
-        pagesReceived++;
+        try {
+            next = new RuntimeTrackingIterator(receive(page));
+            pagesReceived++;
+            rowsReceived += page.getPositionCount();
+        } finally {
+            if (next == null) {
+                /*
+                 * The `receive` operation failed, we need to release the incoming page
+                 * because it's no longer owned by anyone.
+                 */
+                page.releaseBlocks();
+            }
+        }
     }
 
     @Override
@@ -101,16 +148,23 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         }
         Page ret = next.next();
         pagesEmitted++;
+        rowsEmitted += ret.getPositionCount();
         return ret;
     }
 
     @Override
     public final AbstractPageMappingToIteratorOperator.Status status() {
-        return status(processNanos, pagesReceived, pagesEmitted);
+        return status(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
-    protected AbstractPageMappingToIteratorOperator.Status status(long processNanos, int pagesReceived, int pagesEmitted) {
-        return new AbstractPageMappingToIteratorOperator.Status(processNanos, pagesReceived, pagesEmitted);
+    protected AbstractPageMappingToIteratorOperator.Status status(
+        long processNanos,
+        int pagesReceived,
+        int pagesEmitted,
+        long rowsReceived,
+        long rowsEmitted
+    ) {
+        return new AbstractPageMappingToIteratorOperator.Status(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
     @Override
@@ -148,23 +202,29 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "page_mapping_to_iterator",
-            AbstractPageMappingOperator.Status::new
+            Status::new
         );
 
         private final long processNanos;
         private final int pagesReceived;
         private final int pagesEmitted;
+        private final long rowsReceived;
+        private final long rowsEmitted;
 
-        public Status(long processNanos, int pagesProcessed, int pagesEmitted) {
+        public Status(long processNanos, int pagesProcessed, int pagesEmitted, long rowsReceived, long rowsEmitted) {
             this.processNanos = processNanos;
             this.pagesReceived = pagesProcessed;
             this.pagesEmitted = pagesEmitted;
+            this.rowsReceived = rowsReceived;
+            this.rowsEmitted = rowsEmitted;
         }
 
-        protected Status(StreamInput in) throws IOException {
+        public Status(StreamInput in) throws IOException {
             processNanos = in.readVLong();
             pagesReceived = in.readVInt();
             pagesEmitted = in.readVInt();
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
         }
 
         @Override
@@ -172,6 +232,8 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             out.writeVLong(processNanos);
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override
@@ -185,6 +247,14 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
         public int pagesEmitted() {
             return pagesEmitted;
+        }
+
+        public long rowsReceived() {
+            return rowsReceived;
+        }
+
+        public long rowsEmitted() {
+            return rowsEmitted;
         }
 
         public long processNanos() {
@@ -207,8 +277,10 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             if (builder.humanReadable()) {
                 builder.field("process_time", TimeValue.timeValueNanos(processNanos));
             }
-            builder.field("pages_received", pagesReceived);
-            return builder.field("pages_emitted", pagesEmitted);
+            return builder.field("pages_received", pagesReceived)
+                .field("pages_emitted", pagesEmitted)
+                .field("rows_received", rowsReceived)
+                .field("rows_emitted", rowsEmitted);
         }
 
         @Override
@@ -216,12 +288,16 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AbstractPageMappingToIteratorOperator.Status status = (AbstractPageMappingToIteratorOperator.Status) o;
-            return processNanos == status.processNanos && pagesReceived == status.pagesReceived && pagesEmitted == status.pagesEmitted;
+            return processNanos == status.processNanos
+                && pagesReceived == status.pagesReceived
+                && pagesEmitted == status.pagesEmitted
+                && rowsReceived == status.rowsReceived
+                && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(processNanos, pagesReceived, pagesEmitted);
+            return Objects.hash(processNanos, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
         }
 
         @Override
@@ -237,11 +313,12 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
     private static class AppendBlocksIterator implements ReleasableIterator<Page> {
         private final Page page;
-        private final ReleasableIterator<? extends Block> next;
+        private final ReleasableIterator<Block[]> next;
+        private boolean closed = false;
 
         private int positionOffset;
 
-        protected AppendBlocksIterator(Page page, ReleasableIterator<? extends Block> next) {
+        protected AppendBlocksIterator(Page page, ReleasableIterator<Block[]> next) {
             this.page = page;
             this.next = next;
         }
@@ -258,17 +335,25 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
         @Override
         public final Page next() {
-            Block read = next.next();
+            Block[] read = next.next();
             int start = positionOffset;
-            positionOffset += read.getPositionCount();
-            if (start == 0 && read.getPositionCount() == page.getPositionCount()) {
+            positionOffset += read[0].getPositionCount();
+            if (start == 0 && read[0].getPositionCount() == page.getPositionCount()) {
                 for (int b = 0; b < page.getBlockCount(); b++) {
                     page.getBlock(b).incRef();
                 }
-                return page.appendBlock(read);
+                final Page result = page.appendBlocks(read);
+                // We need to release the blocks of the page in this iteration instead of delaying to the next,
+                // because the blocks of this page are now shared with the output page. The output page can be
+                // passed to a separate driver, which may run concurrently with this driver, leading to data races
+                // of references in AbstractNonThreadSafeRefCounted, which is not thread-safe.
+                // An alternative would be to make RefCounted for Vectors/Blocks thread-safe when they are about
+                // to be shared with other drivers via #allowPassingToDifferentDriver.
+                close();
+                return result;
             }
-            Block[] newBlocks = new Block[page.getBlockCount() + 1];
-            newBlocks[page.getBlockCount()] = read;
+            Block[] newBlocks = new Block[page.getBlockCount() + read.length];
+            System.arraycopy(read, 0, newBlocks, page.getBlockCount(), read.length);
             try {
                 // TODO a way to filter with a range please.
                 int[] positions = IntStream.range(start, positionOffset).toArray();
@@ -285,7 +370,10 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(page::releaseBlocks, next);
+            if (closed == false) {
+                closed = true;
+                Releasables.closeExpectNoException(page::releaseBlocks, next);
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,13 +23,14 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,6 +54,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -75,38 +78,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public enum SearchResponseUtils {
     ;
 
-    // All fields on the root level of the parsed SearchHit are interpreted as metadata fields
-    // public because we use it in a completion suggestion option
-    @SuppressWarnings("unchecked")
-    public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
-        Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
-            SearchHit.METADATA_FIELDS,
-            v -> new HashMap<String, DocumentField>()
-        );
-        if (fieldName.equals(IgnoredFieldMapper.NAME)) {
-            fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
-        } else {
-            fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));
-        }
-    };
-
-    public static TotalHits getTotalHits(SearchRequestBuilder request) {
-        var resp = request.get();
-        try {
-            return resp.getHits().getTotalHits();
-        } finally {
-            resp.decRef();
-        }
+    public static SearchResponseBuilder response() {
+        return new SearchResponseBuilder();
     }
 
-    public static long getTotalHitsValue(SearchRequestBuilder request) {
-        return getTotalHits(request).value();
+    public static SearchResponseBuilder response(SearchHits hits) {
+        return new SearchResponseBuilder().searchHits(hits).numReducePhases(1).shards(1, 1, 0).tookInMillis(100);
     }
 
-    public static SearchResponse responseAsSearchResponse(Response searchResponse) throws IOException {
-        try (var parser = ESRestTestCase.responseAsParser(searchResponse)) {
-            return parseSearchResponse(parser);
-        }
+    public static SearchResponse successfulResponse(SearchHits hits) {
+        return response(hits).build();
     }
 
     public static SearchResponse emptyWithTotalHits(
@@ -134,6 +115,152 @@ public enum SearchResponseUtils {
             shardFailures,
             clusters
         );
+    }
+
+    public static class SearchResponseBuilder {
+        private SearchHits searchHits = SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
+        private InternalAggregations aggregations;
+        private Suggest suggest;
+        private boolean timedOut;
+        private Boolean terminatedEarly;
+        private SearchProfileResults profileResults;
+        private int numReducePhases;
+        private String scrollId;
+        private int totalShards;
+        private int successfulShards;
+        private int skippedShards;
+        private long tookInMillis;
+        private List<ShardSearchFailure> shardFailures;
+        private Clusters clusters = Clusters.EMPTY;
+        private BytesReference pointInTimeId;
+
+        private SearchResponseBuilder() {}
+
+        public SearchResponseBuilder searchHits(SearchHits searchHits) {
+            this.searchHits = searchHits;
+            return this;
+        }
+
+        public SearchResponseBuilder aggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
+            return this;
+        }
+
+        public SearchResponseBuilder suggest(Suggest suggest) {
+            this.suggest = suggest;
+            return this;
+        }
+
+        public SearchResponseBuilder timedOut(boolean timedOut) {
+            this.timedOut = timedOut;
+            return this;
+        }
+
+        public SearchResponseBuilder terminatedEarly(Boolean terminatedEarly) {
+            this.terminatedEarly = terminatedEarly;
+            return this;
+        }
+
+        public SearchResponseBuilder profileResults(SearchProfileResults profileResults) {
+            this.profileResults = profileResults;
+            return this;
+        }
+
+        public SearchResponseBuilder numReducePhases(int numReducePhases) {
+            this.numReducePhases = numReducePhases;
+            return this;
+        }
+
+        public SearchResponseBuilder scrollId(String scrollId) {
+            this.scrollId = scrollId;
+            return this;
+        }
+
+        public SearchResponseBuilder shards(int total, int successful, int skipped) {
+            this.totalShards = total;
+            this.successfulShards = successful;
+            this.skippedShards = skipped;
+            return this;
+        }
+
+        public SearchResponseBuilder tookInMillis(long tookInMillis) {
+            this.tookInMillis = tookInMillis;
+            return this;
+        }
+
+        public SearchResponseBuilder shardFailures(ShardSearchFailure... failures) {
+            shardFailures = List.of(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder shardFailures(List<ShardSearchFailure> failures) {
+            shardFailures = List.copyOf(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder clusters(Clusters clusters) {
+            this.clusters = clusters;
+            return this;
+        }
+
+        public SearchResponseBuilder pointInTimeId(BytesReference pointInTimeId) {
+            this.pointInTimeId = pointInTimeId;
+            return this;
+        }
+
+        public SearchResponse build() {
+            return new SearchResponse(
+                searchHits,
+                aggregations,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profileResults,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                clusters,
+                pointInTimeId
+            );
+        }
+    }
+
+    // All fields on the root level of the parsed SearchHit are interpreted as metadata fields
+    // public because we use it in a completion suggestion option
+    @SuppressWarnings("unchecked")
+    public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
+        Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
+            SearchHit.METADATA_FIELDS,
+            v -> new HashMap<String, DocumentField>()
+        );
+        if (IgnoredFieldMapper.NAME.equals(fieldName) || IgnoredSourceFieldMapper.NAME.equals(fieldName)) {
+            fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
+        } else {
+            fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));
+        }
+    };
+
+    public static TotalHits getTotalHits(SearchRequestBuilder request) {
+        var resp = request.get();
+        try {
+            return resp.getHits().getTotalHits();
+        } finally {
+            resp.decRef();
+        }
+    }
+
+    public static long getTotalHitsValue(SearchRequestBuilder request) {
+        return getTotalHits(request).value();
+    }
+
+    public static SearchResponse responseAsSearchResponse(Response searchResponse) throws IOException {
+        try (var parser = ESRestTestCase.responseAsParser(searchResponse)) {
+            return parseSearchResponse(parser);
+        }
     }
 
     public static SearchResponse parseSearchResponse(XContentParser parser) throws IOException {
@@ -888,7 +1015,6 @@ public enum SearchResponseUtils {
             shardTarget,
             index,
             clusterAlias,
-            null,
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
@@ -986,7 +1112,7 @@ public enum SearchResponseUtils {
                 }
             }
         }
-        return new InternalAggregations(aggregations);
+        return InternalAggregations.from(aggregations);
     }
 
     private static final InstantiatingObjectParser<ProfileResult, Void> PROFILE_RESULT_PARSER;

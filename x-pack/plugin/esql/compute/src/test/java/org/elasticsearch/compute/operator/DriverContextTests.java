@@ -13,7 +13,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.NoOpReleasable;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -265,14 +266,6 @@ public class DriverContextTests extends ESTestCase {
     record ReleasablePoint(int x, int y) implements Releasable {
         @Override
         public void close() {}
-    }
-
-    static class NoOpReleasable implements Releasable {
-
-        @Override
-        public void close() {
-            // no-op
-        }
     }
 
     static class CheckableReleasable implements Releasable {

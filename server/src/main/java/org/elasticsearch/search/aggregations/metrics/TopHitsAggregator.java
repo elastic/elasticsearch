@@ -41,6 +41,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext.InnerHitSubContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.rescore.RescoreContext;
@@ -48,10 +50,12 @@ import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.IntConsumer;
 
 class TopHitsAggregator extends MetricsAggregator {
 
@@ -112,14 +116,20 @@ class TopHitsAggregator extends MetricsAggregator {
         leafCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         return new LeafBucketCollectorBase(sub, null) {
 
-            Scorable scorer;
+            // use the same Scorable for the leaf collectors
+            ResettableScorable scorer = null;
 
             @Override
             public void setScorer(Scorable scorer) throws IOException {
-                this.scorer = scorer;
-                super.setScorer(scorer);
-                for (Cursor<LeafCollector> leafCollector : leafCollectors) {
-                    leafCollector.value.setScorer(scorer);
+                if (this.scorer != null) {
+                    this.scorer.reset(scorer);
+                    super.setScorer(scorer);
+                } else {
+                    this.scorer = new ResettableScorable(scorer);
+                    super.setScorer(scorer);
+                    for (Cursor<LeafCollector> leafCollector : leafCollectors) {
+                        leafCollector.value.setScorer(scorer);
+                    }
                 }
             }
 
@@ -138,14 +148,14 @@ class TopHitsAggregator extends MetricsAggregator {
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
                     if (sort == null) {
-                        TopScoreDocCollector topScoreDocCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false)
+                        TopScoreDocCollector topScoreDocCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE)
                             .newCollector();
                         collectors = new Collectors(topScoreDocCollector, null);
                     } else {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException
                         collectors = new Collectors(
-                            new TopFieldCollectorManager(sort.sort, topN, null, Integer.MAX_VALUE, false).newCollector(),
+                            new TopFieldCollectorManager(sort.sort, topN, null, Integer.MAX_VALUE).newCollector(),
                             subSearchContext.trackScores() ? new MaxScoreCollector() : null
                         );
                     }
@@ -196,7 +206,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad);
+        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad, this::addRequestCircuitBreakerBytes);
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -220,17 +230,41 @@ class TopHitsAggregator extends MetricsAggregator {
         );
     }
 
-    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
+    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad, IntConsumer memoryChecker) {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
+        InnerHitsContext innerHitsContext = new InnerHitsContext(
+            getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
+        );
+
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
                 return searchExecutionContext;
             }
+
+            @Override
+            public InnerHitsContext innerHits() {
+                return innerHitsContext;
+            }
         };
-        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
+
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, memoryChecker);
         return fetchSubSearchContext.fetchResult();
+    }
+
+    private static Map<String, InnerHitSubContext> getForkedInnerHits(
+        Map<String, InnerHitSubContext> originalInnerHits,
+        SearchExecutionContext searchExecutionContext
+    ) {
+        Map<String, InnerHitSubContext> forkedInnerHits = new HashMap<>();
+        for (Map.Entry<String, InnerHitSubContext> entry : originalInnerHits.entrySet()) {
+            var forkedContext = entry.getValue().copyWithSearchExecutionContext(searchExecutionContext);
+            forkedInnerHits.put(entry.getKey(), forkedContext);
+        }
+
+        return forkedInnerHits;
     }
 
     @Override
@@ -267,5 +301,38 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     protected void doClose() {
         Releasables.close(topDocsCollectors, leafCollectors);
+    }
+
+    private static class ResettableScorable extends Scorable {
+
+        private Scorable scorable;
+
+        private ResettableScorable(Scorable scorable) {
+            this.scorable = scorable;
+        }
+
+        private void reset(Scorable scorable) {
+            this.scorable = scorable;
+        }
+
+        @Override
+        public float score() throws IOException {
+            return scorable.score();
+        }
+
+        @Override
+        public float smoothingScore(int docId) throws IOException {
+            return scorable.smoothingScore(docId);
+        }
+
+        @Override
+        public void setMinCompetitiveScore(float minScore) throws IOException {
+            scorable.setMinCompetitiveScore(minScore);
+        }
+
+        @Override
+        public Collection<ChildScorable> getChildren() throws IOException {
+            return scorable.getChildren();
+        }
     }
 }

@@ -8,8 +8,8 @@
  */
 
 esplugin {
-  description 'A test module that simulates read latencies from an object-store based repository'
-  classname 'org.elasticsearch.test.simulatedlatencyrepo.LatencySimulatingRepositoryPlugin'
+  description = 'A test module that simulates read latencies from an object-store based repository'
+  classname ='org.elasticsearch.test.simulatedlatencyrepo.LatencySimulatingRepositoryPlugin'
 }
 
 apply plugin: 'elasticsearch.internal-cluster-test'

@@ -11,6 +11,9 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.http.conn.util.PublicSuffixMatcher;
 import org.apache.http.conn.util.PublicSuffixMatcherLoader;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -19,9 +22,9 @@ import org.elasticsearch.ingest.Processor;
 import java.util.Map;
 
 public class RegisteredDomainProcessor extends AbstractProcessor {
-    private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
 
     public static final String TYPE = "registered_domain";
+    private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
 
     private final String field;
     private final String targetField;
@@ -47,17 +50,18 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        DomainInfo info = getRegisteredDomain(ingestDocument);
+    public IngestDocument execute(IngestDocument document) throws Exception {
+        final String fqdn = document.getFieldValue(field, String.class, ignoreMissing);
+        final DomainInfo info = getRegisteredDomain(fqdn);
         if (info == null) {
             if (ignoreMissing) {
-                return ingestDocument;
+                return document;
             } else {
                 throw new IllegalArgumentException("unable to set domain information for document");
             }
         }
         String fieldPrefix = targetField;
-        if (fieldPrefix.equals("") == false) {
+        if (fieldPrefix.isEmpty() == false) {
             fieldPrefix += ".";
         }
         String domainTarget = fieldPrefix + "domain";
@@ -65,30 +69,31 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         String subdomainTarget = fieldPrefix + "subdomain";
         String topLevelDomainTarget = fieldPrefix + "top_level_domain";
 
-        if (info.getDomain() != null) {
-            ingestDocument.setFieldValue(domainTarget, info.getDomain());
+        if (info.domain() != null) {
+            document.setFieldValue(domainTarget, info.domain());
         }
-        if (info.getRegisteredDomain() != null) {
-            ingestDocument.setFieldValue(registeredDomainTarget, info.getRegisteredDomain());
+        if (info.registeredDomain() != null) {
+            document.setFieldValue(registeredDomainTarget, info.registeredDomain());
         }
-        if (info.getETLD() != null) {
-            ingestDocument.setFieldValue(topLevelDomainTarget, info.getETLD());
+        if (info.eTLD() != null) {
+            document.setFieldValue(topLevelDomainTarget, info.eTLD());
         }
-        if (info.getSubdomain() != null) {
-            ingestDocument.setFieldValue(subdomainTarget, info.getSubdomain());
+        if (info.subdomain() != null) {
+            document.setFieldValue(subdomainTarget, info.subdomain());
         }
-        return ingestDocument;
+        return document;
     }
 
-    private DomainInfo getRegisteredDomain(IngestDocument d) {
-        String fieldString = d.getFieldValue(field, String.class, ignoreMissing);
-        if (fieldString == null) {
+    @Nullable
+    // visible for testing
+    static DomainInfo getRegisteredDomain(@Nullable String fqdn) {
+        if (Strings.hasText(fqdn) == false) {
             return null;
         }
-        String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fieldString);
+        String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fqdn);
         if (registeredDomain == null) {
-            if (SUFFIX_MATCHER.matches(fieldString)) {
-                return new DomainInfo(fieldString);
+            if (SUFFIX_MATCHER.matches(fqdn)) {
+                return DomainInfo.of(fqdn);
             }
             return null;
         }
@@ -96,7 +101,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             // we have domain with no matching public suffix, but "." in it
             return null;
         }
-        return new DomainInfo(registeredDomain, fieldString);
+        return DomainInfo.of(registeredDomain, fqdn);
     }
 
     @Override
@@ -104,53 +109,26 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    private static class DomainInfo {
-        private final String domain;
-        private final String registeredDomain;
-        private final String eTLD;
-        private final String subdomain;
-
-        private DomainInfo(String eTLD) {
-            this.domain = eTLD;
-            this.eTLD = eTLD;
-            this.registeredDomain = null;
-            this.subdomain = null;
+    // visible for testing
+    record DomainInfo(
+        String domain,
+        String registeredDomain,
+        String eTLD, // n.b. https://developer.mozilla.org/en-US/docs/Glossary/eTLD
+        String subdomain
+    ) {
+        static DomainInfo of(final String eTLD) {
+            return new DomainInfo(eTLD, null, eTLD, null);
         }
 
-        private DomainInfo(String registeredDomain, String domain) {
+        static DomainInfo of(final String registeredDomain, final String domain) {
             int index = registeredDomain.indexOf('.') + 1;
             if (index > 0 && index < registeredDomain.length()) {
-                this.domain = domain;
-                this.eTLD = registeredDomain.substring(index);
-                this.registeredDomain = registeredDomain;
                 int subdomainIndex = domain.lastIndexOf("." + registeredDomain);
-                if (subdomainIndex > 0) {
-                    this.subdomain = domain.substring(0, subdomainIndex);
-                } else {
-                    this.subdomain = null;
-                }
+                final String subdomain = subdomainIndex > 0 ? domain.substring(0, subdomainIndex) : null;
+                return new DomainInfo(domain, registeredDomain, registeredDomain.substring(index), subdomain);
             } else {
-                this.domain = null;
-                this.eTLD = null;
-                this.registeredDomain = null;
-                this.subdomain = null;
+                return new DomainInfo(null, null, null, null);
             }
-        }
-
-        public String getDomain() {
-            return domain;
-        }
-
-        public String getSubdomain() {
-            return subdomain;
-        }
-
-        public String getRegisteredDomain() {
-            return registeredDomain;
-        }
-
-        public String getETLD() {
-            return eTLD;
         }
     }
 
@@ -161,15 +139,16 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         @Override
         public RegisteredDomainProcessor create(
             Map<String, Processor.Factory> registry,
-            String processorTag,
+            String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
+            String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", DEFAULT_TARGET_FIELD);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", true);
 
-            return new RegisteredDomainProcessor(processorTag, description, field, targetField, ignoreMissing);
+            return new RegisteredDomainProcessor(tag, description, field, targetField, ignoreMissing);
         }
     }
 }

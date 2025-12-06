@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -58,7 +59,6 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -213,6 +213,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return value;
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
         }
@@ -341,6 +346,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     + "]"
             );
         }
+
+        if (context.mappingLookup().isSourceSynthetic()) {
+            // Remember which documents had value in source so that it can be correctly
+            // reconstructed in synthetic source
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), 1));
+        }
     }
 
     @Override
@@ -350,46 +361,17 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        String value = fieldType().value();
+        String const_value = fieldType().value();
 
-        if (value == null) {
-            return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+        if (const_value == null) {
+            return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        var loader = new SourceLoader.SyntheticFieldLoader() {
+        return new SyntheticSourceSupport.Native(() -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
             @Override
-            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                return Stream.of();
+            protected void writeValue(XContentBuilder b, long ignored) throws IOException {
+                b.value(const_value);
             }
-
-            @Override
-            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
-                return docId -> true;
-            }
-
-            @Override
-            public boolean hasValue() {
-                return true;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (fieldType().value != null) {
-                    b.field(leafName(), fieldType().value);
-                }
-            }
-
-            @Override
-            public void reset() {
-                // NOOP
-            }
-
-            @Override
-            public String fieldName() {
-                return fullPath();
-            }
-        };
-
-        return new SyntheticSourceSupport.Native(loader);
+        });
     }
 }

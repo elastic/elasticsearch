@@ -88,8 +88,8 @@ public class IndexShardSnapshotStatus {
     private final AtomicReference<Stage> stage;
     private final AtomicReference<ShardGeneration> generation;
     private final AtomicReference<ShardSnapshotResult> shardSnapshotResult; // only set in stage DONE
-    private long startTime;
-    private long totalTime;
+    private long startTimeMillis;
+    private long totalTimeMillis;
     private int incrementalFileCount;
     private int totalFileCount;
     private int processedFileCount;
@@ -98,11 +98,12 @@ public class IndexShardSnapshotStatus {
     private long processedSize;
     private String failure;
     private final SubscribableListener<AbortStatus> abortListeners = new SubscribableListener<>();
+    private volatile String statusDescription;
 
     private IndexShardSnapshotStatus(
         final Stage stage,
-        final long startTime,
-        final long totalTime,
+        final long startTimeMillis,
+        final long totalTimeMillis,
         final int incrementalFileCount,
         final int totalFileCount,
         final int processedFileCount,
@@ -110,13 +111,14 @@ public class IndexShardSnapshotStatus {
         final long totalSize,
         final long processedSize,
         final String failure,
-        final ShardGeneration generation
+        final ShardGeneration generation,
+        final String statusDescription
     ) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.generation = new AtomicReference<>(generation);
         this.shardSnapshotResult = new AtomicReference<>();
-        this.startTime = startTime;
-        this.totalTime = totalTime;
+        this.startTimeMillis = startTimeMillis;
+        this.totalTimeMillis = totalTimeMillis;
         this.incrementalFileCount = incrementalFileCount;
         this.totalFileCount = totalFileCount;
         this.processedFileCount = processedFileCount;
@@ -124,17 +126,18 @@ public class IndexShardSnapshotStatus {
         this.processedSize = processedSize;
         this.incrementalSize = incrementalSize;
         this.failure = failure;
+        updateStatusDescription(statusDescription);
     }
 
     public synchronized Copy moveToStarted(
-        final long startTime,
+        final long startTimeMillis,
         final int incrementalFileCount,
         final int totalFileCount,
         final long incrementalSize,
         final long totalSize
     ) {
         if (stage.compareAndSet(Stage.INIT, Stage.STARTED)) {
-            this.startTime = startTime;
+            this.startTimeMillis = startTimeMillis;
             this.incrementalFileCount = incrementalFileCount;
             this.totalFileCount = totalFileCount;
             this.incrementalSize = incrementalSize;
@@ -169,11 +172,11 @@ public class IndexShardSnapshotStatus {
         };
     }
 
-    public synchronized void moveToDone(final long endTime, final ShardSnapshotResult shardSnapshotResult) {
+    public synchronized void moveToDone(final long endTimeMillis, final ShardSnapshotResult shardSnapshotResult) {
         assert shardSnapshotResult != null;
         assert shardSnapshotResult.getGeneration() != null;
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
-            this.totalTime = Math.max(0L, endTime - startTime);
+            this.totalTimeMillis = Math.max(0L, endTimeMillis - startTimeMillis);
             this.shardSnapshotResult.set(shardSnapshotResult);
             this.generation.set(shardSnapshotResult.getGeneration());
         } else {
@@ -186,6 +189,10 @@ public class IndexShardSnapshotStatus {
 
     public Stage getStage() {
         return stage.get();
+    }
+
+    public long getTotalTimeMillis() {
+        return totalTimeMillis;
     }
 
     public void addAbortListener(ActionListener<AbortStatus> listener) {
@@ -218,7 +225,7 @@ public class IndexShardSnapshotStatus {
     public synchronized SnapshotsInProgress.ShardState moveToUnsuccessful(final Stage newStage, final String failure, final long endTime) {
         assert newStage == Stage.PAUSED || newStage == Stage.FAILURE : newStage;
         if (newStage == Stage.PAUSED && stage.compareAndSet(Stage.PAUSING, Stage.PAUSED)) {
-            this.totalTime = Math.max(0L, endTime - startTime);
+            this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
             this.failure = failure;
             return SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL;
         }
@@ -230,7 +237,7 @@ public class IndexShardSnapshotStatus {
     public synchronized void moveToFailed(final long endTime, final String failure) {
         if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
             abortListeners.onResponse(AbortStatus.NO_ABORT);
-            this.totalTime = Math.max(0L, endTime - startTime);
+            this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
             this.failure = failure;
         }
     }
@@ -245,7 +252,11 @@ public class IndexShardSnapshotStatus {
     }
 
     public void ensureNotAborted() {
-        switch (stage.get()) {
+        ensureNotAborted(stage.get());
+    }
+
+    public static void ensureNotAborted(Stage shardSnapshotStage) {
+        switch (shardSnapshotStage) {
             case ABORTED -> throw new AbortedSnapshotException();
             case PAUSING -> throw new PausedSnapshotException();
         }
@@ -269,6 +280,15 @@ public class IndexShardSnapshotStatus {
     }
 
     /**
+     * Updates the string explanation for what the snapshot is actively doing right now.
+     */
+    public void updateStatusDescription(String statusString) {
+        assert statusString != null;
+        assert statusString.isEmpty() == false;
+        this.statusDescription = statusString;
+    }
+
+    /**
      * Returns a copy of the current {@link IndexShardSnapshotStatus}. This method is
      * intended to be used when a coherent state of {@link IndexShardSnapshotStatus} is needed.
      *
@@ -277,20 +297,21 @@ public class IndexShardSnapshotStatus {
     public synchronized IndexShardSnapshotStatus.Copy asCopy() {
         return new IndexShardSnapshotStatus.Copy(
             stage.get(),
-            startTime,
-            totalTime,
+            startTimeMillis,
+            totalTimeMillis,
             incrementalFileCount,
             totalFileCount,
             processedFileCount,
             incrementalSize,
             totalSize,
             processedSize,
-            failure
+            failure,
+            statusDescription
         );
     }
 
     public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation) {
-        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation);
+        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation, "initializing");
     }
 
     public static IndexShardSnapshotStatus.Copy newFailed(final String failure) {
@@ -298,7 +319,7 @@ public class IndexShardSnapshotStatus {
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }
-        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null).asCopy();
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null, "initialized as failed").asCopy();
     }
 
     public static IndexShardSnapshotStatus.Copy newDone(
@@ -322,7 +343,8 @@ public class IndexShardSnapshotStatus {
             size,
             incrementalSize,
             null,
-            generation
+            generation,
+            "initialized as done"
         ).asCopy();
     }
 
@@ -332,8 +354,8 @@ public class IndexShardSnapshotStatus {
     public static class Copy {
 
         private final Stage stage;
-        private final long startTime;
-        private final long totalTime;
+        private final long startTimeMillis;
+        private final long totalTimeMillis;
         private final int incrementalFileCount;
         private final int totalFileCount;
         private final int processedFileCount;
@@ -341,6 +363,7 @@ public class IndexShardSnapshotStatus {
         private final long processedSize;
         private final long incrementalSize;
         private final String failure;
+        private final String statusDescription;
 
         public Copy(
             final Stage stage,
@@ -352,11 +375,12 @@ public class IndexShardSnapshotStatus {
             final long incrementalSize,
             final long totalSize,
             final long processedSize,
-            final String failure
+            final String failure,
+            final String statusDescription
         ) {
             this.stage = stage;
-            this.startTime = startTime;
-            this.totalTime = totalTime;
+            this.startTimeMillis = startTime;
+            this.totalTimeMillis = totalTime;
             this.incrementalFileCount = incrementalFileCount;
             this.totalFileCount = totalFileCount;
             this.processedFileCount = processedFileCount;
@@ -364,18 +388,19 @@ public class IndexShardSnapshotStatus {
             this.processedSize = processedSize;
             this.incrementalSize = incrementalSize;
             this.failure = failure;
+            this.statusDescription = statusDescription;
         }
 
         public Stage getStage() {
             return stage;
         }
 
-        public long getStartTime() {
-            return startTime;
+        public long getStartTimeMillis() {
+            return startTimeMillis;
         }
 
-        public long getTotalTime() {
-            return totalTime;
+        public long getTotalTimeMillis() {
+            return totalTimeMillis;
         }
 
         public int getIncrementalFileCount() {
@@ -406,15 +431,19 @@ public class IndexShardSnapshotStatus {
             return failure;
         }
 
+        public String getStatusDescription() {
+            return statusDescription;
+        }
+
         @Override
         public String toString() {
             return "index shard snapshot status ("
                 + "stage="
                 + stage
-                + ", startTime="
-                + startTime
-                + ", totalTime="
-                + totalTime
+                + ", startTimeMillis="
+                + startTimeMillis
+                + ", totalTimeMillis="
+                + totalTimeMillis
                 + ", incrementalFileCount="
                 + incrementalFileCount
                 + ", totalFileCount="
@@ -429,6 +458,8 @@ public class IndexShardSnapshotStatus {
                 + processedSize
                 + ", failure='"
                 + failure
+                + "', statusDescription='"
+                + statusDescription
                 + '\''
                 + ')';
         }
@@ -439,10 +470,10 @@ public class IndexShardSnapshotStatus {
         return "index shard snapshot status ("
             + "stage="
             + stage
-            + ", startTime="
-            + startTime
-            + ", totalTime="
-            + totalTime
+            + ", startTimeMillis="
+            + startTimeMillis
+            + ", totalTimeMillis="
+            + totalTimeMillis
             + ", incrementalFileCount="
             + incrementalFileCount
             + ", totalFileCount="
@@ -457,6 +488,8 @@ public class IndexShardSnapshotStatus {
             + processedSize
             + ", failure='"
             + failure
+            + "', statusDescription='"
+            + statusDescription
             + '\''
             + ')';
     }

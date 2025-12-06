@@ -75,16 +75,21 @@ public class FileUtils {
     }
 
     public static void rm(Path... paths) {
-        try {
-            IOUtils.rm(paths);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (Platforms.WINDOWS) {
+            rmWithRetries(paths);
+        } else {
+            try {
+                IOUtils.rm(paths);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 
-    public static void rmWithRetries(Path... paths) {
+    // windows needs leniency due to asinine releasing of file locking async from a process exiting
+    private static void rmWithRetries(Path... paths) {
         int tries = 10;
-        Exception exception = null;
+        IOException exception = null;
         while (tries-- > 0) {
             try {
                 IOUtils.rm(paths);
@@ -103,7 +108,7 @@ public class FileUtils {
                 return;
             }
         }
-        throw new RuntimeException(exception);
+        throw new UncheckedIOException(exception);
     }
 
     public static Path mktempDir(Path path) {
@@ -208,7 +213,7 @@ public class FileUtils {
     public static String slurpAllLogs(Path logPath, String activeLogFile, String rotatedLogFilesGlob) {
         StringJoiner logFileJoiner = new StringJoiner("\n");
         try {
-            logFileJoiner.add(new String(Files.readAllBytes(logPath.resolve(activeLogFile)), StandardCharsets.UTF_8));
+            logFileJoiner.add(Files.readString(logPath.resolve(activeLogFile)));
 
             for (Path rotatedLogFile : FileUtils.lsGlob(logPath, rotatedLogFilesGlob)) {
                 logFileJoiner.add(FileUtils.slurpTxtorGz(rotatedLogFile));
@@ -373,7 +378,7 @@ public class FileUtils {
     }
 
     /**
-     * Recursively copy the the source directory to the target directory, preserving permissions.
+     * Recursively copy the source directory to the target directory, preserving permissions.
      */
     public static void copyDirectory(Path source, Path target) throws IOException {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {

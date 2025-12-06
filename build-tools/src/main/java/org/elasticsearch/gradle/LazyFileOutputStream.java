@@ -3,8 +3,7 @@
  * or more contributor license agreements. Licensed under the "Elastic License
  * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
  * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * your election, the "Server Side Public License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
@@ -18,42 +17,58 @@ import java.io.OutputStream;
  * An outputstream to a File that is lazily opened on the first write.
  */
 class LazyFileOutputStream extends OutputStream {
-    private OutputStream delegate;
+    private final File file;
+    private volatile OutputStream delegate;
+    private volatile boolean initialized = false;
+    private final Object lock = new Object();
 
     LazyFileOutputStream(File file) {
-        // use an initial dummy delegate to avoid doing a conditional on every write
-        this.delegate = new OutputStream() {
-            private void bootstrap() throws IOException {
-                file.getParentFile().mkdirs();
-                delegate = new FileOutputStream(file);
-            }
+        this.file = file;
+    }
 
-            @Override
-            public void write(int b) throws IOException {
-                bootstrap();
-                delegate.write(b);
+    private void ensureInitialized() throws IOException {
+        if (initialized == false) {
+            synchronized (lock) {
+                if (initialized == false) {
+                    file.getParentFile().mkdirs();
+                    delegate = new FileOutputStream(file);
+                    initialized = true;
+                }
             }
-
-            @Override
-            public void write(byte b[], int off, int len) throws IOException {
-                bootstrap();
-                delegate.write(b, off, len);
-            }
-        };
+        }
     }
 
     @Override
     public void write(int b) throws IOException {
+        ensureInitialized();
         delegate.write(b);
     }
 
     @Override
     public void write(byte b[], int off, int len) throws IOException {
+        ensureInitialized();
         delegate.write(b, off, len);
     }
 
     @Override
+    public void write(byte b[]) throws IOException {
+        ensureInitialized();
+        delegate.write(b);
+    }
+
+    @Override
     public void close() throws IOException {
-        delegate.close();
+        synchronized (lock) {
+            if (initialized && delegate != null) {
+                delegate.close();
+            }
+        }
+    }
+
+    @Override
+    public void flush() throws IOException {
+        if (initialized && delegate != null) {
+            delegate.flush();
+        }
     }
 }

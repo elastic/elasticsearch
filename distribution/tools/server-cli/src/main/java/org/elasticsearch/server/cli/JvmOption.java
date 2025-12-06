@@ -10,12 +10,14 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -106,7 +108,9 @@ class JvmOption {
             userDefinedJvmOptions.stream(),
             Stream.of("-XX:+PrintFlagsFinal", "-version")
         ).flatMap(Function.identity()).toList();
-        final Process process = new ProcessBuilder().command(command).start();
+        final ProcessBuilder builder = new ProcessBuilder().command(command);
+        setWorkingDir(builder);
+        final Process process = builder.start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());
         final int status = process.waitFor();
@@ -122,6 +126,14 @@ class JvmOption {
         } else {
             return output;
         }
+    }
+
+    @SuppressForbidden(reason = "ProcessBuilder takes File")
+    private static void setWorkingDir(ProcessBuilder builder) throws IOException {
+        // The real ES process uses the logs dir as the working directory. Since we don't
+        // have the logs dir yet, here we use a temp directory for calculating jvm options.
+        final Path tmpDir = Files.createTempDirectory("final-flags");
+        builder.directory(tmpDir.toFile());
     }
 
     private static List<String> readLinesFromInputStream(final InputStream is) throws IOException {

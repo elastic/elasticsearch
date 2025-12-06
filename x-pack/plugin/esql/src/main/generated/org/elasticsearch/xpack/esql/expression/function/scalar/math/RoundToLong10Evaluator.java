@@ -1,0 +1,196 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License
+// 2.0; you may not use this file except in compliance with the Elastic License
+// 2.0.
+package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+
+import java.lang.IllegalArgumentException;
+import java.lang.Override;
+import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+
+/**
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToLong}.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
+ */
+public final class RoundToLong10Evaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLong10Evaluator.class);
+
+  private final Source source;
+
+  private final EvalOperator.ExpressionEvaluator field;
+
+  private final long p0;
+
+  private final long p1;
+
+  private final long p2;
+
+  private final long p3;
+
+  private final long p4;
+
+  private final long p5;
+
+  private final long p6;
+
+  private final long p7;
+
+  private final long p8;
+
+  private final long p9;
+
+  private final DriverContext driverContext;
+
+  private Warnings warnings;
+
+  public RoundToLong10Evaluator(Source source, EvalOperator.ExpressionEvaluator field, long p0,
+      long p1, long p2, long p3, long p4, long p5, long p6, long p7, long p8, long p9,
+      DriverContext driverContext) {
+    this.source = source;
+    this.field = field;
+    this.p0 = p0;
+    this.p1 = p1;
+    this.p2 = p2;
+    this.p3 = p3;
+    this.p4 = p4;
+    this.p5 = p5;
+    this.p6 = p6;
+    this.p7 = p7;
+    this.p8 = p8;
+    this.p9 = p9;
+    this.driverContext = driverContext;
+  }
+
+  @Override
+  public Block eval(Page page) {
+    try (LongBlock fieldBlock = (LongBlock) field.eval(page)) {
+      LongVector fieldVector = fieldBlock.asVector();
+      if (fieldVector == null) {
+        return eval(page.getPositionCount(), fieldBlock);
+      }
+      return eval(page.getPositionCount(), fieldVector).asBlock();
+    }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public LongBlock eval(int positionCount, LongBlock fieldBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        switch (fieldBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
+        }
+        long field = fieldBlock.getLong(fieldBlock.getFirstValueIndex(p));
+        result.appendLong(RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
+      }
+      return result.build();
+    }
+  }
+
+  public LongVector eval(int positionCount, LongVector fieldVector) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        long field = fieldVector.getLong(p);
+        result.appendLong(p, RoundToLong.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
+      }
+      return result.build();
+    }
+  }
+
+  @Override
+  public String toString() {
+    return "RoundToLong10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(field);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    private final long p0;
+
+    private final long p1;
+
+    private final long p2;
+
+    private final long p3;
+
+    private final long p4;
+
+    private final long p5;
+
+    private final long p6;
+
+    private final long p7;
+
+    private final long p8;
+
+    private final long p9;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long p0, long p1,
+        long p2, long p3, long p4, long p5, long p6, long p7, long p8, long p9) {
+      this.source = source;
+      this.field = field;
+      this.p0 = p0;
+      this.p1 = p1;
+      this.p2 = p2;
+      this.p3 = p3;
+      this.p4 = p4;
+      this.p5 = p5;
+      this.p6 = p6;
+      this.p7 = p7;
+      this.p8 = p8;
+      this.p9 = p9;
+    }
+
+    @Override
+    public RoundToLong10Evaluator get(DriverContext context) {
+      return new RoundToLong10Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, context);
+    }
+
+    @Override
+    public String toString() {
+      return "RoundToLong10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
+    }
+  }
+}

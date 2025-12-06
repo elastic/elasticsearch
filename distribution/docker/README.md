@@ -3,8 +3,7 @@
 The ES build can generate several types of Docker image. These are enumerated in
 the [DockerBase] enum.
 
-   * Default - this is what most people use, and is based on Ubuntu
-   * UBI - the same as the default image, but based upon [RedHat's UBI
+   * Default - this is what most people use, and is based on [RedHat's UBI
      images][ubi], specifically their minimal flavour.
    * Wolfi - the same as the default image, but based upon [Wolfi](https://github.com/wolfi-dev)
    * Cloud ESS - this directly extends the Wolfi image, and adds all ES plugins
@@ -23,14 +22,7 @@ the [DockerBase] enum.
      software (FOSS) and Commercial off-the-shelf (COTS). In practice, this is
      another UBI build, this time on the regular UBI image, with extra
      hardening. See below for more details.
-   * Cloud - this is mostly the same as the default image, with some notable differences:
-      * `filebeat` and `metricbeat` are included
-      * `wget` is included
-      * The `ENTRYPOINT` is just `/bin/tini`, and the `CMD` is
-        `/app/elasticsearch.sh`. In normal use this file would be bind-mounted
-        in, but the image ships a stub version of this file so that the image
-        can still be tested.
-The long-term goal is for both Cloud images to be retired in favour of the
+The long-term goal is for Cloud ESS image to be retired in favour of the
 default image.
 
 
@@ -142,8 +134,11 @@ custom behaviour in the
 
 We go to some lengths to try and make the Docker build resilient to transient
 network errors. This is why, when browsing the
-[Dockerfile](src/docker/Dockerfile), you'll see many commands wrapped in looping
-logic, so that if e.g. package installation fails, we try again. We also perform
+[Dockerfile](src/docker/dockerfiles/wolfi/Dockerfile), you'll see many commands wrapped in looping
+logic, so that if e.g. package installation fails, we try again.
+Our default docker image and the Iron Bank image do not have this retry logic,
+because Dockerhub and Iron Bank asked for as concise as possible Dockerfiles.
+We also perform
 explicit `docker pull` commands instead of relying on `docker run` to pull an
 image down automatically, so that we can wrap the `pull` part in a retry.
 

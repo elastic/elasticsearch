@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -229,7 +230,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<String> propertyNames = readOptionalList(TYPE, tag, config, "properties");

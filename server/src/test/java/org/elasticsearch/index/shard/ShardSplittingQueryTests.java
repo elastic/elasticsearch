@@ -229,7 +229,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
         if (routing != null) {
             topLevel.add(new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES));
         }
-        SeqNoFieldMapper.SequenceIDFields.emptySeqID().addFields(topLevel);
+        SeqNoFieldMapper.SequenceIDFields.emptySeqID(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES).addFields(topLevel);
         return topLevel;
     }
 

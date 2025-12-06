@@ -118,6 +118,8 @@ public class ServiceAccountIT extends ESRestTestCase {
               "indices": [
                 {
                   "names": [
+                    "logs",
+                    "logs.*",
                     "logs-*",
                     "metrics-*",
                     "traces-*",
@@ -316,6 +318,21 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "view_index_metadata"
                   ],
                   "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "agentless-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [        {
@@ -473,19 +490,6 @@ public class ServiceAccountIT extends ESRestTestCase {
                 ReservedRolesStore.kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)
                     .toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS)
             )
-        );
-
-        final Request getServiceAccountRequestEnterpriseSearchService = new Request(
-            "GET",
-            "_security/service/elastic/enterprise-search-server"
-        );
-        final Response getServiceAccountResponseEnterpriseSearchService = client().performRequest(
-            getServiceAccountRequestEnterpriseSearchService
-        );
-        assertServiceAccountRoleDescriptor(
-            getServiceAccountResponseEnterpriseSearchService,
-            "elastic/enterprise-search-server",
-            ELASTIC_ENTERPRISE_SEARCH_SERVER_ROLE_DESCRIPTOR
         );
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");

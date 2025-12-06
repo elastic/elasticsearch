@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -113,24 +112,6 @@ public class DiscoveryNodeTests extends ESTestCase {
             assertThat(role.roleNameAbbreviation(), equalTo("z"));
             assertTrue(role.canContainData());
         }
-
-        {
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setTransportVersion(TransportVersions.V_7_11_0);
-            node.writeTo(streamOutput);
-
-            StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setTransportVersion(TransportVersions.V_7_11_0);
-            DiscoveryNode serialized = new DiscoveryNode(in);
-            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
-            assertThat(roles, hasSize(1));
-            @SuppressWarnings("OptionalGetWithoutIsPresent")
-            final DiscoveryNodeRole role = roles.stream().findFirst().get();
-            assertThat(role.roleName(), equalTo("data_custom_role"));
-            assertThat(role.roleNameAbbreviation(), equalTo("z"));
-            assertTrue(role.canContainData());
-        }
-
     }
 
     public void testDiscoveryNodeIsRemoteClusterClientDefault() {
@@ -247,7 +228,30 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertThat(toString, containsString("{" + node.getEphemeralId() + "}"));
         assertThat(toString, containsString("{" + node.getAddress() + "}"));
         assertThat(toString, containsString("{IScdfhilmrstvw}"));// roles
-        assertThat(toString, containsString("{" + node.getVersion() + "}"));
+        assertThat(toString, containsString("{" + node.getBuildVersion() + "}"));
         assertThat(toString, containsString("{test-attr=val}"));// attributes
+    }
+
+    public void testDiscoveryNodeMinReadOnlyVersionSerialization() throws Exception {
+        var node = DiscoveryNodeUtils.create("_id", buildNewFakeTransportAddress(), VersionInformation.CURRENT);
+
+        {
+            try (var out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                node.writeTo(out);
+
+                try (var in = StreamInput.wrap(out.bytes().array())) {
+                    in.setTransportVersion(TransportVersion.current());
+
+                    var deserialized = new DiscoveryNode(in);
+                    assertThat(deserialized.getId(), equalTo(node.getId()));
+                    assertThat(deserialized.getAddress(), equalTo(node.getAddress()));
+                    assertThat(deserialized.getMinIndexVersion(), equalTo(node.getMinIndexVersion()));
+                    assertThat(deserialized.getMaxIndexVersion(), equalTo(node.getMaxIndexVersion()));
+                    assertThat(deserialized.getMinReadOnlyIndexVersion(), equalTo(node.getMinReadOnlyIndexVersion()));
+                    assertThat(deserialized.getVersionInformation(), equalTo(node.getVersionInformation()));
+                }
+            }
+        }
     }
 }

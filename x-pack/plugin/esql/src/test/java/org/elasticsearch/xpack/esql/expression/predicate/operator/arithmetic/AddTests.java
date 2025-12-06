@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,7 +19,9 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,12 +29,12 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
+import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -85,8 +88,8 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                         "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                         DataType.DOUBLE,
                         equalTo(null)
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity")
                 ),
                 new TestCaseSupplier(
                     List.of(DataType.DOUBLE, DataType.DOUBLE),
@@ -98,8 +101,8 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                         "AddDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                         DataType.DOUBLE,
                         equalTo(null)
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity")
                 )
             )
         );
@@ -148,19 +151,19 @@ public class AddTests extends AbstractScalarFunctionTestCase {
 
         BinaryOperator<Object> result = (lhs, rhs) -> {
             try {
-                return addDatesAndTemporalAmount(lhs, rhs);
+                return addDatesAndTemporalAmount(lhs, rhs, AddTests::addMillis);
             } catch (ArithmeticException e) {
                 return null;
             }
         };
         BiFunction<TestCaseSupplier.TypedData, TestCaseSupplier.TypedData, List<String>> warnings = (lhs, rhs) -> {
             try {
-                addDatesAndTemporalAmount(lhs.data(), rhs.data());
+                addDatesAndTemporalAmount(lhs.getValue(), rhs.getValue(), AddTests::addMillis);
                 return List.of();
             } catch (ArithmeticException e) {
                 return List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: long overflow"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: long overflow"
                 );
             }
         };
@@ -186,6 +189,38 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                 true
             )
         );
+
+        BinaryOperator<Object> nanosResult = (lhs, rhs) -> {
+            try {
+                assert (lhs instanceof Instant) || (rhs instanceof Instant);
+                return addDatesAndTemporalAmount(lhs, rhs, AddTests::addNanos);
+            } catch (ArithmeticException e) {
+                return null;
+            }
+        };
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                nanosResult,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.datePeriodCases(0, 0, 0, 10, 13, 32),
+                startsWith("AddDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount="),
+                warnings,
+                true
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                nanosResult,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.timeDurationCases(0, 604800000L),
+                startsWith("AddDateNanosEvaluator[dateNanos=Attribute[channel=0], temporalAmount="),
+                warnings,
+                true
+            )
+        );
+
         suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {
             consumer.accept(
                 new TestCaseSupplier(
@@ -211,33 +246,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
             );
         }).toList());
 
-        // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
-        // Datetime + Period/Duration, since the expression will take the non-null arg's type.
-        suppliers = anyNullIsNull(
-            suppliers,
-            (nullPosition, nullType, original) -> original.expectedType(),
-            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
-        );
-        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
-
-        // Cases that should generate warnings
-        suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
-            // Ensure we don't have an overflow
-            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataType.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs")
-                ),
-                "AddIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataType.INTEGER,
-                is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
-        }));
-        // exact math arithmetic exceptions
+        // Exact math arithmetic exceptions
         suppliers.add(
             arithmeticExceptionOverflowCase(
                 DataType.INTEGER,
@@ -279,12 +288,22 @@ public class AddTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
+        // Datetime + Period/Duration, since the expression will take the non-null arg's type.
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullType, original) -> original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
+        );
+        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static String addErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "datetime or numeric");
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime or numeric");
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[+] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
@@ -292,18 +311,29 @@ public class AddTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs) {
+    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Instant, TemporalAmount> adder) {
         // this weird casting dance makes the expected value lambda symmetric
-        Long date;
+        Instant date;
         TemporalAmount period;
-        if (lhs instanceof Long) {
-            date = (Long) lhs;
+        assert (lhs instanceof Instant) || (rhs instanceof Instant);
+        if (lhs instanceof Instant) {
+            date = (Instant) lhs;
             period = (TemporalAmount) rhs;
         } else {
-            date = (Long) rhs;
+            date = (Instant) rhs;
             period = (TemporalAmount) lhs;
         }
+        return adder.applyAsLong(date, period);
+    }
+
+    private static long addMillis(Instant date, TemporalAmount period) {
         return asMillis(asDateTime(date).plus(period));
+    }
+
+    private static long addNanos(Instant date, TemporalAmount period) {
+        return DateUtils.toLong(
+            Instant.from(ZonedDateTime.ofInstant(date, org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).plus(period))
+        );
     }
 
     @Override

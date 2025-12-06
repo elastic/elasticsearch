@@ -111,3 +111,43 @@ setup:
   - match: { status: 403 }
   - match: { error.type: security_exception }
   - match: { error.reason: "current license is non-compliant for [Reciprocal Rank Fusion (RRF)]" }
+
+
+---
+"linear retriever invalid license":
+  - requires:
+      cluster_features: [ "linear_retriever_supported" ]
+      reason: "Support for linear retriever"
+
+  - do:
+      catch: forbidden
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text" ]
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  knn: {
+                    field: vector,
+                    query_vector: [ 0.0 ],
+                    k: 3,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      term: {
+                        text: term
+                      }
+                    }
+                  }
+                }
+              ]
+
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.reason: "current license is non-compliant for [linear retriever]" }

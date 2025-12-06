@@ -18,9 +18,9 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -49,7 +49,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     private static boolean putShutdownNodeState(
         Map<String, SingleNodeShutdownMetadata> shutdownMetadata,
         Predicate<String> nodeExists,
-        Request request
+        Request request,
+        String nodeEphemeralId
     ) {
         if (isNoop(shutdownMetadata, request)) {
             return false;
@@ -58,6 +59,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         final boolean nodeSeen = nodeExists.test(request.getNodeId());
         SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
             .setNodeId(request.getNodeId())
+            .setNodeEphemeralId(nodeEphemeralId)
             .setType(request.getType())
             .setReason(request.getReason())
             .setStartedAtMillis(System.currentTimeMillis())
@@ -103,8 +105,13 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             boolean needsReroute = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
+                String nodeEphemeralId = null;
+                DiscoveryNode discoveryNode = initialState.nodes().getNodes().get(request.getNodeId());
+                if (discoveryNode != null) {
+                    nodeEphemeralId = discoveryNode.getEphemeralId();
+                }
                 try (var ignored = taskContext.captureResponseHeaders()) {
-                    changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request);
+                    changed |= putShutdownNodeState(shutdownMetadata, nodeExistsPredicate, request, nodeEphemeralId);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;
@@ -146,8 +153,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         ClusterService clusterService,
         AllocationService allocationService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             PutShutdownNodeAction.NAME,
@@ -157,7 +163,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.allocationService = allocationService;

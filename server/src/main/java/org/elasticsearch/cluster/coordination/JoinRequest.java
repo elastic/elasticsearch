@@ -8,21 +8,18 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-public class JoinRequest extends TransportRequest {
+public class JoinRequest extends AbstractTransportRequest {
 
     /**
      * The sending (i.e. joining) node.
@@ -72,21 +69,8 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            compatibilityVersions = CompatibilityVersions.readVersion(in);
-        } else {
-            // there's a 1-1 mapping from Version to TransportVersion before 8.8.0
-            // no known mapping versions here
-            compatibilityVersions = new CompatibilityVersions(
-                TransportVersion.fromId(sourceNode.getPre811VersionId().getAsInt()),
-                Map.of()
-            );
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            features = in.readCollectionAsSet(StreamInput::readString);
-        } else {
-            features = Set.of();
-        }
+        compatibilityVersions = CompatibilityVersions.readVersion(in);
+        features = in.readCollectionAsSet(StreamInput::readString);
         minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
@@ -95,12 +79,8 @@ public class JoinRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            compatibilityVersions.writeTo(out);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeCollection(features, StreamOutput::writeString);
-        }
+        compatibilityVersions.writeTo(out);
+        out.writeCollection(features, StreamOutput::writeString);
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }

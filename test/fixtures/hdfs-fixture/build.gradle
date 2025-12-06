@@ -8,71 +8,241 @@
  */
 
 apply plugin: 'elasticsearch.java'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
+
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
+def hdfs2patched = Attribute.of('hdfs2-patched', Boolean)
+def hdfs3patched = Attribute.of('hdfs3-patched', Boolean)
+def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
+
 configurations {
-//  all {
-//    transitive = true
-//  }
-  hdfs2
-  hdfs3
-  consumable("shadowedHdfs2")
+  hdfs2 {
+    transitive = false
+    attributes {
+      attribute(hdfs2patched, true)
+    }
+  }
+  hdfs3 {
+    transitive = false
+    attributes {
+      attribute(hdfs3patched, true)
+    }
+  }
+  consumable("shadowedHdfs2") {
+    attributes {
+      attribute(hdfsVersionAttr, 2)
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, Integer.parseInt(buildParams.minimumRuntimeVersion.getMajorVersion()))
+      attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+    }
+  }
+  consumable("shadowedHdfs3") {
+    attributes {
+      attribute(hdfsVersionAttr, 3)
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, Integer.parseInt(buildParams.minimumRuntimeVersion.getMajorVersion()))
+      attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+    }
+  }
 }
 
 dependencies {
-  compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5")
+  attributesSchema {
+    attribute(hdfs2patched)
+    attribute(hdfs3patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(hdfs2patched, false)
+    attributes.attribute(hdfs3patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(hdfs2patched, false)
+    to.attribute(hdfs2patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop2-common"]
+    }
+  }
+
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(hdfs3patched, false)
+    to.attribute(hdfs3patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop3-common"]
+    }
+  }
+  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
+
+  compileOnly("commons-io:commons-io:2.16.1")
+  compileOnly("org.apache.hadoop:hadoop-common:2.8.5")
+  compileOnly("org.apache.hadoop:hadoop-annotations:2.8.5")
+  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5")
+  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5:tests")
+  compileOnly("org.apache.hadoop:hadoop-hdfs-client:2.8.5") {
+    exclude group: "org.apache.hadoop", module: "hadoop-common"
+  }
+  compileOnly("org.apache.hadoop:hadoop-hdfs:2.8.5:tests") {
+    transitive = false
+  }
+  compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5") {
+    transitive = false
+  }
   api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
-    transitive false
+    transitive = false
   }
   compileOnly "junit:junit:${versions.junit}"
-  hdfs2 "org.apache.hadoop:hadoop-minicluster:2.8.5"
-  hdfs3 "org.apache.hadoop:hadoop-minicluster:3.3.1"
 
+  def commonExcludes = [
+    [group: "org.apache.commons", module: "commons-compress"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-app"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-core"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-hs"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-jobclient"],
+    [group: "org.apache.hadoop", module: "hadoop-yarn-server-tests"],
+    [group: "org.apache.httpcomponents", module: "httpclient"],
+    [group: "org.apache.zookeeper", module: "zookeeper"],
+    [group: "org.apache.curator", module: "curator-recipes"],
+    [group: "org.apache.curator", module: "curator-client"],
+    [group: "org.apache.curator", module: "curator-framework"],
+    [group: "org.apache.avro", module: "avro"],
+    [group: "log4j", module: "log4j"],
+    [group: "io.netty", module: "netty-all"],
+    [group: "io.netty", module: "netty"],
+    [group: "com.squareup.okhttp", module: "okhttp"],
+    [group: "com.google.guava", module: "guava"],
+    [group: "com.google.code.gson", module: "gson"],
+    [group: "javax.servlet.jsp", module: "jsp-api"],
+    [group: "org.fusesource.leveldbjni", module: "leveldbjni-all"],
+    [group: "commons-cli", module: "commons-cli"],
+    [group: "org.mortbay.jetty", module: "servlet-api"],
+    [group: "commons-logging", module: "commons-logging"],
+    [group: "org.slf4j", module: "slf4j-log4j12"],
+    [group: "commons-codec", module: "commons-codec"],
+    [group: "com.sun.jersey", module: "jersey-core"],
+    [group: "com.sun.jersey", module: "jersey-json"],
+    [group: "com.google.code.findbugs", module: "jsr305"],
+    [group: "com.sun.jersey", module: "jersey-json"],
+    [group: "com.nimbusds", module: "nimbus-jose-jwt"],
+    [group: "com.jcraft", module: "jsch"],
+    [group: "org.slf4j", module: "slf4j-api"],
+  ]
+
+    // port this to a component metadata rule for minicluster 2 and 3
+    hdfs2("commons-io:commons-io:2.16.1")
+    hdfs2("com.google.protobuf:protobuf-java:3.25.5")
+    hdfs2("org.apache.htrace:htrace-core4:4.0.1-incubating")
+    hdfs2("org.mortbay.jetty:jetty:6.1.26")
+    hdfs2("org.mortbay.jetty:jetty-util:6.1.26")
+    hdfs2("org.mortbay.jetty:jetty-sslengine:6.1.26")
+    hdfs2("org.mortbay.jetty:servlet-api:2.5-20081211")
+    hdfs2("org.codehaus.jackson:jackson-mapper-asl:1.9.13")
+    hdfs2("org.codehaus.jackson:jackson-core-asl:1.9.13")
+    hdfs2("com.sun.jersey:jersey-servlet:1.19")
+    hdfs2("com.sun.jersey:jersey-server:1.19")
+    hdfs2("com.sun.jersey:jersey-core:1.19")
+    hdfs2("commons-collections:commons-collections:3.2.1")
+    hdfs2("commons-configuration:commons-configuration:1.6")
+    hdfs2("commons-lang:commons-lang:2.6")
+    hdfs2("org.apache.hadoop:hadoop-auth:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-common:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-common:2.8.5:tests")
+    hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-hdfs:2.8.5:tests")
+    hdfs2("org.apache.hadoop:hadoop-annotations:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-hdfs-client:2.8.5")
+    hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5")
+    hdfs2("commons-daemon:commons-daemon:1.0.15")
+
+    hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-common:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-common:3.3.1:tests")
+    hdfs3("org.apache.hadoop:hadoop-hdfs:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-hdfs:3.3.1:tests")
+    hdfs3("org.apache.hadoop:hadoop-hdfs-client:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-yarn-api:3.3.1")
+    hdfs3("org.apache.hadoop:hadoop-auth:3.3.1")
+    hdfs3("org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.1.1")
+    hdfs3("org.apache.hadoop.thirdparty:hadoop-shaded-protobuf_3_7:1.1.1")
+    hdfs3("org.apache.htrace:htrace-core4:4.1.0-incubating")
+    hdfs3("commons-collections:commons-collections:3.2.2")
+    hdfs3("commons-io:commons-io:2.8.0")
+    hdfs3("org.apache.commons:commons-configuration2:2.1.1")
+    hdfs3("org.apache.commons:commons-lang3:3.7")
+    hdfs3("org.eclipse.jetty:jetty-xml:9.4.40.v20210413")
+    hdfs3("commons-daemon:commons-daemon:1.4.0")
+    hdfs3("com.google.protobuf:protobuf-java:4.32.0")
+    hdfs3("com.google.re2j:re2j:1.0")
+    hdfs3("org.apache.commons:commons-math3:3.6.1")
+    hdfs3("org.apache.commons:commons-text:1.4")
+    hdfs3("com.fasterxml.woodstox:woodstox-core:6.7.0")
+    hdfs3("org.codehaus.woodstox:stax2-api:4.2.2")
+    hdfs3("org.eclipse.jetty:jetty-servlet:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-server:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-util:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-webapp:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-http:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-security:9.4.40.v20210413")
+    hdfs3("org.eclipse.jetty:jetty-io:9.4.40.v20210413")
+    hdfs3("javax.servlet:javax.servlet-api:3.1.0")
+    hdfs3("com.sun.jersey:jersey-servlet:1.19")
 }
 
 tasks.named("shadowJar").configure {
   archiveClassifier.set("hdfs3")
   // fix issues with signed jars
-
   relocate("org.apache.hadoop", "fixture.hdfs3.org.apache.hadoop") {
     exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
     exclude "org.apache.hadoop.ipc.StandbyException"
+    exclude "org.apache.hadoop.application-classloader.properties"
   }
-  configurations << project.configurations.hdfs3
+  configurations.add(project.configurations.hdfs3)
 }
 
 def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
   relocate("org.apache.hadoop", "fixture.hdfs2.org.apache.hadoop") {
     exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
     exclude "org.apache.hadoop.ipc.StandbyException"
+    exclude "org.apache.hadoop.application-classloader.properties"
   }
   archiveClassifier.set("hdfs2")
   from sourceSets.main.output
-  configurations << project.configurations.hdfs2
+  configurations.add(project.configurations.hdfs2)
+
+  // Rename webapps directories for Hadoop 2.x compatibility with Jetty 6
+  // Jetty 6 expects webapps/{name}/{name} structure
+  eachFile { fileCopyDetails ->
+    def pathStr = fileCopyDetails.path
+    if (pathStr.startsWith("webapps/hdfs/") && !pathStr.startsWith("webapps/hdfs/hdfs/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/hdfs/", "webapps/hdfs/hdfs/")
+    } else if (pathStr.startsWith("webapps/datanode/") && !pathStr.startsWith("webapps/datanode/datanode/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/datanode/", "webapps/datanode/datanode/")
+    } else if (pathStr.startsWith("webapps/secondary/") && !pathStr.startsWith("webapps/secondary/secondary/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/secondary/", "webapps/secondary/secondary/")
+    } else if (pathStr.startsWith("webapps/journal/") && !pathStr.startsWith("webapps/journal/journal/")) {
+      fileCopyDetails.path = pathStr.replace("webapps/journal/", "webapps/journal/journal/")
+    }
+  }
 }
 
 tasks.withType(ShadowJar).configureEach {
   dependencies {
-//    exclude(dependency('commons-io:commons-io:2.8.0'))
     exclude(dependency("com.carrotsearch.randomizedtesting:randomizedtesting-runner:.*"))
     exclude(dependency("junit:junit:.*"))
     exclude(dependency("org.slf4j:slf4j-api:.*"))
-    exclude(dependency("com.google.guava:guava:.*"))
-    exclude(dependency("org.apache.commons:commons-compress:.*"))
-    exclude(dependency("commons-logging:commons-logging:.*"))
-    exclude(dependency("commons-codec:commons-codec:.*"))
-    exclude(dependency("org.apache.httpcomponents:httpclient:.*"))
     exclude(dependency("org.apache.httpcomponents:httpcore:.*"))
     exclude(dependency("org.apache.logging.log4j:log4j-1.2-api:.*"))
-    exclude(dependency("log4j:log4j:.*"))
-    exclude(dependency("io.netty:.*:.*"))
-    exclude(dependency("com.nimbusds:nimbus-jose-jwt:.*"))
-    exclude(dependency("commons-cli:commons-cli:1.2"))
     exclude(dependency("net.java.dev.jna:jna:.*"))
     exclude(dependency("org.objenesis:objenesis:.*"))
     exclude(dependency('com.fasterxml.jackson.core:.*:.*'))
+  }
+
+  filesMatching("META-INF/services/**") {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE // Or something else.
   }
 
   transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {
@@ -84,8 +254,12 @@ tasks.withType(ShadowJar).configureEach {
     resource = "hdfs-default.xml"
     enabled = true
   }
+
+  relocate("org.apache.commons.lang", "fixture.org.apache.commons.lang")
+  relocate("org.apache.commons.io", "fixture.org.apache.commons.io")
 }
 
 artifacts {
   shadowedHdfs2(hdfs2Jar)
+  shadowedHdfs3(tasks.named("shadowJar"))
 }

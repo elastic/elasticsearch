@@ -110,6 +110,9 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
+    private static final Set<String> MONITOR_ESQL_PATTERN = Set.of("cluster:monitor/xpack/esql/*");
+    // intentionally cluster:monitor/stats* to match cluster:monitor/stats, cluster:monitor/stats[n] and cluster:monitor/stats/remote
+    private static final Set<String> MONITOR_STATS_PATTERN = Set.of("cluster:monitor/stats*");
 
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
@@ -208,7 +211,11 @@ public class ClusterPrivilegeResolver {
         // esql enrich
         "cluster:monitor/xpack/enrich/esql/resolve_policy",
         "cluster:internal:data/read/esql/open_exchange",
-        "cluster:internal:data/read/esql/exchange"
+        "cluster:internal:data/read/esql/exchange",
+        // cluster stats for remote clusters
+        "cluster:monitor/stats/remote",
+        "cluster:monitor/stats",
+        "cluster:monitor/stats[n]"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -243,6 +250,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_ESQL = new ActionClusterPrivilege("monitor_esql", MONITOR_ESQL_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_STATS = new ActionClusterPrivilege("monitor_stats", MONITOR_STATS_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
@@ -424,6 +433,8 @@ public class ClusterPrivilegeResolver {
             MONITOR_WATCHER,
             MONITOR_ROLLUP,
             MONITOR_ENRICH,
+            MONITOR_ESQL,
+            MONITOR_STATS,
             MANAGE,
             MANAGE_CONNECTOR,
             MANAGE_INFERENCE,
@@ -499,7 +510,7 @@ public class ClusterPrivilegeResolver {
             + Strings.collectionToCommaDelimitedString(VALUES.keySet())
             + "] or a pattern over one of the available "
             + "cluster actions";
-        logger.debug(errorMessage);
+        logger.warn(errorMessage);
         throw new IllegalArgumentException(errorMessage);
 
     }

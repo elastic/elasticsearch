@@ -8,35 +8,39 @@ a:double              | b:double
 ;
 
 inDouble
+required_capability: fix_precision_of_scaled_float_fields
 from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
-10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
-10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.03
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.03
 ;
 
 inFloat
+required_capability: fix_precision_of_scaled_float_fields
 from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
-10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
-10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.03
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.03
 ;
 
 inHalfFloat
+required_capability: fix_precision_of_scaled_float_fields
 from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.half_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
-10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
-10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.03
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.03
 ;
 
 inScaledFloat
+required_capability: fix_precision_of_scaled_float_fields
 from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.scaled_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
 
 emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
-10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
-10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.03
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.03
 ;
 
 convertFromDouble
@@ -99,7 +103,6 @@ int:integer |dbl:double
 ;
 
 lessThanMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[salary_change < 1\] failed, treating result as null. Only first 20 failures recorded.
@@ -115,7 +118,6 @@ emp_no:integer |salary_change:double
 ;
 
 greaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[salary_change > 1\] failed, treating result as null. Only first 20 failures recorded.
@@ -131,7 +133,6 @@ emp_no:integer |salary_change:double
 ;
 
 equalToMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change == 1.19 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.
@@ -143,7 +144,6 @@ emp_no:integer |salary_change:double
 ;
 
 equalToOrEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change == 1.19 or salary_change == 7.58 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change] failed, treating result as null. Only first 20 failures recorded.
@@ -156,7 +156,6 @@ emp_no:integer |salary_change:double
 ;
 
 inMultivalue
-required_capability: mv_warn
 
 from employees | where salary_change in (1.19, 7.58) | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change in (1.19, 7.58)] failed, treating result as null. Only first 20 failures recorded.
@@ -169,7 +168,6 @@ emp_no:integer |salary_change:double
 ;
 
 notLessThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change < 1.*\] failed, treating result as null. Only first 20 failures recorded.
@@ -185,7 +183,6 @@ emp_no:integer |salary_change:double
 ;
 
 notGreaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change > 1.*\] failed, treating result as null. Only first 20 failures recorded.
@@ -201,7 +198,6 @@ emp_no:integer |salary_change:double
 ;
 
 notEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
 warningRegex:evaluation of \[.*salary_change == 1.19.*\] failed, treating result as null. Only first 20 failures recorded.
@@ -266,7 +262,7 @@ emp_no:integer | salary_change:double    | a1:double
 
 cos
 // tag::cos[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL cos=COS(a)
 // end::cos[]
 ;
@@ -279,7 +275,7 @@ a:double | cos:double
 
 cosh
 // tag::cosh[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL cosh=COSH(a)
 // end::cosh[]
 ;
@@ -316,7 +312,7 @@ a:double | acos:double
 
 sin
 // tag::sin[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL sin=SIN(a)
 // end::sin[]
 ;
@@ -329,7 +325,7 @@ a:double | sin:double
 
 sinh
 // tag::sinh[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL sinh=SINH(a)
 // end::sinh[]
 ;
@@ -366,7 +362,7 @@ a:double | asin:double
 
 tan
 // tag::tan[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL tan=TAN(a)
 // end::tan[]
 ;
@@ -379,7 +375,7 @@ a:double | tan:double
 
 tanh
 // tag::tanh[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL tanh=TANH(a)
 // end::tanh[]
 ;
@@ -595,4 +591,243 @@ s:double | emp_no:integer | salary:integer  | salary_change:double
 -1.0     | 10002          | 56371           | [-7.23, 11.17]
 -1.0     | 10004          | 36174           | [-0.35, 1.13, 3.65, 13.48]
 -1.0     | 10005          | 63528           | [-2.14, 13.07]
+;
+
+docsScalb
+required_capability: fn_scalb
+// tag::scalb[]
+row x = 3.0, y = 10 | eval z = scalb(x, y)
+// end::scalb[]
+;
+
+// tag::scalb-result[]
+x:double | y:integer | z:double
+3.0      | 10        | 3072.0
+// end::scalb-result[]
+;
+
+scalbConstant
+required_capability: fn_scalb
+row y = "foo" | eval x = scalb(3, 10) | keep x;
+
+x:double
+3072.0
+;
+
+scalbWithNonFoldableArgsAndWhere
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(mv_min(salary_change), emp_no / 1000)
+| where scalb(mv_min(salary_change), 3) > 100
+| sort s
+| keep s;
+
+s:double
+13127.68
+13936.64
+;
+
+scalbWithEvalAndSort
+required_capability: fn_scalb
+from employees
+| eval s = scalb(mv_min(salary_change), 5)
+| where scalb(mv_max(salary_change), 5) > 100
+| keep s, emp_no, salary, salary_change
+| sort s, emp_no
+| limit 3;
+
+s:double | emp_no:integer | salary:integer  | salary_change:double
+-313.92  | 10065          | 50249          | [-9.81, -1.47, 14.44]   
+-296.96  | 10042          | 30404          | [-9.28, 9.42]           
+-295.36  | 10091          | 38645          | [-9.23, 5.19, 5.85, 7.5]
+;
+
+scalbWithHugeScaleFactor
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(abs(mv_min(salary_change)), 2147483648 + emp_no)
+| keep s
+| limit 3
+;
+warning: Line 2:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648 + emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:12: java.lang.ArithmeticException: integer overflow
+
+s:double
+null
+null
+null
+;
+scalbWithHugeConstantScaleFactor
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(abs(mv_min(salary_change)), 2147483648)
+| keep s
+| limit 3
+;
+warning: Line 2:12: evaluation of [scalb(abs(mv_min(salary_change)), 2147483648)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:12: java.lang.ArithmeticException: integer overflow
+
+s:double
+null
+null
+null
+;
+
+scalbWithHugeconstantFirstArgument
+required_capability: fn_scalb
+
+from employees
+| eval s = scalb(2147483648, emp_no)
+| keep s
+| limit 3
+;
+warning: Line 2:12: evaluation of [scalb(2147483648, emp_no)] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:12: java.lang.ArithmeticException: not a finite double number: Infinity
+
+s:double
+null
+null
+null
+;
+
+rowMvMin
+  ROW d=[1.1, 2.2]::DOUBLE
+| EVAL d=MV_MIN(d)
+;
+
+d:double
+1.1
+;
+
+rowMvMax
+  ROW d=[1.1, 2.2]::DOUBLE
+| EVAL d=MV_MAX(d)
+;
+
+d:double
+2.2
+;
+
+groupMv
+  FROM employees
+| STATS MIN(emp_no) BY salary_change
+| SORT salary_change DESC
+| LIMIT 5
+;
+
+MIN(emp_no):integer | salary_change:double
+10009               | null
+10040               | 14.74
+10003               | 14.68
+10023               | 14.63
+10065               | 14.44
+;
+
+groupMvMin
+  FROM employees
+| STATS MIN(emp_no) BY salary_change=MV_MIN(salary_change)
+| SORT salary_change DESC
+| LIMIT 5
+;
+
+MIN(emp_no):integer | salary_change:double
+10009               | null
+10086               | 13.61
+10003               | 12.82
+10015               | 12.4
+10050               | 8.7
+;
+
+groupMvMax
+  FROM employees
+| STATS MIN(emp_no) BY salary_change=MV_MAX(salary_change)
+| SORT salary_change DESC
+| LIMIT 5
+;
+
+MIN(emp_no):integer | salary_change:double
+10009               | null
+10040               | 14.74
+10003               | 14.68
+10023               | 14.63
+10065               | 14.44
+;
+
+valuesMvMinDouble
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS MV_MIN(VALUES(salary_change)) BY first_letter
+| SORT first_letter ASC
+;
+
+MV_MIN(VALUES(salary_change)):double | first_letter:keyword
+-3.9                                 | A
+-7.23                                | B
+-0.35                                | C
+1.19                                 | G
+-2.14                                | K
+12.82                                | P
+-2.92                                | S
+-7.06                                | T
+;
+
+valuesMvMaxDouble
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS MV_MAX(VALUES(salary_change)) BY first_letter
+| SORT first_letter ASC
+;
+
+MV_MAX(VALUES(salary_change)):double | first_letter:keyword
+-3.9                                 | A
+11.17                                | B
+13.48                                | C
+1.19                                 | G
+13.07                                | K
+14.68                                | P
+12.68                                | S
+1.99                                 | T
+;
+
+valuesMvMinFloat
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS MV_MIN(VALUES(height.float)) BY first_letter
+| SORT first_letter ASC
+;
+
+MV_MIN(VALUES(height.float)):double | first_letter:keyword
+1.559999942779541                   | A
+2.0799999237060547                  | B
+1.7799999713897705                  | C
+2.0299999713897705                  | G
+2.049999952316284                   | K
+1.8300000429153442                  | P
+1.850000023841858                   | S
+1.7000000476837158                  | T
+;
+
+valuesMvMaxFloat
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS MV_MAX(VALUES(height.float)) BY first_letter
+| SORT first_letter ASC
+;
+
+MV_MAX(VALUES(height.float)):double | first_letter:keyword
+1.559999942779541                   | A
+2.0799999237060547                  | B
+1.7799999713897705                  | C
+2.0299999713897705                  | G
+2.049999952316284                   | K
+1.8300000429153442                  | P
+2.0999999046325684                  | S
+1.7000000476837158                  | T
 ;

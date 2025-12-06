@@ -24,8 +24,6 @@ import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
-import org.elasticsearch.bootstrap.PluginPolicyInfo;
-import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -36,6 +34,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugin.scanner.ClassReaders;
@@ -64,6 +63,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -249,8 +249,8 @@ public class InstallPluginAction implements Closeable {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(plugin, env.tmpFile());
-                final Path extractedZip = unzip(pluginZip, env.pluginsFile());
+                final Path pluginZip = download(plugin, env.tmpDir());
+                final Path extractedZip = unzip(pluginZip, env.pluginsDir());
                 deleteOnFailure.add(extractedZip);
                 final PluginDescriptor pluginDescriptor = installPlugin(plugin, extractedZip, deleteOnFailure);
                 terminal.println(logPrefix + "Installed " + pluginDescriptor.getName());
@@ -330,8 +330,29 @@ public class InstallPluginAction implements Closeable {
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }
+
+        verifyLocationNotInPluginsDirectory(pluginLocation);
+
         terminal.println(logPrefix + "Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
         return downloadZip(pluginLocation, tmpDir);
+    }
+
+    @SuppressForbidden(reason = "Need to use Paths#get")
+    private void verifyLocationNotInPluginsDirectory(String pluginLocation) throws URISyntaxException, IOException, UserException {
+        if (pluginLocation == null) {
+            return;
+        }
+        URI uri = new URI(pluginLocation);
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            Path pluginRealPath = Paths.get(uri).toRealPath();
+            Path pluginsDirectory = env.pluginsDir().toRealPath();
+            if (pluginRealPath.startsWith(pluginsDirectory)) {
+                throw new UserException(
+                    ExitCodes.USAGE,
+                    "Installation of plugin in location [" + pluginLocation + "] from inside the plugins directory is not permitted."
+                );
+            }
+        }
     }
 
     @SuppressForbidden(reason = "Need to use PathUtils#get")
@@ -463,9 +484,9 @@ public class InstallPluginAction implements Closeable {
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
-    Path downloadZip(String urlString, Path tmpDir) throws IOException {
+    Path downloadZip(String urlString, Path tmpDir) throws IOException, URISyntaxException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
-        URL url = new URL(urlString);
+        URL url = new URI(urlString).toURL();
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = this.proxy == null ? url.openConnection() : url.openConnection(this.proxy);
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
@@ -549,9 +570,10 @@ public class InstallPluginAction implements Closeable {
      * @throws IOException   if an I/O exception occurs download or reading files and resources
      * @throws PGPException  if an exception occurs verifying the downloaded ZIP signature
      * @throws UserException if checksum validation fails
+     * @throws URISyntaxException is the url is invalid
      */
     private Path downloadAndValidate(final String urlString, final Path tmpDir, final boolean officialPlugin) throws IOException,
-        PGPException, UserException {
+        PGPException, UserException, URISyntaxException {
         Path zip = downloadZip(urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
@@ -868,14 +890,14 @@ public class InstallPluginAction implements Closeable {
         PluginsUtils.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsFile(), info.getName());
+        verifyPluginName(env.pluginsDir(), info.getName());
 
-        PluginsUtils.checkForFailedPluginRemovals(env.pluginsFile());
+        PluginsUtils.checkForFailedPluginRemovals(env.pluginsDir());
 
         terminal.println(VERBOSE, info.toString());
 
         // check for jar hell before any copying
-        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
+        jarHellCheck(info, pluginRoot, env.pluginsDir(), env.modulesDir());
 
         if (info.isStable() && hasNamedComponentFile(pluginRoot) == false) {
             generateNameComponentFile(pluginRoot);
@@ -922,11 +944,21 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
-        PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
-        if (pluginPolicy != null) {
-            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
-            PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
+
+        Path legacyPolicyFile = tmpRoot.resolve("plugin-security.policy");
+        if (Files.exists(legacyPolicyFile)) {
+            terminal.errorPrintln(
+                "WARNING: this plugin contains a legacy Security Policy file. Starting with version 8.18, "
+                    + "Entitlements replace SecurityManager as the security mechanism. Plugins must migrate their policy files to the new "
+                    + "format. For more information, please refer to "
+                    + PluginSecurity.ENTITLEMENTS_DESCRIPTION_URL
+            );
         }
+
+        var pluginPolicy = PolicyUtils.parsePolicyIfExists(info.getName(), tmpRoot, true);
+
+        Set<String> entitlements = PolicyUtils.getEntitlementsDescriptions(pluginPolicy);
+        PluginSecurity.confirmPolicyExceptions(terminal, entitlements, batch);
 
         // Validate that the downloaded plugin's ID matches what we expect from the descriptor. The
         // exception is if we install a plugin via `InstallPluginCommand` by specifying a URL or
@@ -938,14 +970,14 @@ public class InstallPluginAction implements Closeable {
             );
         }
 
-        final Path destination = env.pluginsFile().resolve(info.getName());
+        final Path destination = env.pluginsDir().resolve(info.getName());
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binFile().resolve(info.getName()),
-            env.configFile().resolve(info.getName()),
+            env.binDir().resolve(info.getName()),
+            env.configDir().resolve(info.getName()),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);

@@ -150,6 +150,32 @@ public class RoleMappingRestIT extends ESRestTestCase {
             );
         }
 
+        // simulate attempt to update a CS role mapping (the request will include a _read_only metadata flag
+        {
+            var ex = expectThrows(
+                ResponseException.class,
+                () -> putMapping(expressionRoleMapping("role-mapping-1-read-only-operator-mapping", Map.of("_read_only", true)))
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString("metadata contains [_read_only] flag. You cannot create or update role-mappings with a read-only flag")
+            );
+        }
+
+        {
+            var ex = expectThrows(
+                ResponseException.class,
+                () -> putMapping(expressionRoleMapping("role-mapping-1-read-only-operator-mapping"))
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Invalid mapping name [role-mapping-1-read-only-operator-mapping]. "
+                        + "[-read-only-operator-mapping] is not an allowed suffix"
+                )
+            );
+        }
+
         // Also fails even if a CS role mapping with that name does not exist
         {
             var ex = expectThrows(
@@ -209,12 +235,16 @@ public class RoleMappingRestIT extends ESRestTestCase {
     }
 
     private static ExpressionRoleMapping expressionRoleMapping(String name) {
+        return expressionRoleMapping(name, Map.of());
+    }
+
+    private static ExpressionRoleMapping expressionRoleMapping(String name, Map<String, Object> metadata) {
         return new ExpressionRoleMapping(
             name,
             new FieldExpression("username", List.of(new FieldExpression.FieldValue(randomAlphaOfLength(10)))),
             List.of(randomAlphaOfLength(5)),
             null,
-            Map.of(),
+            metadata,
             true
         );
     }

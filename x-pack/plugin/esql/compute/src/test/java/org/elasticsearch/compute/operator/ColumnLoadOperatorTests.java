@@ -11,7 +11,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -63,7 +64,7 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new ColumnLoadOperator.Factory(
             new ColumnLoadOperator.Values(
                 "values",

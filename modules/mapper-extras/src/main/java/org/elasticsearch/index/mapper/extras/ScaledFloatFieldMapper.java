@@ -9,40 +9,46 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ScaledFloatDocValuesField;
@@ -65,6 +71,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
@@ -123,24 +131,24 @@ public class ScaledFloatFieldMapper extends FieldMapper {
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
 
-        private final IndexMode indexMode;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, Settings settings, IndexMode indexMode) {
-            this(name, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings), indexMode);
-        }
-
-        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexMode indexMode) {
+        public Builder(String name, IndexSettings indexSettings) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
                 m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
+                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
-            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
-            this.indexMode = indexMode;
+            this.coerce = Parameter.explicitBoolParam(
+                "coerce",
+                true,
+                m -> toType(m).coerce,
+                COERCE_SETTING.get(indexSettings.getSettings())
+            );
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
-                if (indexMode == IndexMode.TIME_SERIES) {
+                if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != TimeSeriesParams.MetricType.COUNTER && metricType != TimeSeriesParams.MetricType.GAUGE;
                 } else {
@@ -158,6 +166,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     );
                 }
             });
+            this.indexSettings = indexSettings;
         }
 
         Builder scalingFactor(double scalingFactor) {
@@ -184,24 +193,53 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric };
         }
 
+        private IndexType indexType() {
+            if (indexed.getValue()) {
+                return IndexType.points(true, hasDocValues.getValue());
+            }
+            if (hasDocValues.getValue()
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
+                && indexSettings.useDocValuesSkipper()) {
+                return IndexType.skippers();
+            }
+            return IndexType.points(false, hasDocValues.getValue());
+        }
+
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(
                 context.buildFullName(leafName()),
-                indexed.getValue(),
+                indexType(),
                 stored.getValue(),
-                hasDocValues.getValue(),
                 meta.getValue(),
                 scalingFactor.getValue(),
                 nullValue.getValue(),
                 metric.getValue(),
-                indexMode
+                indexSettings.getMode(),
+                coerce.getValue().value(),
+                context.isSourceSynthetic()
             );
-            return new ScaledFloatFieldMapper(leafName(), type, builderParams(this, context), context.isSourceSynthetic(), this);
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSettings.sourceKeepMode(),
+                hasDocValues.getValue(),
+                stored.getValue(),
+                this,
+                indexSettings.getIndexVersionCreated(),
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_SCALED_FLOAT
+            );
+            return new ScaledFloatFieldMapper(
+                leafName(),
+                type,
+                builderParams(this, context),
+                context.isSourceSynthetic(),
+                this,
+                offsetsFieldName
+            );
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings(), c.getIndexSettings().getMode()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
 
@@ -209,23 +247,28 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final Double nullValue;
         private final TimeSeriesParams.MetricType metricType;
         private final IndexMode indexMode;
+        private final boolean coerce;
+        private final boolean isSyntheticSource;
 
         public ScaledFloatFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Map<String, String> meta,
             double scalingFactor,
             Double nullValue,
             TimeSeriesParams.MetricType metricType,
-            IndexMode indexMode
+            IndexMode indexMode,
+            boolean coerce,
+            boolean isSyntheticSource
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+            super(name, indexType, stored, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.coerce = coerce;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
@@ -233,7 +276,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
-            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null, null);
+            this(name, IndexType.points(indexed, true), false, Collections.emptyMap(), scalingFactor, null, null, null, false, false);
         }
 
         public double getScalingFactor() {
@@ -252,20 +295,25 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType().hasPoints());
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 List<Long> scaledValues = new ArrayList<>(values.size());
                 for (Object value : values) {
                     long scaledValue = Math.round(scale(value));
@@ -302,7 +350,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed());
+            return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, indexType.hasPoints());
         }
 
         @Override
@@ -311,15 +359,79 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 // Counters are not supported by ESQL so we load them in null
                 return BlockLoader.CONSTANT_NULLS;
             }
-            if (hasDocValues()) {
-                double scalingFactorInverse = 1d / scalingFactor;
-                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l * scalingFactorInverse);
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+                return new DoublesBlockLoader(name(), l -> l / scalingFactor);
             }
-            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return new FallbackSyntheticSourceBlockLoader(
+                    fallbackSyntheticSourceBlockLoaderReader(),
+                    name(),
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                ) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.doubles(expectedCount);
+                    }
+                };
+            }
+            var valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && isStored()
+                // We only write the field names field if there aren't doc values
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);
+        }
+
+        private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+            var nullValueAdjusted = nullValue != null ? adjustSourceValue(nullValue, scalingFactor) : null;
+
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Double>(nullValue) {
+                @Override
+                public void convertValue(Object value, List<Double> accumulator) {
+                    if (coerce && value.equals("")) {
+                        if (nullValueAdjusted != null) {
+                            accumulator.add(nullValueAdjusted);
+                        }
+                    }
+
+                    try {
+                        // Convert to doc_values format
+                        var converted = adjustSourceValue(NumberFieldMapper.NumberType.objectToDouble(value), scalingFactor);
+                        accumulator.add(converted);
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                protected void parseNonNullValue(XContentParser parser, List<Double> accumulator) throws IOException {
+                    // Aligned with implementation of `parseCreateField(XContentParser)`
+                    if (coerce && parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0) {
+                        if (nullValueAdjusted != null) {
+                            accumulator.add(nullValueAdjusted);
+                        }
+                    }
+
+                    try {
+                        double value = parser.doubleValue(coerce);
+                        // Convert to doc_values format
+                        var converted = adjustSourceValue(value, scalingFactor);
+                        accumulator.add(converted);
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<Double> values, BlockLoader.Builder blockBuilder) {
+                    var longBuilder = (BlockLoader.DoubleBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        longBuilder.appendDouble(value);
+                    }
+                }
+            };
         }
 
         @Override
@@ -342,7 +454,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
                         },
-                        isIndexed()
+                        indexType
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };
@@ -355,7 +467,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     ScaledFloatDocValuesField::new
                 );
@@ -369,11 +481,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;
@@ -386,10 +501,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         doubleValue = NumberFieldMapper.NumberType.objectToDouble(value);
                     }
 
-                    double factor = getScalingFactor();
-                    return Math.round(doubleValue * factor) / factor;
+                    return adjustSourceValue(doubleValue, getScalingFactor());
                 }
             };
+        }
+
+        // Adjusts precision of a double value so that it looks like it came from doc_values.
+        private static Double adjustSourceValue(double value, double scalingFactor) {
+            return Math.round(value * scalingFactor) / scalingFactor;
         }
 
         @Override
@@ -454,18 +573,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final Double nullValue;
     private final double scalingFactor;
     private final boolean isSourceSynthetic;
-
-    private final boolean ignoreMalformedByDefault;
-    private final boolean coerceByDefault;
     private final TimeSeriesParams.MetricType metricType;
-    private final IndexMode indexMode;
+    private final String offsetsFieldName;
+
+    private final IndexSettings indexSettings;
 
     private ScaledFloatFieldMapper(
         String simpleName,
         ScaledFloatFieldType mappedFieldType,
         BuilderParams builderParams,
         boolean isSourceSynthetic,
-        Builder builder
+        Builder builder,
+        String offsetsFieldName
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.isSourceSynthetic = isSourceSynthetic;
@@ -476,10 +595,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
-        this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.indexSettings = builder.indexSettings;
         this.metricType = builder.metric.getValue();
-        this.indexMode = builder.indexMode;
+        this.offsetsFieldName = offsetsFieldName;
     }
 
     boolean coerce() {
@@ -489,6 +607,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    @Override
+    public String getOffsetFieldName() {
+        return offsetsFieldName;
     }
 
     @Override
@@ -503,7 +626,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexMode).metric(metricType).init(this);
+        return new Builder(leafName(), indexSettings).metric(metricType).init(this);
     }
 
     @Override
@@ -533,11 +656,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             value = numericValue;
         }
 
+        boolean shouldStoreOffsets = offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField();
+
         if (value == null) {
             value = nullValue;
         }
 
         if (value == null) {
+            if (shouldStoreOffsets) {
+                context.getOffSetContext().recordNull(offsetsFieldName);
+            }
             return;
         }
 
@@ -561,7 +689,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = encode(doubleValue, scalingFactor);
 
-        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
+        NumberFieldMapper.NumberType.LONG.addFields(
+            context.doc(),
+            fieldType().name(),
+            scaledValue,
+            IndexType.points(indexed, hasDocValues),
+            stored
+        );
+
+        if (shouldStoreOffsets) {
+            context.getOffSetContext().recordOffset(offsetsFieldName, scaledValue);
+        }
 
         if (hasDocValues == false && (indexed || stored)) {
             context.addToFieldNames(fieldType().name());
@@ -621,8 +759,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean isIndexed() {
-            return false; // We don't know how to take advantage of the index with half floats anyway
+        protected IndexType indexType() {
+            return IndexType.NONE; // We don't know how to take advantage of the index with half floats anyway
         }
 
         @Override
@@ -668,10 +806,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
-            final SortedNumericDocValues values = scaledFieldData.getLongValues();
-            final NumericDocValues singleValues = DocValues.unwrapSingleton(values);
+            final SortedNumericLongValues values = scaledFieldData.getLongValues();
+            final LongValues singleValues = SortedNumericLongValues.unwrapSingleton(values);
             if (singleValues != null) {
-                return FieldData.singleton(new NumericDoubleValues() {
+                return FieldData.singleton(new DoubleValues() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
                         return singleValues.advanceExact(doc);
@@ -704,17 +842,34 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
     }
 
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (hasDocValues) {
-            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
+    private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
+        if (offsetsFieldName != null) {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+            layers.add(
+                new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
+                    fullPath(),
+                    offsetsFieldName,
+                    (b, value) -> b.value(decodeForSyntheticSource(value, scalingFactor))
+                )
+            );
+            if (ignoreMalformed.value()) {
+                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+            }
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        } else {
+            return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
                 @Override
                 protected void writeValue(XContentBuilder b, long value) throws IOException {
                     b.value(decodeForSyntheticSource(value, scalingFactor));
                 }
             };
+        }
+    }
 
-            return new SyntheticSourceSupport.Native(loader);
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            return new SyntheticSourceSupport.Native(this::docValuesSyntheticFieldLoader);
         }
 
         return super.syntheticSourceSupport();

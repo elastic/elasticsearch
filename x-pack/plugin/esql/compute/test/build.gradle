@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  api project(':test:framework')
+  api project(xpackModule('esql:compute'))
+  // Use esql-core to see SpatialCoordinateTypes. That's in core because
+  // Literal is in core. There's a bit of a chain here. We'd prefer not
+  // do this, but such is life. For now.
+  api project(xpackModule('esql-core'))
+}
+

@@ -9,14 +9,20 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,6 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,28 +55,29 @@ public class SimulateIngestServiceTests extends ESTestCase {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(
             "processor1",
-            (factories, tag, description, config) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {
             }
         );
         processors.put(
             "processor2",
-            (factories, tag, description, config) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {
             }
         );
         processors.put(
             "processor3",
-            (factories, tag, description, config) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {
             }
         );
-        IngestService ingestService = createWithProcessors(processors);
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        final var projectId = randomProjectIdOrDefault();
+        IngestService ingestService = createWithProcessors(projectId, processors);
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
+            Pipeline pipeline = simulateIngestService.getPipeline(projectId, "pipeline1");
             assertThat(pipeline.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
-            assertNull(simulateIngestService.getPipeline("pipeline2"));
+            assertNull(simulateIngestService.getPipeline(projectId, "pipeline2"));
         }
         {
             // Here we make sure that if we have a substitution with the same name as the original pipeline that we get the new one back
@@ -83,9 +91,9 @@ public class SimulateIngestServiceTests extends ESTestCase {
             );
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
 
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of());
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of(), null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
+            Pipeline pipeline1 = simulateIngestService.getPipeline(projectId, "pipeline1");
             assertThat(
                 pipeline1.getProcessors(),
                 contains(
@@ -93,7 +101,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
                     transformedMatch(Processor::getType, equalTo("processor3"))
                 )
             );
-            Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
+            Pipeline pipeline2 = simulateIngestService.getPipeline(projectId, "pipeline2");
             assertThat(pipeline2.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor3"))));
         }
         {
@@ -103,16 +111,42 @@ public class SimulateIngestServiceTests extends ESTestCase {
              */
             Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>();
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of());
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of(), null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
+            Pipeline pipeline1 = simulateIngestService.getPipeline(projectId, "pipeline1");
             assertThat(pipeline1.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
-            Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
+            Pipeline pipeline2 = simulateIngestService.getPipeline(projectId, "pipeline2");
             assertThat(pipeline2.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor3"))));
         }
     }
 
-    private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
+    public void testRethrowingOfElasticParseExceptionFromProcessors() {
+        final PipelineConfiguration pipelineConfiguration = new PipelineConfiguration("pipeline1", new BytesArray("""
+            {"processors": []}"""), XContentType.JSON);
+        final IngestMetadata ingestMetadata = new IngestMetadata(Map.of("pipeline1", pipelineConfiguration));
+        final Processor.Factory factoryThatThrowsElasticParseException = (factory, tag, description, config, projectId) -> {
+            throw new ElasticsearchParseException("exception to be caught");
+        };
+        final Map<String, Processor.Factory> processors = Map.of("parse_exception_processor", factoryThatThrowsElasticParseException);
+        final var projectId = randomProjectIdOrDefault();
+        IngestService ingestService = createWithProcessors(projectId, processors);
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
+            newHashMap("pipeline1", newHashMap("processors", List.of(Map.of("parse_exception_processor", new HashMap<>(0))))),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            null
+        );
+
+        final ElasticsearchParseException ex = assertThrows(
+            ElasticsearchParseException.class,
+            () -> new SimulateIngestService(ingestService, simulateBulkRequest)
+        );
+        assertThat(ex.getMessage(), is("exception to be caught"));
+    }
+
+    private static IngestService createWithProcessors(ProjectId projectId, Map<String, Processor.Factory> processors) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -132,8 +166,15 @@ public class SimulateIngestServiceTests extends ESTestCase {
             List.of(ingestPlugin),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProject(projectId),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            },
+            mock(SamplingService.class)
         );
     }
 }

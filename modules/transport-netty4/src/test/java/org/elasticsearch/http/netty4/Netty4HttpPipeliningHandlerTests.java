@@ -19,6 +19,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpContent;
+import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -35,15 +36,24 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.bytes.ZeroBytesReference;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.network.ThreadWatchdogHelper;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.NettyAllocator;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.TLSConfig;
 import org.junit.After;
 
 import java.nio.channels.ClosedChannelException;
@@ -62,6 +72,7 @@ import java.util.stream.IntStream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -70,7 +81,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.mock;
 
 public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
@@ -79,11 +89,14 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     private final Map<String, CountDownLatch> waitingRequests = new ConcurrentHashMap<>();
     private final Map<String, CountDownLatch> finishingRequests = new ConcurrentHashMap<>();
 
+    private final ThreadPool threadPool = new TestThreadPool("pipelining test");
+
     @After
     public void tearDown() throws Exception {
         waitingRequests.keySet().forEach(this::finishRequest);
         terminateExecutorService(handlerService);
         terminateExecutorService(eventLoopService);
+        threadPool.shutdownNow();
         super.tearDown();
     }
 
@@ -126,12 +139,31 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
-        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(numberOfRequests, null, new ThreadWatchdog.ActivityTracker()) {
-            @Override
-            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
-                ctx.fireChannelRead(pipelinedRequest);
-            }
-        }, new WorkEmulatorHandler());
+        return new EmbeddedChannel(
+            new Netty4HttpPipeliningHandler(numberOfRequests, httpServerTransport(), new ThreadWatchdog.ActivityTracker()) {
+                @Override
+                protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
+                    ctx.fireChannelRead(pipelinedRequest);
+                }
+            },
+            new WorkEmulatorHandler()
+        );
+    }
+
+    private Netty4HttpServerTransport httpServerTransport() {
+        return new Netty4HttpServerTransport(
+            Settings.EMPTY,
+            new NetworkService(List.of()),
+            threadPool,
+            xContentRegistry(),
+            new AggregatingDispatcher(),
+            ClusterSettings.createBuiltInClusterSettings(),
+            new SharedGroupFactory(Settings.EMPTY),
+            TelemetryProvider.NOOP,
+            TLSConfig.noTLS(),
+            null,
+            null
+        );
     }
 
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
@@ -193,7 +225,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel = new EmbeddedChannel(
-            new Netty4HttpPipeliningHandler(numberOfRequests + 1, null, new ThreadWatchdog.ActivityTracker())
+            new Netty4HttpPipeliningHandler(numberOfRequests + 1, httpServerTransport(), new ThreadWatchdog.ActivityTracker())
         );
 
         for (int i = 0; i < numberOfRequests; i++) {
@@ -485,7 +517,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         final var watchdog = new ThreadWatchdog();
         final var activityTracker = watchdog.getActivityTrackerForCurrentThread();
         final var requestHandled = new AtomicBoolean();
-        final var handler = new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, mock(Netty4HttpServerTransport.class), activityTracker) {
+        final var handler = new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, httpServerTransport(), activityTracker) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 // thread is not idle while handling the request
@@ -517,7 +549,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private static void assertContentAtIndexEquals(List<Object> messagesSeen, int index, BytesReference single) {
-        assertEquals(Netty4Utils.toBytesReference(((ByteBufHolder) messagesSeen.get(index)).content()), single);
+        assertThat(single, equalBytes(Netty4Utils.toBytesReference(((ByteBufHolder) messagesSeen.get(index)).content())));
     }
 
     private static void assertDoneWithClosedChannel(ChannelPromise chunkedWritePromise) {
@@ -526,11 +558,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private Netty4HttpPipeliningHandler getTestHttpHandler() {
-        return new Netty4HttpPipeliningHandler(
-            Integer.MAX_VALUE,
-            mock(Netty4HttpServerTransport.class),
-            new ThreadWatchdog.ActivityTracker()
-        ) {
+        return new Netty4HttpPipeliningHandler(Integer.MAX_VALUE, httpServerTransport(), new ThreadWatchdog.ActivityTracker()) {
             @Override
             protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
                 ctx.fireChannelRead(pipelinedRequest);
@@ -591,8 +619,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(data, is(expectedContent));
     }
 
-    private DefaultFullHttpRequest createHttpRequest(String uri) {
-        return new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri);
+    private Object[] createHttpRequest(String uri) {
+        return new Object[] { new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, uri), LastHttpContent.EMPTY_LAST_CONTENT };
     }
 
     private class WorkEmulatorHandler extends SimpleChannelInboundHandler<Netty4HttpRequest> {

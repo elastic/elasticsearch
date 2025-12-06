@@ -4,7 +4,7 @@
 // the comments in whatever file the test already lives in. If you have to
 // write a new test to make an example in the docs then put it in whatever
 // file matches its "theme" best. Put it next to similar tests. Not here.
- 
+
 // Also! When Nik originally extracted examples from the docs to make them
 // testable he didn't spend a lot of time putting the docs into appropriate
 // files. He just made this one. He didn't put his toys away. We'd be better
@@ -37,9 +37,9 @@ FROM employees
 // end::keepWildcard[]
 | LIMIT 0;
 
-// tag::keep-wildcard-result[]
+// tag::keepWildcard-result[]
 height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date
-// end::keep-wildcard-result[]
+// end::keepWildcard-result[]
 ;
 
 docsKeepDoubleWildcard
@@ -49,9 +49,9 @@ FROM employees
 // end::keepDoubleWildcard[]
 | LIMIT 0;
 
-// tag::keep-double-wildcard-result[]
+// tag::keepDoubleWildcard-result[]
 height:double | height.float:double | height.half_float:double | height.scaled_float:double |       hire_date:date | avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long |still_hired:boolean
-// end::keep-double-wildcard-result[]
+// end::keepDoubleWildcard-result[]
 ;
 
 docsKeepCompleteName#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
@@ -61,9 +61,9 @@ FROM employees
 // end::keepCompleteName[]
 | LIMIT 0;
 
-// tag::keep-complete-name-result[]
+// tag::keepCompleteName-result[]
 first_name:keyword | last_name:keyword
-// end::keep-complete-name-result[]
+// end::keepCompleteName-result[]
 ;
 
 docsKeepWildcardPrecedence#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
@@ -73,9 +73,9 @@ FROM employees
 // end::keepWildcardPrecedence[]
 | LIMIT 0;
 
-// tag::keep-wildcard-precedence-result[]
+// tag::keepWildcardPrecedence-result[]
 last_name:keyword | first_name:keyword
-// end::keep-wildcard-precedence-result[]
+// end::keepWildcardPrecedence-result[]
 ;
 
 docsKeepWildcardLowest#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
@@ -85,9 +85,9 @@ FROM employees
 // end::keepWildcardLowest[]
 | LIMIT 0;
 
-// tag::keep-wildcard-lowest-result[]
+// tag::keepWildcardLowest-result[]
 avg_worked_seconds:long|birth_date:date|emp_no:integer|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|first_name:keyword
-// end::keep-wildcard-lowest-result[]
+// end::keepWildcardLowest-result[]
 ;
 
 docsRename
@@ -107,6 +107,18 @@ FROM employees
 | KEEP first_name, last_name
 | RENAME first_name AS fn, last_name AS ln
 // end::renameMultipleColumns[]
+| LIMIT 0;
+
+fn:keyword | ln:keyword
+;
+
+docsRenameMultipleColumnsDifferentCommands
+// tag::renameMultipleColumnsDifferentCommands[]
+FROM employees
+| KEEP first_name, last_name
+| RENAME first_name AS fn
+| RENAME last_name AS ln
+// end::renameMultipleColumnsDifferentCommands[]
 | LIMIT 0;
 
 fn:keyword | ln:keyword
@@ -323,20 +335,6 @@ date_string:keyword | date:date
 // end::dateParse-result[]
 ;
 
-docsReplace
-//tag::replaceString[]
-ROW str = "Hello World"
-| EVAL str = REPLACE(str, "World", "Universe")
-| KEEP str
-// end::replaceString[]
-;
-
-//tag::replaceString-result[]
-str:keyword
-Hello Universe
-// end::replaceString-result[]
-;
-
 docsCase
 // tag::case[]
 FROM employees
@@ -352,18 +350,18 @@ FROM employees
 
 // tag::case-result[]
 emp_no:integer | languages:integer| type:keyword
-10001          | 2                |bilingual      
-10002          | 5                |polyglot       
-10003          | 4                |polyglot       
-10004          | 5                |polyglot       
-10005          | 1                |monolingual    
+10001          | 2                |bilingual
+10002          | 5                |polyglot
+10003          | 4                |polyglot
+10004          | 5                |polyglot
+10005          | 1                |monolingual
 // end::case-result[]
 ;
 
 docsCountAll
 // tag::countAll[]
-FROM employees 
-| STATS count = COUNT(*) BY languages 
+FROM employees
+| STATS count = COUNT(*) BY languages
 | SORT languages DESC
 // end::countAll[]
 ;
@@ -371,7 +369,7 @@ FROM employees
 // tag::countAll-result[]
 count:long | languages:integer
 10         |null
-21         |5 
+21         |5
 18         |4
 17         |3
 19         |2
@@ -381,8 +379,8 @@ count:long | languages:integer
 
 basicGrok
 // tag::basicGrok[]
-ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
-| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}""" 
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}"""
 | KEEP date, ip, email, num
 // end::basicGrok[]
 ;
@@ -395,8 +393,8 @@ date:keyword          | ip:keyword    | email:keyword       | num:keyword
 
 grokWithConversionSuffix
 // tag::grokWithConversionSuffix[]
-ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
-| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}""" 
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"""
 | KEEP date, ip, email, num
 // end::grokWithConversionSuffix[]
 ;
@@ -409,8 +407,8 @@ date:keyword              | ip:keyword    | email:keyword       | num:integer
 
 grokWithToDatetime
 // tag::grokWithToDatetime[]
-ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
-| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}""" 
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"""
 | KEEP date, ip, email, num
 | EVAL date = TO_DATETIME(date)
 // end::grokWithToDatetime[]
@@ -471,7 +469,7 @@ Tokyo             | 100-7014         | null
 
 basicDissect
 // tag::basicDissect[]
-ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
 | DISSECT a """%{date} - %{msg} - %{ip}"""
 | KEEP date, msg, ip
 // end::basicDissect[]
@@ -485,8 +483,8 @@ date:keyword             | msg:keyword  | ip:keyword
 
 dissectWithToDatetime
 // tag::dissectWithToDatetime[]
-ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
-| DISSECT a """%{date} - %{msg} - %{ip}""" 
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
+| DISSECT a """%{date} - %{msg} - %{ip}"""
 | KEEP date, msg, ip
 | EVAL date = TO_DATETIME(date)
 // end::dissectWithToDatetime[]
@@ -574,8 +572,8 @@ FROM employees
 
 // tag::like-result[]
 first_name:keyword  | last_name:keyword
-Ebbe           |Callaway    
-Eberhardt      |Terkki         
+Ebbe           |Callaway
+Eberhardt      |Terkki
 // end::like-result[]
 ;
 
@@ -589,7 +587,7 @@ FROM employees
 
 // tag::rlike-result[]
 first_name:keyword  | last_name:keyword
-Alejandro      |McAlpine     
+Alejandro      |McAlpine
 // end::rlike-result[]
 ;
 
@@ -655,4 +653,41 @@ FROM sample_data
 ;
 
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsBitLength
+required_capability: fn_bit_length
+// tag::bitLength[]
+FROM airports
+| WHERE country == "India"
+| KEEP city
+| EVAL fn_length = LENGTH(city), fn_bit_length = BIT_LENGTH(city)
+// end::bitLength[]
+| SORT city
+| LIMIT 3
+;
+
+// tag::bitLength-result[]
+city:keyword  | fn_length:integer | fn_bit_length:integer
+Agwār         | 5                 | 48
+Ahmedabad     | 9                 | 72
+Bangalore     | 9                 | 72
+// end::bitLength-result[]
+;
+
+docsCategorize
+required_capability: categorize_v6
+// tag::docsCategorize[]
+FROM sample_data
+| STATS count=COUNT() BY category=CATEGORIZE(message)
+// end::docsCategorize[]
+| SORT category
+;
+
+// tag::docsCategorize-result[]
+count:long | category:keyword
+         3 | .*?Connected.+?to.*?
+         3 | .*?Connection.+?error.*?
+         1 | .*?Disconnected.*?
+// end::docsCategorize-result[]
 ;

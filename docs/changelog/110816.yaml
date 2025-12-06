@@ -1,6 +1,0 @@
-pr: 110816
-summary: GET _cluster/settings with include_defaults returns the expected fallback value if defined in elasticsearch.yml
-area: Infra/Settings
-type: bug
-issues:
- - 110815

@@ -12,9 +12,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
 
 public class JoinSerializationTests extends AbstractLogicalPlanSerializationTests<Join> {
     @Override
@@ -27,11 +30,10 @@ public class JoinSerializationTests extends AbstractLogicalPlanSerializationTest
     }
 
     private static JoinConfig randomJoinConfig() {
-        JoinType type = randomFrom(JoinType.values());
-        List<Attribute> matchFields = randomFieldAttributes(1, 10, false);
+        JoinType type = randomFrom(JoinTypes.LEFT, JoinTypes.RIGHT, JoinTypes.INNER, JoinTypes.FULL, JoinTypes.CROSS);
         List<Attribute> leftFields = randomFieldAttributes(1, 10, false);
         List<Attribute> rightFields = randomFieldAttributes(1, 10, false);
-        return new JoinConfig(type, matchFields, leftFields, rightFields);
+        return new JoinConfig(type, leftFields, rightFields, randomJoinOnExpression());
     }
 
     @Override

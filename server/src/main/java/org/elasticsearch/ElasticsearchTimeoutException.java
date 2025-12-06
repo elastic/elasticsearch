@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -33,5 +34,16 @@ public class ElasticsearchTimeoutException extends ElasticsearchException {
 
     public ElasticsearchTimeoutException(String message, Throwable cause, Object... args) {
         super(message, cause, args);
+    }
+
+    @Override
+    public RestStatus status() {
+        // closest thing to "your request took longer than you asked for"
+        return RestStatus.TOO_MANY_REQUESTS;
+    }
+
+    @Override
+    public boolean isTimeout() {
+        return true;
     }
 }

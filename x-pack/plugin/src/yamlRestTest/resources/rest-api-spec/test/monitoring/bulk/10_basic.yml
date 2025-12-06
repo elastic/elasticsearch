@@ -5,7 +5,7 @@
 
   - do:
       allowed_warnings:
-        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
       cluster.put_settings:
         body:
           persistent:
@@ -176,7 +176,7 @@
 
   - do:
       allowed_warnings:
-        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
       cluster.put_settings:
         body:
           persistent:
@@ -213,8 +213,6 @@
   - do:
       indices.close:
         index: .monitoring-beats-*
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       catch: /export_exception/

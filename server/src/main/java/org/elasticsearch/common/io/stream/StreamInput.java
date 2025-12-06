@@ -23,12 +23,13 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -71,10 +72,12 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * it means that the "barrier to entry" for adding new methods to this class is relatively low even though it is a shared class with code
  * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
  * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
- * on {@link StreamInput}.
+ * on {@link StreamOutput}.
  */
 public abstract class StreamInput extends InputStream {
 
+    // required for backwards compatibility with objects that use older transport versions for persistent serialization
+    private static final TransportVersion V_8_7_0 = TransportVersion.fromId(8070099);
     private TransportVersion version = TransportVersion.current();
 
     /**
@@ -128,6 +131,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Same as {@link #readBytesReference()} but with an explicitly provided length.
+     * @param length number of bytes to read
+     */
+    public ReleasableBytesReference readReleasableBytesReference(int length) throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference(length));
+    }
+
+    /**
      * Reads the same bytes returned by {@link #readReleasableBytesReference()} but does not retain a reference to these bytes.
      * The returned {@link BytesReference} thus only contains valid content as long as the underlying buffer has not been released.
      * This method should be preferred over {@link #readReleasableBytesReference()} when the returned reference is known to not be used
@@ -136,6 +147,10 @@ public abstract class StreamInput extends InputStream {
      */
     public BytesReference readSlicedBytesReference() throws IOException {
         return readBytesReference();
+    }
+
+    public BytesReference readSlicedBytesReference(int bytes) throws IOException {
+        return readBytesReference(bytes);
     }
 
     /**
@@ -187,6 +202,14 @@ public abstract class StreamInput extends InputStream {
 
     public BytesRef readBytesRef() throws IOException {
         int length = readArraySize();
+        return readBytesRef(length);
+    }
+
+    public @Nullable BytesRef readBytesRefOrNullIfEmpty() throws IOException {
+        int length = readArraySize();
+        if (length == 0) {
+            return null;
+        }
         return readBytesRef(length);
     }
 
@@ -373,19 +396,28 @@ public abstract class StreamInput extends InputStream {
         return new BigInteger(readString());
     }
 
+    private Text readText(int length) throws IOException {
+        byte[] bytes = new byte[length];
+        if (length > 0) {
+            readBytes(bytes, 0, length);
+        }
+        var encoded = new XContentString.UTF8Bytes(bytes);
+        return new Text(encoded);
+    }
+
     @Nullable
     public Text readOptionalText() throws IOException {
         int length = readInt();
         if (length == -1) {
             return null;
         }
-        return new Text(readBytesReference(length));
+        return readText(length);
     }
 
     public Text readText() throws IOException {
-        // use StringAndBytes so we can cache the string if it's ever converted to it
+        // use Text so we can cache the string if it's ever converted to it
         int length = readInt();
-        return new Text(readBytesReference(length));
+        return readText(length);
     }
 
     @Nullable
@@ -781,6 +813,28 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
+     *
+     * @param valueReader The value reader
+     * @param keyMapper function to create a key from a value
+     * @param constructor map constructor
+     * @return Never {@code null}.
+     */
+    public <K, V, M extends Map<K, V>> M readMapValues(
+        final Writeable.Reader<V> valueReader,
+        final Function<V, K> keyMapper,
+        final IntFunction<M> constructor
+    ) throws IOException {
+        final int size = readArraySize();
+        final M map = constructor.apply(size);
+        for (int i = 0; i < size; i++) {
+            V value = valueReader.read(this);
+            map.put(keyMapper.apply(value), value);
+        }
+        return map;
+    }
+
+    /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     @Nullable
@@ -797,7 +851,19 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     * Read an optional {@link Map} using the given key and value readers. The returned Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map or null if not present
+     */
+    public <K, V> Map<K, V> readOptionalImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        final boolean present = readBoolean();
+        return present ? readImmutableMap(keyReader, valueReader) : null;
+    }
+
+    /**
+     * Read a {@link Map} using the given key and value readers. The returned Map is immutable.
      *
      * @param keyReader Method to read a key. Must not return null.
      * @param valueReader Method to read a value. Must not return null.
@@ -855,10 +921,10 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
+            case 9 -> getTransportVersion().onOrAfter(V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
+            case 10 -> getTransportVersion().onOrAfter(V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();
@@ -908,11 +974,8 @@ public abstract class StreamInput extends InputStream {
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         final Instant instant;
-        if (getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
-            // epoch seconds can be negative, but it was incorrectly first written as vlong
-            boolean zlong = getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT);
-            long seconds = zlong ? readZLong() : readVLong();
-            instant = Instant.ofEpochSecond(seconds, readInt());
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            instant = Instant.ofEpochSecond(readZLong(), readInt());
         } else {
             instant = Instant.ofEpochMilli(readLong());
         }
@@ -1133,6 +1196,17 @@ public abstract class StreamInput extends InputStream {
     @Nullable
     public <T extends Exception> T readException() throws IOException {
         return ElasticsearchException.readException(this);
+    }
+
+    /**
+     * Reads an optional {@link Exception}.
+     */
+    @Nullable
+    public <T extends Exception> T readOptionalException() throws IOException {
+        if (readBoolean()) {
+            return ElasticsearchException.readException(this);
+        }
+        return null;
     }
 
     /**

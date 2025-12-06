@@ -1,6 +1,0 @@
-pr: 111644
-summary: Force using the last centroid during merging
-area: Aggregations
-type: bug
-issues:
- - 111065

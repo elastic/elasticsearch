@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -63,13 +62,14 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
-import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -84,7 +84,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -96,7 +95,6 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -142,8 +140,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final ClusterService clusterService;
 
-    private final FeatureService featureService;
-
     private final ReservedRoleNameChecker reservedRoleNameChecker;
 
     private final NamedXContentRegistry xContentRegistry;
@@ -154,7 +150,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         XPackLicenseState licenseState,
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
-        FeatureService featureService,
         ReservedRoleNameChecker reservedRoleNameChecker,
         NamedXContentRegistry xContentRegistry
     ) {
@@ -163,10 +158,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.reservedRoleNameChecker = reservedRoleNameChecker;
         this.xContentRegistry = xContentRegistry;
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
+    }
+
+    public boolean isEnabled() {
+        return enabled;
     }
 
     @Override
@@ -183,15 +181,20 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        assert names == null || names.stream().noneMatch(reservedRoleNameChecker::isReserved)
+            : "native roles store should not be called with reserved role names";
+
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onResponse(RoleRetrievalResult.failure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
         } else if (names == null || names.isEmpty()) {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                QueryBuilder query = QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                    .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true));
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
@@ -218,7 +221,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else if (names.size() == 1) {
             getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
         } else {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
                 MultiGetRequest multiGetRequest = client.prepareMultiGet().addIds(SECURITY_MAIN_ALIAS, roleIds).request();
                 executeAsyncWithOrigin(
@@ -253,25 +256,29 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public boolean isMetadataSearchable() {
-        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         // the metadata is searchable if:
         // * the security index has been created anew (using the latest index version),
         // i.e. it is NOT created in a previous ES version that potentially didn't index the role metadata
         // * or, the .security index has been migrated (using an internal update-by-query) such that the metadata is queryable
-        return frozenSecurityIndex.isCreatedOnLatestVersion()
-            || securityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
+        return projectSecurityIndex.isCreatedOnLatestVersion()
+            || projectSecurityIndex.isMigrationsVersionAtLeast(ROLE_METADATA_FLATTENED_MIGRATION_VERSION);
     }
 
     public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
+        if (enabled == false) {
+            listener.onResponse(QueryRoleResult.EMPTY);
+            return;
+        }
         SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
-        SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(QueryRoleResult.EMPTY);
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
@@ -306,13 +313,13 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
-        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = createRoleDeleteRequest(deleteRoleRequest.name());
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(
@@ -346,6 +353,15 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         WriteRequest.RefreshPolicy refreshPolicy,
         final ActionListener<BulkRolesResponse> listener
     ) {
+        deleteRoles(roleNames, refreshPolicy, true, listener);
+    }
+
+    public void deleteRoles(
+        final Collection<String> roleNames,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        boolean validateRoleNames,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
         if (enabled == false) {
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
@@ -355,7 +371,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         Map<String, Exception> validationErrorByRoleName = new HashMap<>();
 
         for (String roleName : roleNames) {
-            if (reservedRoleNameChecker.isReserved(roleName)) {
+            if (validateRoleNames && reservedRoleNameChecker.isReserved(roleName)) {
                 validationErrorByRoleName.put(
                     roleName,
                     new IllegalArgumentException("role [" + roleName + "] is reserved and cannot be deleted")
@@ -370,14 +386,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
             listener.onResponse(new BulkRolesResponse(List.of()));
-        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
@@ -402,7 +418,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void bulkResponseAndRefreshRolesCache(
-        List<String> roleNames,
+        Collection<String> roleNames,
         BulkResponse bulkResponse,
         Map<String, Exception> validationErrorByRoleName,
         ActionListener<BulkRolesResponse> listener
@@ -430,7 +446,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void bulkResponseWithOnlyValidationErrors(
-        List<String> roleNames,
+        Collection<String> roleNames,
         Map<String, Exception> validationErrorByRoleName,
         ActionListener<BulkRolesResponse> listener
     ) {
@@ -443,10 +459,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void executeAsyncRolesBulkRequest(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        securityIndex.checkIndexVersionThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
-        );
+        securityIndex.forCurrentProject()
+            .checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
+            );
     }
 
     private Exception validateRoleDescriptor(RoleDescriptor role) {
@@ -459,35 +476,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             return LicenseUtils.newComplianceException("field and document level security");
-        } else if (role.hasRemoteIndicesPrivileges()
-            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        } else if (role.hasRemoteClusterPermissions()
+            && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
                 return new IllegalStateException(
                     "all nodes must have version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] or higher to support remote indices privileges"
+                        + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
+                        + "] or higher to support remote cluster privileges"
                 );
-            } else if (role.hasRemoteClusterPermissions()
-                && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+            } else if (role.hasDescription() && clusterService.state().getMinTransportVersion().before(SECURITY_ROLE_DESCRIPTION)) {
+                return new IllegalStateException(
+                    "all nodes must have version ["
+                        + SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                        + "] or higher to support specifying role description"
+                );
+            } else if (Arrays.stream(role.getConditionalClusterPrivileges())
+                .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
+                && clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
                     return new IllegalStateException(
                         "all nodes must have version ["
-                            + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
-                            + "] or higher to support remote cluster privileges"
+                            + TransportVersions.V_8_16_0.toReleaseVersion()
+                            + "] or higher to support the manage roles privilege"
                     );
-                } else if (role.hasDescription() && clusterService.state().getMinTransportVersion().before(SECURITY_ROLE_DESCRIPTION)) {
-                    return new IllegalStateException(
-                        "all nodes must have version ["
-                            + SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
-                            + "] or higher to support specifying role description"
-                    );
-                } else if (Arrays.stream(role.getConditionalClusterPrivileges())
-                    .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
-                    && clusterService.state().getMinTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
-                        return new IllegalStateException(
-                            "all nodes must have version ["
-                                + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
-                                + "] or higher to support the manage roles privilege"
-                        );
-                    }
+                }
         try {
             DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {
@@ -512,29 +522,30 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         try {
             IndexRequest indexRequest = createRoleIndexRequest(role);
             indexRequest.setRefreshPolicy(refreshPolicy);
-            securityIndex.prepareIndexIfNeededThenExecute(
-                listener::onFailure,
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    indexRequest,
-                    new ActionListener<DocWriteResponse>() {
-                        @Override
-                        public void onResponse(DocWriteResponse indexResponse) {
-                            final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
-                            logger.trace("Created role: [{}]", indexRequest);
-                            clearRoleCache(role.getName(), listener, created);
-                        }
+            securityIndex.forCurrentProject()
+                .prepareIndexIfNeededThenExecute(
+                    listener::onFailure,
+                    () -> executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        SECURITY_ORIGIN,
+                        indexRequest,
+                        new ActionListener<DocWriteResponse>() {
+                            @Override
+                            public void onResponse(DocWriteResponse indexResponse) {
+                                final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                                logger.trace("Created role: [{}]", indexRequest);
+                                clearRoleCache(role.getName(), listener, created);
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.error(() -> "failed to put role [" + role.getName() + "]", e);
-                            listener.onFailure(e);
-                        }
-                    },
-                    client::index
-                )
-            );
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error(() -> "failed to put role [" + role.getName() + "]", e);
+                                listener.onFailure(e);
+                            }
+                        },
+                        client::index
+                    )
+                );
         } catch (IOException exception) {
             listener.onFailure(exception);
         }
@@ -542,7 +553,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void putRoles(
         final WriteRequest.RefreshPolicy refreshPolicy,
-        final List<RoleDescriptor> roles,
+        final Collection<RoleDescriptor> roles,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
+        putRoles(refreshPolicy, roles, true, listener);
+    }
+
+    public void putRoles(
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final Collection<RoleDescriptor> roles,
+        boolean validateRoleDescriptors,
         final ActionListener<BulkRolesResponse> listener
     ) {
         if (enabled == false) {
@@ -555,7 +575,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         for (RoleDescriptor role : roles) {
             Exception validationException;
             try {
-                validationException = validateRoleDescriptor(role);
+                validationException = validateRoleDescriptors ? validateRoleDescriptor(role) : null;
             } catch (Exception e) {
                 validationException = e;
             }
@@ -578,27 +598,28 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                bulkRequest,
-                new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse bulkResponse) {
-                        bulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
-                    }
+        securityIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    bulkRequest,
+                    new ActionListener<BulkResponse>() {
+                        @Override
+                        public void onResponse(BulkResponse bulkResponse) {
+                            bulkResponseAndRefreshRolesCache(roleNames, bulkResponse, validationErrorByRoleName, listener);
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(() -> "failed to put roles", e);
-                        listener.onFailure(e);
-                    }
-                },
-                client::bulk
-            )
-        );
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error(() -> "failed to put roles", e);
+                            listener.onFailure(e);
+                        }
+                    },
+                    client::bulk
+                )
+            );
     }
 
     private IndexRequest createRoleIndexRequest(final RoleDescriptor role) throws IOException {
@@ -621,16 +642,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     // Package private for testing
     XContentBuilder createRoleXContentBuilder(RoleDescriptor role) throws IOException {
-        assert NativeRealmValidationUtil.validateRoleName(role.getName(), false) == null
-            : "Role name was invalid or reserved: " + role.getName();
         assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         XContentBuilder builder = jsonBuilder().startObject();
         role.innerToXContent(builder, ToXContent.EMPTY_PARAMS, true);
 
-        if (featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)) {
-            builder.field(RoleDescriptor.Fields.METADATA_FLATTENED.getPreferredName(), role.getMetadata());
-        }
+        builder.field(RoleDescriptor.Fields.METADATA_FLATTENED.getPreferredName(), role.getMetadata());
 
         // When role descriptor XContent is generated for the security index all empty fields need to have default values to make sure
         // existing values are overwritten if not present since the request to update could be an UpdateRequest
@@ -657,13 +674,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
-        if (securityIndex.isAvailable(SEARCH_SHARDS) == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
@@ -671,7 +689,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client.prepareMultiSearch()
                         .add(
                             client.prepareSearch(SECURITY_MAIN_ALIAS)
-                                .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
+                                )
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )
@@ -680,6 +702,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .must(
                                             QueryBuilders.boolQuery()
                                                 .should(existsQuery("indices.field_security.grant"))
@@ -697,6 +720,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("indices.query"))
                                 )
                                 .setTrackTotalHits(true)
@@ -708,6 +732,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("remote_indices"))
                                 )
                                 .setTrackTotalHits(true)
@@ -718,6 +743,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("remote_cluster"))
                                 )
                                 .setTrackTotalHits(true)
@@ -769,14 +795,14 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleRetrievalResult> resultListener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             resultListener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            resultListener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS)));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            resultListener.onResponse(RoleRetrievalResult.failure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS)));
         } else {
-            securityIndex.checkIndexVersionThenExecute(
+            projectSecurityIndex.checkIndexVersionThenExecute(
                 e -> resultListener.onResponse(RoleRetrievalResult.failure(e)),
                 () -> executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                     @Override
@@ -797,16 +823,17 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        securityIndex.checkIndexVersionThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareGet(SECURITY_MAIN_ALIAS, getIdForRole(role)).request(),
-                listener,
-                client::get
-            )
-        );
+        securityIndex.forCurrentProject()
+            .checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    SECURITY_ORIGIN,
+                    client.prepareGet(SECURITY_MAIN_ALIAS, getIdForRole(role)).request(),
+                    listener,
+                    client::get
+                )
+            );
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {

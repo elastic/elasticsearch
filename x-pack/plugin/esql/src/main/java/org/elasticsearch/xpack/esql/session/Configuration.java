@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -34,6 +35,10 @@ public class Configuration implements Writeable {
 
     public static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
 
+    private static final TransportVersion TIMESERIES_DEFAULT_LIMIT = TransportVersion.fromName("timeseries_default_limit");
+
+    private static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = TransportVersion.fromName("esql_support_partial_results");
+
     private final String clusterName;
     private final String username;
     private final ZonedDateTime now;
@@ -41,17 +46,21 @@ public class Configuration implements Writeable {
 
     private final QueryPragmas pragmas;
 
-    private final int resultTruncationMaxSize;
-    private final int resultTruncationDefaultSize;
+    private final int resultTruncationMaxSizeRegular;
+    private final int resultTruncationDefaultSizeRegular;
+    private final int resultTruncationMaxSizeTimeseries;
+    private final int resultTruncationDefaultSizeTimeseries;
 
     private final Locale locale;
 
     private final String query;
 
     private final boolean profile;
+    private final boolean allowPartialResults;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
+    private final String projectRouting;
 
     public Configuration(
         ZoneId zi,
@@ -59,12 +68,16 @@ public class Configuration implements Writeable {
         String username,
         String clusterName,
         QueryPragmas pragmas,
-        int resultTruncationMaxSize,
-        int resultTruncationDefaultSize,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
         String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
-        long queryStartTimeNanos
+        long queryStartTimeNanos,
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries,
+        String projectRouting
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -72,13 +85,17 @@ public class Configuration implements Writeable {
         this.clusterName = clusterName;
         this.locale = locale;
         this.pragmas = pragmas;
-        this.resultTruncationMaxSize = resultTruncationMaxSize;
-        this.resultTruncationDefaultSize = resultTruncationDefaultSize;
+        this.resultTruncationMaxSizeRegular = resultTruncationMaxSizeRegular;
+        this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
+        this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
+        this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
         this.query = query;
         this.profile = profile;
         this.tables = tables;
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
+        this.allowPartialResults = allowPartialResults;
+        this.projectRouting = projectRouting;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -88,24 +105,27 @@ public class Configuration implements Writeable {
         this.clusterName = in.readOptionalString();
         locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
-        this.resultTruncationMaxSize = in.readVInt();
-        this.resultTruncationDefaultSize = in.readVInt();
+        this.resultTruncationMaxSizeRegular = in.readVInt();
+        this.resultTruncationDefaultSizeRegular = in.readVInt();
         this.query = readQuery(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.profile = in.readBoolean();
+        this.profile = in.readBoolean();
+        this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
+        this.queryStartTimeNanos = in.readLong();
+        if (in.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
+            this.allowPartialResults = in.readBoolean();
         } else {
-            this.profile = false;
+            this.allowPartialResults = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
+        if (in.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
+            this.resultTruncationMaxSizeTimeseries = in.readVInt();
+            this.resultTruncationDefaultSizeTimeseries = in.readVInt();
         } else {
-            this.tables = Map.of();
+            this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
+            this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
-            this.queryStartTimeNanos = in.readLong();
-        } else {
-            this.queryStartTimeNanos = -1;
-        }
+
+        // not needed on the data nodes for now
+        this.projectRouting = null;
     }
 
     @Override
@@ -118,17 +138,18 @@ public class Configuration implements Writeable {
         out.writeOptionalString(clusterName); // TODO this one is never null so maybe not optional
         out.writeString(locale.toLanguageTag());
         pragmas.writeTo(out);
-        out.writeVInt(resultTruncationMaxSize);
-        out.writeVInt(resultTruncationDefaultSize);
+        out.writeVInt(resultTruncationMaxSizeRegular);
+        out.writeVInt(resultTruncationDefaultSizeRegular);
         writeQuery(out, query);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(profile);
+        out.writeBoolean(profile);
+        out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
+        out.writeLong(queryStartTimeNanos);
+        if (out.getTransportVersion().supports(ESQL_SUPPORT_PARTIAL_RESULTS)) {
+            out.writeBoolean(allowPartialResults);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
-            out.writeLong(queryStartTimeNanos);
+        if (out.getTransportVersion().supports(TIMESERIES_DEFAULT_LIMIT)) {
+            out.writeVInt(resultTruncationMaxSizeTimeseries);
+            out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
     }
 
@@ -152,12 +173,18 @@ public class Configuration implements Writeable {
         return pragmas;
     }
 
-    public int resultTruncationMaxSize() {
-        return resultTruncationMaxSize;
+    public int resultTruncationMaxSize(boolean isTimeseries) {
+        if (isTimeseries) {
+            return resultTruncationMaxSizeTimeseries;
+        }
+        return resultTruncationMaxSizeRegular;
     }
 
-    public int resultTruncationDefaultSize() {
-        return resultTruncationDefaultSize;
+    public int resultTruncationDefaultSize(boolean isTimeseries) {
+        if (isTimeseries) {
+            return resultTruncationDefaultSizeTimeseries;
+        }
+        return resultTruncationDefaultSizeRegular;
     }
 
     public Locale locale() {
@@ -179,8 +206,15 @@ public class Configuration implements Writeable {
     /**
      * @return Start time of the ESQL query in nanos
      */
-    public long getQueryStartTimeNanos() {
+    public long queryStartTimeNanos() {
         return queryStartTimeNanos;
+    }
+
+    /**
+     * Create a new {@link FoldContext} with the limit configured in the {@link QueryPragmas}.
+     */
+    public FoldContext newFoldContext() {
+        return new FoldContext(pragmas.foldLimit().getBytes());
     }
 
     /**
@@ -190,12 +224,43 @@ public class Configuration implements Writeable {
         return tables;
     }
 
+    public Configuration withoutTables() {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            Map.of(),
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting
+        );
+    }
+
     /**
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
      */
     public boolean profile() {
         return profile;
+    }
+
+    /**
+     * Whether this request can return partial results instead of failing fast on failures
+     */
+    public boolean allowPartialResults() {
+        return allowPartialResults;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -230,13 +295,14 @@ public class Configuration implements Writeable {
             && Objects.equals(now, that.now)
             && Objects.equals(username, that.username)
             && Objects.equals(clusterName, that.clusterName)
-            && resultTruncationMaxSize == that.resultTruncationMaxSize
-            && resultTruncationDefaultSize == that.resultTruncationDefaultSize
+            && resultTruncationMaxSizeRegular == that.resultTruncationMaxSizeRegular
+            && resultTruncationDefaultSizeRegular == that.resultTruncationDefaultSizeRegular
             && Objects.equals(pragmas, that.pragmas)
             && Objects.equals(locale, that.locale)
             && Objects.equals(that.query, query)
             && profile == that.profile
-            && tables.equals(that.tables);
+            && tables.equals(that.tables)
+            && allowPartialResults == that.allowPartialResults;
     }
 
     @Override
@@ -247,12 +313,15 @@ public class Configuration implements Writeable {
             username,
             clusterName,
             pragmas,
-            resultTruncationMaxSize,
-            resultTruncationDefaultSize,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
             locale,
             query,
             profile,
-            tables
+            tables,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries
         );
     }
 
@@ -262,9 +331,19 @@ public class Configuration implements Writeable {
             + "pragmas="
             + pragmas
             + ", resultTruncationMaxSize="
-            + resultTruncationMaxSize
+            + "[regular="
+            + resultTruncationMaxSize(false)
+            + ",timeseries="
+            + resultTruncationMaxSize(true)
+            + "]"
             + ", resultTruncationDefaultSize="
-            + resultTruncationDefaultSize
+            + "[regular="
+            + resultTruncationDefaultSize(false)
+            + ",timeseries="
+            + resultTruncationDefaultSize(true)
+            + "]"
+            + ", zoneId="
+            + zoneId
             + ", locale="
             + locale
             + ", query='"
@@ -274,6 +353,16 @@ public class Configuration implements Writeable {
             + profile
             + ", tables="
             + tables
+            + "allow_partial_result="
+            + allowPartialResults
             + '}';
+    }
+
+    /**
+     * Reads a {@link Configuration} that doesn't contain any {@link Configuration#tables()}.
+     */
+    public static Configuration readWithoutTables(StreamInput in) throws IOException {
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, null);
+        return new Configuration(blockStreamInput);
     }
 }

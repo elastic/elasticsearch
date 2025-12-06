@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -14,21 +15,27 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromIntEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromIntEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator integer;
+
+  public ToStringFromIntEvaluator(Source source, EvalOperator.ExpressionEvaluator integer,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.integer = integer;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromInt";
+  public EvalOperator.ExpressionEvaluator next() {
+    return integer;
   }
 
   @Override
@@ -46,7 +53,7 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
     }
   }
 
-  private static BytesRef evalValue(IntVector container, int index) {
+  private BytesRef evalValue(IntVector container, int index) {
     int value = container.getInt(index);
     return ToString.fromDouble(value);
   }
@@ -81,29 +88,46 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
     }
   }
 
-  private static BytesRef evalValue(IntBlock container, int index) {
+  private BytesRef evalValue(IntBlock container, int index) {
     int value = container.getInt(index);
     return ToString.fromDouble(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromIntEvaluator[" + "integer=" + integer + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(integer);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += integer.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory integer;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory integer) {
       this.source = source;
+      this.integer = integer;
     }
 
     @Override
     public ToStringFromIntEvaluator get(DriverContext context) {
-      return new ToStringFromIntEvaluator(field.get(context), source, context);
+      return new ToStringFromIntEvaluator(source, integer.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromIntEvaluator[field=" + field + "]";
+      return "ToStringFromIntEvaluator[" + "integer=" + integer + "]";
     }
   }
 }

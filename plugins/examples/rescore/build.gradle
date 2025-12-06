@@ -10,11 +10,11 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-  name 'example-rescore'
-  description 'An example plugin implementing rescore and verifying that plugins *can* implement rescore'
-  classname 'org.elasticsearch.example.rescore.ExampleRescorePlugin'
-  licenseFile rootProject.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  name = 'example-rescore'
+  description = 'An example plugin implementing rescore and verifying that plugins *can* implement rescore'
+  classname ='org.elasticsearch.example.rescore.ExampleRescorePlugin'
+  licenseFile = layout.settingsDirectory.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
 }
 
 dependencies {

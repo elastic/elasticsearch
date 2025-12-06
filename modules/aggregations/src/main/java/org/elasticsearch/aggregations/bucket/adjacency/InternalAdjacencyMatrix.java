@@ -33,7 +33,7 @@ import java.util.Objects;
 public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<InternalAdjacencyMatrix, InternalAdjacencyMatrix.InternalBucket>
     implements
         AdjacencyMatrix {
-    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucketWritable implements AdjacencyMatrix.Bucket {
 
         private final String key;
         private final long docCount;
@@ -81,14 +81,12 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
             return aggregations;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY.getPreferredName(), key);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -237,7 +235,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (InternalBucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

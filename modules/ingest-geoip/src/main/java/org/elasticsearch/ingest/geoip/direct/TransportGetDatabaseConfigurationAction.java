@@ -13,12 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
+import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,8 +43,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.ingest.IngestGeoIpFeatures.GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE;
-
 public class TransportGetDatabaseConfigurationAction extends TransportNodesAction<
     GetDatabaseConfigurationAction.Request,
     GetDatabaseConfigurationAction.Response,
@@ -50,8 +50,8 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     GetDatabaseConfigurationAction.NodeResponse,
     List<DatabaseConfigurationMetadata>> {
 
-    private final FeatureService featureService;
     private final DatabaseNodeService databaseNodeService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetDatabaseConfigurationAction(
@@ -59,8 +59,8 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        FeatureService featureService,
-        DatabaseNodeService databaseNodeService
+        DatabaseNodeService databaseNodeService,
+        ProjectResolver projectResolver
     ) {
         super(
             GetDatabaseConfigurationAction.NAME,
@@ -70,37 +70,8 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
             GetDatabaseConfigurationAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.featureService = featureService;
         this.databaseNodeService = databaseNodeService;
-    }
-
-    @Override
-    protected void doExecute(
-        Task task,
-        GetDatabaseConfigurationAction.Request request,
-        ActionListener<GetDatabaseConfigurationAction.Response> listener
-    ) {
-        if (featureService.clusterHasFeature(clusterService.state(), GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE) == false) {
-            /*
-             * TransportGetDatabaseConfigurationAction used to be a TransportMasterNodeAction, and not all nodes in the cluster have been
-             * updated. So we don't want to send node requests to the other nodes because they will blow up. Instead, we just return
-             * the information that we used to return from the master node (it doesn't make any difference that this might not be the master
-             * node, because we're only reading the cluster state). Because older nodes only know about the Maxmind provider type, we filter
-             * out all others here to avoid causing problems on those nodes.
-             */
-            newResponseAsync(
-                task,
-                request,
-                createActionContext(task, request).stream()
-                    .filter(database -> database.database().provider() instanceof DatabaseConfiguration.Maxmind)
-                    .toList(),
-                List.of(),
-                List.of(),
-                listener
-            );
-        } else {
-            super.doExecute(task, request, listener);
-        }
+        this.projectResolver = projectResolver;
     }
 
     protected List<DatabaseConfigurationMetadata> createActionContext(Task task, GetDatabaseConfigurationAction.Request request) {
@@ -117,14 +88,14 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
                 "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
             );
         }
-
         List<DatabaseConfigurationMetadata> results = new ArrayList<>();
-        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
-            clusterService.state()
-        );
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(projectMetadata);
+        String geoIpTaskId = GeoIpDownloaderTaskExecutor.getTaskId(projectMetadata.id(), projectResolver.supportsMultipleProjects());
+
         for (String id : ids) {
-            results.addAll(getWebDatabases(tasksMetadata, id));
-            results.addAll(getMaxmindDatabases(clusterService, id));
+            results.addAll(getWebDatabases(geoIpTaskId, tasksMetadata, id));
+            results.addAll(getMaxmindDatabases(projectMetadata, id));
         }
         return results;
     }
@@ -132,10 +103,14 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     /*
      * This returns read-only database information about the databases managed by the standard downloader
      */
-    private static Collection<DatabaseConfigurationMetadata> getWebDatabases(PersistentTasksCustomMetadata tasksMetadata, String id) {
+    private static Collection<DatabaseConfigurationMetadata> getWebDatabases(
+        String geoIpTaskId,
+        PersistentTasksCustomMetadata tasksMetadata,
+        String id
+    ) {
         List<DatabaseConfigurationMetadata> webDatabases = new ArrayList<>();
         if (tasksMetadata != null) {
-            PersistentTasksCustomMetadata.PersistentTask<?> maybeGeoIpTask = tasksMetadata.getTask("geoip-downloader");
+            PersistentTasksCustomMetadata.PersistentTask<?> maybeGeoIpTask = tasksMetadata.getTask(geoIpTaskId);
             if (maybeGeoIpTask != null) {
                 GeoIpTaskState geoIpTaskState = (GeoIpTaskState) maybeGeoIpTask.getState();
                 if (geoIpTaskState != null) {
@@ -172,9 +147,9 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     /*
      * This returns information about databases that are downloaded from maxmind.
      */
-    private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ClusterService clusterService, String id) {
+    private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ProjectMetadata projectMetadata, String id) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
-        final IngestGeoIpMetadata geoIpMeta = clusterService.state().metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = projectMetadata.custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (Regex.isSimpleMatchPattern(id)) {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 if (Regex.simpleMatch(id, entry.getKey())) {

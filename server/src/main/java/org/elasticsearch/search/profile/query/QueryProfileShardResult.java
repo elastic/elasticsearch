@@ -137,4 +137,8 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
     public String toString() {
         return Strings.toString(this);
     }
+
+    public Long getVectorOperationsCount() {
+        return vectorOperationsCount;
+    }
 }

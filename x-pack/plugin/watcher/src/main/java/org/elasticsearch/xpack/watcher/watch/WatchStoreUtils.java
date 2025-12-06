@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 
@@ -26,7 +29,9 @@ public class WatchStoreUtils {
      * @throws IndexNotFoundException If no index exists
      */
     public static IndexMetadata getConcreteIndex(String name, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(name);
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        ProjectMetadata projectMetadata = metadata.getProject(ProjectId.DEFAULT);
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(name);
         if (indexAbstraction == null) {
             return null;
         }
@@ -48,7 +53,7 @@ public class WatchStoreUtils {
         if (concreteIndex == null) {
             concreteIndex = indexAbstraction.getIndices().get(indexAbstraction.getIndices().size() - 1);
         }
-        return metadata.index(concreteIndex);
+        return projectMetadata.index(concreteIndex);
     }
 
 }

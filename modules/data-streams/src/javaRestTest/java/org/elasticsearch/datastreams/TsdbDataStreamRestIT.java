@@ -8,12 +8,15 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -25,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
-import static org.hamcrest.Matchers.aMapWithSize;
+import static org.elasticsearch.index.IndexSettings.USE_SYNTHETIC_ID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -36,6 +39,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
+
+    static {
+        clusterConfig = config -> config.feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+    }
 
     private static final String COMPONENT_TEMPLATE = """
         {
@@ -54,6 +61,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                         "number_of_replicas": 1,
                         "number_of_shards": 2,
                         "mode": "time_series"
+                        RANDOM_INDEX_SETTINGS
                     }
                 },
                 "mappings":{
@@ -201,15 +209,77 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876eb4", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
             """;
 
+    private static String getTemplate() {
+        String sourceMode = switch (randomInt(2)) {
+            case 0 -> null;
+            case 1 -> """
+                "source": { "mode": "stored" }
+                """;
+            case 2 -> """
+                "source": { "mode": "synthetic" }
+                """;
+            default -> throw new AssertionError("Unknown mode");
+        };
+        String idMode = null;
+        if (Build.current().isSnapshot()) {
+            idMode = switch (randomInt(2)) {
+                case 0 -> null;
+                case 1 -> """
+                    "use_synthetic_id": "false"
+                    """;
+                case 2 -> """
+                    "use_synthetic_id": "true"
+                    """;
+                default -> throw new AssertionError("Unknown mode");
+            };
+        } else {
+            assertFalse(
+                "Setting is enabled by default and must now be tested on non-snapshot build too ",
+                USE_SYNTHETIC_ID.getDefault(Settings.EMPTY)
+            );
+        }
+        if (sourceMode == null && idMode == null) {
+            return TEMPLATE.replace("RANDOM_INDEX_SETTINGS", "");
+        }
+        var mapping = new StringBuilder("""
+            , "mapping": {
+            """);
+        if (sourceMode != null) {
+            mapping.append(sourceMode);
+        }
+        if (idMode != null) {
+            if (sourceMode != null) {
+                mapping.append(',');
+            }
+            mapping.append(idMode);
+        }
+        mapping.append('}');
+        return TEMPLATE.replace("RANDOM_INDEX_SETTINGS", mapping.toString());
+    }
+
+    private static boolean trialStarted = false;
+
     @Before
     public void setup() throws IOException {
+        if (trialStarted == false) {
+            // Start trial to support synthetic source.
+            Request startTrial = new Request("POST", "/_license/start_trial");
+            startTrial.addParameter("acknowledge", "true");
+            try {
+                client().performRequest(startTrial);
+            } catch (Exception e) {
+                // Ignore failures, the API is not present in Serverless.
+            }
+            trialStarted = true;
+        }
+
         // Add component template:
         var request = new Request("POST", "/_component_template/custom_template");
         request.setJsonEntity(COMPONENT_TEMPLATE);
         assertOK(client().performRequest(request));
         // Add composable index template
         request = new Request("POST", "/_index_template/1");
-        request.setJsonEntity(TEMPLATE);
+        request.setJsonEntity(getTemplate());
         assertOK(client().performRequest(request));
     }
 
@@ -220,7 +290,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
     public void testTsdbDataStreamsNanos() throws Exception {
         // Overwrite template to use date_nanos field type:
         var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE.replace("date", "date_nanos"));
+        putComposableIndexTemplateRequest.setJsonEntity(getTemplate().replace("date", "date_nanos"));
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         assertTsdbDataStream();
@@ -407,7 +477,6 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         var response = client().performRequest(simulateIndexTemplateRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(6));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("1"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
@@ -417,6 +486,8 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
             containsInAnyOrder("metricset", "k8s.pod.uid", "pod.labels.*")
         );
+        // not supported when using a dynamic template for time_series_dimension
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.dimensions"), nullValue());
         assertThat(ObjectPath.evaluate(responseBody, "overlapping"), empty());
     }
 
@@ -493,7 +564,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
-        putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE);
+        putComposableIndexTemplateRequest.setJsonEntity(getTemplate());
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         var rolloverRequest = new Request("POST", "/k8s/_rollover");

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -44,12 +45,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
@@ -183,8 +186,9 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         }
 
         // validate index:
-        var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(index)).actionGet();
-        assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), equalTo("[attributes.*]"));
+        var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index)).actionGet();
+        assertThat(getIndexResponse.getSettings().get(index).get("index.dimensions"), equalTo("[attributes.*]"));
+        assertThat(getIndexResponse.getSettings().get(index).get("index.routing_path"), nullValue());
         // validate mapping
         var mapping = getIndexResponse.mappings().get(index).getSourceAsMap();
         assertMap(
@@ -265,12 +269,10 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         assertThat(updateSettingsResponse.isAcknowledged(), is(true));
 
         String shrunkenTarget = "k8s-shrunken";
-        var shrinkIndexResponse = client().admin()
-            .indices()
-            .prepareResizeIndex(sourceIndex, shrunkenTarget)
-            .setResizeType(ResizeType.SHRINK)
-            .setSettings(indexSettings(2, 0).build())
-            .get();
+        final var shrinkIndexResponse = client().execute(
+            TransportResizeAction.TYPE,
+            resizeRequest(ResizeType.SHRINK, sourceIndex, shrunkenTarget, indexSettings(2, 0))
+        ).actionGet();
         assertThat(shrinkIndexResponse.isAcknowledged(), is(true));
         assertThat(shrinkIndexResponse.index(), equalTo(shrunkenTarget));
 

@@ -54,6 +54,23 @@ setup:
   - contains: {index_templates: {name: logs-apm.error@template}}
 
 ---
+"Test template reinstallation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.delete_index_template:
+        name: traces-apm@template
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      indices.get_index_template:
+        name: traces-apm@template
+  - length: {index_templates: 1}
+  - contains: {index_templates: {name: traces-apm@template}}
+
+---
 "Test traces-apm-* data stream indexing":
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/102360"

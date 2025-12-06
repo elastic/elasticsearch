@@ -24,9 +24,11 @@ import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.MaxMind;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.InetAddress;
@@ -480,6 +482,36 @@ public class MaxMindSupportTests extends ESTestCase {
     }
 
     /*
+     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through GeoIpDatabase.
+     */
+    public void testUsedMaxMindResponseClassesAreAccountedFor() {
+        Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = getUsedMaxMindResponseClasses();
+        Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
+        Set<Class<? extends AbstractResponse>> usedButNotSupportedMaxMindResponseClasses = Sets.difference(
+            usedMaxMindResponseClasses,
+            supportedMaxMindClasses
+        );
+        assertThat(
+            "MaxmindIpDataLookups exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
+                + "TYPE_TO_MAX_MIND_CLASS for the following: "
+                + usedButNotSupportedMaxMindResponseClasses,
+            usedButNotSupportedMaxMindResponseClasses,
+            empty()
+        );
+        Set<Class<? extends AbstractResponse>> supportedButNotUsedMaxMindClasses = Sets.difference(
+            supportedMaxMindClasses,
+            usedMaxMindResponseClasses
+        );
+        assertThat(
+            "This test claims to support MaxMind response classes that are not exposed in GeoIpDatabase. Remove the following from "
+                + "TYPE_TO_MAX_MIND_CLASS: "
+                + supportedButNotUsedMaxMindClasses,
+            supportedButNotUsedMaxMindClasses,
+            empty()
+        );
+    }
+
+    /*
      * This is the list of field types that causes us to stop recursing. That is, fields of these types are the lowest-level fields that
      * we care about.
      */
@@ -596,5 +628,35 @@ public class MaxMindSupportTests extends ESTestCase {
             }
         }
         return result.toString();
+    }
+
+    /*
+     * This returns all AbstractResponse classes that are declared in transform methods in classes defined in MaxmindIpDataLookups.
+     */
+    @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "Need declared classes and methods")
+    private static Set<Class<? extends AbstractResponse>> getUsedMaxMindResponseClasses() {
+        Set<Class<? extends AbstractResponse>> result = new HashSet<>();
+        Class<?>[] declaredClasses = MaxmindIpDataLookups.class.getDeclaredClasses();
+        for (Class<?> declaredClass : declaredClasses) {
+            if (Modifier.isAbstract(declaredClass.getModifiers())) {
+                continue;
+            }
+            Method[] declaredMethods = declaredClass.getDeclaredMethods();
+            Optional<Method> nonAbstractTransformMethod = Arrays.stream(declaredMethods)
+                .filter(
+                    method -> method.getName().equals("cacheableRecord")
+                        && method.getParameterTypes().length == 1
+                        && Modifier.isAbstract(method.getParameterTypes()[0].getModifiers()) == false
+                )
+                .findAny();
+            if (nonAbstractTransformMethod.isPresent()) {
+                Class<?> responseClass = nonAbstractTransformMethod.get().getParameterTypes()[0];
+                if (AbstractResponse.class.isAssignableFrom(responseClass)) {
+                    result.add((Class<? extends AbstractResponse>) responseClass);
+                }
+            }
+        }
+        return result;
     }
 }

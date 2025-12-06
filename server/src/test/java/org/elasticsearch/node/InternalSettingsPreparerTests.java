@@ -57,7 +57,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertEquals(defaultNodeName, settings.get("node.name"));
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
-        String configDir = env.configFile().toString();
+        String configDir = env.configDir().toString();
         assertTrue(configDir, configDir.startsWith(home));
         assertEquals("elasticsearch", settings.get("cluster.name"));
     }

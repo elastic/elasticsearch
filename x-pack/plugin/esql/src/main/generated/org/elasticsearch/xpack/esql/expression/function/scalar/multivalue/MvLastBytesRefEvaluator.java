@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -15,9 +16,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvLast}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvLastBytesRefEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvLastBytesRefEvaluator.class);
+
   public MvLastBytesRefEvaluator(EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
     super(driverContext, field);
@@ -70,6 +73,11 @@ public final class MvLastBytesRefEvaluator extends AbstractMultivalueFunction.Ab
       }
       return builder.build().asBlock();
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

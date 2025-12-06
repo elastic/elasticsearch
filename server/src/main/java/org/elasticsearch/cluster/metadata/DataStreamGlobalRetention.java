@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.NodeFeature;
 
 import java.io.IOException;
 
@@ -23,7 +22,6 @@ import java.io.IOException;
  */
 public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) implements Writeable {
 
-    public static final NodeFeature GLOBAL_RETENTION = new NodeFeature("data_stream.lifecycle.global_retention");
     public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
 
     /**
@@ -46,6 +44,17 @@ public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @N
         }
         this.defaultRetention = defaultRetention;
         this.maxRetention = maxRetention;
+    }
+
+    /**
+     * Helper method that creates a global retention object or returns null in case both retentions are null
+     */
+    @Nullable
+    public static DataStreamGlobalRetention create(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
+        if (defaultRetention == null && maxRetention == null) {
+            return null;
+        }
+        return new DataStreamGlobalRetention(defaultRetention, maxRetention);
     }
 
     private boolean validateRetentionValue(@Nullable TimeValue retention) {

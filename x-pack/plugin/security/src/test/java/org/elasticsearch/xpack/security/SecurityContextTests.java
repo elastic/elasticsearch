@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -38,7 +36,6 @@ import org.mockito.Mockito;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -193,45 +190,11 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(original, securityContext.getAuthentication());
     }
 
-    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteNewApiKeyMetadata() throws IOException {
-        final Map<String, Object> metadata = new HashMap<>();
-        metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
-        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
-        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"));
-        metadata.put(
-            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-            new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
-        );
-
+    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
-            .metadata(metadata)
-            .transportVersion(TransportVersions.V_8_0_0)
+            .transportVersion(Authentication.VERSION_SYNTHETIC_ROLE_NAMES)
             .build();
-        original.writeToContext(threadContext);
-
-        // If target is old node, rewrite new style API key metadata to old format
-        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
-            Authentication authentication = securityContext.getAuthentication();
-            assertEquals(
-                Map.of("a role", Map.of("cluster", List.of("all"))),
-                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
-            );
-            assertEquals(
-                Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
-                authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-            );
-        }, TransportVersions.V_7_8_0);
-
-        // If target is new node, no need to rewrite the new style API key metadata
-        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
-            Authentication authentication = securityContext.getAuthentication();
-            assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
-    }
-
-    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
-        final Authentication original = AuthenticationTestHelper.builder().apiKey().transportVersion(TransportVersions.V_7_8_0).build();
 
         // original authentication has the old style of role descriptor maps
         assertThat(
@@ -249,7 +212,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersions.V_7_8_0);
+        }, Authentication.VERSION_SYNTHETIC_ROLE_NAMES);
 
         // If target is new node, ensure old map style API key metadata is rewritten to bytesreference
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
@@ -267,7 +230,7 @@ public class SecurityContextTests extends ESTestCase {
                         equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
+        }, VERSION_API_KEY_ROLES_AS_BYTES);
     }
 
     public void testExecuteAfterRemovingParentAuthorization() {
@@ -280,7 +243,7 @@ public class SecurityContextTests extends ESTestCase {
         threadContext.putHeader(requestHeaders);
 
         final Map<String, Object> transientHeaders = Map.ofEntries(
-            Map.entry(AuthorizationServiceField.AUTHORIZATION_INFO_KEY, Mockito.mock(AuthorizationInfo.class)),
+            Map.entry(AuthorizationServiceField.AUTHORIZATION_INFO_VALUE.getKey(), Mockito.mock(AuthorizationInfo.class)),
             Map.entry(
                 AuthenticationField.AUTHENTICATION_KEY,
                 Authentication.newAnonymousAuthentication(new AnonymousUser(Settings.EMPTY), "test-node")

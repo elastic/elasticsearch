@@ -64,6 +64,54 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
             );
     }
 
+    public void testParseMultiLineZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        MultiLine expectedZ = new MultiLine(
+            List.of(
+                new Line(new double[] { 20.0, 30.0 }, new double[] { 10.0, 15.0 }, new double[] { 100.0, 200.0 }),
+                new Line(new double[] { 40.0, 50.0 }, new double[] { 20.0, 25.0 }, new double[] { 300.0, 400.0 })
+            )
+        );
+        assertEquals(
+            expectedZ,
+            WellKnownText.fromWKT(
+                validator,
+                true,
+                "MULTILINESTRING Z ((20.0 10.0 100.0, 30.0 15.0 200.0), (40.0 20.0 300.0, 50.0 25.0 400.0))"
+            )
+        );
+
+        MultiLine expectedM = new MultiLine(
+            List.of(
+                new Line(new double[] { 20.0, 30.0 }, new double[] { 10.0, 15.0 }, new double[] { 100.0, 200.0 }),
+                new Line(new double[] { 40.0, 50.0 }, new double[] { 20.0, 25.0 }, new double[] { 300.0, 400.0 })
+            )
+        );
+        assertEquals(
+            expectedM,
+            WellKnownText.fromWKT(
+                validator,
+                true,
+                "MULTILINESTRING M ((20.0 10.0 100.0, 30.0 15.0 200.0), (40.0 20.0 300.0, 50.0 25.0 400.0))"
+            )
+        );
+    }
+
+    public void testParseMultiLineZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> multiLinesWkt = List.of(
+            "MULTILINESTRING Z ((20.0 10.0, 30.0 15.0), (40.0 20.0, 50.0 25.0))",
+            "MULTILINESTRING M ((20.0 10.0, 30.0 15.0), (40.0 20.0, 50.0 25.0))"
+        );
+        for (String multiLine : multiLinesWkt) {
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> WellKnownText.fromWKT(validator, true, multiLine)
+            );
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
+    }
+
     @Override
     protected MultiLine mutateInstance(MultiLine instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929

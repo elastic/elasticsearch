@@ -1,5 +1,0 @@
-pr: 112341
-summary: Fix DLS using runtime fields and synthetic source
-area: Authorization
-type: bug
-issues: []

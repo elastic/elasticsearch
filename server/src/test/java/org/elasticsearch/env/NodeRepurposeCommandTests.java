@@ -27,6 +27,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");
@@ -71,7 +73,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
@@ -131,7 +134,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         boolean hasClusterState = randomBoolean();
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
-        String messageText = NodeRepurposeCommand.noMasterMessage(1, environment.dataFiles().length * shardCount, 0);
+        String messageText = NodeRepurposeCommand.noMasterMessage(1, environment.dataDirs().length * shardCount, 0);
 
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),
@@ -157,7 +160,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
+            containsString(NodeRepurposeCommand.shardMessage(environment.dataDirs().length * shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
             conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
@@ -271,7 +274,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     private long digestPaths() {
         // use a commutative digest to avoid dependency on file system order.
-        return Arrays.stream(environment.dataFiles()).mapToLong(this::digestPath).sum();
+        return Arrays.stream(environment.dataDirs()).mapToLong(this::digestPath).sum();
     }
 
     private long digestPath(Path path) {

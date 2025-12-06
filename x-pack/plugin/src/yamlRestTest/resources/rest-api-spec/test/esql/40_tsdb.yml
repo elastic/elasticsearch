@@ -1,7 +1,5 @@
 setup:
   - requires:
-      cluster_features: ["esql.metrics_counter_fields"]
-      reason: "require metrics counter fields"
       test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
@@ -82,8 +80,7 @@ setup:
                 time_series_dimension: true
               agg_metric:
                 type: aggregate_metric_double
-                metrics:
-                  - max
+                metrics: [ min, max, sum, value_count ]
                 default_metric: max
               k8s:
                 properties:
@@ -101,9 +98,85 @@ setup:
         index: test2
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10, "min": -1, "sum": 20, "value_count": 5}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20, "min": 3, "sum": 50, "value_count": 7}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "dim": "B", "agg_metric": {"max": 17, "min": -5, "sum": 33, "value_count": 9}}'
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ min, max ]
+                default_metric: min
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+  - do:
+      bulk:
+        refresh: true
+        index: test3
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:04.467Z", "agg_metric": {"max": 1, "min": -3}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:24.467Z", "agg_metric": {"max": 10, "min": 3}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:44.467Z", "agg_metric": {"max": 17, "min": 2}, "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:04.467Z", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9"}}}'
+
+  - do:
+      indices.create:
+        index: test4
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ sum, value_count ]
+                default_metric: sum
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+  - do:
+      bulk:
+        refresh: true
+        index: test4
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:50:04.467Z", "agg_metric": {"sum": 1, "value_count": 10}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
 
 ---
 load everything:
@@ -162,6 +235,15 @@ filter on counter without cast:
 
 ---
 cast counter then filter:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ dense_vector_agg_metric_double_if_version ]
+      reason: "uses aggregate_metric_double"
+
   - do:
       esql.query:
         body:
@@ -184,7 +266,7 @@ sort on counter without cast:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [sorting_on_source_and_counters_forbidden]
+          capabilities: [sorting_on_source_and_counters_forbidden, dense_vector_agg_metric_double_if_version]
       reason: "Sorting on counters shouldn't have been possible"
   - do:
       catch: /cannot sort on counter_long/
@@ -203,6 +285,14 @@ cast then sort on counter:
 
 ---
 from doc with aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -213,25 +303,288 @@ from doc with aggregate_metric_double:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}
   - match: {columns.3.type: "ip"}
   - match: {columns.4.name: "k8s.pod.network.tx"}
   - match: {columns.4.type: "long"}
-  - length: {values: 2}
+  - length: {values: 3}
 
 ---
 stats on aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for aggregate_metric_double"
   - do:
-      catch: /Cannot use field \[agg_metric\] with unsupported type \[aggregate_metric_double\]/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test2 | STATS max(agg_metric) BY dim'
+          query: 'FROM test2 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {values.0.0: 20.0}
+  - match: {values.0.1: -5.0}
+  - match: {values.0.2: 103.0}
+  - match: {values.0.3: 21.0}
+
+---
+grouping stats on aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for aggregate_metric_double"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: "FROM test2
+          | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY dim
+          | SORT dim"
+  - length: {values: 2}
+  - length: {values.0: 5}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "dim"}
+  - match: {columns.4.type: "keyword"}
+  - match: {values.0.0: 10.0}
+  - match: {values.0.1: -1.0}
+  - match: {values.0.2: 20.0}
+  - match: {values.0.3: 5.0}
+  - match: {values.0.4: "A"}
+  - match: {values.1.0: 20.0}
+  - match: {values.1.1: -5.0}
+  - match: {values.1.2: 83.0}
+  - match: {values.1.3: 16.0}
+  - match: {values.1.4: "B"}
+
+---
+sorting with aggregate_metric_double with partial submetrics:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for sorting when aggregate_metric_double present"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test3 | SORT @timestamp | KEEP @timestamp, agg_metric'
+
+  - length: {values: 4}
+  - length: {values.0: 2}
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "agg_metric"}
+  - match: {columns.1.type: "aggregate_metric_double"}
+  - match: {values.0.0: "2021-04-28T19:50:04.467Z"}
+  - match: {values.1.0: "2021-04-28T19:50:24.467Z"}
+  - match: {values.2.0: "2021-04-28T19:50:44.467Z"}
+  - match: {values.3.0: "2021-04-28T19:51:04.467Z"}
+  - match: {values.0.1: '{"min":-3.0,"max":1.0}'}
+  - match: {values.1.1: '{"min":3.0,"max":10.0}'}
+  - match: {values.2.1: '{"min":2.0,"max":17.0}'}
+  - match: {values.3.1: null}
+
+---
+aggregate_metric_double unsortable:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for sorting when aggregate_metric_double present"
+  - do:
+      catch: /cannot sort on aggregate_metric_double/
+      esql.query:
+        body:
+          query: 'FROM test2 | sort agg_metric'
+
+---
+stats on aggregate_metric_double with partial submetrics:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for partial submetrics in aggregate_metric_double"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
+
+  - length: {values: 2}
+  - length: {values.0: 5}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "k8s.pod.uid"}
+  - match: {columns.4.type: "keyword"}
+  - match: {values.0.0: 10.0}
+  - match: {values.0.1: -3.0}
+  - match: {values.0.2: null}
+  - match: {values.0.3: null}
+  - match: {values.0.4: "947e4ced-1786-4e53-9e0c-5c447e959507"}
+  - match: {values.1.0: 17.0}
+  - match: {values.1.1: 2.0}
+  - match: {values.1.2: null}
+  - match: {values.1.3: null}
+  - match: {values.1.4: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
+
+---
+stats on aggregate_metric_double missing min and max:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
+      reason: "Support for partial submetrics in aggregate_metric_double"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
+
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {values.0.0: null}
+  - match: {values.0.1: null}
+  - match: {values.0.2: 1.0}
+  - match: {values.0.3: 10}
+
+---
+render aggregate_metric_double when missing min and max:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | KEEP agg_metric'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg_metric"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {values.0.0: '{"sum":1.0,"value_count":10}'}
+
+
+---
+render aggregate_metric_double when missing value:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test3 | WHERE @timestamp == "2021-04-28T19:51:04.467Z" | KEEP agg_metric'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg_metric"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {values.0.0: null}
+
+
+---
+to_string aggregate_metric_double:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | EVAL agg = to_string(agg_metric) | KEEP agg'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg"}
+  - match: {columns.0.type: "keyword"}
+  - match: {values.0.0: '{"sum":1.0,"value_count":10}'}
 
 ---
 from index pattern unsupported counter:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -242,7 +595,7 @@ from index pattern unsupported counter:
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
   - match: {columns.1.name: "agg_metric"}
-  - match: {columns.1.type: "unsupported"}
+  - match: {columns.1.type: "aggregate_metric_double"}
   - match: {columns.2.name: "dim"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.ip"}
@@ -257,7 +610,7 @@ from index pattern unsupported counter:
   - match: {columns.7.type: "keyword"}
   - match: {columns.8.name: "metricset"}
   - match: {columns.8.type: "keyword"}
-  - length: {values: 10}
+  - length: {values: 16}
 
 ---
 from index pattern explicit counter use:
@@ -278,7 +631,7 @@ from index pattern explicit counter use:
           query: 'FROM test* | keep *.tx'
   - match: {columns.0.name: "k8s.pod.network.tx"}
   - match: {columns.0.type: "unsupported"}
-  - length: {values: 10}
+  - length: {values: 16}
 
 ---
 _source:
@@ -313,3 +666,201 @@ _source:
               rx: 530600088
               tx: 1434577921
             uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+
+---
+to_aggregate_metric_double with multi_values:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_v0 ]
+      reason: "Support for to_aggregate_metric_double function"
+
+  - do:
+      indices.create:
+        index: convert_test
+        body:
+          mappings:
+            properties:
+              "some_long_field":
+                type: long
+              "some_double_field":
+                type: double
+              "some_int_field":
+                type: integer
+              "some_unsigned_long_field":
+                type: unsigned_long
+  - do:
+      bulk:
+        refresh: true
+        index: new_test
+        body:
+          - {"index": {}}
+          - {"some_long_field": [20385, 182941, -10958], "some_double_field": [195.1, 102.444], "some_int_field": [64, 121, 498, 1456], "some_unsigned_long_field": [13985, 19418924, 123]}
+  - do:
+      esql.query:
+        body:
+          query: 'FROM new_test | EVAL from_long=TO_AGGREGATE_METRIC_DOUBLE(some_long_field), from_double=TO_AGGREGATE_METRIC_DOUBLE(some_double_field), from_int=TO_AGGREGATE_METRIC_DOUBLE(some_int_field), from_ulong=TO_AGGREGATE_METRIC_DOUBLE(some_unsigned_long_field) | KEEP from_long, from_double, from_int, from_ulong | LIMIT 1'
+
+  - match: {columns.0.name: "from_long"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {columns.1.name: "from_double"}
+  - match: {columns.1.type: "aggregate_metric_double"}
+  - match: {columns.2.name: "from_int"}
+  - match: {columns.2.type: "aggregate_metric_double"}
+  - match: {columns.3.name: "from_ulong"}
+  - match: {columns.3.type: "aggregate_metric_double"}
+  - match: {values.0.0: '{"min":-10958.0,"max":182941.0,"sum":192368.0,"value_count":3}'}
+  - match: {values.0.1: '{"min":102.44400024414062,"max":195.10000610351562,"sum":297.54400634765625,"value_count":2}'}
+  - match: {values.0.2: '{"min":64.0,"max":1456.0,"sum":2139.0,"value_count":4}'}
+  - match: {values.0.3: '{"min":123.0,"max":1.9418924E7,"sum":1.9433032E7,"value_count":3}'}
+
+---
+avg of aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
+      reason: "support avg aggregations with aggregate metric double"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test2 | STATS avg = avg(agg_metric) | KEEP avg'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "avg"}
+  - match: {columns.0.type: "double"}
+  - match: {values.0.0: 4.904761904761905}
+
+---
+TS Command grouping on text field:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_permit_text_becoming_keyword_when_grouped_on, ts_command_v0 ]
+      reason: "fix grouping on text fields with TS command"
+
+  - do:
+      indices.create:
+        index: test-text-field
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: integer
+                          rx:
+                            type: integer
+              text_field:
+                type: text
+  - do:
+      bulk:
+        refresh: true
+        index: test-text-field
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T16:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}, "text_field": "some text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}, "text_field": "even more text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}, "text_field": "wow i cant believe theres still text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}, "text_field": "who knew there could be so much text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T16:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}, "text_field": "we are just overflowing with text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}, "text_field": "is this text?"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}, "text_field": "why cant i hold all these text"}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}, "text_field": "peak text"}'
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS test-text-field
+            | STATS max = max(k8s.pod.network.rx) BY text_field, bucket = bucket(@timestamp,1hour)
+            | SORT max, text_field
+            | LIMIT 3
+
+  - length: {values: 3}
+  - length: {values.0: 3}
+  - match: {columns.0.name: "max"}
+  - match: {columns.0.type: "integer"}
+  - match: {columns.1.name: "text_field"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "bucket"}
+  - match: {columns.2.type: "date"}
+  - match: {values.0.0: 530575198}
+  - match: {values.0.1: "we are just overflowing with text"}
+  - match: {values.0.2: "2021-04-28T16:00:00.000Z"}
+  - match: {values.1.0: 530600088}
+  - match: {values.1.1: "is this text?"}
+  - match: {values.1.2: "2021-04-28T17:00:00.000Z"}
+  - match: {values.2.0: 530604797}
+  - match: {values.2.1: "why cant i hold all these text"}
+  - match: {values.2.2: "2021-04-28T18:00:00.000Z"}
+
+---
+error on rename timestamp:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          # inline_stats_with_no_columns is a stand-in for a missed capability that should have been introduced along with the
+          # TimestampAware interface. This capability is the first one added past #137040.
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message, inline_stats_with_no_columns ]
+      reason: "TS specific check"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            TS test
+            | RENAME @timestamp AS newTs
+            | STATS max(rate(k8s.pod.network.tx))  BY tbucket = bucket(newTs, 1hour)
+
+  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
+

@@ -7,35 +7,40 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 record RemoteClusterPlan(PhysicalPlan plan, String[] targetIndices, OriginalIndices originalIndices) {
     static RemoteClusterPlan from(PlanStreamInput planIn) throws IOException {
         var plan = planIn.readNamedWriteable(PhysicalPlan.class);
         var targetIndices = planIn.readStringArray();
-        final OriginalIndices originalIndices;
-        if (planIn.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
-            originalIndices = OriginalIndices.readOriginalIndices(planIn);
-        } else {
-            originalIndices = new OriginalIndices(planIn.readStringArray(), IndicesOptions.strictSingleIndexNoExpandForbidClosed());
-        }
+        OriginalIndices originalIndices = OriginalIndices.readOriginalIndices(planIn);
         return new RemoteClusterPlan(plan, targetIndices, originalIndices);
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
         out.writeNamedWriteable(plan);
         out.writeStringArray(targetIndices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)) {
-            OriginalIndices.writeOriginalIndices(originalIndices, out);
-        } else {
-            out.writeStringArray(originalIndices.indices());
-        }
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        RemoteClusterPlan that = (RemoteClusterPlan) o;
+        return Objects.equals(plan, that.plan)
+            && Objects.deepEquals(targetIndices, that.targetIndices)
+            && Objects.equals(originalIndices, that.originalIndices);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(plan, Arrays.hashCode(targetIndices), originalIndices);
     }
 }

@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -25,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,17 +35,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class TestQueryRulesetAction {
 
-    public static final NodeFeature QUERY_RULES_TEST_API = new NodeFeature("query_rules.test");
-
     // TODO - We'd like to transition this to require less stringent permissions
-    public static final ActionType<TestQueryRulesetAction.Response> TYPE = new ActionType<>("cluster:admin/xpack/query_rules/test");
+    public static final ActionType<Response> TYPE = new ActionType<>("cluster:admin/xpack/query_rules/test");
 
     public static final String NAME = TYPE.name();
-    public static final ActionType<TestQueryRulesetAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private TestQueryRulesetAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject, IndicesRequest {
+    public static class Request extends LegacyActionRequest implements ToXContentObject, IndicesRequest {
         private final String rulesetId;
         private final Map<String, Object> matchCriteria;
 
@@ -123,6 +121,7 @@ public class TestQueryRulesetAction {
             }
 
         );
+
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
             PARSER.declareString(optionalConstructorArg(), RULESET_ID_FIELD); // Required for parsing
@@ -153,7 +152,6 @@ public class TestQueryRulesetAction {
         private static final ParseField MATCHED_RULES_FIELD = new ParseField("matched_rules");
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.totalMatchedRules = in.readVInt();
             this.matchedRules = in.readCollectionAsList(MatchedRule::new);
         }
@@ -161,6 +159,14 @@ public class TestQueryRulesetAction {
         public Response(int totalMatchedRules, List<MatchedRule> matchedRules) {
             this.totalMatchedRules = totalMatchedRules;
             this.matchedRules = matchedRules;
+        }
+
+        int totalMatchedRules() {
+            return totalMatchedRules;
+        }
+
+        List<MatchedRule> matchedRules() {
+            return Collections.unmodifiableList(matchedRules);
         }
 
         @Override

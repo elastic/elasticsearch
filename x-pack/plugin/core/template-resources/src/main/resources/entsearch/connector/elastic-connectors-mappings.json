@@ -7,7 +7,7 @@
       "dynamic": "false",
       "_meta": {
         "pipeline": {
-          "default_name": "ent-search-generic-ingestion",
+          "default_name": "search-default-ingestion",
           "default_extract_binary_content": true,
           "default_run_ml_inference": true,
           "default_reduce_whitespace": true
@@ -301,6 +301,9 @@
           "type": "object"
         },
         "sync_now": {
+          "type": "boolean"
+        },
+        "deleted": {
           "type": "boolean"
         }
       }

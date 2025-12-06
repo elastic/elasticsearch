@@ -105,7 +105,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataNoThrottle() throws Exception {
         testExpiredDeletion(null, 10010);
     }
@@ -133,7 +132,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareCreate(".ml-state-000007").addAlias(new Alias(".ml-state-write").isHidden(true)).get();
         refresh();
 
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(".ml-state*").get();
         assertThat(
             Strings.toString(getIndexResponse),
             getIndexResponse.getIndices(),
@@ -143,7 +142,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
         refresh();
 
-        getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
+        getIndexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(".ml-state*").get();
         assertThat(
             Strings.toString(getIndexResponse),
             getIndexResponse.getIndices(),
@@ -152,7 +151,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataWithStandardThrottle() throws Exception {
         testExpiredDeletion(-1.0f, 100);
     }

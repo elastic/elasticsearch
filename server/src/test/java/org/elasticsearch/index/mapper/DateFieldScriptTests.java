@@ -106,7 +106,11 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    new SearchLookup(
+                        field -> null,
+                        (ft, lookup, fdt) -> null,
+                        SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                    ),
                     DateFormatter.forPattern("epoch_millis"),
                     OnScriptError.FAIL
                 );

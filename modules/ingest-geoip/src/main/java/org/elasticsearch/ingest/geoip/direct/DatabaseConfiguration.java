@@ -138,7 +138,7 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
     }
 
     private static Provider readProvider(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_GEO_DATABASE_PROVIDERS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             return in.readNamedWriteable(Provider.class);
         } else {
             // prior to the above version, everything was always a maxmind, so this half of the if is logical
@@ -154,17 +154,12 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(name);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_GEO_DATABASE_PROVIDERS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeNamedWriteable(provider);
         } else {
             if (provider instanceof Maxmind maxmind) {
                 out.writeString(maxmind.accountId);
             } else {
-                /*
-                 * The existence of a non-Maxmind providers is gated on the feature get_database_configuration_action.multi_node, and
-                 * get_database_configuration_action.multi_node is only available on or after
-                 * TransportVersions.INGEST_GEO_DATABASE_PROVIDERS.
-                 */
                 assert false : "non-maxmind DatabaseConfiguration.Provider [" + provider.getWriteableName() + "]";
             }
         }

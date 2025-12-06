@@ -11,20 +11,27 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 import java.io.Closeable;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public interface InferenceService extends Closeable {
 
-    default void init(Client client) {}
-
     String name();
+
+    /**
+     * The aliases that map to {@link #name()}. {@link InferenceServiceRegistry} allows users to create and use inference services by one
+     * of their aliases.
+     */
+    default List<String> aliases() {
+        return List.of();
+    }
 
     /**
      * Parse model configuration from the {@code config map} from a request and return
@@ -71,92 +78,114 @@ public interface InferenceService extends Closeable {
      */
     Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
+    InferenceServiceConfiguration getConfiguration();
+
+    /**
+     * Whether this service should be hidden from the API. Should be used for services
+     * that are not ready to be used.
+     */
+    default boolean hideFromConfigurationApi() {
+        return false;
+    }
+
+    /**
+     * The task types supported by the service
+     * @return Set of supported.
+     */
+    EnumSet<TaskType> supportedTaskTypes();
+
     /**
      * Perform inference on the model.
      *
-     * @param model        The model
-     * @param query        Inference query, mainly for re-ranking
-     * @param input        Inference input
-     * @param stream       Stream inference results
-     * @param taskSettings Settings in the request to override the model's defaults
-     * @param inputType    For search, ingest etc
-     * @param timeout      The timeout for the request
-     * @param listener     Inference result listener
+     * @param model           The model
+     * @param query           Inference query, mainly for re-ranking
+     * @param returnDocuments For re-ranking task type, whether to return documents
+     * @param topN            For re-ranking task type, how many docs to return
+     * @param input           Inference input
+     * @param stream          Stream inference results
+     * @param taskSettings    Settings in the request to override the model's defaults
+     * @param inputType       For search, ingest etc
+     * @param timeout         The timeout for the request. Callers should normally pass in a timeout.
+     *                        Passing in null is specifically for query-time inference, when the timeout is managed by the
+     *                        xpack.inference.query_timeout cluster setting.
+     * @param listener        Inference result listener
      */
     void infer(
         Model model,
         @Nullable String query,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
+     * Perform completion inference on the model using the unified schema.
+     *
+     * @param model        The model
+     * @param request Parameters for the request
+     * @param timeout      The timeout for the request
+     * @param listener     Inference result listener
+     */
+    void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
     /**
-     * Chunk long text according to {@code chunkingOptions} or the
-     * model defaults if {@code chunkingOptions} contains unset
-     * values.
+     * Perform multimodal embedding inference on the model using the embedding schema.
      *
-     * @param model           The model
-     * @param query           Inference query, mainly for re-ranking
-     * @param input           Inference input
-     * @param taskSettings    Settings in the request to override the model's defaults
-     * @param inputType       For search, ingest etc
-     * @param chunkingOptions The window and span options to apply
-     * @param timeout         The timeout for the request
-     * @param listener        Chunked Inference result listener
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
+     * Chunk long text.
+     *
+     * @param model            The model
+     * @param query            Inference query, mainly for re-ranking
+     * @param input            Inference input
+     * @param taskSettings     Settings in the request to override the model's defaults
+     * @param inputType        For search, ingest etc
+     * @param timeout          The timeout for the request
+     * @param listener         Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     );
 
     /**
      * Start or prepare the model for use.
      * @param model The model
+     * @param timeout Start timeout
      * @param listener The listener
      */
-    void start(Model model, ActionListener<Boolean> listener);
+    void start(Model model, TimeValue timeout, ActionListener<Boolean> listener);
 
     /**
      * Stop the model deployment.
      * The default action does nothing except acknowledge the request (true).
-     * @param unparsedModel The unparsed model configuration
+     * @param model The model configuration
      * @param listener The listener
      */
-    default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
+    default void stop(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
-
-    /**
-     * Put the model definition (if applicable)
-     * The main purpose of this function is to download ELSER
-     * The default action does nothing except acknowledge the request (true).
-     * @param modelVariant The configuration of the model variant to be downloaded
-     * @param listener The listener
-     */
-    default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
-    }
-
-    /**
-     * Optionally test the new model configuration in the inference service.
-     * This function should be called when the model is first created, the
-     * default action is to do nothing.
-     * @param model The new model
-     * @param listener The listener
-     */
-    default void checkModelConfig(Model model, ActionListener<Model> listener) {
-        listener.onResponse(model);
-    };
 
     /**
      * Update a text embedding model's dimensions based on a provided embedding
@@ -166,6 +195,15 @@ public interface InferenceService extends Closeable {
      * @return The model with updated embedding details
      */
     default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
+    }
+
+    /**
+     * Update a chat completion model's max tokens if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @return The model with updated chat completion details
+     */
+    default Model updateModelWithChatCompletionDetails(Model model) {
         return model;
     }
 
@@ -192,7 +230,7 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
-    record DefaultConfigId(String inferenceId, TaskType taskType, InferenceService service) {};
+    record DefaultConfigId(String inferenceId, MinimalServiceSettings settings, InferenceService service) {};
 
     /**
      * Get the Ids and task type of any default configurations provided by this service
@@ -213,5 +251,21 @@ public interface InferenceService extends Closeable {
 
     default void updateModelsWithDynamicFields(List<Model> model, ActionListener<List<Model>> listener) {
         listener.onResponse(model);
+    }
+
+    /**
+     * Called after the Elasticsearch node has completed its start up. This allows the service to perform initialization
+     * after ensuring the node's internals are set up (for example if this ensures the internal ES client is ready for use).
+     */
+    default void onNodeStarted() {}
+
+    /**
+     * Get the service integration validator for the given task type.
+     * This allows services to provide custom validation logic.
+     * @param taskType The task type
+     * @return The service integration validator or null if the default should be used
+     */
+    default ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        return null;
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -31,11 +30,13 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -45,6 +46,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
@@ -77,6 +80,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -192,12 +196,7 @@ public class TransformTaskTests extends ESTestCase {
         var transformsCheckpointService = new TransformCheckpointService(
             clock,
             Settings.EMPTY,
-            new ClusterService(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                null
-            ),
+            StubLinkedProjectConfigService.INSTANCE,
             transformsConfigManager,
             auditor
         );
@@ -349,7 +348,7 @@ public class TransformTaskTests extends ESTestCase {
             eq(42L),
             isNull(),
             eq("Node is shutting down."),
-            isNull(),
+            isNotNull(),
             any()
         );
     }
@@ -551,6 +550,75 @@ public class TransformTaskTests extends ESTestCase {
         );
         var checkpointingInfo = transformTask.deriveBasicCheckpointingInfo();
         assertThat(checkpointingInfo, sameInstance(TransformCheckpointingInfo.EMPTY));
+    }
+
+    public void testCheckAndResetDestinationIndexBlock() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getConfig()).thenReturn(currentConfig);
+
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.initializeIndexer(indexer);
+
+        transformTask.getContext().setIsWaitingForIndexToUnblock(true);
+        var updatedConfig = randomConfigForDestIndex("newDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertFalse(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    public void testCheckAndResetDestinationIndexBlock_NoChangeToDest() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getConfig()).thenReturn(currentConfig);
+
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.initializeIndexer(indexer);
+
+        transformTask.getContext().setIsWaitingForIndexToUnblock(true);
+        var updatedConfig = randomConfigForDestIndex("oldDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertTrue(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    public void testCheckAndResetDestinationIndexBlock_NotBlocked() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var indexer = mock(ClientTransformIndexer.class);
+        when(indexer.getConfig()).thenReturn(currentConfig);
+
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.initializeIndexer(indexer);
+
+        var updatedConfig = randomConfigForDestIndex("newDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertFalse(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    public void testCheckAndResetDestinationIndexBlock_NullIndexer() {
+        var currentConfig = randomConfigForDestIndex("oldDestination");
+        var transformTask = createTransformTask(currentConfig, MockTransformAuditor.createMockAuditor());
+        transformTask.getContext().setIsWaitingForIndexToUnblock(true);
+
+        var updatedConfig = randomConfigForDestIndex("oldDestination");
+
+        transformTask.checkAndResetDestinationIndexBlock(updatedConfig);
+
+        assertFalse(transformTask.getContext().isWaitingForIndexToUnblock());
+    }
+
+    private TransformConfig randomConfigForDestIndex(String indexName) {
+        var pivotOrLatest = randomBoolean();
+        return TransformConfigTests.randomTransformConfigWithoutHeaders(
+            randomAlphaOfLengthBetween(1, 10),
+            pivotOrLatest ? null : PivotConfigTests.randomPivotConfig(),
+            pivotOrLatest ? LatestConfigTests.randomLatestConfig() : null,
+            new DestConfig(indexName, null, null)
+        );
     }
 
     private TransformTask createTransformTask(TransformConfig transformConfig, MockTransformAuditor auditor) {

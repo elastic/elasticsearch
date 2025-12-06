@@ -1,0 +1,27 @@
+apply plugin: 'elasticsearch.java'
+
+dependencies {
+  implementation project(":libs:x-content")
+  implementation project(':libs:logging')
+  // Required for log4j, there's probably a more direct way to depend on it.
+  implementation project(':test:framework')
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+}
+
+/**
+ * To visualize the profile of an ES|QL query, run the query with {@code "profile": true} then parse it with this task to import the profile into
+ * Chromium's profile visualizer (type {@code about:tracing} in the URL bar) or into Perfetto (<a href=" https://ui.perfetto.dev/"/>;run Perfetto
+ * locally if the profile might contain sensitive information, see instructions at
+ * <a href="https://perfetto.dev/docs/contributing/build-instructions#ui-development"/>).
+ *
+ * eg.
+ * ./gradlew x-pack:plugin:esql:tools:parseProfile --args='~/elasticsearch/query_output.json ~/elasticsearch/parsed_profile.json'
+ */
+tasks.register("parseProfile", JavaExec) {
+  group = "Execution"
+  description = "Parses the output of a query run with profile:true to be imported into the Chromium trace viewer (about:tracing) or Perfetto."
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = "org.elasticsearch.xpack.esql.tools.ProfileParser"
+}

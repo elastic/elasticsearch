@@ -18,15 +18,16 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
@@ -143,7 +144,14 @@ public class PlanStreamOutputTests extends ESTestCase {
                 }
             }
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 List<Attribute> readAttrs = new ArrayList<>();
                 for (int i = 0; i < occurrences; i++) {
                     readAttrs.add(in.readNamedWriteable(Attribute.class));
@@ -181,7 +189,14 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 
@@ -203,7 +218,14 @@ public class PlanStreamOutputTests extends ESTestCase {
             planStream.writeNamedWriteable(one);
             planStream.writeNamedWriteable(two);
 
-            try (PlanStreamInput in = new PlanStreamInput(out.bytes().streamInput(), REGISTRY, configuration)) {
+            try (
+                PlanStreamInput in = new PlanStreamInput(
+                    out.bytes().streamInput(),
+                    REGISTRY,
+                    configuration,
+                    new SerializationTestUtils.TestNameIdMapper()
+                )
+            ) {
                 Attribute oneCopy = in.readNamedWriteable(Attribute.class);
                 Attribute twoCopy = in.readNamedWriteable(Attribute.class);
 
@@ -279,10 +301,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     private static final NamedWriteableRegistry REGISTRY;
 
     static {
-        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
-        writeables.addAll(Block.getNamedWriteables());
-        writeables.addAll(Attribute.getNamedWriteables());
-        writeables.add(UnsupportedAttribute.ENTRY);
+        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>(ExpressionWritables.attributes());
         REGISTRY = new NamedWriteableRegistry(new ArrayList<>(new HashSet<>(writeables)));
     }
 }

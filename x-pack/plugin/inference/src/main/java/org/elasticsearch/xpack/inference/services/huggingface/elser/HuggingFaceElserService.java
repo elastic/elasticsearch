@@ -7,44 +7,68 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceBaseService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModelParameters;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings.URL;
 
 public class HuggingFaceElserService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face_elser";
 
-    public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    private static final String SERVICE_NAME = "Hugging Face ELSER";
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+
+    public HuggingFaceElserService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -53,53 +77,84 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
-    protected HuggingFaceModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
-        ConfigurationParseContext context
-    ) {
-        return switch (taskType) {
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings, context);
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+    protected HuggingFaceModel createModel(HuggingFaceModelParameters input) {
+        return switch (input.taskType()) {
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
+                input.inferenceEntityId(),
+                input.taskType(),
+                NAME,
+                input.serviceSettings(),
+                input.secretSettings(),
+                input.context()
+            );
+            default -> throw createInvalidTaskTypeException(input.inferenceEntityId(), NAME, input.taskType(), input.context());
         };
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
         );
 
         // TODO chunking sparse embeddings not implemented
-        doInfer(model, inputs, taskSettings, inputType, timeout, inferListener);
+        doInfer(
+            model,
+            new EmbeddingsInput(() -> inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
+            taskSettings,
+            timeout,
+            inferListener
+        );
     }
 
-    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
-        DocumentsOnlyInput inputs,
+    private static List<ChunkedInference> translateToChunkedResults(
+        List<ChunkInferenceInput> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
-            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs.getInputs(), textEmbeddingResults);
+        if (inferenceResults instanceof DenseEmbeddingFloatResults denseEmbeddingResults) {
+            validateInputSizeAgainstEmbeddings(ChunkInferenceInput.inputs(inputs).size(), denseEmbeddingResults.embeddings().size());
+
+            var results = new ArrayList<ChunkedInference>(inputs.size());
+
+            for (int i = 0; i < inputs.size(); i++) {
+                results.add(
+                    new ChunkedInferenceEmbedding(
+                        List.of(
+                            new EmbeddingResults.Chunk(
+                                denseEmbeddingResults.embeddings().get(i),
+                                new ChunkedInference.TextOffset(0, inputs.get(i).input().textValue().length())
+                            )
+                        )
+                    )
+                );
+            }
+            return results;
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            return InferenceChunkedSparseEmbeddingResults.listOf(inputs.getInputs(), sparseEmbeddingResults);
+            var inputsAsList = ChunkInferenceInput.inputs(inputs);
+            return ChunkedInferenceEmbedding.listOf(InferenceStringGroup.toInferenceStringList(inputsAsList), sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
-            return List.of(new ErrorChunkedInferenceResults(error.getException()));
+            return List.of(new ChunkedInferenceError(error.getException()));
         } else {
             String expectedClasses = Strings.format(
                 "One of [%s,%s]",
-                InferenceTextEmbeddingFloatResults.class.getSimpleName(),
+                DenseEmbeddingFloatResults.class.getSimpleName(),
                 SparseEmbeddingResults.class.getSimpleName()
             );
             throw createInvalidChunkedResultException(expectedClasses, inferenceResults.getWriteableName());
@@ -107,7 +162,54 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
+    }
+
+    @Override
+    public boolean hideFromConfigurationApi() {
+        return true;
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return supportedTaskTypes;
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_12_0;
+    }
+
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    URL,
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The URL endpoint to use for the requests.")
+                        .setLabel("URL")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
+            }
+        );
     }
 }

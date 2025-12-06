@@ -53,7 +53,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             // let's make sure that the bulk action limit trips, one single execution will index all the documents
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 
@@ -89,7 +89,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setBulkActions(bulkActions)
             // set interval and size to high values
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 
@@ -134,7 +134,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             // let's make sure that the bulk action limit trips, one single execution will index all the documents
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+            .setBulkSize(ByteSizeValue.of(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
             .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
@@ -169,7 +169,7 @@ public class BulkProcessor2IT extends ESIntegTestCase {
             .setBulkActions(bulkActions)
             // set interval and size to high values
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
             .build();
         try {
 

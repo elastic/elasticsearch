@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,6 +58,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     }
 
     @Override
+    @FixForMultiProject(description = "Once/if this action becomes project-aware, it must consider project blocks as well")
     protected void doExecute(Task task, MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener) {
         clusterService.state().blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
 

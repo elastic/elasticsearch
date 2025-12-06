@@ -29,6 +29,8 @@ public class FakeTcpChannel implements TcpChannel {
     private final AtomicReference<BytesReference> messageCaptor;
     private final AtomicReference<ActionListener<Void>> listenerCaptor;
 
+    private volatile Exception closeException = null;
+
     public FakeTcpChannel() {
         this(false, "profile", new AtomicReference<>());
     }
@@ -94,8 +96,17 @@ public class FakeTcpChannel implements TcpChannel {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            closeContext.onResponse(null);
+            if (closeException != null) {
+                closeContext.onFailure(closeException);
+            } else {
+                closeContext.onResponse(null);
+            }
         }
+    }
+
+    @Override
+    public void setCloseException(Exception e) {
+        closeException = e;
     }
 
     @Override

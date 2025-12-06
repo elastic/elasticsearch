@@ -46,7 +46,6 @@ public class GetJobModelSnapshotsUpgradeStatsAction extends ActionType<GetJobMod
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("model_snapshot_upgrades");
-    public static String TYPE = "model_snapshot_upgrade";
 
     private GetJobModelSnapshotsUpgradeStatsAction() {
         super(NAME);

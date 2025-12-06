@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -33,12 +33,30 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
 
     private final ArrayDeque<NodeAndShardIterator> queue;
 
+    /**
+     * This iterator will progress through the shards node by node, each node's shards ordered from most write active to least.
+     *
+     * @param allocation
+     * @param ordering
+     * @return An iterator over all shards in the {@link RoutingNodes} held by {@code allocation} (all shards assigned to a node). The
+     * iterator will progress node by node, where each node's shards are ordered from data stream write indices, to regular indices and
+     * lastly to data stream read indices.
+     */
     public static OrderedShardsIterator createForNecessaryMoves(RoutingAllocation allocation, NodeAllocationOrdering ordering) {
-        return create(allocation.routingNodes(), createShardsComparator(allocation.metadata()), ordering);
+        return create(allocation.routingNodes(), createShardsComparator(allocation), ordering);
     }
 
+    /**
+     * This iterator will progress through the shards node by node, each node's shards ordered from least write active to most.
+     *
+     * @param allocation
+     * @param ordering
+     * @return An iterator over all shards in the {@link RoutingNodes} held by {@code allocation} (all shards assigned to a node). The
+     * iterator will progress node by node, where each node's shards are ordered from data stream read indices, to regular indices and
+     * lastly to data stream write indices.
+     */
     public static OrderedShardsIterator createForBalancing(RoutingAllocation allocation, NodeAllocationOrdering ordering) {
-        return create(allocation.routingNodes(), createShardsComparator(allocation.metadata()).reversed(), ordering);
+        return create(allocation.routingNodes(), createShardsComparator(allocation).reversed(), ordering);
     }
 
     private static OrderedShardsIterator create(
@@ -61,12 +79,16 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
         return Iterators.forArray(shards);
     }
 
-    private static Comparator<ShardRouting> createShardsComparator(Metadata metadata) {
+    /**
+     * Prioritizes write indices of data streams, and deprioritizes data stream read indices, relative to regular indices.
+     */
+    private static Comparator<ShardRouting> createShardsComparator(RoutingAllocation allocation) {
         return Comparator.comparing(shard -> {
-            var lookup = metadata.getIndicesLookup().get(shard.getIndexName());
-            if (lookup != null && lookup.getParentDataStream() != null) {
+            final ProjectMetadata project = allocation.metadata().projectFor(shard.index());
+            var index = project.getIndicesLookup().get(shard.getIndexName());
+            if (index != null && index.getParentDataStream() != null) {
                 // prioritize write indices of the data stream
-                return Objects.equals(lookup.getParentDataStream().getWriteIndex(), shard.index()) ? 0 : 2;
+                return Objects.equals(index.getParentDataStream().getWriteIndex(), shard.index()) ? 0 : 2;
             } else {
                 // regular index
                 return 1;

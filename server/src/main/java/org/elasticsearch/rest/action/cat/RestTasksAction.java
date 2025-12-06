@@ -140,7 +140,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell(node == null ? "-" : node.getHostAddress());
         table.addCell(node.getAddress().address().getPort());
         table.addCell(node == null ? "-" : node.getName());
-        table.addCell(node == null ? "-" : node.getVersion().toString());
+        table.addCell(node == null ? "-" : node.getBuildVersion().toString());
         table.addCell(taskInfo.headers().getOrDefault(Task.X_OPAQUE_ID_HTTP_HEADER, "-"));
 
         if (detailed) {

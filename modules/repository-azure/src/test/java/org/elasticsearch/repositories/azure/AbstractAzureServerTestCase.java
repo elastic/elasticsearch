@@ -14,8 +14,11 @@ import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.network.InetAddresses;
@@ -30,6 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -70,13 +74,14 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
     protected boolean serverlessMode;
     private ThreadPool threadPool;
     private AzureClientProvider clientProvider;
+    private ClusterService clusterService;
 
     @Before
     public void setUp() throws Exception {
         serverlessMode = false;
         threadPool = new TestThreadPool(
             getTestClass().getName(),
-            AzureRepositoryPlugin.executorBuilder(),
+            AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -85,6 +90,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         secondaryHttpServer.start();
         clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
         clientProvider.start();
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
         super.setUp();
     }
 
@@ -131,7 +137,12 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         clientSettings.setSecureSettings(secureSettings);
         clientSettings.put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, serverlessMode);
 
-        final AzureStorageService service = new AzureStorageService(clientSettings.build(), clientProvider) {
+        final AzureStorageService service = new AzureStorageService(
+            clientSettings.build(),
+            clientProvider,
+            clusterService,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        ) {
             @Override
             RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                 return new RequestRetryOptions(
@@ -153,7 +164,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
             }
 
             @Override
-            int getMaxReadRetries(String clientName) {
+            int getMaxReadRetries(ProjectId projectId, String clientName) {
                 return maxRetries;
             }
         };
@@ -165,13 +176,13 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 .put(CONTAINER_SETTING.getKey(), CONTAINER)
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
-                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
+                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .build()
         );
 
         return new AzureBlobContainer(
             BlobPath.EMPTY,
-            new AzureBlobStore(repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
         );
     }
 

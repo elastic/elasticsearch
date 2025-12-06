@@ -100,7 +100,7 @@ public class MovingFunctions {
      */
     public static double linearWeightedAvg(double[] values) {
         double avg = 0;
-        long totalWeight = 1;
+        long totalWeight = 0;
         long current = 1;
 
         for (double v : values) {
@@ -110,7 +110,7 @@ public class MovingFunctions {
                 current += 1;
             }
         }
-        return totalWeight == 1 ? Double.NaN : avg / totalWeight;
+        return totalWeight == 0 ? Double.NaN : avg / totalWeight;
     }
 
     /**

@@ -12,9 +12,10 @@ package org.elasticsearch.search.retriever;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,19 +34,14 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     final List<RetrieverBuilder> sources;
     final Supplier<RankDoc[]> rankDocs;
 
-    public RankDocsRetrieverBuilder(
-        int rankWindowSize,
-        List<RetrieverBuilder> sources,
-        Supplier<RankDoc[]> rankDocs,
-        List<QueryBuilder> preFilterQueryBuilders
-    ) {
+    public RankDocsRetrieverBuilder(int rankWindowSize, List<RetrieverBuilder> sources, Supplier<RankDoc[]> rankDocs, Float minScore) {
         this.rankWindowSize = rankWindowSize;
         this.rankDocs = rankDocs;
         if (sources == null || sources.isEmpty()) {
             throw new IllegalArgumentException("sources must not be null or empty");
         }
         this.sources = sources;
-        this.preFilterQueryBuilders = preFilterQueryBuilders;
+        this.minScore = minScore;
     }
 
     @Override
@@ -54,7 +50,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     }
 
     private boolean sourceHasMinScore() {
-        return minScore != null || sources.stream().anyMatch(x -> x.minScore() != null);
+        return this.minScore != null || sources.stream().anyMatch(x -> x.minScore() != null);
     }
 
     private boolean sourceShouldRewrite(QueryRewriteContext ctx) throws IOException {
@@ -73,10 +69,6 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     @Override
     public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         assert false == sourceShouldRewrite(ctx) : "retriever sources should be rewritten first";
-        var rewrittenFilters = rewritePreFilters(ctx);
-        if (rewrittenFilters != preFilterQueryBuilders) {
-            return new RankDocsRetrieverBuilder(rankWindowSize, sources, rankDocs, rewrittenFilters);
-        }
         return this;
     }
 
@@ -94,17 +86,19 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                 boolQuery.should(query);
             }
         }
-        // ignore prefilters of this level, they are already propagated to children
+        // ignore prefilters of this level, they were already propagated to children
         return boolQuery;
     }
 
     @Override
     public QueryBuilder explainQuery() {
-        return new RankDocsQueryBuilder(
+        var explainQuery = new RankDocsQueryBuilder(
             rankDocs.get(),
             sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
             true
         );
+        explainQuery.queryName(retrieverName());
+        return explainQuery;
     }
 
     @Override
@@ -133,11 +127,20 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         } else {
             rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false);
         }
-        // ignore prefilters of this level, they are already propagated to children
+        rankQuery.queryName(retrieverName());
+        // ignore prefilters of this level, they were already propagated to children
         searchSourceBuilder.query(rankQuery);
-        if (sourceHasMinScore()) {
-            searchSourceBuilder.minScore(this.minScore() == null ? Float.MIN_VALUE : this.minScore());
+        if (searchSourceBuilder.size() < 0) {
+            searchSourceBuilder.size(rankWindowSize);
         }
+        if (sourceHasMinScore()) {
+            searchSourceBuilder.minScore(this.minScore == null ? Float.MIN_VALUE : this.minScore);
+        }
+
+        if (searchSourceBuilder.from() < 0) {
+            searchSourceBuilder.from(SearchService.DEFAULT_FROM);
+        }
+
         if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
             searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
         }

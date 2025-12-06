@@ -11,7 +11,6 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -73,7 +72,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
                     if (missing != null) {
                         value = missing;
                     } else {
-                        throw new ElasticsearchException("Missing value for field [" + field + "]");
+                        throw new IllegalArgumentException("Missing value for field [" + field + "]");
                     }
                 }
                 double val = value * boostFactor;

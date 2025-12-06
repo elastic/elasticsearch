@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -35,13 +36,14 @@ public class ChangelogEntry {
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
 
     private Integer pr;
-    private List<Integer> issues;
+    private String summary;
     private String area;
     private String type;
-    private String summary;
-    private Highlight highlight;
+    private List<Integer> issues;
     private Breaking breaking;
+    private Highlight highlight;
     private Deprecation deprecation;
+    private String entryOverride;
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
@@ -124,6 +126,14 @@ public class ChangelogEntry {
         this.deprecation = deprecation;
     }
 
+    public String getEntryOverride() {
+        return entryOverride;
+    }
+
+    public void setEntryOverride(String entryOverride) {
+        this.entryOverride = entryOverride;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -139,12 +149,13 @@ public class ChangelogEntry {
             && Objects.equals(type, that.type)
             && Objects.equals(summary, that.summary)
             && Objects.equals(highlight, that.highlight)
-            && Objects.equals(breaking, that.breaking);
+            && Objects.equals(breaking, that.breaking)
+            && Objects.equals(entryOverride, that.entryOverride);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pr, issues, area, type, summary, highlight, breaking);
+        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, entryOverride);
     }
 
     @Override
@@ -193,6 +204,7 @@ public class ChangelogEntry {
             this.body = body;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
         }
@@ -278,6 +290,7 @@ public class ChangelogEntry {
             this.notable = notable;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
         }

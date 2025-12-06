@@ -16,6 +16,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -23,18 +25,25 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
+import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -47,7 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.regex.Pattern;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -65,19 +74,25 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
-    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
-    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
@@ -87,29 +102,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final CsvTestCase testCase;
     protected final String instructions;
     protected final Mode mode;
+    protected static Boolean supportsTook;
 
-    public enum Mode {
-        SYNC,
-        ASYNC
-    }
-
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s %7$s")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
-        List<Object[]> specs = SpecReader.readScriptSpec(urls, specParser());
-
-        int len = specs.get(0).length;
-        List<Object[]> testcases = new ArrayList<>();
-        for (var spec : specs) {
-            for (Mode mode : Mode.values()) {
-                Object[] obj = new Object[len + 1];
-                System.arraycopy(spec, 0, obj, 0, len);
-                obj[len] = mode;
-                testcases.add(obj);
-            }
-        }
-        return testcases;
+        return SpecReader.readScriptSpec(urls, specParser());
     }
 
     protected EsqlSpecTestCase(
@@ -118,8 +117,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
         this.fileName = fileName;
         this.groupName = groupName;
@@ -127,26 +125,77 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.lineNumber = lineNumber;
         this.testCase = testCase;
         this.instructions = instructions;
-        this.mode = mode;
+        this.mode = randomFrom(Mode.values());
     }
+
+    private static class Protected {
+        private volatile boolean completed = false;
+        private volatile boolean started = false;
+        private volatile Throwable failure = null;
+
+        private void protectedBlock(Callable<Void> callable) {
+            if (completed) {
+                return;
+            }
+            // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
+            synchronized (this) {
+                if (completed) {
+                    return;
+                }
+                if (started) {
+                    // Should only happen if a previous test setup failed, possibly with partial setup, let's fail fast the current test
+                    if (failure != null) {
+                        fail(failure, "Previous test setup failed: " + failure.getMessage());
+                    }
+                    fail("Previous test setup failed with unknown error");
+                }
+                started = true;
+                try {
+                    callable.call();
+                    completed = true;
+                } catch (Throwable t) {
+                    failure = t;
+                    fail(failure, "Current test setup failed: " + failure.getMessage());
+                }
+            }
+        }
+
+        private synchronized void reset() {
+            completed = false;
+            started = false;
+            failure = null;
+        }
+    }
+
+    private static final Protected INGEST = new Protected();
+    protected static boolean testClustersOk = true;
 
     @Before
-    public void setup() throws IOException {
-        if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
-            createInferenceEndpoint(client());
-        }
-
-        if (indexExists(availableDatasetsForEs(client()).iterator().next().indexName()) == false) {
-            loadDataSetIntoEs(client());
-        }
-    }
-
-    protected boolean supportsAsync() {
-        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
+    public void setup() {
+        assumeTrue("test clusters were broken", testClustersOk);
+        INGEST.protectedBlock(() -> {
+            // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
+            if (supportsInferenceTestService()) {
+                createInferenceEndpoints(adminClient());
+            }
+            loadDataSetIntoEs(
+                client(),
+                supportsIndexModeLookup(),
+                supportsSourceFieldMapping(),
+                supportsInferenceTestService(),
+                false,
+                supportsExponentialHistograms(),
+                supportsTDigestField()
+            );
+            return null;
+        });
     }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
+        if (testClustersOk == false) {
+            return;
+        }
         try {
             adminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
@@ -155,8 +204,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-
-        deleteInferenceEndpoint(client());
+        INGEST.reset();
+        deleteInferenceEndpoints(adminClient());
     }
 
     public boolean logResults() {
@@ -168,49 +217,46 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             shouldSkipTest(testName);
             doTest();
         } catch (Exception e) {
+            ensureTestClustersAreOk(e);
             throw reworkException(e);
         }
     }
 
+    protected void ensureTestClustersAreOk(Exception failure) {
+        try {
+            ensureHealth(client(), "", (request) -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("level", "shards");
+            });
+        } catch (Exception inner) {
+            testClustersOk = false;
+            failure.addSuppressed(inner);
+        }
+    }
+
     protected void shouldSkipTest(String testName) throws IOException {
-        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
-            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        assumeTrue("test clusters were broken", testClustersOk);
+        if (requiresInferenceEndpoint()) {
+            assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        if (supportsSourceFieldMapping() == false) {
+            assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
+        }
     }
 
-    protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
-        throws IOException {
-        if (testCase.requiredCapabilities.isEmpty()) {
+    protected static void checkCapabilities(
+        RestClient client,
+        TestFeatureService testFeatureService,
+        String testName,
+        CsvTestCase testCase
+    ) {
+        if (hasCapabilities(client, testCase.requiredCapabilities)) {
             return;
         }
-        try {
-            if (clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)) {
-                return;
-            }
-            LOGGER.info("capabilities API returned false, we might be in a mixed version cluster so falling back to cluster features");
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
-                /*
-                 * The node we're testing against is too old for the capabilities
-                 * API which means it has to be pretty old. Very old capabilities
-                 * are ALSO present in the features API, so we can check them instead.
-                 *
-                 * It's kind of weird that we check for *any* 400, but that's required
-                 * because old versions of Elasticsearch return 400, not the expected
-                 * 404.
-                 */
-                LOGGER.info("capabilities API failed, falling back to cluster features");
-            } else {
-                throw e;
-            }
-        }
 
-        var features = Stream.concat(
-            new EsqlFeatures().getFeatures().stream(),
-            new EsqlFeatures().getHistoricalFeatures().keySet().stream()
-        ).map(NodeFeature::id).collect(Collectors.toSet());
+        var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
 
         for (String feature : testCase.requiredCapabilities) {
             var esqlFeature = "esql." + feature;
@@ -223,14 +269,60 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected final void doTest() throws Throwable {
+    protected boolean requiresInferenceEndpoint() {
+        return Stream.of(
+            SEMANTIC_TEXT_FIELD_CAPS.capabilityName(),
+            RERANK.capabilityName(),
+            COMPLETION.capabilityName(),
+            KNN_FUNCTION_V5.capabilityName(),
+            TEXT_EMBEDDING_FUNCTION.capabilityName()
+        ).anyMatch(testCase.requiredCapabilities::contains);
+    }
+
+    protected boolean supportsIndexModeLookup() throws IOException {
+        return true;
+    }
+
+    protected boolean supportsSourceFieldMapping() throws IOException {
+        return true;
+    }
+
+    protected boolean supportsExponentialHistograms() {
+        return RestEsqlTestCase.hasCapabilities(
+            client(),
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.capabilityName())
+        );
+    }
+
+    protected boolean supportsTDigestField() {
+        return RestEsqlTestCase.hasCapabilities(
+            client(),
+            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
+        );
+    }
+
+    protected void doTest() throws Throwable {
+        doTest(testCase.query);
+    }
+
+    protected final void doTest(String query) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
-        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
+        if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
+        boolean checkTook = supportsTook() && rarely();
+
+        Map<?, ?> prevTooks = checkTook ? tooks() : null;
+        Map<String, Object> answer = RestEsqlTestCase.runEsql(
+            builder.query(query),
+            testCase.assertWarnings(deduplicateExactWarnings()),
+            profileLogger,
+            mode
+        );
+
+        assertNotPartial(answer);
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -246,19 +338,39 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
+
+        if (checkTook) {
+            LOGGER.info("checking took incremented from {}", prevTooks);
+            long took = ((Number) answer.get("took")).longValue();
+            int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
+            assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        }
     }
 
-    private Map<String, Object> runEsql(
-        RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex
-    ) throws IOException {
-        if (mode == Mode.ASYNC) {
-            assert supportsAsync();
-            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings, expectedWarningsRegex);
-        } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings, expectedWarningsRegex);
-        }
+    private Map<?, ?> tooks() throws IOException {
+        Request request = new Request("GET", "/_xpack/usage");
+        HttpEntity entity = client().performRequest(request).getEntity();
+        Map<?, ?> usage = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
+        Map<?, ?> esql = (Map<?, ?>) usage.get("esql");
+        return (Map<?, ?>) esql.get("took");
+    }
+
+    /**
+     * Should warnings be de-duplicated before checking for exact matches. Defaults
+     * to {@code false}, but in some environments we emit duplicate warnings. We'd prefer
+     * not to emit duplicate warnings but for now it isn't worth fighting with. So! In
+     * those environments we override this to deduplicate.
+     * <p>
+     *     Note: This only applies to warnings declared as {@code warning:}. Those
+     *     declared as {@code warningRegex:} are always a list of
+     *     <strong>allowed</strong> warnings. {@code warningRegex:} matches 0 or more
+     *     warnings. There is no need to deduplicate because there's no expectation
+     *     of an exact match.
+     * </p>
+     *
+     */
+    protected boolean deduplicateExactWarnings() {
+        return false;
     }
 
     protected void assertResults(
@@ -275,6 +387,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private Object valueMapper(CsvTestUtils.Type type, Object value) {
         if (value == null) {
             return "null";
+        }
+        if (value instanceof CsvTestUtils.Range) {
+            return value;
         }
         if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
             // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
@@ -295,9 +410,37 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return values;
             } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
+            }
+        }
+        if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
+            if (value instanceof String s) {
+                value = s.replaceAll("\\\\n", "\n");
+            }
+        }
+        if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
+            if (value instanceof Map<?, ?> map) {
+                return ExponentialHistogramXContent.parseForTesting(Types.<Map<String, Object>>forciblyCast(map));
+            }
+            if (value instanceof String json) {
+                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                    return ExponentialHistogramXContent.parseForTesting(parser);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        if (type == CsvTestUtils.Type.DOUBLE || type == CsvTestUtils.Type.INTEGER || type == CsvTestUtils.Type.LONG) {
+            if (value instanceof List<?> vs) {
+                return vs.stream().map(v -> valueMapper(type, v)).toList();
+            } else if (type == CsvTestUtils.Type.DOUBLE) {
+                return ((Number) value).doubleValue();
+            } else if (type == CsvTestUtils.Type.INTEGER) {
+                return ((Number) value).intValue();
+            } else if (type == CsvTestUtils.Type.LONG) {
+                return ((Number) value).longValue();
             }
         }
         return value.toString();
@@ -339,27 +482,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    @Before
     @After
     public void assertRequestBreakerEmptyAfterTests() throws Exception {
-        assertRequestBreakerEmpty();
+        if (testClustersOk) {
+            assertRequestBreakerEmpty();
+        }
     }
 
     public static void assertRequestBreakerEmpty() throws Exception {
         assertBusy(() -> {
-            HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
+            HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats?metric=breaker")).getEntity();
             Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
             Map<?, ?> nodes = (Map<?, ?>) stats.get("nodes");
-            for (Object n : nodes.values()) {
-                Map<?, ?> node = (Map<?, ?>) n;
-                Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
-                Map<?, ?> request = (Map<?, ?>) breakers.get("request");
-                assertMap(
-                    "circuit breakers not reset to 0",
-                    request,
-                    matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b")
+
+            MapMatcher breakersEmpty = matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b");
+
+            MapMatcher nodesMatcher = matchesMap();
+            for (Object name : nodes.keySet()) {
+                nodesMatcher = nodesMatcher.entry(
+                    name,
+                    matchesMap().extraOk().entry("breakers", matchesMap().extraOk().entry("request", breakersEmpty))
                 );
             }
+            assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
     }
 
@@ -416,5 +561,37 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             )
         );
         return tables;
+    }
+
+    protected boolean supportsTook() throws IOException {
+        if (supportsTook == null) {
+            supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
+        }
+        return supportsTook;
+    }
+
+    private String tookKey(long took) {
+        if (took < 10) {
+            return "lt_10ms";
+        }
+        if (took < 100) {
+            return "lt_100ms";
+        }
+        if (took < TookMetrics.ONE_SECOND) {
+            return "lt_1s";
+        }
+        if (took < TookMetrics.TEN_SECONDS) {
+            return "lt_10s";
+        }
+        if (took < TookMetrics.ONE_MINUTE) {
+            return "lt_1m";
+        }
+        if (took < TookMetrics.TEN_MINUTES) {
+            return "lt_10m";
+        }
+        if (took < TookMetrics.ONE_DAY) {
+            return "lt_1d";
+        }
+        return "gt_1d";
     }
 }

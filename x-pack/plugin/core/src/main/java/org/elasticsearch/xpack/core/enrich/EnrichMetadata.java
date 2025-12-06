@@ -8,12 +8,11 @@ package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -30,11 +29,13 @@ import java.util.Objects;
 /**
  * Encapsulates enrich policies as custom metadata inside cluster state.
  */
-public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "enrich";
 
     static final ParseField POLICIES = new ParseField("policies");
+
+    public static final EnrichMetadata EMPTY = new EnrichMetadata(Collections.emptyMap());
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichMetadata, Void> PARSER = new ConstructingObjectParser<>(
@@ -84,7 +85,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_5_0;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -98,8 +99,8 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).xContentObjectFieldObjects(POLICIES.getPreferredName(), policies);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentObjectFieldObjects(POLICIES.getPreferredName(), policies);
     }
 
     @Override

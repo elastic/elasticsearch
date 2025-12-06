@@ -698,7 +698,6 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
      */
     static class UpnADAuthenticator extends ADAuthenticator {
         static final String UPN_USER_FILTER = "(&(objectClass=user)(userPrincipalName={1}))";
-        private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
         UpnADAuthenticator(
             RealmConfig config,
@@ -725,13 +724,17 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 bindRequestSupplier
             );
             if (userSearchFilter.contains("{0}")) {
-                deprecationLogger.warn(
-                    DeprecationCategory.SECURITY,
-                    "ldap_settings",
-                    "The use of the account name variable {0} in the setting ["
-                        + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
-                        + "] has been deprecated and will be removed in a future version!"
-                );
+                DeprecationLogger.getLogger(logger.getName())
+                    .warn(
+                        DeprecationCategory.SECURITY,
+                        "ldap_settings",
+                        "The use of the account name variable {0} in the setting ["
+                            + RealmSettings.getFullSettingKey(
+                                config,
+                                ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING
+                            )
+                            + "] has been deprecated and will be removed in a future version!"
+                    );
             }
         }
 

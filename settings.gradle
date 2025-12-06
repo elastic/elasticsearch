@@ -1,12 +1,9 @@
-import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
-import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
 
 pluginManagement {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
     gradlePluginPortal()
   }
@@ -17,9 +14,12 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "3.18.1"
+  id "com.gradle.develocity" version "4.2.2"
   id 'elasticsearch.java-toolchain'
+  id 'elasticsearch.component-metadata-rules'
 }
+
+enableFeaturePreview "STABLE_CONFIGURATION_CACHE"
 
 rootProject.name = "elasticsearch"
 
@@ -69,18 +69,23 @@ List projects = [
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',
   'distribution:docker:ironbank-docker-export',
-  'distribution:docker:ubi-docker-aarch64-export',
-  'distribution:docker:ubi-docker-export',
   'distribution:docker:wolfi-docker-aarch64-export',
   'distribution:docker:wolfi-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-aarch64-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
-  'distribution:bwc:bugfix',
-  'distribution:bwc:maintenance',
-  'distribution:bwc:minor',
-  'distribution:bwc:staged',
+  'distribution:bwc:major1',
+  'distribution:bwc:major2',
+  'distribution:bwc:major3',
+  'distribution:bwc:major4',
+  'distribution:bwc:minor1',
+  'distribution:bwc:minor2',
+  'distribution:bwc:minor3',
+  'distribution:bwc:minor4',
+  'distribution:bwc:main',
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',
   'distribution:tools:server-cli',
@@ -89,13 +94,13 @@ List projects = [
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
-  'distribution:tools:entitlement-agent',
-  'distribution:tools:entitlement-agent:impl',
-  'distribution:tools:entitlement-bridge',
-  'distribution:tools:entitlement-runtime',
   'server',
   'test:framework',
+  'test:fixtures:aws-ec2-fixture',
+  'test:fixtures:aws-fixture-utils',
+  'test:fixtures:aws-sts-fixture',
   'test:fixtures:azure-fixture',
+  'test:fixtures:ec2-imds-fixture',
   'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
@@ -152,20 +157,11 @@ addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 
-project(":libs").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
-  libsProject.children.each { lp ->
-    lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
-  }
-}
-project(":libs:elasticsearch-native:libraries").name = "elasticsearch-native-libraries"
-
-project(":qa:stable-api").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
-}
+project(":libs:native:libraries").name = "native-libraries"
 
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"
@@ -178,3 +174,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+include 'qa:vector'

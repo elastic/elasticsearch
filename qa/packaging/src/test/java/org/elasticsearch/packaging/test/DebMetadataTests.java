@@ -12,17 +12,30 @@ package org.elasticsearch.packaging.test;
 import junit.framework.TestCase;
 
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.LintianResultParser;
+import org.elasticsearch.packaging.util.LintianResultParser.Issue;
+import org.elasticsearch.packaging.util.LintianResultParser.Result;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.BeforeClass;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.junit.Assume.assumeTrue;
 
 public class DebMetadataTests extends PackagingTestCase {
+
+    private final LintianResultParser lintianParser = new LintianResultParser();
+    private static final List<String> IGNORED_TAGS = List.of(
+        // Override syntax changes between lintian versions in a non-backwards compatible way, so we have to tolerate these.
+        // Tag mismatched-override is a non-erasable tag which cannot be ignored with overrides, so we handle it here.
+        "mismatched-override",
+        // systemd-service-file-outside-lib has been incorrect and removed in the newer version on Lintian
+        "systemd-service-file-outside-lib"
+    );
 
     @BeforeClass
     public static void filterDistros() {
@@ -35,15 +48,26 @@ public class DebMetadataTests extends PackagingTestCase {
         if (helpText.contains("--fail-on-warnings")) {
             extraArgs = "--fail-on-warnings";
         } else if (helpText.contains("--fail-on error")) {
-            extraArgs = "--fail-on warning";
-            // Recent lintian versions are picky about malformed or mismatched overrides.
-            // Unfortunately override syntax changes between lintian versions in a non-backwards compatible
-            // way, so we have to tolerate these (or maintain separate override files per lintian version).
-            if (helpText.contains("--suppress-tags")) {
-                extraArgs += " --suppress-tags malformed-override,mismatched-override";
+            extraArgs = "--fail-on error,warning";
+        }
+        Shell.Result result = sh.runIgnoreExitCode(
+            String.format(Locale.ROOT, "lintian %s %s", extraArgs, getDistributionFile(distribution()))
+        );
+        Result lintianResult = lintianParser.parse(result.stdout());
+        // Unfortunately Lintian overrides syntax changes between Lintian versions in a non-backwards compatible
+        // way, so we have to manage some exclusions outside the overrides file.
+        if (lintianResult.isSuccess() == false) {
+            List<Issue> importantIssues = lintianResult.issues()
+                .stream()
+                .filter(issue -> IGNORED_TAGS.contains(issue.tag()) == false)
+                .toList();
+            if (importantIssues.isEmpty() == false) {
+                fail(
+                    "Issues for DEB package found by Lintian:\n"
+                        + importantIssues.stream().map(Record::toString).collect(Collectors.joining("\n"))
+                );
             }
         }
-        sh.run(String.format(Locale.ROOT, "lintian %s %s", extraArgs, FileUtils.getDistributionFile(distribution())));
     }
 
     public void test06Dependencies() {

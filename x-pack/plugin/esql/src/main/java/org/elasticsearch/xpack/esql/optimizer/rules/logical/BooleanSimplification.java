@@ -11,22 +11,23 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineAnd;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineOr;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.inCommon;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.subtract;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineOr;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.inCommon;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitOr;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.subtract;
 
 public final class BooleanSimplification extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> {
 
@@ -35,7 +36,7 @@ public final class BooleanSimplification extends OptimizerRules.OptimizerExpress
     }
 
     @Override
-    public Expression rule(ScalarFunction e) {
+    public Expression rule(ScalarFunction e, LogicalOptimizerContext ctx) {
         if (e instanceof And || e instanceof Or) {
             return simplifyAndOr((BinaryPredicate<?, ?, ?, ?>) e);
         }

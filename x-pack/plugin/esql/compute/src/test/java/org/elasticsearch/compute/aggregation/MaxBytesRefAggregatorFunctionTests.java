@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceBytesRefBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -31,8 +32,8 @@ public class MaxBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCa
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxBytesRefAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxBytesRefAggregatorFunctionSupplier();
     }
 
     @Override
@@ -41,8 +42,8 @@ public class MaxBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCa
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Optional<BytesRef> max = input.stream().flatMap(b -> allBytesRefs(b)).max(Comparator.naturalOrder());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Optional<BytesRef> max = input.stream().flatMap(p -> allBytesRefs(p.getBlock(0))).max(Comparator.naturalOrder());
         if (max.isEmpty()) {
             assertThat(result.isNull(0), equalTo(true));
             return;

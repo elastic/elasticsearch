@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -122,7 +123,8 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             .getSecurityIndexManager();
         final ActionFuture<Void> future = new PlainActionFuture<>();
         // pick longer wait than in the assertBusy that waits for below to ensure index has had enough time to initialize
-        securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
+        securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID)
+            .onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(40));
 
         // check listener added
         assertThat(
@@ -133,7 +135,10 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         createSecurityIndexWithWaitForActiveShards();
 
         assertBusy(
-            () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
+            () -> assertThat(
+                securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID).isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS),
+                is(true)
+            ),
             30,
             TimeUnit.SECONDS
         );
@@ -160,7 +165,10 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
         // ensure security index manager state is fully in the expected precondition state for this test (ready for search)
         assertBusy(
-            () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
+            () -> assertThat(
+                securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID).isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS),
+                is(true)
+            ),
             30,
             TimeUnit.SECONDS
         );
@@ -168,14 +176,16 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         // With 0 timeout
         {
             final ActionFuture<Void> future = new PlainActionFuture<>();
-            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(0));
+            securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID)
+                .onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(0));
             future.actionGet();
         }
 
         // With non-0 timeout
         {
             final ActionFuture<Void> future = new PlainActionFuture<>();
-            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(10));
+            securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID)
+                .onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueSeconds(10));
             future.actionGet();
         }
 
@@ -198,7 +208,8 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             final Future<Void> future = executor.submit(() -> {
                 try {
                     final ActionFuture<Void> f = new PlainActionFuture<>();
-                    securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) f, TimeValue.timeValueSeconds(40));
+                    securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID)
+                        .onIndexAvailableForSearch((ActionListener<Void>) f, TimeValue.timeValueSeconds(40));
                     f.actionGet();
                 } catch (Exception ex) {
                     fail(ex, "should not have encountered exception");
@@ -213,7 +224,8 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             final Future<Void> future = executor.submit(() -> {
                 expectThrows(ElasticsearchTimeoutException.class, () -> {
                     final ActionFuture<Void> f = new PlainActionFuture<>();
-                    securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) f, TimeValue.timeValueMillis(10));
+                    securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID)
+                        .onIndexAvailableForSearch((ActionListener<Void>) f, TimeValue.timeValueMillis(10));
                     f.actionGet();
                 });
                 return null;
@@ -227,7 +239,10 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
         createSecurityIndexWithWaitForActiveShards();
         // ensure security index manager state is fully in the expected precondition state for this test (ready for search)
         assertBusy(
-            () -> assertThat(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true)),
+            () -> assertThat(
+                securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID).isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS),
+                is(true)
+            ),
             30,
             TimeUnit.SECONDS
         );
@@ -254,14 +269,16 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
         {
             final ActionFuture<Void> future = new PlainActionFuture<>();
-            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
+            securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID)
+                .onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(100));
             expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
         }
 
         // Also works with 0 timeout
         {
             final ActionFuture<Void> future = new PlainActionFuture<>();
-            securityIndexManager.onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(0));
+            securityIndexManager.getProject(Metadata.DEFAULT_PROJECT_ID)
+                .onIndexAvailableForSearch((ActionListener<Void>) future, TimeValue.timeValueMillis(0));
             expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
         }
 
@@ -274,7 +291,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
     public void testSecurityIndexSettingsCannotBeChanged() throws Exception {
         // make sure the security index is not auto-created
-        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();

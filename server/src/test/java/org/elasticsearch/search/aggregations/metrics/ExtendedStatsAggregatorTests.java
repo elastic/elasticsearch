@@ -17,9 +17,12 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
@@ -27,7 +30,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.hamcrest.Matchers.is;
 
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;
@@ -57,8 +60,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         DateFormatter.forPattern("epoch_millis");
         final MappedFieldType ft = new DateFieldMapper.DateFieldType(
             "field",
-            true,
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFormatter.forPattern("epoch_millis"),
@@ -302,6 +304,13 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             .sigma(randomDoubleBetween(0, 10, true));
 
         testCase(buildIndex, verify, new AggTestConfig(aggBuilder, ft));
+    }
+
+    @Override
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void verifyOutputFieldNames(T aggregationBuilder, V agg)
+        throws IOException {
+        assertTrue(aggregationBuilder.getOutputFieldNames().isPresent());
+        assertThat(aggregationBuilder.getOutputFieldNames().get(), is(InternalExtendedStats.Fields.OUTPUT_FORMAT));
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

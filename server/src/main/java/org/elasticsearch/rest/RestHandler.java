@@ -15,7 +15,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.xcontent.XContent;
 
 import java.util.Collections;
 import java.util.List;
@@ -40,12 +39,7 @@ public interface RestHandler {
         return true;
     }
 
-    /**
-     * Indicates if the RestHandler supports bulk content. A bulk request contains multiple objects
-     * delineated by {@link XContent#bulkSeparator()}. If a handler returns true this will affect
-     * the types of content that can be sent to this endpoint.
-     */
-    default boolean supportsBulkContent() {
+    default boolean supportsContentStream() {
         return false;
     }
 
@@ -67,18 +61,6 @@ public interface RestHandler {
     default Scope getServerlessScope() {
         ServerlessScope serverlessScope = getConcreteRestHandler().getClass().getAnnotation(ServerlessScope.class);
         return serverlessScope == null ? null : serverlessScope.value();
-    }
-
-    /**
-     * Indicates if the RestHandler supports working with pooled buffers. If the request handler will not escape the return
-     * {@link RestRequest#content()} or any buffers extracted from it then there is no need to make a copies of any pooled buffers in the
-     * {@link RestRequest} instance before passing a request to this handler. If this instance does not support pooled/unsafe buffers
-     * {@link RestRequest#ensureSafeBuffers()} should be called on any request before passing it to {@link #handleRequest}.
-     *
-     * @return true iff the handler supports requests that make use of pooled buffers
-     */
-    default boolean allowsUnsafeBuffers() {
-        return false;
     }
 
     /**

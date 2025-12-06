@@ -28,7 +28,7 @@ public class IngestPipelineException extends ElasticsearchException implements E
 
     IngestPipelineException(final String pipeline, final Exception cause) {
         super(cause);
-        this.addHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER, List.of(pipeline));
+        this.addBodyHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER, List.of(pipeline));
     }
 
     public IngestPipelineException(final StreamInput in) throws IOException {

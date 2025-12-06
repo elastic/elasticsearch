@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -118,7 +117,6 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0) : out.getTransportVersion();
         out.writeVLong(unchangedTaskCount);
         out.writeVLong(publicationSuccessCount);
         out.writeVLong(publicationFailureCount);
@@ -140,7 +138,7 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
         out.writeVLong(failedNotificationElapsedMillis);
     }
 
-    public static ClusterStateUpdateStats EMPTY = new ClusterStateUpdateStats(
+    public static final ClusterStateUpdateStats EMPTY = new ClusterStateUpdateStats(
         0L,
         0L,
         0L,

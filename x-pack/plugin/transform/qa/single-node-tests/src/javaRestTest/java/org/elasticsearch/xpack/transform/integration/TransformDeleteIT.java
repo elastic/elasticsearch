@@ -110,7 +110,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
 
         deleteTransform(transformId, false, true);
         assertFalse(indexExists(transformDest));
-        assertFalse(aliasExists(transformDest));
+        assertFalse(aliasExists(transformDestAlias));
     }
 
     public void testDeleteWithParamDeletesManuallyCreatedDestinationIndex() throws Exception {
@@ -139,7 +139,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertFalse(aliasExists(transformDestAlias));
     }
 
-    public void testDeleteWithParamDoesNotDeleteManuallySetUpAlias() throws Exception {
+    public void testDeleteWithManuallyCreatedIndexAndManuallyCreatedAlias() throws Exception {
         String transformId = "transform-4";
         String transformDest = transformId + "_idx";
         String transformDestAlias = transformId + "_alias";
@@ -158,16 +158,9 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
         assertTrue(aliasExists(transformDestAlias));
 
-        ResponseException e = expectThrows(ResponseException.class, () -> deleteTransform(transformId, false, true));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                Strings.format(
-                    "The provided expression [%s] matches an alias, specify the corresponding concrete indices instead.",
-                    transformDestAlias
-                )
-            )
-        );
+        deleteTransform(transformId, false, true);
+        assertFalse(indexExists(transformDest));
+        assertFalse(aliasExists(transformDestAlias));
     }
 
     public void testDeleteDestinationIndexIsNoOpWhenNoDestinationIndexExists() throws Exception {
@@ -183,6 +176,88 @@ public class TransformDeleteIT extends TransformRestTestCase {
         deleteTransform(transformId, false, true);
         assertFalse(indexExists(transformDest));
         assertFalse(aliasExists(transformDestAlias));
+    }
+
+    public void testDeleteWithAliasPointingToManyIndices() throws Exception {
+        var transformId = "transform-6";
+        var transformDest = transformId + "_idx";
+        var otherIndex = "some-other-index-6";
+        String transformDestAlias = transformId + "_alias";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest, otherIndex, transformDestAlias);
+
+        createIndex(transformDest, null, null, "\"" + transformDestAlias + "\": { \"is_write_index\": true }");
+        createIndex(otherIndex, null, null, "\"" + transformDestAlias + "\": {}");
+
+        assertTrue(indexExists(transformDest));
+        assertTrue(indexExists(otherIndex));
+        assertTrue(aliasExists(transformDestAlias));
+
+        createTransform(transformId, transformDestAlias, null);
+
+        startTransform(transformId);
+        waitForTransformCheckpoint(transformId, 1);
+
+        stopTransform(transformId, false);
+
+        assertTrue(indexExists(transformDest));
+        assertTrue(indexExists(otherIndex));
+        assertTrue(aliasExists(transformDestAlias));
+
+        deleteTransform(transformId, false, true);
+
+        assertFalse(indexExists(transformDest));
+        assertTrue(indexExists(otherIndex));
+        assertTrue(aliasExists(transformDestAlias));
+    }
+
+    public void testDeleteWithNoWriteIndexThrowsException() throws Exception {
+        var transformId = "transform-7";
+        var transformDest = transformId + "_idx";
+        var otherIndex = "some-other-index-7";
+        String transformDestAlias = transformId + "_alias";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest, otherIndex, transformDestAlias);
+
+        createIndex(transformDest, null, null, "\"" + transformDestAlias + "\": {}");
+
+        assertTrue(indexExists(transformDest));
+        assertTrue(aliasExists(transformDestAlias));
+
+        createTransform(transformId, transformDestAlias, null);
+
+        createIndex(otherIndex, null, null, "\"" + transformDestAlias + "\": {}");
+        assertTrue(indexExists(otherIndex));
+
+        ResponseException e = expectThrows(ResponseException.class, () -> deleteTransform(transformId, false, true));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                Strings.format(
+                    "Cannot disambiguate destination index alias [%s]. Alias points to many indices with no clear write alias."
+                        + " Retry with delete_dest_index=false and manually clean up destination index.",
+                    transformDestAlias
+                )
+            )
+        );
+    }
+
+    public void testDeleteWithAlreadyDeletedIndex() throws Exception {
+        var transformId = "transform-8";
+        var transformDest = transformId + "_idx";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
+
+        createIndex(transformDest);
+
+        assertTrue(indexExists(transformDest));
+
+        createTransform(transformId, transformDest, null);
+
+        deleteIndex(transformDest);
+
+        assertFalse(indexExists(transformDest));
+
+        deleteTransform(transformId, false, true);
+
+        assertFalse(indexExists(transformDest));
     }
 
     private void createTransform(String transformId, String destIndex, String destAlias) throws IOException {

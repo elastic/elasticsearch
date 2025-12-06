@@ -11,9 +11,8 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -33,9 +32,9 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestRolloverIndexAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRolloverIndexAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in rollover "
-        + "index requests is deprecated. The parameter will be removed in the next major version.";
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestRolloverIndexAction.class);
+    public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition has been deprecated in favour of "
+        + "the [max_primary_shard_size] condition and will be removed in a later version";
 
     @Override
     public List<Route> routes() {
@@ -49,11 +48,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            return Set.of("lazy-rollover-failure-store");
-        } else {
-            return Set.of();
-        }
+        return Set.of("return-404-on-missing-target", "index_expression_selectors", "max_size_deprecation");
     }
 
     @Override
@@ -64,18 +59,14 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
         rolloverIndexRequest.ackTimeout(getAckTimeout(request));
         rolloverIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            boolean failureStore = request.paramAsBoolean("target_failure_store", false);
-            if (failureStore) {
-                rolloverIndexRequest.setIndicesOptions(
-                    IndicesOptions.builder(rolloverIndexRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                        .build()
-                );
-            }
-        }
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+
+        // Check for deprecated conditions
+        if (rolloverIndexRequest.getConditions().getMaxSize() != null) {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "rollover-max-size-condition", MAX_SIZE_DEPRECATION_MESSAGE);
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));

@@ -221,7 +221,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.GENERIC,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_THROTTLED,
 
             // Cache asynchronous fetching runs on a dedicated thread pool.
             SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,

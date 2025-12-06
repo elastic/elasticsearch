@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -89,7 +90,8 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
@@ -180,7 +182,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
         Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode)
-            .indexService(clusterService().state().metadata().index(indexName).getIndex())
+            .indexService(clusterService().state().metadata().getProject().index(indexName).getIndex())
             .getShard(0)
             .shardPath()
             .getDataPath()
@@ -197,7 +199,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ? """
             ,"incorrect":{"type":"object"},"nested":{"type":"nested","properties":{"value":{"type":"long"}}}""" : "";

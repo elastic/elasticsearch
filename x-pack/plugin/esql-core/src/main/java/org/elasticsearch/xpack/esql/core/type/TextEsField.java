@@ -10,6 +10,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -17,32 +19,39 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Information about a field in an es index with the {@code text} type.
  */
 public class TextEsField extends EsField {
 
-    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        this(name, properties, hasDocValues, false);
-    }
-
-    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
-        super(name, TEXT, properties, hasDocValues, isAlias);
+    public TextEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType
+    ) {
+        super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
     }
 
     protected TextEsField(StreamInput in) throws IOException {
-        this(readCachedStringWithVersionCheck(in), in.readImmutableMap(EsField::readFrom), in.readBoolean(), in.readBoolean());
+        this(
+            ((PlanStreamInput) in).readCachedString(),
+            in.readImmutableMap(EsField::readFrom),
+            in.readBoolean(),
+            in.readBoolean(),
+            readTimeSeriesFieldType(in)
+        );
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, getName());
+        ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
+        writeTimeSeriesFieldType(out);
     }
 
     public String getWriteableName() {

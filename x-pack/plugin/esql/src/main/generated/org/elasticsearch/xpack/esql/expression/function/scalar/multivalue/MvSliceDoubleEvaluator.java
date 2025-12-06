@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -20,9 +21,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSlice}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvSliceDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvSliceDoubleEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
@@ -56,6 +59,15 @@ public final class MvSliceDoubleEvaluator implements EvalOperator.ExpressionEval
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += start.baseRamBytesUsed();
+    baseRamBytesUsed += end.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock, IntBlock startBlock,
       IntBlock endBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
@@ -64,34 +76,36 @@ public final class MvSliceDoubleEvaluator implements EvalOperator.ExpressionEval
         if (!fieldBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (startBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (startBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startBlock.getValueCount(p) != 1) {
-          if (startBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (endBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endBlock.getValueCount(p) != 1) {
-          if (endBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (endBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
+        int start = startBlock.getInt(startBlock.getFirstValueIndex(p));
+        int end = endBlock.getInt(endBlock.getFirstValueIndex(p));
         try {
-          MvSlice.process(result, p, fieldBlock, startBlock.getInt(startBlock.getFirstValueIndex(p)), endBlock.getInt(endBlock.getFirstValueIndex(p)));
+          MvSlice.process(result, p, fieldBlock, start, end);
         } catch (InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

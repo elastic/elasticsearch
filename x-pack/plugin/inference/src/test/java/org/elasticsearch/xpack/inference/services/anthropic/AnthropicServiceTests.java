@@ -11,62 +11,72 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.anthropic.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.buildExpectationCompletions;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getModelListenerForException;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AnthropicServiceTests extends ESTestCase {
+public class AnthropicServiceTests extends InferenceServiceTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
@@ -77,7 +87,7 @@ public class AnthropicServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -145,7 +155,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -164,7 +174,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -183,7 +193,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -202,7 +212,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
-                "Model configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
+                "Configuration contains settings [{extra_key=value}] unknown to the [anthropic] service"
             );
             service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
         }
@@ -438,17 +448,19 @@ public class AnthropicServiceTests extends ESTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotAValidModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool))) {
+        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
+                null,
+                null,
                 null,
                 List.of(""),
                 false,
@@ -465,7 +477,7 @@ public class AnthropicServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -476,7 +488,7 @@ public class AnthropicServiceTests extends ESTestCase {
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -504,6 +516,8 @@ public class AnthropicServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("input"),
                 false,
@@ -534,27 +548,40 @@ public class AnthropicServiceTests extends ESTestCase {
 
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
+            event: message_start
             data: {"type": "message_start", "message": {"model": "claude, probably"}}
+
+            event: content_block_start
             data: {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}
+
+            event: ping
             data: {"type": "ping"}
+
+            event: content_block_delta
             data: {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Hello"}}
+
+            event: content_block_delta
             data: {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": ", World"}}
+
+            event: content_block_stop
             data: {"type": "content_block_stop", "index": 0}
+
+            event: message_delta
             data: {"type": "message_delta", "delta": {"stop_reason": "end_turn", "stop_sequence":null}, "usage": {"output_tokens": 4}}
+
+            event: message_stop
             data: {"type": "message_stop"}
 
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"Hello"},{"delta":", World"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
                 getUrl(webServer),
                 "secret",
@@ -565,6 +592,8 @@ public class AnthropicServiceTests extends ESTestCase {
             service.infer(
                 model,
                 null,
+                null,
+                null,
                 List.of("abc"),
                 true,
                 new HashMap<>(),
@@ -573,7 +602,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -584,16 +613,86 @@ public class AnthropicServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
+        streamChatCompletion().hasNoEvents()
             .hasErrorWithStatusCode(RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus())
             .hasErrorContaining("blah");
     }
 
+    public void testGetConfiguration() throws Exception {
+        try (var service = createServiceWithMockSender()) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                      "service": "anthropic",
+                      "name": "Anthropic",
+                      "task_types": ["completion"],
+                      "configurations": {
+                          "api_key": {
+                              "description": "API Key for the provider you're connecting to.",
+                              "label": "API Key",
+                              "required": true,
+                              "sensitive": true,
+                              "updatable": true,
+                              "type": "str",
+                              "supported_task_types": ["completion"]
+                          },
+                          "rate_limit.requests_per_minute": {
+                              "description": "By default, the anthropic service sets the number of requests allowed per minute to 50.",
+                              "label": "Rate Limit",
+                              "required": false,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "int",
+                              "supported_task_types": ["completion"]
+                          },
+                          "model_id": {
+                              "description": "The name of the model to use for the inference task.",
+                              "label": "Model ID",
+                              "required": true,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "str",
+                              "supported_task_types": ["completion"]
+                          },
+                        "max_tokens": {
+                              "description": "The maximum number of tokens to generate before stopping.",
+                              "label": "Max Tokens",
+                              "required": true,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "int",
+                              "supported_task_types": ["completion"]
+                          }
+                      }
+                  }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
+        }
+    }
+
     private AnthropicService createServiceWithMockSender() {
-        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createServiceWithMockSender();
     }
 }

@@ -70,8 +70,8 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         public Request(StreamInput in) throws IOException {
             super(in);
             this.inferenceEntityId = in.readString();
-            this.content = in.readBytesReference();
             this.taskType = TaskType.fromStream(in);
+            this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
         }
 
@@ -244,7 +244,6 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             model = new ModelConfigurations(in);
         }
 

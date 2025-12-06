@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.core.textstructure.action;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -25,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public abstract class AbstractFindStructureRequest extends ActionRequest {
+public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
 
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
 
@@ -81,11 +80,7 @@ public abstract class AbstractFindStructureRequest extends ActionRequest {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            ecsCompatibility = in.readOptionalString();
-        } else {
-            ecsCompatibility = null;
-        }
+        ecsCompatibility = in.readOptionalString();
         timestampFormat = in.readOptionalString();
         timestampField = in.readOptionalString();
     }
@@ -327,9 +322,7 @@ public abstract class AbstractFindStructureRequest extends ActionRequest {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeOptionalString(ecsCompatibility);
-        }
+        out.writeOptionalString(ecsCompatibility);
         out.writeOptionalString(timestampFormat);
         out.writeOptionalString(timestampField);
     }

@@ -16,6 +16,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,7 +26,9 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -38,11 +41,11 @@ import org.elasticsearch.persistent.NotPersistentTaskNodeException;
 import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
@@ -77,13 +80,12 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 
 /**
  * A base class for all elasticsearch exceptions.
  */
 public class ElasticsearchException extends RuntimeException implements ToXContentFragment, Writeable {
-
-    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersions.ZERO;
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
@@ -107,6 +109,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
+    private static final String TIMED_OUT = "timed_out";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
     public static final String STACK_TRACE = "stack_trace";
@@ -114,14 +117,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
 
+    static final String TIMED_OUT_HEADER = "X-Timed-Out";
+    static final String EXCEPTION_TYPE_HEADER = "X-Elastic-App-Exception";
+
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
     private final Map<String, List<String>> metadata = new HashMap<>();
-    private final Map<String, List<String>> headers = new HashMap<>();
+    private final Map<String, List<String>> bodyHeaders = new HashMap<>();
+    private final Map<String, List<String>> httpHeaders = new HashMap<>();
 
     /**
      * Construct a <code>ElasticsearchException</code> with the specified cause exception.
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
     }
@@ -135,6 +143,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param msg  the detail message
      * @param args the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
     }
@@ -150,6 +159,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param cause the nested exception
      * @param args  the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
     }
@@ -158,8 +168,23 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        headers.putAll(in.readMapOfLists(StreamInput::readString));
+        bodyHeaders.putAll(in.readMapOfLists(StreamInput::readString));
         metadata.putAll(in.readMapOfLists(StreamInput::readString));
+    }
+
+    private void maybeAddErrorHeaders() {
+        if (isTimeout()) {
+            // see https://www.rfc-editor.org/rfc/rfc8941.html#section-4.1.9 for booleans in structured headers
+            bodyHeaders.put(TIMED_OUT_HEADER, List.of("?1"));
+        }
+        if (httpHeaders.containsKey(EXCEPTION_TYPE_HEADER) == false) {
+            // TODO: cache unwrapping the cause? we do this in several places...
+            Throwable cause = unwrapCause();
+            RestStatus status = ExceptionsHelper.status(cause);
+            if (status.getStatus() >= 500) {
+                httpHeaders.put(EXCEPTION_TYPE_HEADER, List.of(cause.getClass().getSimpleName()));
+            }
+        }
     }
 
     /**
@@ -202,42 +227,83 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Adds a new header with the given key.
+     * Adds a new header with the given key that is part of the response body and http headers.
      * This method will replace existing header if a header with the same key already exists
      */
-    public void addHeader(String key, List<String> value) {
+    public void addBodyHeader(String key, List<String> value) {
         // we need to enforce this otherwise bw comp doesn't work properly, as "es." was the previous criteria to split headers in two sets
         if (key.startsWith("es.")) {
             throw new IllegalArgumentException("exception headers must not start with [es.], found [" + key + "] instead");
         }
-        this.headers.put(key, value);
+        this.bodyHeaders.put(key, value);
     }
 
     /**
-     * Adds a new header with the given key.
+     * Adds a new header with the given key that is part of the response body and http headers.
      * This method will replace existing header if a header with the same key already exists
      */
-    public void addHeader(String key, String... value) {
-        addHeader(key, Arrays.asList(value));
+    public void addBodyHeader(String key, String... value) {
+        addBodyHeader(key, Arrays.asList(value));
     }
 
     /**
-     * Returns a set of all header keys on this exception
+     * Returns a set of all body header keys on this exception
      */
-    public Set<String> getHeaderKeys() {
-        return headers.keySet();
+    public Set<String> getBodyHeaderKeys() {
+        maybeAddErrorHeaders();
+        return bodyHeaders.keySet();
     }
 
     /**
-     * Returns the list of header values for the given key or {@code null} if no header for the
+     * Returns the list of body header values for the given key or {@code null} if no header for the
      * given key exists.
      */
-    public List<String> getHeader(String key) {
-        return headers.get(key);
+    public List<String> getBodyHeader(String key) {
+        maybeAddErrorHeaders();
+        return bodyHeaders.get(key);
     }
 
-    protected Map<String, List<String>> getHeaders() {
-        return headers;
+    protected Map<String, List<String>> getBodyHeaders() {
+        maybeAddErrorHeaders();
+        return bodyHeaders;
+    }
+
+    /**
+     * Adds a new http header with the given key.
+     * This method will replace existing http header if a header with the same key already exists
+     */
+    public void addHttpHeader(String key, List<String> value) {
+        this.httpHeaders.put(key, value);
+    }
+
+    /**
+     * Adds a new http header with the given key.
+     * This method will replace existing http header if a header with the same key already exists
+     */
+    public void addHttpHeader(String key, String... value) {
+        this.httpHeaders.put(key, List.of(value));
+    }
+
+    /**
+     * Returns a set of all body header keys on this exception
+     */
+    public Set<String> getHttpHeaderKeys() {
+        maybeAddErrorHeaders();
+        return httpHeaders.keySet();
+    }
+
+    /**
+     * Returns the list of http header values for the given key or {@code null} if no header for the
+     * given key exists.
+     */
+    public List<String> getHttpHeader(String key) {
+        maybeAddErrorHeaders();
+        return httpHeaders.get(key);
+    }
+
+    protected Map<String, List<String>> getHttpHeaders() {
+        maybeAddErrorHeaders();
+        return httpHeaders;
     }
 
     /**
@@ -250,6 +316,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         } else {
             return ExceptionsHelper.status(cause);
         }
+    }
+
+    /**
+     * Returns whether this exception represents a timeout.
+     */
+    public boolean isTimeout() {
+        return false;
     }
 
     /**
@@ -269,7 +342,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public String getDetailedMessage() {
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
-            sb.append(toString()).append("; ");
+            sb.append(this).append("; ");
             if (getCause() instanceof ElasticsearchException) {
                 sb.append(((ElasticsearchException) getCause()).getDetailedMessage());
             } else {
@@ -310,17 +383,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
         nestedExceptionsWriter.write(out, this);
-        out.writeMap(headers, StreamOutput::writeStringCollection);
+        out.writeMap(bodyHeaders, StreamOutput::writeStringCollection);
         out.writeMap(metadata, StreamOutput::writeStringCollection);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
-            if (id == 127 && input.getTransportVersion().before(TransportVersions.V_7_5_0)) {
-                // was SearchContextException
-                return new SearchException(input);
-            }
             throw new IllegalStateException("unknown exception for id: " + id);
         }
         return elasticsearchException.apply(input);
@@ -332,7 +401,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static boolean isRegistered(Class<? extends Throwable> exception, TransportVersion version) {
         ElasticsearchExceptionHandle elasticsearchExceptionHandle = CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE.get(exception);
         if (elasticsearchExceptionHandle != null) {
-            return version.onOrAfter(elasticsearchExceptionHandle.versionAdded);
+            return version.supports(elasticsearchExceptionHandle.minimumCompatible);
         }
         return false;
     }
@@ -362,7 +431,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (ex != this) {
             generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause(), nestedLevel);
+            innerToXContent(builder, params, this, bodyHeaders, metadata, getCause(), nestedLevel);
         }
         return builder;
     }
@@ -371,8 +440,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         XContentBuilder builder,
         Params params,
         Throwable throwable,
-        String type,
-        String message,
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
         Throwable cause,
@@ -386,8 +453,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return;
         }
 
-        builder.field(TYPE, type);
-        builder.field(REASON, message);
+        builder.field(TYPE, throwable instanceof ElasticsearchException e ? e.getExceptionName() : getExceptionName(throwable));
+        builder.field(REASON, throwable.getMessage());
+
+        // TODO: we could walk the exception chain to see if _any_ causes are timeouts?
+        if (throwable instanceof ElasticsearchException exception && exception.isTimeout()) {
+            builder.field(TIMED_OUT, true);
+        }
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());
@@ -397,13 +469,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             exception.metadataToXContent(builder, params);
         }
 
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
-            if (cause != null) {
-                builder.field(CAUSED_BY);
-                builder.startObject();
-                generateThrowableXContent(builder, params, cause, nestedLevel + 1);
-                builder.endObject();
-            }
+        if (cause != null && params.paramAsBoolean(REST_EXCEPTION_SKIP_CAUSE, REST_EXCEPTION_SKIP_CAUSE_DEFAULT) == false) {
+            builder.startObject(CAUSED_BY);
+            generateThrowableXContent(builder, params, cause, nestedLevel + 1);
+            builder.endObject();
         }
 
         if (headers.isEmpty() == false) {
@@ -559,7 +628,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             e.addMetadata("es." + entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
-            e.addHeader(header.getKey(), header.getValue());
+            e.addBodyHeader(header.getKey(), header.getValue());
         }
 
         // Adds root causes as suppressed exception. This way they are not lost
@@ -576,7 +645,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable, int)}.
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, Map, Map, Throwable, int)}.
      *
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@link #fromXContent(XContentParser)} method.
@@ -596,7 +665,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (t instanceof ElasticsearchException) {
             ((ElasticsearchException) t).toXContent(builder, params, nestedLevel);
         } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), nestedLevel);
+            innerToXContent(builder, params, t, emptyMap(), emptyMap(), t.getCause(), nestedLevel);
         }
     }
 
@@ -611,23 +680,31 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static XContentBuilder generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
         throws IOException {
-        // No exception to render as an error
-        if (e == null) {
-            return builder.field(ERROR, "unknown");
+        if (builder.getRestApiVersion() == RestApiVersion.V_8) {
+            if (e == null) {
+                return builder.field(ERROR, "unknown");
+            }
+            if (detailed == false) {
+                return generateNonDetailedFailureXContentV8(builder, e);
+            }
+            // else fallthrough
         }
 
-        // Render the exception with a simple message
+        if (e == null) {
+            // No exception to render as an error
+            builder.startObject(ERROR);
+            builder.field(TYPE, "unknown");
+            builder.field(REASON, "unknown");
+            return builder.endObject();
+        }
+
         if (detailed == false) {
-            String message = "No ElasticsearchException found";
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof ElasticsearchException) {
-                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-                    break;
-                }
-                t = t.getCause();
-            }
-            return builder.field(ERROR, message);
+            // just render the type & message
+            Throwable t = ExceptionsHelper.unwrapCause(e);
+            builder.startObject(ERROR);
+            builder.field(TYPE, getExceptionName(t));
+            builder.field(REASON, t.getMessage());
+            return builder.endObject();
         }
 
         // Render the exception with all details
@@ -644,6 +721,20 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         return builder.endObject();
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)    // remove V8 API
+    private static XContentBuilder generateNonDetailedFailureXContentV8(XContentBuilder builder, @Nullable Exception e) throws IOException {
+        String message = "No ElasticsearchException found";
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof ElasticsearchException) {
+                message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                break;
+            }
+            t = t.getCause();
+        }
+        return builder.field(ERROR, message);
     }
 
     /**
@@ -670,8 +761,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public ElasticsearchException[] guessRootCauses() {
         final Throwable cause = getCause();
-        if (cause != null && cause instanceof ElasticsearchException) {
-            return ((ElasticsearchException) cause).guessRootCauses();
+        if (cause instanceof ElasticsearchException ese) {
+            return ese.guessRootCauses();
         }
         return new ElasticsearchException[] { this };
     }
@@ -720,35 +811,28 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static String getExceptionName(Throwable ex) {
         String simpleName = ex.getClass().getSimpleName();
-        if (simpleName.startsWith("Elasticsearch")) {
-            simpleName = simpleName.substring("Elasticsearch".length());
-        }
         // TODO: do we really need to make the exception name in underscore casing?
-        return toUnderscoreCase(simpleName);
+        return toUnderscoreCase(simpleName, simpleName.startsWith("Elasticsearch") ? "Elasticsearch".length() : 0);
     }
 
     static String buildMessage(String type, String reason, String stack) {
-        StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
-        if (stack != null) {
-            message.append(", ").append(STACK_TRACE).append('=').append(stack);
-        }
-        message.append(']');
-        return message.toString();
+        return "Elasticsearch exception ["
+            + TYPE
+            + "="
+            + type
+            + ", "
+            + REASON
+            + "="
+            + reason
+            + (stack == null ? "" : (", " + STACK_TRACE + "=" + stack))
+            + "]";
     }
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder();
-        if (metadata.containsKey(INDEX_METADATA_KEY)) {
-            builder.append(getIndex());
-            if (metadata.containsKey(SHARD_METADATA_KEY)) {
-                builder.append('[').append(getShardId()).append(']');
-            }
-            builder.append(' ');
-        }
-        return builder.append(super.toString().trim()).toString();
+        return (metadata.containsKey(INDEX_METADATA_KEY)
+            ? (getIndex() + (metadata.containsKey(SHARD_METADATA_KEY) ? "[" + getShardId() + "] " : " "))
+            : "") + super.toString().trim();
     }
 
     /**
@@ -1022,147 +1106,147 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException.class,
             org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException::new,
             0,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         DFS_PHASE_EXECUTION_EXCEPTION(
             org.elasticsearch.search.dfs.DfsPhaseExecutionException.class,
             org.elasticsearch.search.dfs.DfsPhaseExecutionException::new,
             1,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         EXECUTION_CANCELLED_EXCEPTION(
             org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException.class,
             org.elasticsearch.common.util.CancellableThreads.ExecutionCancelledException::new,
             2,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         MASTER_NOT_DISCOVERED_EXCEPTION(
             org.elasticsearch.discovery.MasterNotDiscoveredException.class,
             org.elasticsearch.discovery.MasterNotDiscoveredException::new,
             3,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ELASTICSEARCH_SECURITY_EXCEPTION(
             org.elasticsearch.ElasticsearchSecurityException.class,
             org.elasticsearch.ElasticsearchSecurityException::new,
             4,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_SHARD_RESTORE_EXCEPTION(
             org.elasticsearch.index.snapshots.IndexShardRestoreException.class,
             org.elasticsearch.index.snapshots.IndexShardRestoreException::new,
             5,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_CLOSED_EXCEPTION(
             org.elasticsearch.indices.IndexClosedException.class,
             org.elasticsearch.indices.IndexClosedException::new,
             6,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         BIND_HTTP_EXCEPTION(
             org.elasticsearch.http.BindHttpException.class,
             org.elasticsearch.http.BindHttpException::new,
             7,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         REDUCE_SEARCH_PHASE_EXCEPTION(
             org.elasticsearch.action.search.ReduceSearchPhaseException.class,
             org.elasticsearch.action.search.ReduceSearchPhaseException::new,
             8,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         NODE_CLOSED_EXCEPTION(
             org.elasticsearch.node.NodeClosedException.class,
             org.elasticsearch.node.NodeClosedException::new,
             9,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 10 was for SnapshotFailedEngineException, never instantiated in 6.2.0+ and never thrown across clusters
         SHARD_NOT_FOUND_EXCEPTION(
             org.elasticsearch.index.shard.ShardNotFoundException.class,
             org.elasticsearch.index.shard.ShardNotFoundException::new,
             11,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         CONNECT_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.ConnectTransportException.class,
             org.elasticsearch.transport.ConnectTransportException::new,
             12,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         NOT_SERIALIZABLE_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.NotSerializableTransportException.class,
             org.elasticsearch.transport.NotSerializableTransportException::new,
             13,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RESPONSE_HANDLER_FAILURE_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.ResponseHandlerFailureTransportException.class,
             org.elasticsearch.transport.ResponseHandlerFailureTransportException::new,
             14,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_CREATION_EXCEPTION(
             org.elasticsearch.indices.IndexCreationException.class,
             org.elasticsearch.indices.IndexCreationException::new,
             15,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_NOT_FOUND_EXCEPTION(
             org.elasticsearch.index.IndexNotFoundException.class,
             org.elasticsearch.index.IndexNotFoundException::new,
             16,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ILLEGAL_SHARD_ROUTING_STATE_EXCEPTION(
             org.elasticsearch.cluster.routing.IllegalShardRoutingStateException.class,
             org.elasticsearch.cluster.routing.IllegalShardRoutingStateException::new,
             17,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         BROADCAST_SHARD_OPERATION_FAILED_EXCEPTION(
             org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException.class,
             org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException::new,
             18,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RESOURCE_NOT_FOUND_EXCEPTION(
             org.elasticsearch.ResourceNotFoundException.class,
             org.elasticsearch.ResourceNotFoundException::new,
             19,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ACTION_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.ActionTransportException.class,
             org.elasticsearch.transport.ActionTransportException::new,
             20,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ELASTICSEARCH_GENERATION_EXCEPTION(
             org.elasticsearch.ElasticsearchGenerationException.class,
             org.elasticsearch.ElasticsearchGenerationException::new,
             21,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 22 was CreateFailedEngineException
         INDEX_SHARD_STARTED_EXCEPTION(
             org.elasticsearch.index.shard.IndexShardStartedException.class,
             org.elasticsearch.index.shard.IndexShardStartedException::new,
             23,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SEARCH_CONTEXT_MISSING_EXCEPTION(
             org.elasticsearch.search.SearchContextMissingException.class,
             org.elasticsearch.search.SearchContextMissingException::new,
             24,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         GENERAL_SCRIPT_EXCEPTION(
             org.elasticsearch.script.GeneralScriptException.class,
             org.elasticsearch.script.GeneralScriptException::new,
             25,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 26 was BatchOperationException
         // 27 was SnapshotCreationException
@@ -1171,103 +1255,103 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.engine.DocumentMissingException.class,
             org.elasticsearch.index.engine.DocumentMissingException::new,
             29,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SNAPSHOT_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotException.class,
             org.elasticsearch.snapshots.SnapshotException::new,
             30,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INVALID_ALIAS_NAME_EXCEPTION(
             org.elasticsearch.indices.InvalidAliasNameException.class,
             org.elasticsearch.indices.InvalidAliasNameException::new,
             31,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INVALID_INDEX_NAME_EXCEPTION(
             org.elasticsearch.indices.InvalidIndexNameException.class,
             org.elasticsearch.indices.InvalidIndexNameException::new,
             32,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_PRIMARY_SHARD_NOT_ALLOCATED_EXCEPTION(
             org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException.class,
             org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException::new,
             33,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.TransportException.class,
             org.elasticsearch.transport.TransportException::new,
             34,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ELASTICSEARCH_PARSE_EXCEPTION(
             org.elasticsearch.ElasticsearchParseException.class,
             org.elasticsearch.ElasticsearchParseException::new,
             35,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SEARCH_EXCEPTION(
             org.elasticsearch.search.SearchException.class,
             org.elasticsearch.search.SearchException::new,
             36,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         MAPPER_EXCEPTION(
             org.elasticsearch.index.mapper.MapperException.class,
             org.elasticsearch.index.mapper.MapperException::new,
             37,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INVALID_TYPE_NAME_EXCEPTION(
             org.elasticsearch.indices.InvalidTypeNameException.class,
             org.elasticsearch.indices.InvalidTypeNameException::new,
             38,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SNAPSHOT_RESTORE_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotRestoreException.class,
             org.elasticsearch.snapshots.SnapshotRestoreException::new,
             39,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         PARSING_EXCEPTION(
             org.elasticsearch.common.ParsingException.class,
             org.elasticsearch.common.ParsingException::new,
             40,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_SHARD_CLOSED_EXCEPTION(
             org.elasticsearch.index.shard.IndexShardClosedException.class,
             org.elasticsearch.index.shard.IndexShardClosedException::new,
             41,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RECOVER_FILES_RECOVERY_EXCEPTION(
             org.elasticsearch.indices.recovery.RecoverFilesRecoveryException.class,
             org.elasticsearch.indices.recovery.RecoverFilesRecoveryException::new,
             42,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         TRUNCATED_TRANSLOG_EXCEPTION(
             org.elasticsearch.index.translog.TruncatedTranslogException.class,
             org.elasticsearch.index.translog.TruncatedTranslogException::new,
             43,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RECOVERY_FAILED_EXCEPTION(
             org.elasticsearch.indices.recovery.RecoveryFailedException.class,
             org.elasticsearch.indices.recovery.RecoveryFailedException::new,
             44,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_SHARD_RELOCATED_EXCEPTION(
             org.elasticsearch.index.shard.IndexShardRelocatedException.class,
             org.elasticsearch.index.shard.IndexShardRelocatedException::new,
             45,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 46 was for NodeShouldNotConnectException, never instantiated in 5.0+
         // 47 used to be for IndexTemplateAlreadyExistsException which was deprecated in 5.1 removed in 6.0
@@ -1275,57 +1359,57 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.translog.TranslogCorruptedException.class,
             org.elasticsearch.index.translog.TranslogCorruptedException::new,
             48,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         CLUSTER_BLOCK_EXCEPTION(
             org.elasticsearch.cluster.block.ClusterBlockException.class,
             org.elasticsearch.cluster.block.ClusterBlockException::new,
             49,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         FETCH_PHASE_EXECUTION_EXCEPTION(
             org.elasticsearch.search.fetch.FetchPhaseExecutionException.class,
             org.elasticsearch.search.fetch.FetchPhaseExecutionException::new,
             50,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 51 used to be for IndexShardAlreadyExistsException which was deprecated in 5.1 removed in 6.0
         VERSION_CONFLICT_ENGINE_EXCEPTION(
             org.elasticsearch.index.engine.VersionConflictEngineException.class,
             org.elasticsearch.index.engine.VersionConflictEngineException::new,
             52,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ENGINE_EXCEPTION(
             org.elasticsearch.index.engine.EngineException.class,
             org.elasticsearch.index.engine.EngineException::new,
             53,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 54 was DocumentAlreadyExistsException, which is superseded by VersionConflictEngineException
         NO_SUCH_NODE_EXCEPTION(
             org.elasticsearch.action.NoSuchNodeException.class,
             org.elasticsearch.action.NoSuchNodeException::new,
             55,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SETTINGS_EXCEPTION(
             org.elasticsearch.common.settings.SettingsException.class,
             org.elasticsearch.common.settings.SettingsException::new,
             56,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_TEMPLATE_MISSING_EXCEPTION(
             org.elasticsearch.indices.IndexTemplateMissingException.class,
             org.elasticsearch.indices.IndexTemplateMissingException::new,
             57,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SEND_REQUEST_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.SendRequestTransportException.class,
             org.elasticsearch.transport.SendRequestTransportException::new,
             58,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 59 used to be EsRejectedExecutionException
         // 60 used to be for EarlyTerminationException
@@ -1334,13 +1418,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class,
             org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper::new,
             62,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ALIAS_FILTER_PARSING_EXCEPTION(
             org.elasticsearch.indices.AliasFilterParsingException.class,
             org.elasticsearch.indices.AliasFilterParsingException::new,
             63,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 64 was DeleteByQueryFailedEngineException, which was removed in 5.0
         // 65 was for GatewayException, never instantiated in 5.0+
@@ -1348,304 +1432,309 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.shard.IndexShardNotRecoveringException.class,
             org.elasticsearch.index.shard.IndexShardNotRecoveringException::new,
             66,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
-        HTTP_EXCEPTION(org.elasticsearch.http.HttpException.class, org.elasticsearch.http.HttpException::new, 67, UNKNOWN_VERSION_ADDED),
+        HTTP_EXCEPTION(
+            org.elasticsearch.http.HttpException.class,
+            org.elasticsearch.http.HttpException::new,
+            67,
+            TransportVersion.minimumCompatible()
+        ),
         ELASTICSEARCH_EXCEPTION(
             org.elasticsearch.ElasticsearchException.class,
             org.elasticsearch.ElasticsearchException::new,
             68,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SNAPSHOT_MISSING_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotMissingException.class,
             org.elasticsearch.snapshots.SnapshotMissingException::new,
             69,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         PRIMARY_MISSING_ACTION_EXCEPTION(
             org.elasticsearch.action.PrimaryMissingActionException.class,
             org.elasticsearch.action.PrimaryMissingActionException::new,
             70,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         FAILED_NODE_EXCEPTION(
             org.elasticsearch.action.FailedNodeException.class,
             org.elasticsearch.action.FailedNodeException::new,
             71,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 72 was SearchParseException, only used in tests after 7.11
         CONCURRENT_SNAPSHOT_EXECUTION_EXCEPTION(
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException.class,
             org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException::new,
             73,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         BLOB_STORE_EXCEPTION(
             org.elasticsearch.common.blobstore.BlobStoreException.class,
             org.elasticsearch.common.blobstore.BlobStoreException::new,
             74,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INCOMPATIBLE_CLUSTER_STATE_VERSION_EXCEPTION(
             org.elasticsearch.cluster.IncompatibleClusterStateVersionException.class,
             org.elasticsearch.cluster.IncompatibleClusterStateVersionException::new,
             75,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RECOVERY_ENGINE_EXCEPTION(
             org.elasticsearch.index.engine.RecoveryEngineException.class,
             org.elasticsearch.index.engine.RecoveryEngineException::new,
             76,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         UNCATEGORIZED_EXECUTION_EXCEPTION(
             org.elasticsearch.common.util.concurrent.UncategorizedExecutionException.class,
             org.elasticsearch.common.util.concurrent.UncategorizedExecutionException::new,
             77,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         TIMESTAMP_PARSING_EXCEPTION(
             org.elasticsearch.action.TimestampParsingException.class,
             org.elasticsearch.action.TimestampParsingException::new,
             78,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ROUTING_MISSING_EXCEPTION(
             org.elasticsearch.action.RoutingMissingException.class,
             org.elasticsearch.action.RoutingMissingException::new,
             79,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 80 was IndexFailedEngineException, deprecated in 6.0, removed in 7.0
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(
             org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
             org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new,
             81,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         REPOSITORY_EXCEPTION(
             org.elasticsearch.repositories.RepositoryException.class,
             org.elasticsearch.repositories.RepositoryException::new,
             82,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RECEIVE_TIMEOUT_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.ReceiveTimeoutTransportException.class,
             org.elasticsearch.transport.ReceiveTimeoutTransportException::new,
             83,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         NODE_DISCONNECTED_EXCEPTION(
             org.elasticsearch.transport.NodeDisconnectedException.class,
             org.elasticsearch.transport.NodeDisconnectedException::new,
             84,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 85 used to be for AlreadyExpiredException
         AGGREGATION_EXECUTION_EXCEPTION(
             org.elasticsearch.search.aggregations.AggregationExecutionException.class,
             org.elasticsearch.search.aggregations.AggregationExecutionException::new,
             86,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 87 used to be for MergeMappingException
         INVALID_INDEX_TEMPLATE_EXCEPTION(
             org.elasticsearch.indices.InvalidIndexTemplateException.class,
             org.elasticsearch.indices.InvalidIndexTemplateException::new,
             88,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         REFRESH_FAILED_ENGINE_EXCEPTION(
             org.elasticsearch.index.engine.RefreshFailedEngineException.class,
             org.elasticsearch.index.engine.RefreshFailedEngineException::new,
             90,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         AGGREGATION_INITIALIZATION_EXCEPTION(
             org.elasticsearch.search.aggregations.AggregationInitializationException.class,
             org.elasticsearch.search.aggregations.AggregationInitializationException::new,
             91,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         DELAY_RECOVERY_EXCEPTION(
             org.elasticsearch.indices.recovery.DelayRecoveryException.class,
             org.elasticsearch.indices.recovery.DelayRecoveryException::new,
             92,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 93 used to be for IndexWarmerMissingException
         NO_NODE_AVAILABLE_EXCEPTION(
             org.elasticsearch.client.internal.transport.NoNodeAvailableException.class,
             org.elasticsearch.client.internal.transport.NoNodeAvailableException::new,
             94,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INVALID_SNAPSHOT_NAME_EXCEPTION(
             org.elasticsearch.snapshots.InvalidSnapshotNameException.class,
             org.elasticsearch.snapshots.InvalidSnapshotNameException::new,
             96,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ILLEGAL_INDEX_SHARD_STATE_EXCEPTION(
             org.elasticsearch.index.shard.IllegalIndexShardStateException.class,
             org.elasticsearch.index.shard.IllegalIndexShardStateException::new,
             97,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_SHARD_SNAPSHOT_EXCEPTION(
             org.elasticsearch.index.snapshots.IndexShardSnapshotException.class,
             org.elasticsearch.index.snapshots.IndexShardSnapshotException::new,
             98,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_SHARD_NOT_STARTED_EXCEPTION(
             org.elasticsearch.index.shard.IndexShardNotStartedException.class,
             org.elasticsearch.index.shard.IndexShardNotStartedException::new,
             99,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SEARCH_PHASE_EXECUTION_EXCEPTION(
             org.elasticsearch.action.search.SearchPhaseExecutionException.class,
             org.elasticsearch.action.search.SearchPhaseExecutionException::new,
             100,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ACTION_NOT_FOUND_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.ActionNotFoundTransportException.class,
             org.elasticsearch.transport.ActionNotFoundTransportException::new,
             101,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         TRANSPORT_SERIALIZATION_EXCEPTION(
             org.elasticsearch.transport.TransportSerializationException.class,
             org.elasticsearch.transport.TransportSerializationException::new,
             102,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         REMOTE_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.RemoteTransportException.class,
             org.elasticsearch.transport.RemoteTransportException::new,
             103,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ENGINE_CREATION_FAILURE_EXCEPTION(
             org.elasticsearch.index.engine.EngineCreationFailureException.class,
             org.elasticsearch.index.engine.EngineCreationFailureException::new,
             104,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ROUTING_EXCEPTION(
             org.elasticsearch.cluster.routing.RoutingException.class,
             org.elasticsearch.cluster.routing.RoutingException::new,
             105,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_SHARD_RECOVERY_EXCEPTION(
             org.elasticsearch.index.shard.IndexShardRecoveryException.class,
             org.elasticsearch.index.shard.IndexShardRecoveryException::new,
             106,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         REPOSITORY_MISSING_EXCEPTION(
             org.elasticsearch.repositories.RepositoryMissingException.class,
             org.elasticsearch.repositories.RepositoryMissingException::new,
             107,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         DOCUMENT_SOURCE_MISSING_EXCEPTION(
             org.elasticsearch.index.engine.DocumentSourceMissingException.class,
             org.elasticsearch.index.engine.DocumentSourceMissingException::new,
             109,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 110 used to be FlushNotAllowedEngineException
         NO_CLASS_SETTINGS_EXCEPTION(
             org.elasticsearch.common.settings.NoClassSettingsException.class,
             org.elasticsearch.common.settings.NoClassSettingsException::new,
             111,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         BIND_TRANSPORT_EXCEPTION(
             org.elasticsearch.transport.BindTransportException.class,
             org.elasticsearch.transport.BindTransportException::new,
             112,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ALIASES_NOT_FOUND_EXCEPTION(
             org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class,
             org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException::new,
             113,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_SHARD_RECOVERING_EXCEPTION(
             org.elasticsearch.index.shard.IndexShardRecoveringException.class,
             org.elasticsearch.index.shard.IndexShardRecoveringException::new,
             114,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         TRANSLOG_EXCEPTION(
             org.elasticsearch.index.translog.TranslogException.class,
             org.elasticsearch.index.translog.TranslogException::new,
             115,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         PROCESS_CLUSTER_EVENT_TIMEOUT_EXCEPTION(
             org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class,
             org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException::new,
             116,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RETRY_ON_PRIMARY_EXCEPTION(
             ReplicationOperation.RetryOnPrimaryException.class,
             ReplicationOperation.RetryOnPrimaryException::new,
             117,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         ELASTICSEARCH_TIMEOUT_EXCEPTION(
             org.elasticsearch.ElasticsearchTimeoutException.class,
             org.elasticsearch.ElasticsearchTimeoutException::new,
             118,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         QUERY_PHASE_EXECUTION_EXCEPTION(
             org.elasticsearch.search.query.QueryPhaseExecutionException.class,
             org.elasticsearch.search.query.QueryPhaseExecutionException::new,
             119,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         REPOSITORY_VERIFICATION_EXCEPTION(
             org.elasticsearch.repositories.RepositoryVerificationException.class,
             org.elasticsearch.repositories.RepositoryVerificationException::new,
             120,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INVALID_AGGREGATION_PATH_EXCEPTION(
             org.elasticsearch.search.aggregations.InvalidAggregationPathException.class,
             org.elasticsearch.search.aggregations.InvalidAggregationPathException::new,
             121,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 123 used to be IndexAlreadyExistsException and was renamed
         RESOURCE_ALREADY_EXISTS_EXCEPTION(
             ResourceAlreadyExistsException.class,
             ResourceAlreadyExistsException::new,
             123,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 124 used to be Script.ScriptParseException
         HTTP_REQUEST_ON_TRANSPORT_EXCEPTION(
             TcpTransport.HttpRequestOnTransportException.class,
             TcpTransport.HttpRequestOnTransportException::new,
             125,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         MAPPER_PARSING_EXCEPTION(
             org.elasticsearch.index.mapper.MapperParsingException.class,
             org.elasticsearch.index.mapper.MapperParsingException::new,
             126,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 127 used to be org.elasticsearch.search.SearchContextException
         // 128 used to be org.elasticsearch.search.builder.SearchSourceBuilderException
@@ -1654,300 +1743,323 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.NoShardAvailableActionException.class,
             org.elasticsearch.action.NoShardAvailableActionException::new,
             130,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         UNAVAILABLE_SHARDS_EXCEPTION(
             org.elasticsearch.action.UnavailableShardsException.class,
             org.elasticsearch.action.UnavailableShardsException::new,
             131,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         FLUSH_FAILED_ENGINE_EXCEPTION(
             org.elasticsearch.index.engine.FlushFailedEngineException.class,
             org.elasticsearch.index.engine.FlushFailedEngineException::new,
             132,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         CIRCUIT_BREAKING_EXCEPTION(
             org.elasticsearch.common.breaker.CircuitBreakingException.class,
             org.elasticsearch.common.breaker.CircuitBreakingException::new,
             133,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         NODE_NOT_CONNECTED_EXCEPTION(
             org.elasticsearch.transport.NodeNotConnectedException.class,
             org.elasticsearch.transport.NodeNotConnectedException::new,
             134,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         STRICT_DYNAMIC_MAPPING_EXCEPTION(
             org.elasticsearch.index.mapper.StrictDynamicMappingException.class,
             org.elasticsearch.index.mapper.StrictDynamicMappingException::new,
             135,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RETRY_ON_REPLICA_EXCEPTION(
             org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException.class,
             org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException::new,
             136,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         TYPE_MISSING_EXCEPTION(
             org.elasticsearch.indices.TypeMissingException.class,
             org.elasticsearch.indices.TypeMissingException::new,
             137,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         FAILED_TO_COMMIT_CLUSTER_STATE_EXCEPTION(
             org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException.class,
             org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException::new,
             140,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         QUERY_SHARD_EXCEPTION(
             org.elasticsearch.index.query.QueryShardException.class,
             org.elasticsearch.index.query.QueryShardException::new,
             141,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(
             ShardStateAction.NoLongerPrimaryShardException.class,
             ShardStateAction.NoLongerPrimaryShardException::new,
             142,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SCRIPT_EXCEPTION(
             org.elasticsearch.script.ScriptException.class,
             org.elasticsearch.script.ScriptException::new,
             143,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         NOT_MASTER_EXCEPTION(
             org.elasticsearch.cluster.NotMasterException.class,
             org.elasticsearch.cluster.NotMasterException::new,
             144,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         STATUS_EXCEPTION(
             org.elasticsearch.ElasticsearchStatusException.class,
             org.elasticsearch.ElasticsearchStatusException::new,
             145,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         TASK_CANCELLED_EXCEPTION(
             org.elasticsearch.tasks.TaskCancelledException.class,
             org.elasticsearch.tasks.TaskCancelledException::new,
             146,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SHARD_LOCK_OBTAIN_FAILED_EXCEPTION(
             org.elasticsearch.env.ShardLockObtainFailedException.class,
             org.elasticsearch.env.ShardLockObtainFailedException::new,
             147,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         // 148 was UnknownNamedObjectException
         TOO_MANY_BUCKETS_EXCEPTION(
             MultiBucketConsumerService.TooManyBucketsException.class,
             MultiBucketConsumerService.TooManyBucketsException::new,
             149,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         COORDINATION_STATE_REJECTED_EXCEPTION(
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            TransportVersions.V_7_0_0
+            TransportVersion.minimumCompatible()
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotInProgressException.class,
             org.elasticsearch.snapshots.SnapshotInProgressException::new,
             151,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         NO_SUCH_REMOTE_CLUSTER_EXCEPTION(
             org.elasticsearch.transport.NoSuchRemoteClusterException.class,
             org.elasticsearch.transport.NoSuchRemoteClusterException::new,
             152,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RETENTION_LEASE_ALREADY_EXISTS_EXCEPTION(
             org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException.class,
             org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException::new,
             153,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RETENTION_LEASE_NOT_FOUND_EXCEPTION(
             org.elasticsearch.index.seqno.RetentionLeaseNotFoundException.class,
             org.elasticsearch.index.seqno.RetentionLeaseNotFoundException::new,
             154,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         SHARD_NOT_IN_PRIMARY_MODE_EXCEPTION(
             org.elasticsearch.index.shard.ShardNotInPrimaryModeException.class,
             org.elasticsearch.index.shard.ShardNotInPrimaryModeException::new,
             155,
-            UNKNOWN_VERSION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         RETENTION_LEASE_INVALID_RETAINING_SEQUENCE_NUMBER_EXCEPTION(
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
             156,
-            TransportVersions.V_7_5_0
+            TransportVersion.minimumCompatible()
         ),
         INGEST_PROCESSOR_EXCEPTION(
             org.elasticsearch.ingest.IngestProcessorException.class,
             org.elasticsearch.ingest.IngestProcessorException::new,
             157,
-            TransportVersions.V_7_5_0
+            TransportVersion.minimumCompatible()
         ),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            TransportVersions.V_7_9_0
+            TransportVersion.minimumCompatible()
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
             159,
-            TransportVersions.V_8_0_0
+            TransportVersion.minimumCompatible()
         ),
         NO_SEED_NODE_LEFT_EXCEPTION(
             org.elasticsearch.transport.NoSeedNodeLeftException.class,
             org.elasticsearch.transport.NoSeedNodeLeftException::new,
             160,
-            TransportVersions.V_7_10_0
+            TransportVersion.minimumCompatible()
         ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
             162,
-            TransportVersions.V_7_16_0
+            TransportVersion.minimumCompatible()
         ),
         REPOSITORY_CONFLICT_EXCEPTION(
             org.elasticsearch.repositories.RepositoryConflictException.class,
             org.elasticsearch.repositories.RepositoryConflictException::new,
             163,
-            TransportVersions.V_8_0_0
+            TransportVersion.minimumCompatible()
         ),
         DESIRED_NODES_VERSION_CONFLICT_EXCEPTION(
             org.elasticsearch.cluster.desirednodes.VersionConflictException.class,
             org.elasticsearch.cluster.desirednodes.VersionConflictException::new,
             164,
-            TransportVersions.V_8_1_0
+            TransportVersion.minimumCompatible()
         ),
         SNAPSHOT_NAME_ALREADY_IN_USE_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException.class,
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException::new,
             165,
-            TransportVersions.V_8_2_0
+            TransportVersion.minimumCompatible()
         ),
         HEALTH_NODE_NOT_DISCOVERED_EXCEPTION(
             HealthNodeNotDiscoveredException.class,
             HealthNodeNotDiscoveredException::new,
             166,
-            TransportVersions.V_8_5_0
+            TransportVersion.minimumCompatible()
         ),
         UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_INDEX_EXCEPTION(
             UnsupportedAggregationOnDownsampledIndex.class,
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
-            TransportVersions.V_8_5_0
+            TransportVersion.minimumCompatible()
         ),
-        DOCUMENT_PARSING_EXCEPTION(DocumentParsingException.class, DocumentParsingException::new, 168, TransportVersions.V_8_8_0),
+        DOCUMENT_PARSING_EXCEPTION(
+            DocumentParsingException.class,
+            DocumentParsingException::new,
+            168,
+            TransportVersion.minimumCompatible()
+        ),
         HTTP_HEADERS_VALIDATION_EXCEPTION(
             org.elasticsearch.http.HttpHeadersValidationException.class,
             org.elasticsearch.http.HttpHeadersValidationException::new,
             169,
-            TransportVersions.V_8_9_X
+            TransportVersion.minimumCompatible()
         ),
         ROLE_RESTRICTION_EXCEPTION(
             ElasticsearchRoleRestrictionException.class,
             ElasticsearchRoleRestrictionException::new,
             170,
-            TransportVersions.V_8_9_X
+            TransportVersion.minimumCompatible()
         ),
-        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_11_X),
+        API_NOT_AVAILABLE_EXCEPTION(
+            ApiNotAvailableException.class,
+            ApiNotAvailableException::new,
+            171,
+            TransportVersion.minimumCompatible()
+        ),
         RECOVERY_COMMIT_TOO_NEW_EXCEPTION(
             RecoveryCommitTooNewException.class,
             RecoveryCommitTooNewException::new,
             172,
-            TransportVersions.V_8_11_X
+            TransportVersion.minimumCompatible()
         ),
         TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
             TooManyScrollContextsException.class,
             TooManyScrollContextsException::new,
             173,
-            TransportVersions.V_8_12_0
+            TransportVersion.minimumCompatible()
         ),
         INVALID_BUCKET_PATH_EXCEPTION(
             AggregationExecutionException.InvalidPath.class,
             AggregationExecutionException.InvalidPath::new,
             174,
-            TransportVersions.V_8_12_0
+            TransportVersion.minimumCompatible()
         ),
         MISSED_INDICES_UPDATE_EXCEPTION(
             AutoscalingMissedIndicesUpdateException.class,
             AutoscalingMissedIndicesUpdateException::new,
             175,
-            TransportVersions.V_8_12_0
+            TransportVersion.minimumCompatible()
         ),
-        SEARCH_TIMEOUT_EXCEPTION(SearchTimeoutException.class, SearchTimeoutException::new, 176, TransportVersions.V_8_13_0),
-        INGEST_GRAPH_STRUCTURE_EXCEPTION(GraphStructureException.class, GraphStructureException::new, 177, TransportVersions.V_8_13_0),
+        SEARCH_TIMEOUT_EXCEPTION(SearchTimeoutException.class, SearchTimeoutException::new, 176, TransportVersion.minimumCompatible()),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(
+            GraphStructureException.class,
+            GraphStructureException::new,
+            177,
+            TransportVersion.minimumCompatible()
+        ),
         FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
             FailureIndexNotSupportedException.class,
             FailureIndexNotSupportedException::new,
             178,
-            TransportVersions.V_8_14_0
+            TransportVersion.minimumCompatible()
         ),
         NOT_PERSISTENT_TASK_NODE_EXCEPTION(
             NotPersistentTaskNodeException.class,
             NotPersistentTaskNodeException::new,
             179,
-            TransportVersions.V_8_14_0
+            TransportVersion.minimumCompatible()
         ),
         PERSISTENT_TASK_NODE_NOT_ASSIGNED_EXCEPTION(
             PersistentTaskNodeNotAssignedException.class,
             PersistentTaskNodeNotAssignedException::new,
             180,
-            TransportVersions.V_8_14_0
+            TransportVersion.minimumCompatible()
         ),
         RESOURCE_ALREADY_UPLOADED_EXCEPTION(
             ResourceAlreadyUploadedException.class,
             ResourceAlreadyUploadedException::new,
             181,
-            TransportVersions.V_8_15_0
+            TransportVersion.minimumCompatible()
         ),
         INGEST_PIPELINE_EXCEPTION(
             org.elasticsearch.ingest.IngestPipelineException.class,
             org.elasticsearch.ingest.IngestPipelineException::new,
             182,
-            TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
+            TransportVersion.minimumCompatible()
         ),
         INDEX_RESPONSE_WRAPPER_EXCEPTION(
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
             IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
             183,
-            TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE
+            TransportVersion.minimumCompatible()
+        ),
+        REMOTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersion.minimumCompatible()),
+        NO_MATCHING_PROJECT_EXCEPTION(
+            NoMatchingProjectException.class,
+            NoMatchingProjectException::new,
+            185,
+            NO_MATCHING_PROJECT_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
-        final TransportVersion versionAdded;
+        private final TransportVersion minimumCompatible;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(
             Class<E> exceptionClass,
             CheckedFunction<StreamInput, E, IOException> constructor,
             int id,
-            TransportVersion versionAdded
+            TransportVersion minimumCompatible
         ) {
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;
             this.constructor = constructor;
-            this.versionAdded = versionAdded;
+
             this.id = id;
+            this.minimumCompatible = minimumCompatible;
         }
     }
 
@@ -2042,19 +2154,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     // lower cases and adds underscores to transitions in a name
-    private static String toUnderscoreCase(String value) {
+    private static String toUnderscoreCase(String value, final int offset) {
         StringBuilder sb = new StringBuilder();
         boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
+        for (int i = offset; i < value.length(); i++) {
             char c = value.charAt(i);
             if (Character.isUpperCase(c)) {
                 if (changed == false) {
                     // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
+                    sb.append(value, offset, i);
                     changed = true;
-                    if (i == 0) {
+                    if (i == offset) {
                         sb.append(Character.toLowerCase(c));
                     } else {
                         sb.append('_');
@@ -2071,7 +2181,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
         }
         if (changed == false) {
-            return value;
+            return offset == 0 ? value : value.substring(offset);
         }
         return sb.toString();
     }

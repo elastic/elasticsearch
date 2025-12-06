@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -208,7 +209,7 @@ public class ExtractedFieldsDetectorFactory {
             }
         });
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT);
         getSettingsRequest.indices(index);
         getSettingsRequest.includeDefaults(true);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());

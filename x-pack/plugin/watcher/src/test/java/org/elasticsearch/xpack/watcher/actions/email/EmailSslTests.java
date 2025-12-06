@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
@@ -74,7 +75,6 @@ public class EmailSslTests extends ESTestCase {
     }
 
     public void testFailureSendingMessageToSmtpServerWithUntrustedCertificateAuthority() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings.Builder settings = Settings.builder();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
@@ -84,7 +84,14 @@ public class EmailSslTests extends ESTestCase {
             () -> emailAction.execute("my_action_id", ctx, Payload.EMPTY)
         );
         final List<Throwable> allCauses = getAllCauses(exception);
-        assertThat(allCauses, Matchers.hasItem(Matchers.instanceOf(SSLException.class)));
+        if (inFipsJvm()) {
+            assertThat(
+                allCauses.stream().map(c -> c.getClass().getCanonicalName()).collect(Collectors.toSet()),
+                Matchers.hasItem("org.bouncycastle.tls.TlsFatalAlert")
+            );
+        } else {
+            assertThat(allCauses, Matchers.hasItem(Matchers.instanceOf(SSLException.class)));
+        }
     }
 
     public void testCanSendMessageToSmtpServerUsingTrustStore() throws Exception {
@@ -149,7 +156,6 @@ public class EmailSslTests extends ESTestCase {
      * over the account level "smtp.ssl.trust" setting) but smtp.ssl.trust was ignored for a period of time (see #52153)
      * so this is the least breaking way to resolve that.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testNotificationSslSettingsOverrideSmtpSslTrust() throws Exception {
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
@@ -165,9 +171,16 @@ public class EmailSslTests extends ESTestCase {
                 MessagingException.class,
                 () -> emailAction.execute("my_action_id", ctx, Payload.EMPTY)
             );
-
             final List<Throwable> allCauses = getAllCauses(exception);
-            assertThat(allCauses, Matchers.hasItem(Matchers.instanceOf(SSLException.class)));
+            if (inFipsJvm()) {
+                assertThat(
+                    allCauses.stream().map(c -> c.getClass().getCanonicalName()).collect(Collectors.toSet()),
+                    Matchers.hasItem("org.bouncycastle.tls.TlsFatalAlert")
+                );
+            } else {
+                assertThat(allCauses, Matchers.hasItem(Matchers.instanceOf(SSLException.class)));
+            }
+
         } finally {
             server.clearListeners();
         }

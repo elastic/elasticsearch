@@ -215,7 +215,7 @@ public class FingerprintProcessorTests extends ESTestCase {
         if (salt != null) {
             config.put("salt", salt);
         }
-        FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config);
+        FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config, null);
 
         byte[] expectedBytes = new byte[0];
         if (salt != null) {
@@ -257,7 +257,7 @@ public class FingerprintProcessorTests extends ESTestCase {
             config.put("fields", List.of("foo", "bar"));
             config.put("method", FingerprintProcessor.Factory.SUPPORTED_DIGESTS[k]);
 
-            FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config);
+            FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config, null);
             var input = TestIngestDocument.withDefaultVersion(inputMap);
             var output = fp.execute(input);
             assertTrue(output.hasField("fingerprint"));

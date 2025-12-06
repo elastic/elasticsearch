@@ -13,7 +13,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxLongsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinLongsFromDocValuesBlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -22,8 +27,139 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Interface for loading data in a block shape. Instances of this class
- * must be immutable and thread safe.
+ * Loads values from a chunk of lucene documents into a "Block" for the compute engine.
+ * <p>
+ *     Think of a Block as an array of values for a sequence of lucene documents. That's
+ *     almost true! For the purposes of implementing {@link BlockLoader}, it's close enough.
+ *     The compute engine operates on arrays because the good folks that build CPUs have
+ *     spent the past 40 years making them really really good at running tight loops over
+ *     arrays of data. So we play along with the CPU and make arrays.
+ * </p>
+ * <h2>How to implement</h2>
+ * <p>
+ *     There are a lot of interesting choices hiding in here to make getting those arrays
+ *     out of lucene work well:
+ * </p>
+ * <ul>
+ *     <li>
+ *         {@code doc_values} are already on disk in array-like structures so we prefer
+ *         to just copy them into an array in one loop inside {@link ColumnAtATimeReader}.
+ *         Well, not entirely array-like. {@code doc_values} are designed to be read in
+ *         non-descending order (think {@code 0, 1, 1, 4, 9}) and will fail if they are
+ *         read truly randomly. This lets the doc values implementations have some
+ *         chunking/compression/magic on top of the array-like on disk structure. The
+ *         caller manages this, always putting {@link Docs} in non-descending order.
+ *         Extend {@link BlockDocValuesReader} to implement all this.
+ *     </li>
+ *     <li>
+ *         All stored {@code stored} fields for each document are stored on disk together,
+ *         compressed with a general purpose compression algorithm like
+ *         <a href="https://en.wikipedia.org/wiki/Zstd">Zstd</a>. Blocks of documents are
+ *         compressed together to get a better compression ratio. Just like doc values,
+ *         we read them in non-descending order. Unlike doc values, we read all fields for a
+ *         document at once. Because reading one requires decompressing them all. We do
+ *         this by returning {@code null} from {@link BlockLoader#columnAtATimeReader}
+ *         to signal that we can't load the whole column at once. Instead, we implement a
+ *         {@link RowStrideReader} which the caller will call once for each doc. Extend
+ *         {@link BlockStoredFieldsReader} to implement all this.
+ *     </li>
+ *     <li>
+ *         Fields loaded from {@code _source} are an extra special case of {@code stored}
+ *         fields. {@code _source} itself is just another stored field, compressed in chunks
+ *         with all the other stored fields. It's the original bytes sent when indexing the
+ *         document. Think {@code json} or {@code yaml}. When we need fields from
+ *         {@code _source} we get it from the stored fields reader infrastructure and then
+ *         explode it into a {@link Map} representing the original {@code json} and
+ *         the {@link RowStrideReader} implementation grabs the parts of the {@code json}
+ *         it needs. Extend {@link BlockSourceReader} to implement all this.
+ *     </li>
+ *     <li>
+ *         Synthetic {@code _source} complicates this further by storing fields in somewhat
+ *         unexpected places, but is otherwise like a {@code stored} field reader. Use
+ *         {@link FallbackSyntheticSourceBlockLoader} to implement all this.
+ *     </li>
+ * </ul>
+ * <h2>How many to implement</h2>
+ * <p>
+ *     Generally reads are faster from {@code doc_values}, slower from {@code stored} fields,
+ *     and even slower from {@code _source}. If we get to chose, we pick {@code doc_values}.
+ *     But we work with what's on disk and that's a product of the field type and what the user's
+ *     configured. Picking the optimal choice given what's on disk is the responsibility of each
+ *     field's {@link MappedFieldType#blockLoader} method. The more configurable the field's
+ *     storage strategies the more {@link BlockLoader}s you have to implement to integrate it
+ *     with ESQL. It can get to be a lot. Sorry.
+ * </p>
+ * <p>
+ *     For a field to be supported by ESQL fully it has to be loadable if it was configured to be
+ *     stored in any way. It's possible to turn off storage entirely by turning off
+ *     {@code doc_values} and {@code _source} and {@code stored} fields. In that case, it's
+ *     acceptable to return {@link ConstantNullsReader}. User turned the field off, best we can do
+ *     is {@code null}.
+ * </p>
+ * <p>
+ *     We also sometimes want to "push" executing some ESQL functions into the block loader itself.
+ *     Usually we do this when it's a ton faster. See the docs for {@code BlockLoaderExpression}
+ *     for why and how we do this.
+ * </p>
+ * <p>
+ *     For example, {@code long} fields implement these block loaders:
+ * </p>
+ * <ul>
+ *     <li>
+ *         {@link org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader} to read
+ *         from {@code doc_values}.
+ *     </li>
+ *     <li>
+ *         {@link org.elasticsearch.index.mapper.BlockSourceReader.LongsBlockLoader} to read from
+ *         {@code _source}.
+ *     </li>
+ *     <li>
+ *         A specially configured {@link FallbackSyntheticSourceBlockLoader} to read synthetic
+ *         {@code _source}.
+ *     </li>
+ *     <li>
+ *         {@link MvMinLongsFromDocValuesBlockLoader} to read {@code MV_MIN(long_field)} from
+ *         {@code doc_values}.
+ *     </li>
+ *     <li>
+ *         {@link MvMaxLongsFromDocValuesBlockLoader} to read {@code MV_MAX(long_field)} from
+ *         {@code doc_values}.
+ *     </li>
+ * </ul>
+ * <p>
+ *     NOTE: We can't read from {@code long}s from {@code stored} fields which is a
+ *     <a href="https://github.com/elastic/elasticsearch/issues/138019">bug</a>, but maybe not
+ *     a terrible one because it's very uncommon to configure {@code long} to be {@code stored}
+ *     but to disable {@code _source} and {@code doc_values}. Nothing's perfect. Especially
+ *     code.
+ * </p>
+ * <h2>Why is {@link AllReader}?</h2>
+ * <p>
+ *     When we described how to read from {@code doc_values} we said we <strong>prefer</strong>
+ *     to use {@link ColumnAtATimeReader}. But some callers don't support reading column-at-a-time
+ *     and need to read row-by-row. So we also need an implementation of {@link RowStrideReader}
+ *     that reads from {@code doc_values}. Usually it's most convenient to implement both of those
+ *     in the same {@code class}. {@link AllReader} is an interface for those sorts of classes, and
+ *     you'll see it in the {@code doc_values} code frequently.
+ * </p>
+ * <h2>Why is {@link #rowStrideStoredFieldSpec}?</h2>
+ * <p>
+ *     When decompressing {@code stored} fields lucene can skip stored field that aren't used. They
+ *     still have to be decompressed, but they aren't turned into java objects which saves a fair bit
+ *     of work. If you don't need any stored fields return {@link StoredFieldsSpec#NO_REQUIREMENTS}.
+ *     Otherwise, return what you need.
+ * </p>
+ * <h2>Thread safety</h2>
+ * <p>
+ *     Instances of this class must be immutable and thread safe. Instances of
+ *     {@link ColumnAtATimeReader} and {@link RowStrideReader} are all mutable and can only
+ *     be accessed by one thread at a time but <strong>may</strong> be passed between threads.
+ *     See implementations {@link Reader#canReuse} for how that's handled. "Normal" java objects
+ *     don't need to do anything special to be kicked from thread to thread - the transfer itself
+ *     establishes a {@code happens-before} relationship that makes everything you need visible.
+ *     But Lucene's readers aren't "normal" java objects and sometimes need to be rebuilt if we
+ *     shift threads.
+ * </p>
  */
 public interface BlockLoader {
     /**
@@ -42,8 +178,43 @@ public interface BlockLoader {
     interface ColumnAtATimeReader extends Reader {
         /**
          * Reads the values of all documents in {@code docs}.
+         *
+         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field;
+         *                      otherwise, the guarantee is unknown. This enables optimizations for block loaders,
+         *                      treating the field as dense (every document has value) even if it is sparse in
+         *                      the index. For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out
+         *                      documents without value for field x, all target documents returned from the source operator
+         *                      will have a value for field x whether x is dense or sparse in the index.
          */
-        BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException;
+        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+    }
+
+    /**
+     * An interface for readers that attempt to load all document values in a column-at-a-time fashion.
+     * <p>
+     * Unlike {@link ColumnAtATimeReader}, implementations may return {@code null} if they are unable
+     * to load the requested values, for example due to unsupported underlying data.
+     * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
+     */
+    interface OptionalColumnAtATimeReader {
+        /**
+         * Attempts to read the values of all documents in {@code docs}
+         * Returns {@code null} if unable to load the values.
+         *
+         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                      see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         * @param toDouble      a function to convert long values to double, or null if no conversion is needed/supported
+         * @param toInt         whether to convert to int in case int block / vector is needed
+         */
+        @Nullable
+        BlockLoader.Block tryRead(
+            BlockFactory factory,
+            Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
+        ) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -77,10 +248,26 @@ public interface BlockLoader {
         Map<String, List<Object>> storedFields() throws IOException;
     }
 
+    /**
+     * Build a column-at-a-time reader. <strong>May</strong> return {@code null}
+     * if the underlying storage needs to be loaded row-by-row. Callers should try
+     * this first, only falling back to {@link #rowStrideReader} if this returns
+     * {@code null} or if they can't load column-at-a-time themselves.
+     */
+    @Nullable
     ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
 
+    /**
+     * Build a row-by-row reader. Must <strong>never</strong> return {@code null},
+     * evan if the underlying storage prefers to be loaded column-at-a-time. Some
+     * callers simply can't load column-at-a-time so all implementations must support
+     * this method.
+     */
     RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
 
+    /**
+     * What {@code stored} fields are needed by this reader.
+     */
     StoredFieldsSpec rowStrideStoredFieldSpec();
 
     /**
@@ -149,8 +336,8 @@ public interface BlockLoader {
      */
     class ConstantNullsReader implements AllReader {
         @Override
-        public Block read(BlockFactory factory, Docs docs) throws IOException {
-            return factory.constantNulls();
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            return factory.constantNulls(docs.count() - offset);
         }
 
         @Override
@@ -183,8 +370,8 @@ public interface BlockLoader {
             public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
                 return new ColumnAtATimeReader() {
                     @Override
-                    public Block read(BlockFactory factory, Docs docs) {
-                        return factory.constantBytes(value);
+                    public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
+                        return factory.constantBytes(value, docs.count() - offset);
                     }
 
                     @Override
@@ -261,8 +448,8 @@ public interface BlockLoader {
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs) throws IOException {
-                    return reader.read(factory, docs);
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                    return reader.read(factory, docs, offset, nullsFiltered);
                 }
 
                 @Override
@@ -341,6 +528,13 @@ public interface BlockLoader {
      */
     interface BlockFactory {
         /**
+         * Adjust the circuit breaker with the given delta, if the delta is negative, the breaker will
+         * be adjusted without tripping.
+         * @throws CircuitBreakingException if the breaker was put above its limit
+         */
+        void adjustBreaker(long delta) throws CircuitBreakingException;
+
+        /**
          * Build a builder to load booleans as loaded from doc values. Doc values
          * load booleans in sorted order.
          */
@@ -363,6 +557,17 @@ public interface BlockLoader {
         BytesRefBuilder bytesRefs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense {@link BytesRef} fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonBytesRefBuilder singletonBytesRefs(int expectedCount);
+
+        /**
          * Build a builder to load doubles as loaded from doc values.
          * Doc values load doubles in sorted order.
          */
@@ -372,6 +577,11 @@ public interface BlockLoader {
          * Build a builder to load doubles without any loading constraints.
          */
         DoubleBuilder doubles(int expectedCount);
+
+        /**
+         * Build a builder to load dense vectors without any loading constraints.
+         */
+        FloatBuilder denseVectors(int expectedVectorsCount, int dimensions);
 
         /**
          * Build a builder to load ints as loaded from doc values.
@@ -396,6 +606,39 @@ public interface BlockLoader {
         LongBuilder longs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense long based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonLongBuilder singletonLongs(int expectedCount);
+
+        /**
+         * Build a specialized builder for singleton dense int based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonIntBuilder singletonInts(int expectedCount);
+
+        /**
+         * Build a specialized builder for singleton dense double based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonDoubleBuilder singletonDoubles(int expectedCount);
+
+        /**
          * Build a builder to load only {@code null}s.
          */
         Builder nulls(int expectedCount);
@@ -403,25 +646,56 @@ public interface BlockLoader {
         /**
          * Build a block that contains only {@code null}.
          */
-        Block constantNulls();
+        Block constantNulls(int count);
 
         /**
          * Build a block that contains {@code value} repeated
          * {@code size} times.
          */
-        Block constantBytes(BytesRef value);
+        Block constantBytes(BytesRef value, int count);
 
         /**
-         * Build a reader for reading keyword ordinals.
+         * Build a block that contains {@code value} repeated
+         * {@code count} times.
          */
-        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
+        Block constantInt(int value, int count);
 
-        // TODO support non-singleton ords
+        /**
+         * Build a reader for reading {@link SortedDocValues}
+         */
+        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
+
+        /**
+         * Build a reader for reading {@link SortedSetDocValues}
+         */
+        SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
+
+        AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
+
+        Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
+
+        ExponentialHistogramBuilder exponentialHistogramBlockBuilder(int count);
+
+        Block buildExponentialHistogramBlockDirect(
+            Block minima,
+            Block maxima,
+            Block sums,
+            Block valueCounts,
+            Block zeroThresholds,
+            Block encodedHistograms
+        );
+
+        Block buildTDigestBlockDirect(Block encodedDigests, Block minima, Block maxima, Block sums, Block valueCounts);
     }
 
     /**
-     * Marker interface for block results. The compute engine has a fleshed
-     * out implementation.
+     * A columnar representation of homogenous data. It has a position (row) count, and
+     * various data retrieval methods for accessing the underlying data that is stored at a given
+     * position. In other words, a fancy wrapper over an array.
+     * <p>
+     *     <strong>This</strong> is just a marker interface for these results. The compute engine
+     *     has fleshed out implementations.
+     * </p>
      */
     interface Block extends Releasable {}
 
@@ -467,6 +741,22 @@ public interface BlockLoader {
         BytesRefBuilder appendBytesRef(BytesRef value);
     }
 
+    /**
+     * Specialized builder for collecting dense arrays of BytesRef values.
+     */
+    interface SingletonBytesRefBuilder extends Builder {
+        /**
+         * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
+         * The length of the offsets array is one more than the number of BytesRefs.
+         */
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+
+        /**
+         * Append multiple BytesRefs, all with the same length.
+         */
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
+    }
+
     interface FloatBuilder extends Builder {
         /**
          * Appends a float to the current entry.
@@ -488,6 +778,29 @@ public interface BlockLoader {
         IntBuilder appendInt(int value);
     }
 
+    /**
+     * Specialized builder for collecting dense arrays of long values.
+     */
+    interface SingletonLongBuilder extends Builder {
+        SingletonLongBuilder appendLong(long value);
+
+        SingletonLongBuilder appendLongs(long[] values, int from, int length);
+    }
+
+    /**
+     * Specialized builder for collecting dense arrays of double values.
+     */
+    interface SingletonDoubleBuilder extends Builder {
+        SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] values, int from, int length);
+    }
+
+    /**
+     * Specialized builder for collecting dense arrays of double values.
+     */
+    interface SingletonIntBuilder extends Builder {
+        SingletonIntBuilder appendLongs(long[] values, int from, int length);
+    }
+
     interface LongBuilder extends Builder {
         /**
          * Appends a long to the current entry.
@@ -500,5 +813,56 @@ public interface BlockLoader {
          * Appends an ordinal to the builder.
          */
         SingletonOrdinalsBuilder appendOrd(int value);
+
+        /**
+         * Appends a single ord for the next N positions
+         */
+        SingletonOrdinalsBuilder appendOrds(int ord, int length);
+
+        SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd);
+    }
+
+    interface SortedSetOrdinalsBuilder extends Builder {
+        /**
+         * Appends an ordinal to the builder.
+         */
+        SortedSetOrdinalsBuilder appendOrd(int value);
+    }
+
+    interface AggregateMetricDoubleBuilder extends Builder {
+
+        DoubleBuilder min();
+
+        DoubleBuilder max();
+
+        DoubleBuilder sum();
+
+        IntBuilder count();
+    }
+
+    interface ExponentialHistogramBuilder extends Builder {
+        DoubleBuilder minima();
+
+        DoubleBuilder maxima();
+
+        DoubleBuilder sums();
+
+        DoubleBuilder valueCounts();
+
+        DoubleBuilder zeroThresholds();
+
+        BytesRefBuilder encodedHistograms();
+    }
+
+    interface TDigestBuilder extends Builder {
+        DoubleBuilder minima();
+
+        DoubleBuilder maxima();
+
+        DoubleBuilder sums();
+
+        LongBuilder valueCounts();
+
+        BytesRefBuilder encodedDigests();
     }
 }

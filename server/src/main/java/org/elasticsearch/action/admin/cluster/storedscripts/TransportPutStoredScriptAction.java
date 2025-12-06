@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -30,6 +30,7 @@ public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterN
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/script/put");
     private final ScriptService scriptService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutStoredScriptAction(
@@ -37,8 +38,8 @@ public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterN
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ScriptService scriptService
+        ScriptService scriptService,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -47,10 +48,10 @@ public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterN
             threadPool,
             actionFilters,
             PutStoredScriptRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.scriptService = scriptService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -60,12 +61,12 @@ public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        scriptService.putStoredScript(clusterService, request, listener);
+        scriptService.putStoredScript(clusterService, projectResolver.getProjectId(), request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutStoredScriptRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
 }

@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.util.Objects;
 
-public class RLikePattern extends AbstractStringPattern {
+public class RLikePattern extends AbstractStringPattern implements Writeable {
 
     private final String regexpPattern;
 
@@ -20,10 +24,20 @@ public class RLikePattern extends AbstractStringPattern {
         this.regexpPattern = regexpPattern;
     }
 
+    public RLikePattern(StreamInput in) throws IOException {
+        this(in.readString());
+    }
+
     @Override
-    public Automaton createAutomaton() {
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(regexpPattern);
+    }
+
+    @Override
+    protected Automaton doCreateAutomaton(boolean ignoreCase) {
+        int matchFlags = ignoreCase ? RegExp.CASE_INSENSITIVE : 0;
         return Operations.determinize(
-            new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton(),
+            new RegExp(regexpPattern, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, matchFlags).toAutomaton(),
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
     }

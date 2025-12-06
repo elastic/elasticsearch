@@ -7,6 +7,7 @@
 
 module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
+    requires org.elasticsearch.entitlement;
     requires org.elasticsearch.base;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
@@ -22,6 +23,11 @@ module org.elasticsearch.xcore {
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
+    requires org.slf4j;
+    requires com.ibm.icu;
+    requires org.elasticsearch.exponentialhistogram;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -65,8 +71,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
-    exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
-    exports org.elasticsearch.xpack.core.frozen.action;
+    exports org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
     exports org.elasticsearch.xpack.core.graph;
@@ -76,6 +81,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.indexing;
     exports org.elasticsearch.xpack.core.inference.action;
     exports org.elasticsearch.xpack.core.inference.results;
+    exports org.elasticsearch.xpack.core.inference.usage;
     exports org.elasticsearch.xpack.core.inference;
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
@@ -126,6 +132,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;
     exports org.elasticsearch.xpack.core.ml.utils;
+    exports org.elasticsearch.xpack.core.ml.vectors;
     exports org.elasticsearch.xpack.core.ml;
     exports org.elasticsearch.xpack.core.monitoring.action;
     exports org.elasticsearch.xpack.core.monitoring.exporter;
@@ -150,6 +157,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.action.token;
     exports org.elasticsearch.xpack.core.security.action.user;
     exports org.elasticsearch.xpack.core.security.action.settings;
+    exports org.elasticsearch.xpack.core.security.action.stats;
     exports org.elasticsearch.xpack.core.security.action;
     exports org.elasticsearch.xpack.core.security.authc.esnative;
     exports org.elasticsearch.xpack.core.security.authc.file;
@@ -172,6 +180,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.store;
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;
+    exports org.elasticsearch.xpack.core.security.operator;
     exports org.elasticsearch.xpack.core.security.support;
     exports org.elasticsearch.xpack.core.security.user;
     exports org.elasticsearch.xpack.core.security.xcontent;
@@ -184,6 +193,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.sql;
     exports org.elasticsearch.xpack.core.ssl.action;
     exports org.elasticsearch.xpack.core.ssl.cert;
+    exports org.elasticsearch.xpack.core.ssl.extension;
     exports org.elasticsearch.xpack.core.ssl.rest;
     exports org.elasticsearch.xpack.core.ssl;
     exports org.elasticsearch.xpack.core.template;
@@ -228,6 +238,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
+    exports org.elasticsearch.xpack.core.common.chunks;
+    exports org.elasticsearch.xpack.core.inference.chunking;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

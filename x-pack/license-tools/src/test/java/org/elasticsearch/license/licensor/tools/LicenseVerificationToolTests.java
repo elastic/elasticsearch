@@ -15,7 +15,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.licensor.TestUtils;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -74,7 +73,7 @@ public class LicenseVerificationToolTests extends CommandTestCase {
         final TimeValue oneHour = TimeValue.timeValueHours(1);
         License signedLicense = TestUtils.generateSignedLicense(oneHour, pubKeyPath, priKeyPath);
         Path licenseSpecFile = createTempFile();
-        Files.write(licenseSpecFile, TestUtils.dumpLicense(signedLicense).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(licenseSpecFile, TestUtils.dumpLicense(signedLicense));
         String output = execute("--publicKeyPath", pubKeyPath.toString(), "--licenseFile", licenseSpecFile.toString());
         assertFalse(output, output.isEmpty());
     }

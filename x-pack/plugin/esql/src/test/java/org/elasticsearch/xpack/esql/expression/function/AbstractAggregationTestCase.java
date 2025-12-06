@@ -11,6 +11,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -39,7 +41,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -47,6 +50,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base class for aggregation tests.
@@ -72,12 +76,22 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         );
     }
 
-    // TODO: Remove and migrate everything to the method with all the parameters
     /**
-     * @deprecated Use {@link #parameterSuppliersFromTypedDataWithDefaultChecks(List, boolean, PositionalErrorMessageSupplier)} instead.
-     * This method doesn't add all the default checks.
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
      */
-    @Deprecated
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+        List<TestCaseSupplier> suppliers,
+        boolean entirelyNullPreservesType
+    ) {
+        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
+    }
+
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
@@ -102,6 +116,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                     var newData = testCase.getData().stream().map(td -> td.isMultiRow() ? td.withData(List.of()) : td).toList();
 
                     return new TestCaseSupplier.TestCase(
+                        testCase.getSource(),
+                        testCase.getConfiguration(),
                         newData,
                         testCase.evaluatorToString(),
                         testCase.expectedType(),
@@ -111,7 +127,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        testCase.canBuildEvaluator()
                     );
                 }));
             }
@@ -126,10 +143,28 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
     }
 
+    public void testAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = aggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
+    }
+
     public void testGroupingAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
         resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
+    }
+
+    public void testGroupingAggregateToString() {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        resolveExpression(expression, e -> {
+            try (var aggregator = groupingAggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
+            }
+        }, this::evaluate);
     }
 
     public void testAggregateIntermediate() {
@@ -147,9 +182,33 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }, this::evaluate);
     }
 
+    public void testSurrogateHasFilter() {
+        Expression expression = randomFrom(
+            buildLiteralExpression(testCase),
+            buildDeepCopyOfFieldExpression(testCase),
+            buildFieldExpression(testCase)
+        );
+
+        assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
+
+        if (expression instanceof AggregateFunction && expression instanceof SurrogateExpression) {
+            var filter = ((AggregateFunction) expression).filter();
+
+            var surrogate = ((SurrogateExpression) expression).surrogate();
+
+            if (surrogate != null) {
+                surrogate.forEachDown(AggregateFunction.class, child -> {
+                    var surrogateFilter = child.filter();
+                    assertEquals(filter, surrogateFilter);
+                });
+            }
+        }
+    }
+
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+            assertAggregatorToString(aggregator);
             for (Page inputPage : rows(testCase.getMultiRowFields())) {
                 try (
                     BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
@@ -173,6 +232,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assumeFalse("Grouping aggregations must receive data to check results", pages.isEmpty());
 
             try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+                assertAggregatorToString(aggregator);
                 var groupCount = randomIntBetween(1, 1000);
                 for (Page inputPage : pages) {
                     processPageGrouping(aggregator, inputPage, groupCount);
@@ -262,12 +322,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         assertTrue(evaluableExpression.foldable());
 
         if (testCase.foldingExceptionClass() != null) {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> evaluableExpression.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
             return;
         }
 
-        Object result = evaluableExpression.fold();
+        Object result = evaluableExpression.fold(FoldContext.small());
         // Decode unsigned longs into BigIntegers
         if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
@@ -276,9 +336,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private void resolveExpression(Expression expression, Consumer<Expression> onAggregator, Consumer<Expression> onEvaluableExpression) {
-        logger.info(
-            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
-        );
+        String valuesString = testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","));
+        if (valuesString.length() > 200) {
+            valuesString = valuesString.substring(0, 200) + "...";
+        }
+        logger.info("Test Values: " + valuesString);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -286,7 +348,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         expression = resolveSurrogates(expression);
 
         // As expressions may be composed of multiple functions, we need to fold nulls bottom-up
-        expression = expression.transformUp(e -> new FoldNull().rule(e));
+        expression = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
 
         Expression.TypeResolution resolution = expression.typeResolved();
@@ -324,7 +386,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
-            return toJavaObject(blocks[resultBlockIndex], 0);
+            return toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], 0);
         } finally {
             Releasables.close(blocks);
         }
@@ -338,7 +400,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
         try (var groups = IntVector.range(0, groupCount, driverContext().blockFactory())) {
-            aggregator.evaluate(blocks, resultBlockIndex, groups, driverContext());
+            aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
 
             var block = blocks[resultBlockIndex];
 
@@ -346,7 +408,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
             return IntStream.range(resultBlockIndex, groupCount)
-                .mapToObj(position -> toJavaObject(blocks[resultBlockIndex], position))
+                .mapToObj(position -> toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], position))
                 .toList();
         } finally {
             Releasables.close(blocks);
@@ -394,15 +456,15 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private Aggregator aggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
-        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier();
 
-        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), mode);
+        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext(), inputChannels), mode);
     }
 
     private GroupingAggregator groupingAggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
-        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier();
 
-        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext()), mode);
+        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext(), inputChannels), mode);
     }
 
     /**
@@ -465,5 +527,51 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 groupSliceSize = randomIntBetween(1, Math.min(100, groupCount - currentGroupOffset));
             }
         }
+    }
+
+    private void assertAggregatorToString(Object aggregator) {
+        String expectedStart = switch (aggregator) {
+            case Aggregator a -> "Aggregator[aggregatorFunction=";
+            case GroupingAggregator a -> "GroupingAggregator[aggregatorFunction=";
+            default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
+        };
+        String channels = initialInputChannels().stream().map(Object::toString).collect(Collectors.joining(", "));
+        String expectedEnd = switch (aggregator) {
+            case Aggregator a -> "AggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
+            case GroupingAggregator a -> "GroupingAggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
+            default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
+        };
+
+        String toString = aggregator.toString();
+        assertThat(toString, startsWith(expectedStart));
+        assertThat(toString, endsWith(expectedEnd));
+        assertThat(toString.substring(expectedStart.length(), toString.length() - expectedEnd.length()), testCase.evaluatorToString());
+    }
+
+    protected static String standardAggregatorName(String prefix, DataType type) {
+        String typeName = switch (type) {
+            case BOOLEAN -> "Boolean";
+            case CARTESIAN_POINT -> "CartesianPoint";
+            case CARTESIAN_SHAPE -> "CartesianShape";
+            case GEO_POINT -> "GeoPoint";
+            case GEO_SHAPE -> "GeoShape";
+            case KEYWORD, TEXT, VERSION, TSID_DATA_TYPE -> "BytesRef";
+            case DOUBLE, COUNTER_DOUBLE -> "Double";
+            case INTEGER, COUNTER_INTEGER -> "Int";
+            case IP -> "Ip";
+            case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
+            case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
+            case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
+            case NULL -> "Null";
+            default -> throw new UnsupportedOperationException("name for [" + type + "]");
+        };
+        return prefix + typeName;
+    }
+
+    protected static String standardAggregatorNameAllBytesTheSame(String prefix, DataType type) {
+        return standardAggregatorName(prefix, switch (type) {
+            case CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP -> DataType.KEYWORD;
+            default -> type;
+        });
     }
 }

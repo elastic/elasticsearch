@@ -20,6 +20,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
@@ -37,7 +38,14 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
             IndexWriterConfig iwc = newIndexWriterConfig();
             // Disable merging on flush.
             iwc.setMaxFullFlushMergeWaitMillis(0L);
-            MergePolicy mp = new ShuffleForcedMergePolicy(newTieredMergePolicy());
+            // Even though we set setMaxFullFlushMergeWaitMillis=0, opening the DirectoryReader
+            // might trigger a merge after flushing the in-memory documents. Therefore, we set
+            // a high enough number of maxSegmentsPerTier (we index at most 300 documents, and we flush
+            // a new segment per 10 documents) that would prevent merging all the segments into one and
+            // making the force merge a no-op.
+            var tieredMergePolicy = new TieredMergePolicy();
+            tieredMergePolicy.setSegmentsPerTier(100);
+            MergePolicy mp = new ShuffleForcedMergePolicy(tieredMergePolicy);
             iwc.setMergePolicy(mp);
             boolean sorted = random().nextBoolean();
             if (sorted) {

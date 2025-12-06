@@ -1,0 +1,186 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: source-index-1
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: dest-index-1
+        ignore_unavailable: true
+
+---
+"Test create from with nonexistent source index":
+  - requires:
+      reason: "requires a cluster with the migration reindex feature"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      catch: /index_not_found_exception/
+      indices.create_from:
+        source: "does_not_exist"
+        dest: "dest1"
+
+---
+"Test create_from with existing source index":
+  - requires:
+      reason: "requires a cluster with the migration reindex feature"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.create:
+        index: source-index-1
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 5
+          mappings:
+            dynamic: strict
+            properties:
+              bar:
+                type: text
+  - do:
+      indices.create_from:
+        source: "source-index-1"
+        dest: "dest-index-1"
+  - do:
+      indices.get_settings:
+        index: dest-index-1
+  - match: { dest-index-1.settings.index.number_of_shards: "3" }
+  - match: { dest-index-1.settings.index.number_of_replicas: "5" }
+  - do:
+      indices.get_mapping:
+        index: dest-index-1
+  - match: {dest-index-1.mappings.properties.bar.type: text}
+
+---
+"Test create_from with existing source index and overrides":
+  - requires:
+      reason: "requires a cluster with the migration reindex feature"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.create:
+        index: source-index-1
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 5
+          mappings:
+            dynamic: strict
+            properties:
+              bar:
+                type: text
+              foo:
+                type: boolean
+  - do:
+      indices.create_from:
+        source: "source-index-1"
+        dest: "dest-index-1"
+        body:
+          settings_override:
+            index:
+              number_of_shards: 1
+              default_pipeline: "pipeline-1"
+          mappings_override:
+            dynamic: strict
+            properties:
+              bar:
+                type: keyword
+              baz:
+                type: integer
+  - do:
+      indices.get_settings:
+        index: dest-index-1
+  - match: { dest-index-1.settings.index.number_of_shards: "1" }
+  - match: { dest-index-1.settings.index.number_of_replicas: "5" }
+  - match: { dest-index-1.settings.index.default_pipeline: "pipeline-1" }
+  - do:
+      indices.get_mapping:
+        index: dest-index-1
+  - match: {dest-index-1.mappings.properties.bar.type: keyword}
+  - match: {dest-index-1.mappings.properties.foo.type: boolean}
+  - match: {dest-index-1.mappings.properties.baz.type: integer}
+
+---
+"Test create_from with remove_index_blocks set to false":
+  - requires:
+      reason: "requires a cluster with the migration reindex feature"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.create:
+        index: source-index-1
+        body:
+          settings:
+            index:
+              blocks.write: true
+              blocks.read: true
+  - do:
+      indices.create_from:
+        source: "source-index-1"
+        dest: "dest-index-1"
+        body:
+          settings_override:
+            index:
+              blocks.write: false
+              blocks.read: true
+          remove_index_blocks: false
+  - do:
+      indices.get_settings:
+        index: dest-index-1
+  - match: { dest-index-1.settings.index.blocks.write: "false" }
+  - match: { dest-index-1.settings.index.blocks.read: "true" }
+
+---
+"Test create_from with remove_index_blocks default of true":
+  - requires:
+      reason: "requires a cluster with the migration reindex feature"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_migration/reindex
+          capabilities: [migration_reindex]
+  - do:
+      indices.create:
+        index: source-index-1
+        body:
+          settings:
+            index:
+              blocks.write: true
+              blocks.read: true
+  - do:
+      indices.create_from:
+        source: "source-index-1"
+        dest: "dest-index-1"
+        body:
+          settings_override:
+            index:
+              blocks.write: false
+              blocks.read: true
+  - do:
+      indices.get_settings:
+        index: dest-index-1
+  - match: { dest-index-1.settings.index.blocks.write: null }
+  - match: { dest-index-1.settings.index.blocks.read: null }
+

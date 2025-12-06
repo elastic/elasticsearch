@@ -10,10 +10,13 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * {@link Vector} where each entry references a lucene document.
@@ -28,6 +31,11 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     public static final int SHARD_SEGMENT_DOC_MAP_PER_ROW_OVERHEAD = Integer.BYTES * 2;
 
+    /**
+     * The shard IDs for each position. Note that these shard IDs are shared between all doc vectors running in the same node, but a given
+     * doc vector might only reference a subset of the shard IDs (Which is the subset is also the one exposed by {@link #refCounteds}).
+     * These shard IDs are sliced up by DataNodeComputeHandler, and depend on the MAX_CONCURRENT_SHARDS_PER_NODE setting.
+     */
     private final IntVector shards;
     private final IntVector segments;
     private final IntVector docs;
@@ -48,8 +56,41 @@ public final class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
-    public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
+    private final IndexedByShardId<? extends RefCounted> refCounteds;
+
+    public RefCounted shardRefCounted(int position) {
+        return refCounteds.get(shards.getInt(position));
+    }
+
+    public DocVector(
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        Boolean singleSegmentNonDecreasing
+    ) {
+        this(refCounteds, shards, segments, docs, singleSegmentNonDecreasing, true);
+    }
+
+    public static DocVector withoutIncrementingShardRefCounts(
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs
+    ) {
+        return new DocVector(refCounteds, shards, segments, docs, null, false);
+    }
+
+    private DocVector(
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        Boolean singleSegmentNonDecreasing,
+        boolean incrementShardRefCounts
+    ) {
         super(shards.getPositionCount(), shards.blockFactory());
+        this.refCounteds = refCounteds;
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;
@@ -65,6 +106,23 @@ public final class DocVector extends AbstractVector implements Vector {
             );
         }
         blockFactory().adjustBreaker(BASE_RAM_BYTES_USED);
+
+        if (incrementShardRefCounts) {
+            forEachShardRefCounter(RefCounted::mustIncRef);
+        }
+    }
+
+    public DocVector(
+        IndexedByShardId<? extends RefCounted> refCounteds,
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        int[] docMapForwards,
+        int[] docMapBackwards
+    ) {
+        this(refCounteds, shards, segments, docs, null);
+        this.shardSegmentDocMapForwards = docMapForwards;
+        this.shardSegmentDocMapBackwards = docMapBackwards;
     }
 
     public IntVector shards() {
@@ -79,6 +137,18 @@ public final class DocVector extends AbstractVector implements Vector {
         return docs;
     }
 
+    /**
+     * Does this vector contain only documents from a single segment.
+     */
+    public boolean singleSegment() {
+        return shards.isConstant() && segments.isConstant();
+    }
+
+    /**
+     * Does this vector contain only documents from a single segment <strong>and</strong>
+     * are the documents always non-decreasing? Non-decreasing here means almost monotonically
+     * increasing.
+     */
     public boolean singleSegmentNonDecreasing() {
         if (singleSegmentNonDecreasing == null) {
             singleSegmentNonDecreasing = checkIfSingleSegmentNonDecreasing();
@@ -86,15 +156,11 @@ public final class DocVector extends AbstractVector implements Vector {
         return singleSegmentNonDecreasing;
     }
 
-    public boolean singleSegment() {
-        return shards.isConstant() && segments.isConstant();
-    }
-
     private boolean checkIfSingleSegmentNonDecreasing() {
         if (getPositionCount() < 2) {
             return true;
         }
-        if (shards.isConstant() == false || segments.isConstant() == false) {
+        if (singleSegment() == false) {
             return false;
         }
         int prev = docs.getInt(0);
@@ -107,7 +173,6 @@ public final class DocVector extends AbstractVector implements Vector {
             prev = v;
         }
         return true;
-
     }
 
     /**
@@ -137,10 +202,9 @@ public final class DocVector extends AbstractVector implements Vector {
         boolean success = false;
         long estimatedSize = sizeOfSegmentDocMap();
         blockFactory().adjustBreaker(estimatedSize);
-        int[] forwards = null;
-        int[] backwards = null;
+        int[] forwards;
         try {
-            int[] finalForwards = forwards = new int[shards.getPositionCount()];
+            forwards = new int[shards.getPositionCount()];
             for (int p = 0; p < forwards.length; p++) {
                 forwards[p] = p;
             }
@@ -150,19 +214,19 @@ public final class DocVector extends AbstractVector implements Vector {
 
                     @Override
                     protected void setPivot(int i) {
-                        pivot = finalForwards[i];
+                        pivot = forwards[i];
                     }
 
                     @Override
                     protected int comparePivot(int j) {
-                        return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
+                        return Integer.compare(docs.getInt(pivot), docs.getInt(forwards[j]));
                     }
 
                     @Override
                     protected void swap(int i, int j) {
-                        int tmp = finalForwards[i];
-                        finalForwards[i] = finalForwards[j];
-                        finalForwards[j] = tmp;
+                        int tmp = forwards[i];
+                        forwards[i] = forwards[j];
+                        forwards[j] = tmp;
                     }
                 }.sort(0, forwards.length);
             } else {
@@ -171,31 +235,31 @@ public final class DocVector extends AbstractVector implements Vector {
 
                     @Override
                     protected void setPivot(int i) {
-                        pivot = finalForwards[i];
+                        pivot = forwards[i];
                     }
 
                     @Override
                     protected int comparePivot(int j) {
-                        int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(finalForwards[j]));
+                        int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(forwards[j]));
                         if (cmp != 0) {
                             return cmp;
                         }
-                        cmp = Integer.compare(segments.getInt(pivot), segments.getInt(finalForwards[j]));
+                        cmp = Integer.compare(segments.getInt(pivot), segments.getInt(forwards[j]));
                         if (cmp != 0) {
                             return cmp;
                         }
-                        return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
+                        return Integer.compare(docs.getInt(pivot), docs.getInt(forwards[j]));
                     }
 
                     @Override
                     protected void swap(int i, int j) {
-                        int tmp = finalForwards[i];
-                        finalForwards[i] = finalForwards[j];
-                        finalForwards[j] = tmp;
+                        int tmp = forwards[i];
+                        forwards[i] = forwards[j];
+                        forwards[j] = tmp;
                     }
                 }.sort(0, forwards.length);
             }
-            backwards = new int[forwards.length];
+            int[] backwards = new int[forwards.length];
             for (int p = 0; p < forwards.length; p++) {
                 backwards[forwards[p]] = p;
             }
@@ -209,8 +273,12 @@ public final class DocVector extends AbstractVector implements Vector {
         }
     }
 
+    public static long sizeOfSegmentDocMap(int positionCount) {
+        return 2 * (((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + ((long) Integer.BYTES) * positionCount);
+    }
+
     private long sizeOfSegmentDocMap() {
-        return 2 * (((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + ((long) Integer.BYTES) * shards.getPositionCount());
+        return sizeOfSegmentDocMap(getPositionCount());
     }
 
     @Override
@@ -228,7 +296,26 @@ public final class DocVector extends AbstractVector implements Vector {
             filteredShards = shards.filter(positions);
             filteredSegments = segments.filter(positions);
             filteredDocs = docs.filter(positions);
-            result = new DocVector(filteredShards, filteredSegments, filteredDocs, null);
+            result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, null);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(filteredShards, filteredSegments, filteredDocs);
+            }
+        }
+    }
+
+    @Override
+    public DocVector deepCopy(BlockFactory blockFactory) {
+        IntVector filteredShards = null;
+        IntVector filteredSegments = null;
+        IntVector filteredDocs = null;
+        DocVector result = null;
+        try {
+            filteredShards = shards.deepCopy(blockFactory);
+            filteredSegments = segments.deepCopy(blockFactory);
+            filteredDocs = docs.deepCopy(blockFactory);
+            result = new DocVector(refCounteds, filteredShards, filteredSegments, filteredDocs, null);
             return result;
         } finally {
             if (result == null) {
@@ -271,6 +358,16 @@ public final class DocVector extends AbstractVector implements Vector {
         return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
     }
 
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("DocVector[");
+        sb.append("shards=").append(shards);
+        sb.append(", segments=").append(segments);
+        sb.append(", docs=").append(docs);
+        sb.append(']');
+        return sb.toString();
+    }
+
     private static long ramBytesOrZero(int[] array) {
         return array == null ? 0 : RamUsageEstimator.shallowSizeOf(array);
     }
@@ -307,5 +404,20 @@ public final class DocVector extends AbstractVector implements Vector {
             segments,
             docs
         );
+        forEachShardRefCounter(RefCounted::decRef);
+    }
+
+    private void forEachShardRefCounter(Consumer<RefCounted> consumer) {
+        switch (shards) {
+            case ConstantIntVector constantIntVector -> consumer.accept(refCounteds.get(constantIntVector.getInt(0)));
+            case ConstantNullVector ignored -> {
+                // Noop
+            }
+            default -> {
+                for (int i = 0; i < shards.getPositionCount(); i++) {
+                    consumer.accept(refCounteds.get(shards.getInt(i)));
+                }
+            }
+        }
     }
 }

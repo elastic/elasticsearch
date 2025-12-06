@@ -172,6 +172,11 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         assertThat(builder.calculateAssignmentState(), equalTo(AssignmentState.STARTING));
     }
 
+    public void testCalculateAssignmentState_GivenNumAllocationsIsZero() {
+        TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(0), null);
+        assertThat(builder.calculateAssignmentState(), equalTo(AssignmentState.STARTED));
+    }
+
     public void testCalculateAssignmentState_GivenOneStartedAssignment() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5), null);
         builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTING, ""));

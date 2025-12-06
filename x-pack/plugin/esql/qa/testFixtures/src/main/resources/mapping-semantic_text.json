@@ -4,6 +4,10 @@
       "type": "semantic_text",
       "inference_id": "test_sparse_inference"
     },
+    "semantic_text_dense_field": {
+      "type": "semantic_text",
+      "inference_id": "test_dense_inference"
+    },
     "st_bool": {
       "type": "semantic_text",
       "inference_id": "test_sparse_inference"
@@ -68,6 +72,17 @@
     },
     "value": {
       "type": "long"
+    },
+    "st_base64": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "st_logs": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
+    },
+    "language_name": {
+      "type": "keyword"
     }
   }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -213,7 +214,7 @@ public class GatewayMetaState implements Closeable {
                 new NodeMetadata(
                     persistedClusterStateService.getNodeId(),
                     BuildVersion.current(),
-                    clusterState.metadata().oldestIndexVersion()
+                    clusterState.metadata().oldestIndexVersionAllProjects()
                 ),
                 persistedClusterStateService.getDataPaths()
             );
@@ -255,7 +256,7 @@ public class GatewayMetaState implements Closeable {
                 new NodeMetadata(
                     persistedClusterStateService.getNodeId(),
                     BuildVersion.current(),
-                    clusterState.metadata().oldestIndexVersion()
+                    clusterState.metadata().oldestIndexVersionAllProjects()
                 ),
                 persistedClusterStateService.getDataPaths()
             );
@@ -294,24 +295,60 @@ public class GatewayMetaState implements Closeable {
     static Metadata upgradeMetadata(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
+        for (ProjectMetadata projectMetadata : metadata.projects().values()) {
+            final ProjectMetadata upgradedProjectMetadata = upgradeProjectMetadata(
+                projectMetadata,
+                indexMetadataVerifier,
+                metadataUpgrader
+            );
+            changed |= projectMetadata != upgradedProjectMetadata;
+            upgradedMetadata.put(upgradedProjectMetadata);
+        }
+        return changed ? upgradedMetadata.build() : metadata;
+    }
+
+    private static ProjectMetadata upgradeProjectMetadata(
+        ProjectMetadata metadata,
+        IndexMetadataVerifier indexMetadataVerifier,
+        MetadataUpgrader metadataUpgrader
+    ) {
+        boolean changed = false;
+        final ProjectMetadata.Builder upgradedMetadata = ProjectMetadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE);
+            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(
+                indexMetadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
+            );
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }
         // upgrade current templates
-        if (applyPluginUpgraders(
-            metadata.getTemplates(),
+        if (applyPluginTemplateUpgraders(
+            metadata.templates(),
             metadataUpgrader.indexTemplateMetadataUpgraders,
             upgradedMetadata::removeTemplate,
             (s, indexTemplateMetadata) -> upgradedMetadata.put(indexTemplateMetadata)
         )) {
             changed = true;
         }
+        // upgrade custom metadata
+        for (Map.Entry<String, UnaryOperator<Metadata.ProjectCustom>> entry : metadataUpgrader.customMetadataUpgraders.entrySet()) {
+            String type = entry.getKey();
+            Function<Metadata.ProjectCustom, Metadata.ProjectCustom> upgrader = entry.getValue();
+            Metadata.ProjectCustom original = metadata.custom(type);
+            if (original != null) {
+                Metadata.ProjectCustom upgraded = upgrader.apply(original);
+                if (upgraded.equals(original) == false) {
+                    upgradedMetadata.putCustom(type, upgraded);
+                    changed = true;
+                }
+            }
+        }
         return changed ? upgradedMetadata.build() : metadata;
     }
 
-    private static boolean applyPluginUpgraders(
+    private static boolean applyPluginTemplateUpgraders(
         Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,
@@ -563,7 +600,7 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(
                         currentTerm,
                         lastAcceptedState.version(),
-                        metadata.oldestIndexVersion(),
+                        metadata.oldestIndexVersionAllProjects(),
                         metadata.clusterUUID(),
                         metadata.clusterUUIDCommitted()
                     );

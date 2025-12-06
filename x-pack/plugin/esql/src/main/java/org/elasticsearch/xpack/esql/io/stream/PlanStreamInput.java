@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -29,6 +28,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -36,8 +36,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongFunction;
-
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
@@ -53,12 +51,16 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * and increment an id from the global counter, thus avoiding potential conflicts between the
      * id in the stream and id's during local re-planning on the data node.
      */
-    static final class NameIdMapper implements LongFunction<NameId> {
+    public static class NameIdMapper implements LongFunction<NameId> {
         final Map<Long, NameId> seen = new HashMap<>();
 
         @Override
         public NameId apply(long streamNameId) {
             return seen.computeIfAbsent(streamNameId, k -> new NameId());
+        }
+
+        protected Map<Long, NameId> seen() {
+            return seen;
         }
     }
 
@@ -76,9 +78,22 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     private final Configuration configuration;
 
     public PlanStreamInput(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, Configuration configuration) {
+        this(streamInput, namedWriteableRegistry, configuration, null);
+    }
+
+    /**
+     * @param idMapper should always be null in production! Custom mappers are only used in tests to force ID values to be the same after
+     *                 serialization and deserialization, which is not the case when they are generated as usual.
+     */
+    public PlanStreamInput(
+        StreamInput streamInput,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Configuration configuration,
+        NameIdMapper idMapper
+    ) {
         super(streamInput, namedWriteableRegistry);
         this.configuration = configuration;
-        this.nameIdFunction = new NameIdMapper();
+        this.nameIdFunction = idMapper == null ? new NameIdMapper() : idMapper;
     }
 
     public Configuration configuration() throws IOException {
@@ -100,10 +115,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             case PlanStreamOutput.NEW_BLOCK_KEY -> {
                 int id = readVInt();
                 // TODO track blocks read over the wire.... Or slice them from BigArrays? Something.
-                Block b = new BlockStreamInput(
+                var in = new BlockStreamInput(
                     this,
                     new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                ).readNamedWriteable(Block.class);
+                );
+                Block b = Block.readTypedBlock(in);
                 cachedBlocks.put(id, b);
                 yield b;
             }
@@ -160,7 +176,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @Override
     public String sourceText() {
-        return configuration.query();
+        return configuration == null ? Source.EMPTY.text() : configuration.query();
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {
@@ -181,20 +197,15 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     @Override
     @SuppressWarnings("unchecked")
     public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
-            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
-            int cacheId = Math.toIntExact(readZLong());
-            if (cacheId < 0) {
-                cacheId = -1 - cacheId;
-                Attribute result = constructor.apply(this);
-                cacheAttribute(cacheId, result);
-                return (A) result;
-            } else {
-                return (A) attributeFromCache(cacheId);
-            }
+        // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
+        int cacheId = Math.toIntExact(readZLong());
+        if (cacheId < 0) {
+            cacheId = -1 - cacheId;
+            Attribute result = constructor.apply(this);
+            cacheAttribute(cacheId, result);
+            return (A) result;
         } else {
-            return constructor.apply(this);
+            return (A) attributeFromCache(cacheId);
         }
     }
 
@@ -221,24 +232,17 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @SuppressWarnings("unchecked")
     public <A extends EsField> A readEsFieldWithCache() throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
-            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
-            int cacheId = Math.toIntExact(readZLong());
-            if (cacheId < 0) {
-                String className = readCachedStringWithVersionCheck(this);
-                Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
-                cacheId = -1 - cacheId;
-                EsField result = reader.read(this);
-                cacheEsField(cacheId, result);
-                return (A) result;
-            } else {
-                return (A) esFieldFromCache(cacheId);
-            }
-        } else {
-            String className = readCachedStringWithVersionCheck(this);
+        // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
+        int cacheId = Math.toIntExact(readZLong());
+        if (cacheId < 0) {
+            String className = readCachedString();
             Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
-            return (A) reader.read(this);
+            cacheId = -1 - cacheId;
+            EsField result = reader.read(this);
+            cacheEsField(cacheId, result);
+            return (A) result;
+        } else {
+            return (A) esFieldFromCache(cacheId);
         }
     }
 

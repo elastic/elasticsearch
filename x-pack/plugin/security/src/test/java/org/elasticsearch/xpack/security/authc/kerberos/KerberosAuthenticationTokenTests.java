@@ -110,8 +110,11 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
 
     private static void assertContainsAuthenticateHeader(ElasticsearchSecurityException e) {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
-        assertThat(e.getHeaderKeys(), hasSize(1));
-        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), notNullValue());
-        assertThat(e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), contains(KerberosAuthenticationToken.NEGOTIATE_SCHEME_NAME));
+        assertThat(e.getBodyHeaderKeys(), hasSize(1));
+        assertThat(e.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE), notNullValue());
+        assertThat(
+            e.getBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE),
+            contains(KerberosAuthenticationToken.NEGOTIATE_SCHEME_NAME)
+        );
     }
 }

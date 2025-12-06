@@ -12,7 +12,9 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
@@ -34,6 +36,7 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
 
     private final DatabaseNodeService registry;
     private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public GeoIpStatsTransportAction(
@@ -42,7 +45,8 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DatabaseNodeService registry,
-        GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor
+        GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor,
+        ProjectResolver projectResolver
     ) {
         super(
             GeoIpStatsAction.INSTANCE.name(),
@@ -54,6 +58,7 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
         );
         this.registry = registry;
         this.geoIpDownloaderTaskExecutor = geoIpDownloaderTaskExecutor;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -73,15 +78,16 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
+        ProjectId projectId = projectResolver.getProjectId();
+        GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getTask(projectId);
         GeoIpDownloaderStats downloaderStats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
         CacheStats cacheStats = registry.getCacheStats();
         return new NodeResponse(
             transportService.getLocalNode(),
             downloaderStats,
             cacheStats,
-            registry.getAvailableDatabases(),
-            registry.getFilesInTemp(),
+            registry.getAvailableDatabases(projectId),
+            registry.getFilesInTemp(projectId),
             registry.getConfigDatabases()
         );
     }

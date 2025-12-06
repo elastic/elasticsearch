@@ -23,13 +23,13 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
+import java.util.Map;
 
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
@@ -135,25 +135,18 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
-        public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
-            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
-        }
-
-        private void collectAllMatchingDocs(KnnCollector knnCollector, Bits acceptDocs, RandomVectorScorer scorer) throws IOException {
-            OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-            Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs);
-            for (int i = 0; i < scorer.maxOrd(); i++) {
-                if (acceptedOrds == null || acceptedOrds.get(i)) {
-                    collector.collect(i, scorer.score(i));
-                    collector.incVisitedCount(1);
-                }
-            }
-            assert collector.earlyTerminated() == false;
+        public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
 
         @Override
-        public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
-            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+        public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+        }
+
+        @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return reader.getOffHeapByteSize(fieldInfo);
         }
 
         @Override

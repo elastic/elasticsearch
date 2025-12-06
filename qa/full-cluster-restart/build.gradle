@@ -7,17 +7,44 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
-BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+  }
+}
+
+tasks.register("luceneBwcTest", StandaloneRestIntegTestTask) {
+  project.gradle.taskGraph.whenReady { allTasks ->
+    if (allTasks.hasTask(getPath())) {
+      if (System.getProperty("tests.bwc.refspec.main") == null) {
+        throw new GradleException("You must set the `tests.bwc.refspec.main` system property to run luceneBwcTest")
+      }
+      if (System.getProperty("tests.bwc.main.version") == null) {
+        throw new GradleException("You must set the `tests.bwc.main.version` system property to run luceneBwcTest")
+      }
+    }
+  }
+  if (System.getProperty("tests.bwc.refspec.main") != null && System.getProperty("tests.bwc.main.version") != null) {
+    usesBwcDistributionFromRef(System.getProperty("tests.bwc.refspec.main"), Version.fromString(System.getProperty("tests.bwc.main.version")))
+    systemProperty("tests.old_cluster_version", System.getProperty("tests.bwc.main.version"))
+  }
+}
+
+tasks.named("bcUpgradeTest").configure {
+  filter {
+    // Mute testSnapshotRestore: it uses string compare of Version (from the cluster, saved in the snapshot) with tests.bwc.main.version,
+    // which does not work for SNAPSHOT builds
+    excludeTestsMatching("org.elasticsearch.upgrades.FullClusterRestartIT.testSnapshotRestore")
+    excludeTestsMatching("org.elasticsearch.upgrades.FullClusterRestartIT.testSnapshotRestore *")
   }
 }
 

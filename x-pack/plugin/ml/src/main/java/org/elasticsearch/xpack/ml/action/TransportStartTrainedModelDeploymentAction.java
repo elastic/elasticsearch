@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -23,8 +24,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.inference.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -63,7 +65,6 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -100,6 +101,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     private final TrainedModelAssignmentService trainedModelAssignmentService;
     private final MlMemoryTracker memoryTracker;
     private final InferenceAuditor auditor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(
@@ -109,10 +111,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ThreadPool threadPool,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelAssignmentService trainedModelAssignmentService,
         MlMemoryTracker memoryTracker,
-        InferenceAuditor auditor
+        InferenceAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             StartTrainedModelDeploymentAction.NAME,
@@ -121,7 +123,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             threadPool,
             actionFilters,
             StartTrainedModelDeploymentAction.Request::new,
-            indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -130,6 +131,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.trainedModelAssignmentService = Objects.requireNonNull(trainedModelAssignmentService);
         this.auditor = Objects.requireNonNull(auditor);
+        this.projectResolver = Objects.requireNonNull(projectResolver);
     }
 
     @Override
@@ -146,7 +148,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
-        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
+        if (state.getMinTransportVersion().equals(TransportVersion.current()) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot start model deployment [{}] while cluster upgrade is in progress.",
@@ -190,11 +192,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
                     e
                 );
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException resourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
-                        e,
+                        resourceAlreadyExistsException,
                         request.getDeploymentId()
                     );
                 }
@@ -215,7 +217,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 perDeploymentMemoryBytes.get(),
                 perAllocationMemoryBytes.get()
             );
-            PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata persistentTasks = clusterService.state()
+                .getMetadata()
+                .getProject()
+                .custom(PersistentTasksCustomMetadata.TYPE);
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(
@@ -350,11 +355,14 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     onFailure(
-                        new ElasticsearchStatusException(
-                            "Timed out after [{}] waiting for model deployment to start. "
-                                + "Use the trained model stats API to track the state of the deployment.",
-                            RestStatus.REQUEST_TIMEOUT,
-                            request.getTimeout() // use the full request timeout in the error message
+                        new ModelDeploymentTimeoutException(
+                            format(
+                                "Timed out after [%s] waiting for trained model deployment [%s] to start. "
+                                    + "Use the trained model stats API to track the state of the deployment "
+                                    + "and try again once it has started.",
+                                request.getTimeout(),
+                                request.getDeploymentId()
+                            )
                         )
                     );
                 }
@@ -638,7 +646,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     private static ElasticsearchStatusException missingFieldsError(String modelId, String hitId, Collection<String> missingFields) {

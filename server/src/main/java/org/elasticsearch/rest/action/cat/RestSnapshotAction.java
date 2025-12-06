@@ -9,11 +9,9 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
@@ -98,24 +96,6 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest req, GetSnapshotsResponse getSnapshotsResponse) {
         Table table = getTableWithHeader(req);
-
-        if (getSnapshotsResponse.isFailed()) {
-            ElasticsearchException causes = null;
-
-            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
-                if (causes == null) {
-                    causes = e;
-                } else {
-                    causes.addSuppressed(e);
-                }
-            }
-            throw new ElasticsearchException(
-                "Repositories ["
-                    + Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet())
-                    + "] failed to retrieve snapshots",
-                causes
-            );
-        }
 
         for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
             table.startRow();

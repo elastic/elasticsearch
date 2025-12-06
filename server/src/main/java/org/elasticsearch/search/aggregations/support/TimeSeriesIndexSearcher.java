@@ -39,7 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.IntSupplier;
 
-import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+import static org.elasticsearch.index.IndexSortConfig.IndexSortConfigDefaults.TIME_SERIES_SORT;
 
 /**
  * An IndexSearcher wrapper that executes the searches in time-series indices by traversing them by tsid and timestamp
@@ -73,11 +73,11 @@ public class TimeSeriesIndexSearcher {
         this.cancellations = cancellations;
         cancellations.forEach(this.searcher::addQueryCancellation);
 
-        assert TIME_SERIES_SORT.length == 2;
-        assert TIME_SERIES_SORT[0].getField().equals(TimeSeriesIdFieldMapper.NAME);
-        assert TIME_SERIES_SORT[1].getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        this.tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
-        this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        assert TIME_SERIES_SORT.fields().size() == 2;
+        assert TIME_SERIES_SORT.fields().get(0).equals(TimeSeriesIdFieldMapper.NAME);
+        assert TIME_SERIES_SORT.fields().get(1).equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        this.tsidReverse = TIME_SERIES_SORT.order().get(0).equals(SortOrder.DESC.toString());
+        this.timestampReverse = TIME_SERIES_SORT.order().get(1).equals(SortOrder.DESC.toString());
     }
 
     public void setMinimumScore(Float minimumScore) {
@@ -263,11 +263,7 @@ public class TimeSeriesIndexSearcher {
 
         // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
-            if (tsidOrd != tsids.ordValue()) {
-                return true;
-            } else {
-                return false;
-            }
+            return tsidOrd != tsids.ordValue();
         }
     }
 }

@@ -17,16 +17,21 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,15 +39,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ResolvedRepositories;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
@@ -50,6 +57,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,6 +86,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -89,6 +98,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
@@ -127,6 +137,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().beforeIndexDeletion();
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
@@ -164,7 +175,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected RepositoryData getRepositoryData(String repoName, IndexVersion version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
-        if (SnapshotsService.includesUUIDs(version) == false) {
+        if (SnapshotsServiceUtils.includesUUIDs(version) == false) {
             return repositoryData.withoutUUIDs();
         } else {
             return repositoryData;
@@ -367,7 +378,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      */
     protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws Exception {
         if (randomBoolean() && randomBoolean()) {
-            initWithSnapshotVersion(repoName, repoPath, IndexVersionUtils.randomVersion());
+            initWithSnapshotVersion(
+                repoName,
+                repoPath,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
+            );
         }
     }
 
@@ -418,7 +433,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     .replace(IndexVersion.current().toString(), version.toString())
             )
         ) {
-            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
+            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(new ProjectRepo(ProjectId.DEFAULT, repoName), parser);
         }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
         BlobStoreRepository.SNAPSHOT_FORMAT.write(
@@ -508,7 +523,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      */
     protected void addBwCFailedSnapshot(String repoName, String snapshotName, Map<String, Object> metadata) throws Exception {
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+        final RepositoriesMetadata repositoriesMetadata = state.metadata().getProject().custom(RepositoriesMetadata.TYPE);
         assertNotNull(repositoriesMetadata);
         final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);
         assertNotNull(initialRepoMetadata);
@@ -540,19 +555,20 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         safeAwait(
             (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
-                    ShardGenerations.EMPTY,
+                    false,
+                    UpdatedShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
                     listener,
-                    info -> {}
+                    () -> {}
                 )
             )
         );
     }
 
-    protected void awaitNDeletionsInProgress(int count) throws Exception {
+    protected void awaitNDeletionsInProgress(int count) {
         logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
         awaitClusterState(state -> SnapshotDeletionsInProgress.get(state).getEntries().size() == count);
     }
@@ -564,7 +580,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(
-            logger,
             viaNode,
             state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).hasDeletionsInProgress() == false
         );
@@ -599,13 +614,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .execute();
     }
 
-    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
+    protected void awaitNumberOfSnapshotsInProgress(int count) {
         awaitNumberOfSnapshotsInProgress(logger, count);
     }
 
-    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(logger, state -> SnapshotsInProgress.get(state).count() == count);
+        awaitClusterState(state -> SnapshotsInProgress.get(state).count() == count);
     }
 
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
@@ -691,6 +706,148 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected List<String> createNSnapshots(String repoName, int count) throws Exception {
         return createNSnapshots(logger, repoName, count);
+    }
+
+    protected static void putShutdownForRemovalMetadata(String nodeName, ClusterService clusterService) {
+        safeAwait((ActionListener<Void> listener) -> putShutdownForRemovalMetadata(clusterService, nodeName, listener));
+    }
+
+    protected static void flushMasterQueue(ClusterService clusterService, ActionListener<Void> listener) {
+        clusterService.submitUnbatchedStateUpdateTask("flush queue", new ClusterStateUpdateTask(Priority.LANGUID) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                listener.onResponse(null);
+            }
+        });
+    }
+
+    protected static void putShutdownForRemovalMetadata(ClusterService clusterService, String nodeName, ActionListener<Void> listener) {
+        // not testing REPLACE just because it requires us to specify the replacement node
+        final var shutdownType = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
+        final var shutdownMetadata = SingleNodeShutdownMetadata.builder()
+            .setType(shutdownType)
+            .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
+            .setReason("test");
+        switch (shutdownType) {
+            case SIGTERM -> shutdownMetadata.setGracePeriod(TimeValue.timeValueSeconds(60));
+        }
+        SubscribableListener
+
+            .<Void>newForked(l -> putShutdownMetadata(clusterService, shutdownMetadata, nodeName, l))
+            .<Void>andThen(l -> flushMasterQueue(clusterService, l))
+            .addListener(listener);
+    }
+
+    protected static void putShutdownMetadata(
+        ClusterService clusterService,
+        SingleNodeShutdownMetadata.Builder shutdownMetadataBuilder,
+        String nodeName,
+        ActionListener<Void> listener
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask("mark node for removal", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final var node = currentState.nodes().resolveNode(nodeName);
+                return currentState.copyAndUpdateMetadata(
+                    mdb -> mdb.putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                node.getId(),
+                                shutdownMetadataBuilder.setNodeId(node.getId()).setNodeEphemeralId(node.getEphemeralId()).build()
+                            )
+                        )
+                    )
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                listener.onResponse(null);
+            }
+        });
+    }
+
+    protected static void clearShutdownMetadata(ClusterService clusterService) {
+        safeAwait(listener -> clusterService.submitUnbatchedStateUpdateTask("remove restart marker", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return currentState.copyAndUpdateMetadata(mdb -> mdb.putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                listener.onResponse(null);
+            }
+        }));
+    }
+
+    protected static SubscribableListener<Void> createSnapshotInStateListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName,
+        int numShards,
+        SnapshotsInProgress.ShardState shardState
+    ) {
+        return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
+            final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
+            if (entriesForRepo.isEmpty()) {
+                // it's (just about) possible for the data node to apply the initial snapshot state, start on the first shard snapshot, and
+                // hit the IO block, before the master even applies this cluster state, in which case we simply retry:
+                return false;
+            }
+            assertThat(entriesForRepo, hasSize(1));
+            final var shardSnapshotStatuses = entriesForRepo.iterator()
+                .next()
+                .shards()
+                .entrySet()
+                .stream()
+                .flatMap(e -> e.getKey().getIndexName().equals(indexName) ? Stream.of(e.getValue()) : Stream.of())
+                .toList();
+            assertThat(shardSnapshotStatuses, hasSize(numShards));
+            for (var shardStatus : shardSnapshotStatuses) {
+                assertThat(shardStatus.state(), oneOf(SnapshotsInProgress.ShardState.INIT, shardState));
+                if (shardStatus.state() == SnapshotsInProgress.ShardState.INIT) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    protected static SubscribableListener<Void> createSnapshotPausedListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName,
+        int numShards
+    ) {
+        return createSnapshotInStateListener(
+            clusterService,
+            repoName,
+            indexName,
+            numShards,
+            SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
+        );
     }
 
     public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {

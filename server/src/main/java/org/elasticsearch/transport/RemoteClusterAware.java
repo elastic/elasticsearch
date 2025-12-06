@@ -10,11 +10,12 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
@@ -26,9 +27,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Base class for all services and components that need up-to-date information about the registered remote clusters
+ * Base class for services and components that utilize linked projects.
  */
-public abstract class RemoteClusterAware {
+public abstract class RemoteClusterAware implements LinkedProjectConfigService.LinkedProjectConfigListener {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
@@ -46,11 +47,8 @@ public abstract class RemoteClusterAware {
         this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
-    /**
-     * Returns remote clusters that are enabled in these settings
-     */
-    protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
-        return RemoteConnectionStrategy.getRemoteClusters(settings);
+    protected String getNodeName() {
+        return nodeName;
     }
 
     /**
@@ -64,8 +62,24 @@ public abstract class RemoteClusterAware {
             // Thus, whatever it is, this is definitely not a remote index.
             return false;
         }
+        int idx = indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        // Check to make sure the remote cluster separator ':' isn't actually a selector separator '::'
+        boolean isSelector = indexExpression.startsWith(SelectorResolver.SELECTOR_SEPARATOR, idx);
         // Note remote index name also can not start with ':'
-        return indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+        return idx > 0 && isSelector == false;
+    }
+
+    /**
+     * Extracts the list of remote index expressions from the given array of index expressions
+     */
+    public static List<String> getRemoteIndexExpressions(String... expressions) {
+        List<String> crossClusterIndices = new ArrayList<>();
+        for (int i = 0; i < expressions.length; i++) {
+            if (isRemoteIndexName(expressions[i])) {
+                crossClusterIndices.add(expressions[i]);
+            }
+        }
+        return crossClusterIndices;
     }
 
     /**
@@ -74,12 +88,21 @@ public abstract class RemoteClusterAware {
      */
     public static String parseClusterAlias(String indexExpression) {
         assert indexExpression != null : "Must not pass null indexExpression";
-        String[] parts = splitIndexName(indexExpression.trim());
-        if (parts[0] == null) {
-            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        } else {
-            return parts[0];
-        }
+        return getClusterAlias(splitIndexName(indexExpression.trim()));
+    }
+
+    /**
+     * @return the cluster alias or LOCAL_CLUSTER_GROUP_KEY if the split represents local index
+     */
+    public static String getClusterAlias(String[] split) {
+        return split[0] == null ? LOCAL_CLUSTER_GROUP_KEY : split[0];
+    }
+
+    /**
+     * @return the local index name from the qualified index name split by RemoteClusterAware#splitIndexName
+     */
+    public static String getLocalIndexName(String[] split) {
+        return split[1];
     }
 
     /**
@@ -99,7 +122,8 @@ public abstract class RemoteClusterAware {
         if (i == 0) {
             throw new IllegalArgumentException("index name [" + indexExpression + "] is invalid because the remote part is empty");
         }
-        if (i < 0) {
+        if (i < 0 || indexExpression.startsWith(SelectorResolver.SELECTOR_SEPARATOR, i)) {
+            // Either no colon present, or the colon was a part of a selector separator (::)
             return new String[] { null, indexExpression };
         } else {
             return new String[] { indexExpression.substring(0, i), indexExpression.substring(i + 1) };
@@ -144,11 +168,22 @@ public abstract class RemoteClusterAware {
                     isNegative ? remoteClusterName.substring(1) : remoteClusterName
                 );
                 if (isNegative) {
+                    Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
+                    indexName = indexAndSelector.v1();
+                    String selectorString = indexAndSelector.v2();
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "To exclude a cluster you must specify the '*' wildcard for " + "the index expression, but found: [%s]",
+                                "To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [%s]",
                                 indexName
+                            )
+                        );
+                    }
+                    if (selectorString != null) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "To exclude a cluster you must not specify the a selector, but found selector: [%s]",
+                                selectorString
                             )
                         );
                     }
@@ -188,36 +223,6 @@ public abstract class RemoteClusterAware {
             );
         }
         return perClusterIndices;
-    }
-
-    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
-        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-        }
-        updateRemoteCluster(clusterAlias, settings);
-    }
-
-    /**
-     * Subclasses must implement this to receive information about updated cluster aliases.
-     */
-    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
-
-    /**
-     * Registers this instance to listen to updates on the cluster settings.
-     */
-    public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategy.PROXY_ADDRESS,
-            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
-        );
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

@@ -31,6 +31,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -56,13 +57,11 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
-
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
         if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
@@ -201,7 +200,7 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
-    private void doParseMultiFields(DocumentParserContext context) throws IOException {
+    protected void doParseMultiFields(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
             mapper.parse(context);
@@ -209,7 +208,7 @@ public abstract class FieldMapper extends Mapper {
         context.path().remove();
     }
 
-    private static void throwIndexingWithScriptParam() {
+    protected static void throwIndexingWithScriptParam() {
         throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
     }
 
@@ -443,11 +442,26 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + Stream.of(builderParams.multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+        int sum = 1;
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
+            sum += mapper.getTotalFieldsCount();
+        }
+        return sum;
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();
+    }
+
+    /**
+     * Returns a {@link SourceLoader.SyntheticVectorsLoader} instance responsible for loading
+     * synthetic vector values from the index.
+     *
+     * @return a {@link SourceLoader.SyntheticVectorsLoader} used to extract synthetic vectors,
+     *         or {@code null} if no loader is provided or applicable in this context
+     */
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        return null;
     }
 
     /**
@@ -484,7 +498,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Returns synthetic field loader for the mapper.
      * If mapper does not support synthetic source, it is handled using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader(SourceFilter)}.
      * <br>
      *
      * This method is final in order to support common use cases like fallback synthetic source.
@@ -492,7 +506,6 @@ public abstract class FieldMapper extends Mapper {
      *
      * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
      */
-    @Override
     public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
@@ -557,10 +570,26 @@ public abstract class FieldMapper extends Mapper {
 
         SyntheticSourceSupport FALLBACK = new Fallback();
 
-        record Native(SourceLoader.SyntheticFieldLoader loader) implements SyntheticSourceSupport {
+        final class Native implements SyntheticSourceSupport {
+            Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier;
+            private SourceLoader.SyntheticFieldLoader loader;
+
+            @SuppressWarnings("checkstyle:RedundantModifier")
+            public Native(Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier) {
+                this.loaderSupplier = loaderSupplier;
+            }
+
             @Override
             public SyntheticSourceMode mode() {
                 return SyntheticSourceMode.NATIVE;
+            }
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                if (loader == null) {
+                    loader = loaderSupplier.get();
+                }
+                return loader;
             }
         }
 
@@ -587,7 +616,8 @@ public abstract class FieldMapper extends Mapper {
                 mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.hasDocValues() || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }
@@ -830,6 +860,10 @@ public abstract class FieldMapper extends Mapper {
 
         public boolean isConfigured() {
             return isSet && Objects.equals(value, getDefaultValue()) == false;
+        }
+
+        public boolean isSet() {
+            return isSet;
         }
 
         /**
@@ -1280,6 +1314,32 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(
+            Function<FieldMapper, Boolean> initializer,
+            IndexSettings indexSettings,
+            Supplier<Boolean> isDimension
+        ) {
+            return Parameter.boolParam(
+                "index",
+                false,
+                initializer,
+                () -> useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false
+            );
+        }
+
+        public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.useDocValuesSkipper() == false) {
+                return false;
+            }
+            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (isDimension) {
+                    return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                }
+                return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
+            }
+            return false;
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
@@ -1290,6 +1350,26 @@ public abstract class FieldMapper extends Mapper {
 
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValue)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValueSupplier) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValueSupplier)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
         }
 
         /**
@@ -1380,6 +1460,11 @@ public abstract class FieldMapper extends Mapper {
             for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
+            return this;
+        }
+
+        public Builder addMultiField(FieldMapper.Builder builder) {
+            this.multiFieldsBuilder.add(builder);
             return this;
         }
 
@@ -1602,6 +1687,30 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
+    /**
+     * Creates mappers for fields that require additional context for supporting synthetic source.
+     */
+    public abstract static class TextFamilyBuilder extends Builder {
+
+        private final IndexVersion indexCreatedVersion;
+        private final boolean isWithinMultiField;
+
+        protected TextFamilyBuilder(String name, IndexVersion indexCreatedVersion, boolean isWithinMultiField) {
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.isWithinMultiField = isWithinMultiField;
+        }
+
+        public IndexVersion indexCreatedVersion() {
+            return indexCreatedVersion;
+        }
+
+        public boolean isWithinMultiField() {
+            return isWithinMultiField;
+        }
+
+    }
+
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {
         return (n, c) -> {
             if (c.isWithinMultiField()) {
@@ -1618,6 +1727,12 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
+    private static final IndexVersion MINIMUM_LEGACY_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
+
+    public static TypeParser createTypeParserWithLegacySupport(BiFunction<String, MappingParserContext, Builder> builderFunction) {
+        return new TypeParser(builderFunction, MINIMUM_LEGACY_COMPATIBILITY_VERSION);
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
@@ -1632,14 +1747,14 @@ public abstract class FieldMapper extends Mapper {
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         /**
-         * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
+         * Variant of {@link #TypeParser(BiFunction)} that allows to define a minimumCompatibilityVersion to
          * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(IndexVersion)}).
          */
-        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
+        private TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
             this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
@@ -1647,14 +1762,14 @@ public abstract class FieldMapper extends Mapper {
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
-            this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, contextValidator, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             List<BiConsumer<String, MappingParserContext>> contextValidator
         ) {
-            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         private TypeParser(

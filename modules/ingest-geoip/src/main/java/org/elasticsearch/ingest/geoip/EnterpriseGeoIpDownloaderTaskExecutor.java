@@ -17,12 +17,13 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.InMemoryClonedSecureSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
@@ -33,20 +34,19 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.security.GeneralSecurityException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor.ENABLED_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING;
 
+@NotMultiProjectCapable(
+    description = "Enterprise GeoIP not available in serverless, we should review this class for MP again after serverless is enabled"
+)
 public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<EnterpriseGeoIpTaskParams>
     implements
         ClusterStateListener {
@@ -99,7 +99,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
             this.pollInterval = pollInterval;
             EnterpriseGeoIpDownloader currentDownloader = getCurrentTask();
             if (currentDownloader != null) {
-                currentDownloader.requestReschedule();
+                currentDownloader.restartPeriodicRun();
             }
         }
     }
@@ -150,7 +150,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         downloader.setState(geoIpTaskState);
         currentTask.set(downloader);
         if (ENABLED_SETTING.get(clusterService.state().metadata().settings(), settings)) {
-            downloader.runDownloader();
+            downloader.restartPeriodicRun();
         }
     }
 
@@ -163,9 +163,10 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         EnterpriseGeoIpDownloader currentDownloader = getCurrentTask();
         if (currentDownloader != null) {
             boolean hasGeoIpMetadataChanges = event.metadataChanged()
-                && event.changedCustomMetadataSet().contains(IngestGeoIpMetadata.TYPE);
+                && event.changedCustomProjectMetadataSet().contains(IngestGeoIpMetadata.TYPE);
             if (hasGeoIpMetadataChanges) {
-                currentDownloader.requestReschedule(); // watching the cluster changed events to kick the thing off if it's not running
+                // watching the cluster changed events to kick the thing off if it's not running
+                currentDownloader.requestRunOnDemand();
             }
         }
     }
@@ -174,82 +175,13 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_LICENSE_KEY_SETTING, IPINFO_TOKEN_SETTING));
+            this.cachedSecureSettings = InMemoryClonedSecureSettings.cloneSecureSettings(
+                settings,
+                List.of(MAXMIND_LICENSE_KEY_SETTING, IPINFO_TOKEN_SETTING)
+            );
         } catch (GeneralSecurityException e) {
             // rethrow as a runtime exception, there's logging higher up the call chain around ReloadablePlugin
             throw new ElasticsearchException("Exception while reloading enterprise geoip download task executor", e);
         }
     }
-
-    /**
-     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The {@code Setting} argument has to have the
-     * {@code SecureSettings} open/available. Normally {@code SecureSettings} are available only under specific callstacks (eg. during node
-     * initialization or during a `reload` call). The returned copy can be reused freely as it will never be closed (this is a bit of
-     * cheating, but it is necessary in this specific circumstance). Only works for secure settings of type string (not file).
-     *
-     * @param source               A {@code Settings} object with its {@code SecureSettings} open/available.
-     * @param securePluginSettings The list of settings to copy.
-     * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
-     */
-    private static SecureSettings extractSecureSettings(Settings source, List<Setting<?>> securePluginSettings)
-        throws GeneralSecurityException {
-        // get the secure settings out
-        final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
-        // filter and cache them...
-        final Map<String, SecureSettingValue> innerMap = new HashMap<>();
-        if (sourceSecureSettings != null && securePluginSettings != null) {
-            for (final String settingKey : sourceSecureSettings.getSettingNames()) {
-                for (final Setting<?> secureSetting : securePluginSettings) {
-                    if (secureSetting.match(settingKey)) {
-                        innerMap.put(
-                            settingKey,
-                            new SecureSettingValue(
-                                sourceSecureSettings.getString(settingKey),
-                                sourceSecureSettings.getSHA256Digest(settingKey)
-                            )
-                        );
-                    }
-                }
-            }
-        }
-        return new SecureSettings() {
-            @Override
-            public boolean isLoaded() {
-                return true;
-            }
-
-            @Override
-            public SecureString getString(String setting) {
-                return innerMap.get(setting).value();
-            }
-
-            @Override
-            public Set<String> getSettingNames() {
-                return innerMap.keySet();
-            }
-
-            @Override
-            public InputStream getFile(String setting) {
-                throw new UnsupportedOperationException("A cached SecureSetting cannot be a file");
-            }
-
-            @Override
-            public byte[] getSHA256Digest(String setting) {
-                return innerMap.get(setting).sha256Digest();
-            }
-
-            @Override
-            public void close() throws IOException {}
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                throw new UnsupportedOperationException("A cached SecureSetting cannot be serialized");
-            }
-        };
-    }
-
-    /**
-     * A single-purpose record for the internal implementation of extractSecureSettings
-     */
-    private record SecureSettingValue(SecureString value, byte[] sha256Digest) {}
 }

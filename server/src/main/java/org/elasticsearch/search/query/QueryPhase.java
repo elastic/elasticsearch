@@ -33,6 +33,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -104,7 +105,7 @@ public class QueryPhase {
                         queryPhaseRankShardContext.rankWindowSize()
                     )
                 ) {
-                    QueryPhase.addCollectorsAndSearch(rankSearchContext);
+                    QueryPhase.addCollectorsAndSearch(rankSearchContext, null);
                     QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
                     rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
                     serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
@@ -140,11 +141,10 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
 
-        addCollectorsAndSearch(searchContext);
+        addCollectorsAndSearch(searchContext, searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis());
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
-
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
         }
@@ -154,10 +154,11 @@ public class QueryPhase {
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void addCollectorsAndSearch(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
+        queryResult.setTimeRangeFilterFromMillis(timeRangeFilterFromMillis);
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());
@@ -198,43 +199,68 @@ public class QueryPhase {
                 );
             }
 
-            CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager.createQueryPhaseCollectorManager(
-                postFilterWeight,
-                searchContext.aggregations() == null ? null : searchContext.aggregations().getAggsCollectorManager(),
-                searchContext,
-                hasFilterCollector
-            );
-
             final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
             if (timeoutRunnable != null) {
                 searcher.addQueryCancellation(timeoutRunnable);
             }
 
-            QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
-            if (searchContext.getProfilers() != null) {
-                searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
-            }
-            queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
-            if (searcher.timeExceeded()) {
-                assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
-                if (searchContext.request().allowPartialSearchResults() == false) {
-                    throw new SearchTimeoutException(searchContext.shardTarget(), "Time exceeded");
+            try {
+                CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager
+                    .createQueryPhaseCollectorManager(
+                        postFilterWeight,
+                        searchContext.aggregations() == null ? null : searchContext.aggregations().getAggsCollectorManager(),
+                        searchContext,
+                        hasFilterCollector
+                    );
+
+                QueryPhaseResult queryPhaseResult = searcher.search(query, collectorManager);
+
+                if (searchContext.getProfilers() != null) {
+                    searchContext.getProfilers().getCurrentQueryProfiler().setCollectorResult(queryPhaseResult.collectorResult());
                 }
-                queryResult.searchTimedOut(true);
-            }
-            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
-            }
-            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
-                || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
-                : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-            if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
-                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
+
+                if (searcher.timeExceeded()) {
+                    assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
+                    SearchTimeoutException.handleTimeout(
+                        searchContext.request().allowPartialSearchResults(),
+                        searchContext.shardTarget(),
+                        searchContext.queryResult()
+                    );
+                }
+                if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                    queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
+                }
+                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                assert executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor
+                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                if (executor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor rExecutor) {
+                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                }
+            } catch (ContextIndexSearcher.TimeExceededException tee) {
+                finalizeAsTimedOutResult(searchContext);
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
+        }
+    }
+
+    /**
+     * Marks the current search as timed out and finalizes the {@link QuerySearchResult}
+     * with a well-formed empty response. This ensures that even when a timeout occurs
+     * (e.g., during collector setup or search execution), the shard still returns a
+     * valid result object with empty top docs and aggregations instead of throwing.
+     */
+    private static void finalizeAsTimedOutResult(SearchContext searchContext) {
+        QuerySearchResult queryResult = searchContext.queryResult();
+        SearchTimeoutException.handleTimeout(searchContext.request().allowPartialSearchResults(), searchContext.shardTarget(), queryResult);
+
+        queryResult.topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
+
+        if (searchContext.aggregations() != null) {
+            queryResult.aggregations(InternalAggregations.EMPTY);
         }
     }
 

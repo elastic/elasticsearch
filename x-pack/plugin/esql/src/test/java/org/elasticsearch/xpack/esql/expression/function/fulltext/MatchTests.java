@@ -10,25 +10,30 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match")
-public class MatchTests extends AbstractFunctionTestCase {
+public class MatchTests extends AbstractMatchFullTextFunctionTests {
 
     public MatchTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -36,60 +41,60 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        Set<DataType> supported = Set.of(DataType.KEYWORD, DataType.TEXT);
-        List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
-        List<TestCaseSupplier> suppliers = new LinkedList<>();
-        for (DataType fieldType : DataType.stringTypes()) {
-            for (DataType queryType : DataType.stringTypes()) {
-                suppliers.add(
-                    new TestCaseSupplier(
-                        "<" + fieldType + "-ES field, " + queryType + ">",
-                        List.of(fieldType, queryType),
-                        () -> testCase(fieldType, randomIdentifier(), queryType, randomAlphaOfLengthBetween(1, 10), equalTo(true))
-                    )
+        return parameterSuppliersFromTypedData(addFunctionNamedParams(testCaseSuppliers()));
+    }
+
+    /**
+     * Adds function named parameters to all the test case suppliers provided
+     */
+    private static List<TestCaseSupplier> addFunctionNamedParams(List<TestCaseSupplier> suppliers) {
+        List<TestCaseSupplier> result = new ArrayList<>();
+        for (TestCaseSupplier supplier : suppliers) {
+            List<DataType> dataTypes = new ArrayList<>(supplier.types());
+            dataTypes.add(UNSUPPORTED);
+            result.add(new TestCaseSupplier(supplier.name() + ", options", dataTypes, () -> {
+                List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
+                values.add(
+                    new TestCaseSupplier.TypedData(
+                        new MapExpression(
+                            Source.EMPTY,
+                            List.of(Literal.keyword(Source.EMPTY, "fuzziness"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
+                        ),
+                        UNSUPPORTED,
+                        "options"
+                    ).forceLiteral()
                 );
-                suppliers.add(
-                    new TestCaseSupplier(
-                        "<" + fieldType + "-non ES field, " + queryType + ">",
-                        List.of(fieldType, queryType),
-                        typeErrorSupplier(true, supportedPerPosition, List.of(fieldType, queryType), MatchTests::matchTypeErrorSupplier)
-                    )
-                );
-            }
+
+                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), BOOLEAN, equalTo(true));
+            }));
         }
-        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
-        // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
-        return parameterSuppliersFromTypedData(errorsSuppliers.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList());
-    }
-
-    private static String matchTypeErrorSupplier(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        return "[] cannot operate on [" + types.getFirst().typeName() + "], which is not a field from an index mapping";
-    }
-
-    private static TestCaseSupplier.TestCase testCase(
-        DataType fieldType,
-        String field,
-        DataType queryType,
-        String query,
-        Matcher<Boolean> matcher
-    ) {
-        return new TestCaseSupplier.TestCase(
-            List.of(
-                new TestCaseSupplier.TypedData(
-                    new FieldExpression(field, List.of(new FieldExpression.FieldValue(field))),
-                    fieldType,
-                    "field"
-                ),
-                new TestCaseSupplier.TypedData(new BytesRef(query), queryType, "query")
-            ),
-            "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-            DataType.BOOLEAN,
-            matcher
-        );
+        return result;
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1));
+        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+        // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
+        // thus test the serialization methods. But we can only do this if the parameters make sense .
+        if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, match).toQueryBuilder();
+            match = (Match) match.replaceQueryBuilder(queryBuilder);
+        }
+        return match;
+    }
+
+    /**
+     * Copy of the overridden method that doesn't check for children size, as the {@code options} child isn't serialized in Match.
+     */
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        Expression newExpression = serializeDeserialize(
+            expression,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(Expression.class),
+            testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
+        );
+        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
+        return newExpression.replaceChildren(expression.children());
     }
 }

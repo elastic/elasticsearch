@@ -42,16 +42,14 @@ public class MvFirstTests extends AbstractMultivalueFunctionTestCase {
         cartesianPoints(cases, "mv_first", "MvFirst", DataType.CARTESIAN_POINT, (size, values) -> equalTo(values.findFirst().get()));
         geoShape(cases, "mv_first", "MvFirst", DataType.GEO_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
         cartesianShape(cases, "mv_first", "MvFirst", DataType.CARTESIAN_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "");
+        geohashGrid(cases, "mv_first", "MvFirst", DataType.GEOHASH, (size, values) -> equalTo(values.findFirst().get()));
+        geotileGrid(cases, "mv_first", "MvFirst", DataType.GEOTILE, (size, values) -> equalTo(values.findFirst().get()));
+        geohexGrid(cases, "mv_first", "MvFirst", DataType.GEOHEX, (size, values) -> equalTo(values.findFirst().get()));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvFirst(source, field);
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
     }
 }

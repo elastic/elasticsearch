@@ -58,6 +58,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                 true,
                 Orientation.RIGHT,
                 null,
+                false,
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -82,12 +83,21 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     Orientation.RIGHT,
                     null,
+                    false,
                     Collections.emptyMap()
                 );
                 InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
 
-                fieldType = new ShapeFieldMapper.ShapeFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                fieldType = new ShapeFieldMapper.ShapeFieldType(
+                    "field",
+                    true,
+                    true,
+                    Orientation.RIGHT,
+                    null,
+                    false,
+                    Collections.emptyMap()
+                );
                 result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
@@ -112,6 +122,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     Orientation.RIGHT,
                     null,
+                    false,
                     Collections.emptyMap()
                 );
                 InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -185,6 +196,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
             true,
             Orientation.RIGHT,
             null,
+            false,
             Collections.emptyMap()
         );
         CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");

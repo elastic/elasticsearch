@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -76,7 +77,7 @@ public final class Automatons {
     static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
     // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
-    public static boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
+    public static final boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
     private static final Map<Automaton, List<String>> patternsMap = new HashMap<>();
 
     private Automatons() {}
@@ -112,7 +113,7 @@ public final class Automatons {
 
     private static Automaton buildAutomaton(Collection<String> patterns) {
         if (patterns.size() == 1) {
-            return determinize(pattern(patterns.iterator().next()));
+            return minimize(pattern(patterns.iterator().next()));
         }
 
         final Function<Collection<String>, Automaton> build = strings -> {
@@ -121,7 +122,7 @@ public final class Automatons {
                 final Automaton patternAutomaton = pattern(pattern);
                 automata.add(patternAutomaton);
             }
-            return unionAndDeterminize(automata);
+            return unionAndMinimize(automata);
         };
 
         // We originally just compiled each automaton separately and then unioned them all.
@@ -188,7 +189,7 @@ public final class Automatons {
         if (misc.isEmpty() == false) {
             automata.add(build.apply(misc));
         }
-        return unionAndDeterminize(automata);
+        return unionAndMinimize(automata);
     }
 
     /**
@@ -277,23 +278,23 @@ public final class Automatons {
         return Operations.determinize(concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
-    public static Automaton unionAndDeterminize(Collection<Automaton> automata) {
+    public static Automaton unionAndMinimize(Collection<Automaton> automata) {
         Automaton res = automata.size() == 1 ? automata.iterator().next() : union(automata);
-        return determinize(res);
+        return minimize(res);
     }
 
-    public static Automaton minusAndDeterminize(Automaton a1, Automaton a2) {
+    public static Automaton minusAndMinimize(Automaton a1, Automaton a2) {
         Automaton res = minus(a1, a2, maxDeterminizedStates);
-        return determinize(res);
+        return minimize(res);
     }
 
-    public static Automaton intersectAndDeterminize(Automaton a1, Automaton a2) {
+    public static Automaton intersectAndMinimize(Automaton a1, Automaton a2) {
         Automaton res = intersection(a1, a2);
-        return determinize(res);
+        return minimize(res);
     }
 
-    private static Automaton determinize(Automaton automaton) {
-        return Operations.determinize(automaton, maxDeterminizedStates);
+    private static Automaton minimize(Automaton automaton) {
+        return MinimizationOperations.minimize(automaton, maxDeterminizedStates);
     }
 
     public static Predicate<String> predicate(String... patterns) {

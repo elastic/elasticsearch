@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -73,8 +74,8 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TYPE, TestAction.class));
+        public List<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TYPE, TestAction.class));
         }
 
         @Override
@@ -167,7 +168,7 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         }
     }
 
-    private static class Request extends ActionRequest {
+    private static class Request extends LegacyActionRequest {
         private final SubscribableListener<Void> closeListeners = new SubscribableListener<>();
         private final RefCounted refs = LeakTracker.wrap(AbstractRefCounted.of(() -> closeListeners.onResponse(null)));
 

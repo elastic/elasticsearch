@@ -4,9 +4,64 @@ setup:
       reason: semantic_text introduced in 8.15.0
 
   - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-compatible-with-bbq
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 64,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+
+  - do:
       indices.create:
         index: test-index
         body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -18,7 +73,6 @@ setup:
 
 ---
 "Indexes sparse vector document":
-
   # Checks mapping is not updated until first doc arrives
   - do:
       indices.get_mapping:
@@ -33,25 +87,28 @@ setup:
         index: test-index
         id: doc_1
         body:
-          sparse_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          sparse_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.sparse_field:
             inference:
               inference_id: sparse-inference-id
               model_settings:
                 task_type: sparse_embedding
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings:
-                    feature_0: 1.0
-                    feature_1: 2.0
-                    feature_2: 3.0
-                    feature_3: 4.0
-                - text: "He's free to go around"
-                  embeddings:
-                    feature_4: 0.1
-                    feature_5: 0.2
-                    feature_6: 0.3
-                    feature_7: 0.4
+                sparse_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings:
+                      feature_0: 1.0
+                      feature_1: 2.0
+                      feature_2: 3.0
+                      feature_3: 4.0
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings:
+                      feature_4: 0.1
+                      feature_5: 0.2
+                      feature_6: 0.3
+                      feature_7: 0.4
 
   # Checks mapping is updated when first doc arrives
   - do:
@@ -65,7 +122,6 @@ setup:
 
 ---
 "Field caps with sparse embedding":
-
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: field_caps support for semantic_text added in 8.16.0
@@ -95,25 +151,28 @@ setup:
         index: test-index
         id: doc_1
         body:
-          sparse_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          sparse_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.sparse_field:
             inference:
               inference_id: sparse-inference-id
               model_settings:
                 task_type: sparse_embedding
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings:
-                    feature_0: 1.0
-                    feature_1: 2.0
-                    feature_2: 3.0
-                    feature_3: 4.0
-                - text: "He's free to go around"
-                  embeddings:
-                    feature_4: 0.1
-                    feature_5: 0.2
-                    feature_6: 0.3
-                    feature_7: 0.4
+                sparse_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings:
+                      feature_0: 1.0
+                      feature_1: 2.0
+                      feature_2: 3.0
+                      feature_3: 4.0
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings:
+                      feature_4: 0.1
+                      feature_5: 0.2
+                      feature_6: 0.3
+                      feature_7: 0.4
         refresh: true
 
   - do:
@@ -125,8 +184,8 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
-  - match: { fields.dense_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
+  - match: { fields.dense_field.text.searchable: true }
 
   - do:
       field_caps:
@@ -137,11 +196,10 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - not_exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
 
 ---
 "Indexes dense vector document":
-
   # Checks mapping is not updated until first doc arrives
   - do:
       indices.get_mapping:
@@ -149,15 +207,15 @@ setup:
 
   - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
   - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
-  - length: { "test-index.mappings.properties.dense_field": 2 }
+  - not_exists: test-index.mappings.properties.dense_field.model_settings
 
   - do:
       index:
         index: test-index
         id: doc_2
         body:
-          dense_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          dense_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.dense_field:
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -166,10 +224,13 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
-                - text: "He's free to go around"
-                  embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
+                dense_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
 
   # Checks mapping is updated when first doc arrives
   - do:
@@ -179,11 +240,75 @@ setup:
   - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
   - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
   - match: { "test-index.mappings.properties.dense_field.model_settings.task_type": text_embedding }
-  - length: { "test-index.mappings.properties.dense_field": 3 }
+  - exists: test-index.mappings.properties.dense_field.model_settings
+
+---
+"Indexes dense vector document with bbq compatible model":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: index_options introduced in 8.19.0
+
+  - do:
+      indices.create:
+        index: test-index-options-with-bbq
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+
+  # Checks vector mapping is not updated until first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index-options-with-bbq
+
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.inference_id": dense-inference-id-compatible-with-bbq }
+  - not_exists: test-index-options-with-bbq.mappings.properties.dense_field.index_options
+  - not_exists: test-index-options-with-bbq.mappings.properties.dense_field.model_settings
+
+  - do:
+      index:
+        index: test-index-options-with-bbq
+        id: doc_2
+        body:
+          dense_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.dense_field:
+            inference:
+              inference_id: dense-inference-id-compatible-with-bbq
+              model_settings:
+                task_type: text_embedding
+                dimensions: 64
+                similarity: cosine
+                element_type: float
+              chunks:
+                dense_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [ 0.05, -0.03, -0.03, 0.06, 0.01, -0.02, 0.07, 0.02, -0.04, 0.03, 0.00, 0.05, -0.06, 0.04, -0.01, 0.02, -0.05, 0.01, 0.03, -0.02, 0.06, -0.04, 0.00, 0.05, -0.03, 0.02, 0.01, -0.01, 0.04, -0.06, 0.03, 0.02, -0.02, 0.06, -0.01, 0.00, 0.04, -0.05, 0.01, 0.03, -0.04, 0.02, -0.03, 0.05, -0.02, 0.01, 0.03, -0.06, 0.04, 0.00, -0.01, 0.06, -0.03, 0.02, 0.01, -0.04, 0.05, -0.01, 0.00, 0.04, -0.05, 0.02, 0.03, -0.02 ]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [ 0.05, -0.03, -0.03, 0.06, 0.01, -0.02, 0.07, 0.02, -0.04, 0.03, 0.00, 0.05, -0.06, 0.04, -0.01, 0.02, -0.05, 0.01, 0.03, -0.02, 0.06, -0.04, 0.00, 0.05, -0.03, 0.02, 0.01, -0.01, 0.04, -0.06, 0.03, 0.02, -0.02, 0.06, -0.01, 0.00, 0.04, -0.05, 0.01, 0.03, -0.04, 0.02, -0.03, 0.05, -0.02, 0.01, 0.03, -0.06, 0.04, 0.00, -0.01, 0.06, -0.03, 0.02, 0.01, -0.04, 0.05, -0.01, 0.00, 0.04, -0.05, 0.02, 0.03, -0.02 ]
+
+
+  # Checks mapping is updated when first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index-options-with-bbq
+
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.inference_id": dense-inference-id-compatible-with-bbq }
+  - match: { "test-index-options-with-bbq.mappings.properties.dense_field.model_settings.task_type": text_embedding }
+  - not_exists: test-index-options-with-bbq.mappings.properties.dense_field.index_options
 
 ---
 "Field caps with text embedding":
-
   - requires:
       cluster_features: "gte_v8.16.0"
       reason: field_caps support for semantic_text added in 8.16.0
@@ -213,8 +338,8 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
-            text: "these are not the droids you're looking for. He's free to go around"
+          dense_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.dense_field:
             inference:
               inference_id: dense-inference-id
               model_settings:
@@ -223,10 +348,13 @@ setup:
                 similarity: cosine
                 element_type: float
               chunks:
-                - text: "these are not the droids you're looking for"
-                  embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
-                - text: "He's free to go around"
-                  embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+                dense_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
         refresh: true
 
   - do:
@@ -238,8 +366,8 @@ setup:
   - match: { indices: [ "test-index" ] }
   - exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.sparse_field.semantic_text.searchable: true }
-  - match: { fields.dense_field.semantic_text.searchable: true }
+  - match: { fields.sparse_field.text.searchable: true }
+  - match: { fields.dense_field.text.searchable: true }
 
   - do:
       field_caps:
@@ -250,99 +378,48 @@ setup:
   - match: { indices: [ "test-index" ] }
   - not_exists: fields.sparse_field
   - exists: fields.dense_field
-  - match: { fields.dense_field.semantic_text.searchable: true }
-
----
-"Can't be used as a multifield":
-
-    - do:
-        catch: /Field \[semantic\] of type \[semantic_text\] can't be used in multifields/
-        indices.create:
-          index: test-multi-index
-          body:
-            mappings:
-              properties:
-                text_field:
-                  type: text
-                  fields:
-                    semantic:
-                      type: semantic_text
-                      inference_id: sparse-inference-id
-
----
-"Can't have multifields":
-
-    - do:
-        catch: /semantic_text field \[semantic\] does not support multi-fields/
-        indices.create:
-          index: test-multi-index
-          body:
-            mappings:
-              properties:
-                semantic:
-                  type: semantic_text
-                  inference_id: sparse-inference-id
-                  fields:
-                    keyword_field:
-                      type: keyword
-
----
-"Can't configure copy_to in semantic_text":
-
-    - do:
-        catch: /semantic_text field \[semantic\] does not support \[copy_to\]/
-        indices.create:
-          index: test-copy_to-index
-          body:
-            mappings:
-              properties:
-                semantic:
-                  type: semantic_text
-                  inference_id: sparse-inference-id
-                  copy_to: another_field
-                another_field:
-                  type: keyword
+  - match: { fields.dense_field.text.searchable: true }
 
 ---
 "Cannot be used directly as a nested field":
 
-    - do:
-        catch: /semantic_text field \[nested.semantic\] cannot be nested/
-        indices.create:
-          index: test-nested-index
-          body:
-            mappings:
-              properties:
-                nested:
-                  type: nested
-                  properties:
-                    semantic:
-                      type: semantic_text
-                      inference_id: sparse-inference-id
-                    another_field:
-                      type: keyword
+  - do:
+      catch: /semantic_text field \[nested.semantic\] cannot be nested/
+      indices.create:
+        index: test-nested-index
+        body:
+          mappings:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  semantic:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+                  another_field:
+                    type: keyword
 
 ---
 "Cannot be used as a nested field on nested objects":
 
-    - do:
-        catch: /semantic_text field \[nested.nested_object.semantic\] cannot be nested/
-        indices.create:
-          index: test-nested-index
-          body:
-            mappings:
-              properties:
-                nested:
-                  type: nested
-                  properties:
-                    nested_object:
-                      type: object
-                      properties:
-                        semantic:
-                          type: semantic_text
-                          inference_id: sparse-inference-id
-                        another_field:
-                          type: keyword
+  - do:
+      catch: /semantic_text field \[nested.nested_object.semantic\] cannot be nested/
+      indices.create:
+        index: test-nested-index
+        body:
+          mappings:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  nested_object:
+                    type: object
+                    properties:
+                      semantic:
+                        type: semantic_text
+                        inference_id: sparse-inference-id
+                      another_field:
+                        type: keyword
 
 ---
 "Cannot be in an object field with subobjects disabled":
@@ -371,3 +448,1428 @@ setup:
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "semantic_text field [level_1.level_2.sparse_field] cannot be in an object field with
                             subobjects disabled" }
+
+---
+"Mapping always includes inference ID":
+  - requires:
+      cluster_features: "semantic_text.always_emit_inference_id_fix"
+      reason: always emit inference ID fix added in 8.17.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ default_elser_2 ]
+
+  - do:
+      indices.create:
+        index: test-always-include-inference-id-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+
+  - do:
+      indices.get_mapping:
+        index: test-always-include-inference-id-index
+
+  - exists: test-always-include-inference-id-index.mappings.properties.semantic_field.inference_id
+
+---
+"Field caps exclude chunks and embedding fields":
+  - requires:
+      cluster_features: "semantic_text.exclude_sub_fields_from_field_caps"
+      reason: field caps api exclude semantic_text subfields from 9.1.0 & 8.19.0
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+  - not_exists: fields.sparse_field.inference.chunks.embeddings
+  - not_exists: fields.sparse_field.inference.chunks.offset
+  - not_exists: fields.sparse_field.inference.chunks
+  - not_exists: fields.sparse_field.inference
+  - not_exists: fields.dense_field.inference.chunks.embeddings
+  - not_exists: fields.dense_field.inference.chunks.offset
+  - not_exists: fields.dense_field.inference.chunks
+  - not_exists: fields.dense_field.inference
+
+---
+"Field caps does not exclude multi-fields under semantic_text":
+  - requires:
+      cluster_features: "semantic_text.exclude_sub_fields_from_field_caps"
+      reason: field caps api exclude semantic_text subfields from 9.1.0 & 8.19.0
+  - do:
+      indices.create:
+        index: test-multi-field-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                fields:
+                  sparse_keyword_field:
+                    type: keyword
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                fields:
+                  dense_keyword_field:
+                    type: keyword
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-multi-field-index
+        fields: "*"
+
+  - match: { indices: [ "test-multi-field-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+  - exists: fields.sparse_field\.sparse_keyword_field
+  - exists: fields.dense_field\.dense_keyword_field
+  - not_exists: fields.sparse_field.inference.chunks.embeddings
+  - not_exists: fields.sparse_field.inference.chunks.offset
+  - not_exists: fields.sparse_field.inference.chunks
+  - not_exists: fields.sparse_field.inference
+  - not_exists: fields.dense_field.inference.chunks.embeddings
+  - not_exists: fields.dense_field.inference.chunks.offset
+  - not_exists: fields.dense_field.inference.chunks
+  - not_exists: fields.dense_field.inference
+
+---
+"Field caps with semantic query does not fail":
+  - requires:
+      cluster_features: "semantic_query.filter_field_caps_fix"
+      reason: "fixed bug with semantic query filtering in field_caps (#116106)"
+  # We need at least one document present to exercise can-match phase
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      field_caps:
+        index: test-index
+        fields: "*"
+        body:
+          index_filter:
+            semantic:
+              field: "sparse_field"
+              query: "test"
+
+  - match: { indices: [ "test-index" ] }
+  - match: { fields.sparse_field.text.searchable: true }
+
+---
+"Users can set dense vector index options and index documents using those options":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.19.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
+                    m: 20
+                    ef_construction: 100
+                    confidence_interval: 1.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_1
+        body:
+          semantic_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: dense-inference-id
+              model_settings:
+                task_type: text_embedding
+                dimensions: 4
+                similarity: cosine
+                element_type: float
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": int8_hnsw }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
+
+---
+"Specifying incompatible dense vector index options will fail":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.19.0
+
+  - do:
+      catch: /unsupported parameters/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: bbq_flat
+                    ef_construction: 100
+
+---
+"Specifying unsupported index option types will fail":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.19.0
+
+  - do:
+      catch: /Unsupported index options type/
+      indices.create:
+        index: test-invalid-index-options-dense
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: foo
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-invalid-index-options-sparse
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                index_options:
+                  sparse_vector:
+                    type: int8_hnsw
+
+---
+"Index option type is required":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.19.0
+
+  - do:
+      catch: /Required type/
+      indices.create:
+        index: test-invalid-index-options-dense
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    foo: bar
+
+---
+"Specifying index options requires model information":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.19.0
+
+  - do:
+      catch: /Model settings must be set to validate index options/
+      indices.create:
+        index: my-custom-semantic-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: nonexistent-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
+
+  - match: { status: 400 }
+
+  - do:
+      indices.create:
+        index: my-custom-semantic-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: nonexistent-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: my-custom-semantic-index
+
+  - match: { "my-custom-semantic-index.mappings.properties.semantic_field.type": semantic_text }
+  - match: { "my-custom-semantic-index.mappings.properties.semantic_field.inference_id": nonexistent-inference-id }
+  - not_exists: my-custom-semantic-index.mappings.properties.semantic_field.index_options
+
+---
+"Updating index options":
+  - requires:
+      cluster_features: "semantic_text.index_options"
+      reason: Index options introduced in 8.19.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
+                    m: 16
+                    ef_construction: 100
+                    confidence_interval: 1.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
+
+  - do:
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              index_options:
+                dense_vector:
+                  type: int8_hnsw
+                  m: 20
+                  ef_construction: 90
+                  confidence_interval: 1.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 90 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
+
+  - do:
+      catch: /Cannot update parameter \[index_options\]/
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              index_options:
+                dense_vector:
+                  type: int8_flat
+
+  - match: { status: 400 }
+
+
+---
+"Displaying default index_options with and without include_defaults":
+  - requires:
+      cluster_features: "semantic_text.index_options_with_defaults"
+      reason: Index options defaults support introduced in 9.2.0
+
+  # Semantic text defaults to BBQ HNSW starting in 8.19.0/9.1.0
+  - do:
+      indices.create:
+        index: test-index-options-dense
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-dense
+
+  - not_exists: test-index-options-dense.mappings.properties.semantic_field.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-dense
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
+  # Validate that actually specifying the same values as our defaults will still serialize the user provided index_options
+  - do:
+      indices.create:
+        index: test-index-options-dense2
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+                index_options:
+                  dense_vector:
+                    type: bbq_hnsw
+                    m: 16
+                    ef_construction: 100
+                    rescore_vector:
+                      oversample: 3
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-dense2
+
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense2.mappings.properties.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-dense2
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.type": "bbq_hnsw" }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.m": 16 }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.ef_construction": 100 }
+  - match: { "test-index-options-dense2.mappings.semantic_field.mapping.semantic_field.index_options.dense_vector.rescore_vector.oversample": 3 }
+
+  # Indices not compatible with BBQ for whatever reason will fall back to whatever `dense_vector` defaults are.
+  - do:
+      indices.create:
+        index: test-index-options-dense-no-bbq
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-dense-no-bbq
+
+  - not_exists: test-index-options-dense-no-bbq.mappings.properties.semantic_field.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-dense-no-bbq
+        fields: semantic_field
+        include_defaults: true
+
+  - not_exists: test-index-options-dense-no-bbq.mappings.properties.semantic_field.index_options
+
+  # Sparse embeddings models do not have index options for semantic_text in 8.19/9.1.
+  - do:
+      indices.create:
+        index: test-index-options-sparse
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-sparse
+
+  - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-sparse
+        fields: semantic_field
+        include_defaults: true
+
+  - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
+
+---
+"Users can set sparse vector index options and index documents using those options":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.6
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.6 }
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_1
+        body:
+          semantic_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings:
+                      dr: 1.6103356
+                      these: 1.1396849
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings:
+                      free: 1.693662
+                      around: 1.4376559
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.6 }
+
+---
+"Specifying invalid sparse vector index options will fail":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /\[index_options\] unknown field \[ef_construction\]/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    ef_construction: 100
+
+  - match: { status: 400 }
+
+  - do:
+      catch: /\[index_options\] field \[pruning_config\] should only be set if \[prune\] is set to true/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: false
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.6
+
+  - match: { status: 400 }
+
+  - do:
+      catch: /\[tokens_freq_ratio_threshold\] must be between \[1\] and \[100\]/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 101
+                      tokens_weight_threshold: 0.6
+
+  - match: { status: 400 }
+
+  - do:
+      catch: /unknown field \[some_other_param\]/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.6
+                      some_other_param: true
+
+  - match: { status: 400 }
+
+---
+"Specifying sparse vector index options should fail using dense index options":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /Invalid task type for index options/
+      indices.create:
+        index: my-custom-semantic-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  dense_vector:
+                    type: bbq_hnsw
+                    m: 16
+                    ef_construction: 100
+
+  - match: { status: 400 }
+
+---
+"Specifying dense vector index options should fail using sparse index options":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /Invalid task type for index options/
+      indices.create:
+        index: my-custom-semantic-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: false
+
+  - match: { status: 400 }
+
+---
+"Specifying sparse vector index options requires sparse vector model":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /Model settings must be set to validate index options/
+      indices.create:
+        index: should-be-invalid-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: nonexistent-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: false
+
+  - match: { status: 400 }
+
+---
+"Updating sparse vector index options":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 1.0
+                      tokens_weight_threshold: 1.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 1.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 1.0 }
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_1
+        refresh: true
+        body:
+          semantic_field: "cheese is comet"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 67
+                    embeddings:
+                      feature_0: 2.671405
+                      feature_1: 0.11809908
+                      feature_2: 0.26088917
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_2
+        refresh: true
+        body:
+          semantic_field: "planet is astronomy moon"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 67
+                    embeddings:
+                      feature_0: 2.3438394
+                      feature_1: 0.54600334
+                      feature_2: 0.36015007
+                      feature_3: 0.20022368
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_3
+        refresh: true
+        body:
+          semantic_field: "is globe ocean underground"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 67
+                    embeddings:
+                      feature_0: 0.6891394
+                      feature_1: 0.484035
+                      feature_2: 0.080102935
+                      feature_3: 0.053516876
+
+  - do:
+      search:
+        index: test-index-options
+        body:
+          query:
+            semantic:
+              field: "semantic_field"
+              query: "test query"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_3" }
+
+  - do:
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              index_options:
+                sparse_vector:
+                  prune: false
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": false }
+  - not_exists: "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold"
+  - not_exists: "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold"
+
+  - do:
+      search:
+        index: test-index-options
+        body:
+          query:
+            semantic:
+              field: "semantic_field"
+              query: "test query"
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
+  - match: { hits.hits.2._id: "doc_3" }
+
+
+---
+"Displaying default sparse vector index_options with and without include_defaults":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      indices.create:
+        index: test-index-options-sparse
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-sparse
+
+  - not_exists: test-index-options-sparse.mappings.semantic_field.mapping.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-sparse
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-sparse.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options-sparse.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
+  - match: { "test-index-options-sparse.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
+
+  # Validate that actually specifying the same values as our defaults will still serialize the user provided index_options
+  - do:
+      indices.create:
+        index: test-index-options-sparse2
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 5.0
+                      tokens_weight_threshold: 0.4
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-sparse2
+
+  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
+  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-sparse2
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
+  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
+
+---
+"Updating inference_id to different task type should succeed given no model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": dense-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  # We index a doc to check inference fields are as expected
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "One day they started playing the piano."
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: dense-inference-id }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: text_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+---
+"Updating inference_id to non existing endpoint should succeed given no model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: non-existing-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": non-existing-inference-id }
+  - not_exists: test-index.mappings.properties.sparse_field.model_settings
+
+---
+"Updating inference_id to non existing endpoint should fail given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      catch: missing
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: non-existing-inference-id
+  - match: { error.reason: "non-existing-inference-id does not exist in this cluster."}
+
+---
+"Updating inference_id to different task type should fail given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[sparse_field\\].*because.inference.endpoint.\\[sparse-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different dimensions should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 8,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different similarity should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "l2_norm",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id given dense endpoints with different element_type should fail":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.service": text_embedding_test_service }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-2
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "element_type": "byte",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            dense_field:
+              type: semantic_text
+              inference_id: dense-inference-id-2
+  - match: { error.reason: "/Cannot.update.\\[semantic_text\\].field.\\[dense_field\\].*because.inference.endpoint.\\[dense-inference-id\\].*is.not.compatible.with.new.inference.endpoint.\\[dense-inference-id-2\\]/" }
+
+---
+"Updating inference_id to compatible endpoint should succeed given model settings":
+  - requires:
+      cluster_features: "semantic_text.updatable_inference_id"
+      reason: inference_id became updatable in 9.3.0
+
+  # We index a doc to explicitly set model settings
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "This is a story about a cat and a dog."
+        refresh: true
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": test_service }
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "alternate_sparse_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.put_mapping:
+        index: test-index
+        body:
+          properties:
+            sparse_field:
+              type: semantic_text
+              inference_id: sparse-inference-id-2
+
+  - do:
+      indices.get_mapping:
+        index: test-index
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id-2 }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.service": alternate_sparse_embedding_test_service }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+  # We index another doc to later check inference fields new updated endpoint
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          sparse_field: "One day they started playing the piano."
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "piano"
+          _source:
+            exclude_vectors: false
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
+  - match: { hits.hits.1._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
+  - exists: hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings

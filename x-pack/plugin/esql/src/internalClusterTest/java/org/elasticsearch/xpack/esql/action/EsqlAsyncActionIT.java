@@ -13,18 +13,15 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -52,18 +49,17 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
     }
 
     @Override
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        request.query(esqlCommands);
-        request.pragmas(pragmas);
+    public EsqlQueryResponse run(EsqlQueryRequest original) {
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest(original.query());
+        request.pragmas(original.pragmas());
         // deliberately small timeout, to frequently trigger incomplete response
         request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
         request.keepOnCompletion(randomBoolean());
-        if (filter != null) {
-            request.filter(filter);
+        if (original.filter() != null) {
+            request.filter(original.filter());
         }
 
-        var response = run(request);
+        var response = super.run(request);
         if (response.asyncExecutionId().isPresent()) {
             List<ColumnInfo> initialColumns = null;
             List<Page> initialPages = null;
@@ -133,7 +129,7 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
     public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
         Block[] blockCopies = new Block[page.getBlockCount()];
         for (int i = 0; i < blockCopies.length; i++) {
-            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+            blockCopies[i] = page.getBlock(i).deepCopy(blockFactory);
         }
         return new Page(blockCopies);
     }

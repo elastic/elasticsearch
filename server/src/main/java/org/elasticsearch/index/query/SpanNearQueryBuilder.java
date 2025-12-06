@@ -13,7 +13,6 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,9 +40,9 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     public static final String NAME = "span_near";
 
     /** Default for flag controlling whether matches are required to be in-order */
-    public static boolean DEFAULT_IN_ORDER = true;
+    public static final boolean DEFAULT_IN_ORDER = true;
     /** Default slop value, this is the same that lucene {@link SpanNearQuery} uses if no slop is provided */
-    public static int DEFAULT_SLOP = 0;
+    public static final int DEFAULT_SLOP = 0;
 
     private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
@@ -277,7 +276,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     /**
@@ -373,7 +372,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override

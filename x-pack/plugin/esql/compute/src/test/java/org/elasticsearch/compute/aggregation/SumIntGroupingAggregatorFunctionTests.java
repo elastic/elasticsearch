@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SumIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumIntAggregatorFunctionSupplier();
     }
 
     @Override

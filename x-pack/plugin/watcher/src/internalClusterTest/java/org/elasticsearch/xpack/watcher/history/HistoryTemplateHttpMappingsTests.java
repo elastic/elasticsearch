@@ -172,7 +172,8 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
 
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
-        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
+        GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, HistoryStoreField.INDEX_PREFIX + "*")
+            .get();
         for (MappingMetadata mapping : mappingsResponse.getMappings().values()) {
             Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {

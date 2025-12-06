@@ -41,7 +41,7 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
 
     @Override
     protected IndexVersion randomSupportedVersion() {
-        return IndexVersionUtils.randomCompatibleVersion(random());
+        return IndexVersionUtils.randomCompatibleWriteVersion(random());
     }
 
     @Override

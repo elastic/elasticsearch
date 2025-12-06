@@ -13,8 +13,8 @@ restResources {
 }
 
 // REST API specifications are published under the Apache 2.0 License
-ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
-licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
+licenseFile.set(layout.settingsDirectory.file('licenses/APACHE-LICENSE-2.0.txt').asFile)
 
 configurations {
   // configuration to make use by external yaml rest test plugin in our examples
@@ -57,10 +57,60 @@ tasks.named("precommit").configure {
 tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling")
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
-  task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
-  task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
-  task.skipTest("indices.create/21_synthetic_source_stored/object param - nested object with stored array", "temporary until backported")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.collector.0.name", "TopScoreDocCollector", "dfs knn vector profiling with vector_operations_count")
   task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
-  task.skipTest("cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
-  task.skipTest("cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
+  task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
+  task.skipTest("search/330_fetch_fields/Test with subobjects: auto", "subobjects auto removed")
+  task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
+  task.skipTest("search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL", "semantics of test has changed")
+  task.skipTest("search.vectors/70_dense_vector_telemetry/Field mapping stats with field details", "default dense vector field mapping has changed")
+  task.skipTest("range/20_synthetic_source/Double range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Float range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Integer range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/IP range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Long range", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("range/20_synthetic_source/Date range Rounding Fixes", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/92_metrics_auto_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/92_metrics_auto_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/92_metrics_auto_subobjects/Root with metrics", "subobjects auto removed")
+  task.skipTest("index/92_metrics_auto_subobjects/Metrics object indexing", "subobjects auto removed")
+  task.skipTest("index/91_metrics_no_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("index/91_metrics_no_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
+  task.skipTest("indices.create/20_synthetic_source/subobjects auto", "subobjects auto removed")
+  task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object", "temporary until backported")
+  task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to pointing to ambiguous field and subobjects auto", "subobjects auto removed")
+  task.skipTest("indices.put_index_template/15_composition/Composable index templates that include subobjects: auto on arbitrary field", "subobjects auto removed")
+  task.skipTest("indices.put_index_template/15_composition/Composable index templates that include subobjects: auto at root", "subobjects auto removed")
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
+  task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")
+  task.skipTest("logsdb/10_settings/routing path allowed in logs mode with routing on sort fields", "Unknown feature routing.logsb_route_on_sort_fields")
+  task.skipTest("indices.create/21_synthetic_source_stored/index param - field ordering", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep nested array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep root array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("cluster.info/30_info_thread_pool/Cluster HTTP Info", "The search_throttled thread pool has been removed")
+  task.skipTest("synonyms/80_synonyms_from_index/Fail loading synonyms from index if synonyms_set doesn't exist", "Synonyms do no longer fail if the synonyms_set doesn't exist")
+  task.skipTest("get/100_synthetic_source/indexed dense vectors", "Vectors are not returned by default")
+  task.skipTest("get/100_synthetic_source/non-indexed dense vectors", "Vectors are not returned by default")
+  task.skipTest("search.vectors/90_sparse_vector/stored sparse_vector synthetic source", "Vectors are not returned by default")
+  task.skipTest("search.vectors/90_sparse_vector/sparse_vector synthetic source", "Vectors are not returned by default")
+  task.skipTest("update/100_synthetic_source/keyword", "synthetic recovery source means _recovery_source field will not be present")
+  task.skipTest("update/100_synthetic_source/stored text", "synthetic recovery source means _recovery_source field will not be present")
+  task.skipTest("logsdb/10_settings/start time not allowed in logs mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  task.skipTest("logsdb/10_settings/end time not allowed in logs mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  task.skipTest("logsdb/10_settings/override sort mode settings", "we changed the error message")
+  task.skipTest("logsdb/10_settings/override sort missing settings", "we changed the error message")
+  task.skipTest("logsdb/10_settings/override sort order settings", "we changed the error message")
+  task.skipTest("tsdb/10_settings/set start_time and end_time without timeseries mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  task.skipTest("tsdb/10_settings/set start_time, end_time and routing_path via put settings api without time_series mode", "we don't validate for index_mode=tsdb when setting start_date/end_date anymore")
+  task.skipTest("search/140_pre_filter_search_shards/prefilter on non-indexed date fields", "prefiltering can now use skippers on dv-only fields")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("Use of the \\[max_size\\] rollover condition has been deprecated in favour of the \\[max_primary_shard_size\\] condition and will be removed in a later version")
 })

@@ -7,17 +7,16 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -34,7 +33,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class IndexLifecycleMetadata implements Metadata.Custom {
+public class IndexLifecycleMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "index_lifecycle";
     public static final ParseField OPERATION_MODE_FIELD = new ParseField("operation_mode");
     public static final ParseField POLICIES_FIELD = new ParseField("policies");
@@ -58,10 +57,22 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     private final Map<String, LifecyclePolicyMetadata> policyMetadatas;
     private final OperationMode operationMode;
+    // a slightly different view of the policyMetadatas -- it's hot in a couple of places so we pre-calculate it
+    private final Map<String, LifecyclePolicy> policies;
+
+    private static Map<String, LifecyclePolicy> policiesMap(final Map<String, LifecyclePolicyMetadata> policyMetadatas) {
+        final Map<String, LifecyclePolicy> policies = new HashMap<>(policyMetadatas.size());
+        for (LifecyclePolicyMetadata policyMetadata : policyMetadatas.values()) {
+            LifecyclePolicy policy = policyMetadata.getPolicy();
+            policies.put(policy.getName(), policy);
+        }
+        return Collections.unmodifiableMap(policies);
+    }
 
     public IndexLifecycleMetadata(Map<String, LifecyclePolicyMetadata> policies, OperationMode operationMode) {
         this.policyMetadatas = Collections.unmodifiableMap(policies);
         this.operationMode = operationMode;
+        this.policies = policiesMap(policyMetadatas);
     }
 
     public IndexLifecycleMetadata(StreamInput in) throws IOException {
@@ -72,6 +83,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         }
         this.policyMetadatas = policies;
         this.operationMode = in.readEnum(OperationMode.class);
+        this.policies = policiesMap(policyMetadatas);
     }
 
     @Override
@@ -93,30 +105,25 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     public Map<String, LifecyclePolicy> getPolicies() {
-        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
-        Map<String, LifecyclePolicy> policies = new HashMap<>(policyMetadatas.size());
-        for (LifecyclePolicyMetadata policyMetadata : policyMetadatas.values()) {
-            LifecyclePolicy policy = policyMetadata.getPolicy();
-            policies.put(policy.getName(), policy);
-        }
-        return Collections.unmodifiableMap(policies);
+        return policies;
     }
 
     @Override
-    public Diff<Custom> diff(Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new IndexLifecycleMetadataDiff((IndexLifecycleMetadata) previousState, this);
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .xContentObjectFields(POLICIES_FIELD.getPreferredName(), policyMetadatas)
-            .field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.xContentObjectFields(POLICIES_FIELD.getPreferredName(), policyMetadatas),
+            Iterators.single((builder, params) -> builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode))
+        );
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -151,7 +158,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         return Strings.toString(this, false, true);
     }
 
-    public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, LifecyclePolicyMetadata>> policies;
         final OperationMode operationMode;
@@ -172,7 +179,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             TreeMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(
                 policies.apply(((IndexLifecycleMetadata) part).policyMetadatas)
             );
@@ -192,7 +199,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
         static Diff<LifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {

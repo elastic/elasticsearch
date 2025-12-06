@@ -1,14 +1,18 @@
 {
-  "indices.downsample":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-rollup.html",
-      "description":"Downsample an index"
+  "indices.downsample": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-downsample",
+      "description": "Downsample an index"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
@@ -32,10 +36,9 @@
         }
       ]
     },
-    "params":{},
-    "body":{
-      "description":"The downsampling configuration",
-      "required":true
+    "body": {
+      "description": "The downsampling configuration",
+      "required": true
     }
   }
 }

@@ -25,12 +25,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -38,6 +40,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -49,7 +53,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -127,7 +131,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @Override
@@ -215,6 +225,51 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(0.0, card.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(card));
         });
+    }
+
+    public void testVectorValueThrows() {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("card_agg_name").field("vector_value");
+        final MappedFieldType mappedFieldTypes;
+        boolean isDense = randomBoolean();
+        if (isDense) {
+            mappedFieldTypes = new DenseVectorFieldMapper.DenseVectorFieldType(
+                "vector_value",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                64,
+                true,
+                DenseVectorFieldMapper.VectorSimilarity.COSINE,
+                DenseVectorFieldMapper.VectorIndexType.FLAT.parseIndexOptions("vector_value", new HashMap<>(), IndexVersion.current()),
+                new HashMap<>(),
+                false
+            );
+        } else {
+            mappedFieldTypes = new SparseVectorFieldMapper.SparseVectorFieldType(
+                IndexVersion.current(),
+                "vector_value",
+                false,
+                new HashMap<>()
+            );
+        }
+
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedDocValuesField("vector_value", new BytesRef("one"))));
+                iw.addDocument(singleton(new SortedDocValuesField("unrelatedField", new BytesRef("two"))));
+                iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
+                iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
+            }, card -> {
+                assertEquals(2, card.getValue(), 0);
+                assertTrue(AggregationInspectionHelper.hasValue(card));
+            }, mappedFieldTypes)
+        );
+
+        if (isDense) {
+            assertEquals("Cardinality aggregation [card_agg_name] does not support vector fields", exception.getMessage());
+        } else {
+            assertEquals("[sparse_vector] fields do not support sorting, scripting or aggregating", exception.getMessage());
+        }
     }
 
     public void testSingleValuedString() throws IOException {
@@ -764,7 +819,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
             }
         }, topLevelAgg -> {
-            final Global global = (Global) topLevelAgg;
+            final SingleBucketAggregation global = (SingleBucketAggregation) topLevelAgg;
             assertNotNull(global);
             assertEquals("global", global.getName());
             assertEquals(numDocs * 2, global.getDocCount());

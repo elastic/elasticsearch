@@ -28,12 +28,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CLOUD_API_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CROSS_CLUSTER_ACCESS;
 
 /**
@@ -47,6 +47,7 @@ public class Subject {
     public enum Type {
         USER,
         API_KEY,
+        CLOUD_API_KEY,
         SERVICE_ACCOUNT,
         CROSS_CLUSTER_ACCESS,
     }
@@ -72,6 +73,9 @@ public class Subject {
         } else if (AuthenticationField.API_KEY_REALM_TYPE.equals(realm.getType())) {
             assert AuthenticationField.API_KEY_REALM_NAME.equals(realm.getName()) : "api key realm name mismatch";
             this.type = Type.API_KEY;
+        } else if (AuthenticationField.CLOUD_API_KEY_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.CLOUD_API_KEY_REALM_NAME.equals(realm.getName()) : "cloud api key realm name mismatch";
+            this.type = Type.CLOUD_API_KEY;
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
@@ -105,19 +109,12 @@ public class Subject {
     }
 
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
-        switch (type) {
-            case USER:
-                return buildRoleReferencesForUser(anonymousUser);
-            case API_KEY:
-                return buildRoleReferencesForApiKey();
-            case SERVICE_ACCOUNT:
-                return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
-            case CROSS_CLUSTER_ACCESS:
-                return buildRoleReferencesForCrossClusterAccess();
-            default:
-                assert false : "unknown subject type: [" + type + "]";
-                throw new IllegalStateException("unknown subject type: [" + type + "]");
-        }
+        return switch (type) {
+            case CLOUD_API_KEY, USER -> buildRoleReferencesForUser(anonymousUser);
+            case API_KEY -> buildRoleReferencesForApiKey();
+            case SERVICE_ACCOUNT -> new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+            case CROSS_CLUSTER_ACCESS -> buildRoleReferencesForCrossClusterAccess();
+        };
     }
 
     public boolean canAccessResourcesOf(Subject resourceCreatorSubject) {
@@ -138,6 +135,13 @@ public class Subject {
                 );
             } else {
                 // A cross cluster access subject can never share resources with non-cross cluster access
+                return false;
+            }
+        } else if (eitherIsACloudApiKey(resourceCreatorSubject)) {
+            if (bothAreCloudApiKeys(resourceCreatorSubject)) {
+                return getUser().principal().equals(resourceCreatorSubject.getUser().principal());
+            } else {
+                // a cloud API Key cannot access resources created by non-Cloud API Keys or vice versa
                 return false;
             }
         } else {
@@ -192,6 +196,14 @@ public class Subject {
 
     private boolean bothAreCrossClusterAccess(Subject resourceCreatorSubject) {
         return CROSS_CLUSTER_ACCESS.equals(getType()) && CROSS_CLUSTER_ACCESS.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean eitherIsACloudApiKey(Subject resourceCreatorSubject) {
+        return CLOUD_API_KEY.equals(getType()) || CLOUD_API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreCloudApiKeys(Subject resourceCreatorSubject) {
+        return CLOUD_API_KEY.equals(getType()) && CLOUD_API_KEY.equals(resourceCreatorSubject.getType());
     }
 
     @Override
@@ -273,7 +285,7 @@ public class Subject {
 
     // Package private for testing
     RoleReference.CrossClusterApiKeyRoleReference buildRoleReferenceForCrossClusterApiKey() {
-        assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
+        assert version.onOrAfter(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
@@ -383,8 +395,8 @@ public class Subject {
 
     private ApiKey.Type getApiKeyType() {
         final String typeString = (String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY);
-        assert (typeString != null) || version.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            : "API key type must be non-null except for versions older than " + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+        assert (typeString != null) || version.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS)
+            : "API key type must be non-null except for versions older than " + Authentication.VERSION_CROSS_CLUSTER_ACCESS;
 
         // A null type string can only be for the REST type because it is not possible to
         // create cross-cluster API keys for mixed cluster with old nodes.

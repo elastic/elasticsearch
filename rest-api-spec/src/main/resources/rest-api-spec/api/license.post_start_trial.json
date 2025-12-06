@@ -1,40 +1,39 @@
 {
-  "license.post_start_trial":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trial.html",
-      "description":"starts a limited time trial license."
+  "license.post_start_trial": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-license-post-start-trial",
+      "description": "Start a trial"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_license/start_trial",
-          "methods":[
+          "path": "/_license/start_trial",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "type":{
-        "type":"string",
-        "description":"The type of trial license to generate (default: \"trial\")"
+    "params": {
+      "type": {
+        "type": "string",
+        "description": "The type of trial license to generate (default: \"trial\")"
       },
-      "acknowledge":{
-        "type":"boolean",
-        "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      "acknowledge": {
+        "type": "boolean",
+        "description": "whether the user has acknowledged acknowledge messages (default: false)"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for processing on master node"
-      },
-      "timeout": {
-        "type": "time",
-        "description": "Timeout for acknowledgement of update from all nodes in cluster"
       }
     }
   }

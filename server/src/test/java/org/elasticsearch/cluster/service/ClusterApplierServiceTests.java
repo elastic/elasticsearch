@@ -66,6 +66,12 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 assertThat(Thread.currentThread().getName(), containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME));
                 return currentTimeMillis;
             }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
+                assertThat(Thread.currentThread().getName(), containsString(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME));
+                return currentTimeMillis;
+            }
         };
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allowClusterStateApplicationFailure = false;
@@ -207,15 +213,33 @@ public class ClusterApplierServiceTests extends ESTestCase {
             );
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
-                    "test4",
+                    "test3",
                     ClusterApplierService.class.getCanonicalName(),
                     Level.WARN,
                     "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: "
                         + "[running task [test3]] took [*"
                 )
             );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test4",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test4] took [36s] which is above the warn threshold of [*]: "
+                        + "[running task [test4]] took [*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test5",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*cluster state applier task [test5] took [38s] which is above the warn threshold of [*]: "
+                        + "[running task [test5]] took [*"
+                )
+            );
 
-            final CountDownLatch latch = new CountDownLatch(4);
+            final CountDownLatch latch = new CountDownLatch(6);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
             currentTimeMillis = randomLongBetween(0L, Long.MAX_VALUE / 2);
             clusterApplierService.runOnApplierThread(
@@ -266,9 +290,39 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     }
                 }
             );
+            clusterApplierService.runOnApplierThread("test4", Priority.HIGH, currentState -> {
+                // do nothing (testing that onResponse is included in timing)
+            }, new ActionListener<>() {
+
+                @Override
+                public void onResponse(Void unused) {
+                    advanceTime(TimeValue.timeValueSeconds(36).millis());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail();
+                }
+            });
+            clusterApplierService.runOnApplierThread("test5", Priority.HIGH, currentState -> {
+                throw new IllegalArgumentException("Testing that onFailure is included in timing");
+            }, new ActionListener<>() {
+
+                @Override
+                public void onResponse(Void unused) {
+                    fail();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    advanceTime(TimeValue.timeValueSeconds(38).millis());
+                    latch.countDown();
+                }
+            });
             // Additional update task to make sure all previous logging made it to the loggerName
             // We don't check logging for this on since there is no guarantee that it will occur before our check
-            clusterApplierService.runOnApplierThread("test4", Priority.HIGH, currentState -> {}, new ActionListener<>() {
+            clusterApplierService.runOnApplierThread("test6", Priority.HIGH, currentState -> {}, new ActionListener<>() {
                 @Override
                 public void onResponse(Void ignored) {
                     latch.countDown();

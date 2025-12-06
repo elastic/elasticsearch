@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
  # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  # or more contributor license agreements. Licensed under the "Elastic License
@@ -24,7 +24,7 @@ PASSWD="$2"
 USER=$(echo $PRINC | tr "/" "_")
 
 VDIR=/fixture
-RESOURCES=$VDIR/src/main/resources
+RESOURCES=$VDIR
 PROV_DIR=$RESOURCES/provision
 ENVPROP_FILE=$RESOURCES/env.properties
 BUILD_DIR=$VDIR/build
@@ -45,16 +45,16 @@ USER_KTAB=$LOCALSTATEDIR/$USER.keytab
 
 if [ -f $USER_KTAB ] && [ -z "$PASSWD" ]; then
   echo "Principal '${PRINC}@${REALM}' already exists. Re-copying keytab..."
-  sudo cp $USER_KTAB $KEYTAB_DIR/$USER.keytab
+  cp $USER_KTAB $KEYTAB_DIR/$USER.keytab
 else
   if [ -z "$PASSWD" ]; then
     echo "Provisioning '${PRINC}@${REALM}' principal and keytab..."
-    sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -randkey $USER_PRIN"
-    sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "ktadd -k $USER_KTAB $USER_PRIN"
-    sudo cp $USER_KTAB $KEYTAB_DIR/$USER.keytab
+    kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -randkey $USER_PRIN"
+    kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "ktadd -k $USER_KTAB $USER_PRIN"
+    cp $USER_KTAB $KEYTAB_DIR/$USER.keytab
   else
     echo "Provisioning '${PRINC}@${REALM}' principal with password..."
-    sudo kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -pw $PASSWD $PRINC"
+    kadmin -p $ADMIN_PRIN -kt $ADMIN_KTAB -q "addprinc -pw $PASSWD $PRINC"
   fi
 fi
 

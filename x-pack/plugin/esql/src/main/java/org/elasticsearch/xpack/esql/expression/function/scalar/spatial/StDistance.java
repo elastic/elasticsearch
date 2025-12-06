@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -23,6 +24,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -240,15 +242,15 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             The second parameter must also have the same coordinate system as the first.
             This means it is not possible to combine `geo_point` and `cartesian_point` parameters.""") Expression right
     ) {
-        super(source, left, right, false, false, true);
+        super(source, left, right, false, false, true, false);
     }
 
     protected StDistance(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
-        super(source, left, right, leftDocValues, rightDocValues, true);
+        super(source, left, right, leftDocValues, rightDocValues, true, false);
     }
 
     private StDistance(StreamInput in) throws IOException {
-        super(in, false, false, true);
+        super(in, false, false, true, false);
     }
 
     @Override
@@ -280,18 +282,18 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public Object fold() {
-        var leftGeom = makeGeometryFromLiteral(left());
-        var rightGeom = makeGeometryFromLiteral(right());
+    public Object fold(FoldContext ctx) {
+        var leftGeom = makeGeometryFromLiteral(ctx, left());
+        var rightGeom = makeGeometryFromLiteral(ctx, right());
         return (crsType() == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (right().foldable()) {
-            return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(right()), leftDocValues);
+            return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(toEvaluator.foldCtx(), right()), leftDocValues);
         } else if (left().foldable()) {
-            return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(left()), rightDocValues);
+            return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(toEvaluator.foldCtx(), left()), rightDocValues);
         } else {
             EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
             EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());
@@ -353,42 +355,47 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoSourceAndConstant(DoubleBlock.Builder results, int p, BytesRefBlock left, @Fixed Point right) {
+    static void processGeoSourceAndConstant(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, @Fixed Point right) {
         GEO.distanceSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoSourceAndSource(DoubleBlock.Builder results, int p, BytesRefBlock left, BytesRefBlock right) {
+    static void processGeoSourceAndSource(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, BytesRefBlock right) {
         GEO.distanceSourceAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoPointDocValuesAndConstant(DoubleBlock.Builder results, int p, LongBlock left, @Fixed Point right) {
+    static void processGeoPointDocValuesAndConstant(DoubleBlock.Builder results, @Position int p, LongBlock left, @Fixed Point right) {
         GEO.distancePointDocValuesAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
-    static void processGeoPointDocValuesAndSource(DoubleBlock.Builder results, int p, LongBlock left, BytesRefBlock right) {
+    static void processGeoPointDocValuesAndSource(DoubleBlock.Builder results, @Position int p, LongBlock left, BytesRefBlock right) {
         GEO.distancePointDocValuesAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processCartesianSourceAndConstant(DoubleBlock.Builder results, int p, BytesRefBlock left, @Fixed Point right) {
+    static void processCartesianSourceAndConstant(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, @Fixed Point right) {
         CARTESIAN.distanceSourceAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class })
-    static void processCartesianSourceAndSource(DoubleBlock.Builder results, int p, BytesRefBlock left, BytesRefBlock right) {
+    static void processCartesianSourceAndSource(DoubleBlock.Builder results, @Position int p, BytesRefBlock left, BytesRefBlock right) {
         CARTESIAN.distanceSourceAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static void processCartesianPointDocValuesAndConstant(DoubleBlock.Builder results, int p, LongBlock left, @Fixed Point right) {
+    static void processCartesianPointDocValuesAndConstant(
+        DoubleBlock.Builder results,
+        @Position int p,
+        LongBlock left,
+        @Fixed Point right
+    ) {
         CARTESIAN.distancePointDocValuesAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource")
-    static void processCartesianPointDocValuesAndSource(DoubleBlock.Builder results, int p, LongBlock left, BytesRefBlock right) {
+    static void processCartesianPointDocValuesAndSource(DoubleBlock.Builder results, @Position int p, LongBlock left, BytesRefBlock right) {
         CARTESIAN.distancePointDocValuesAndSource(results, p, left, right);
     }
 }

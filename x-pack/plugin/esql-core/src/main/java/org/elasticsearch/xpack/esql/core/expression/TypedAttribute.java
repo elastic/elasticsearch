@@ -12,6 +12,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Objects;
 
+/**
+ * A fully resolved attribute - we know its type. For example, if it references data directly from Lucene, this will be a
+ * {@link FieldAttribute}. If it references the results of another calculation it will be {@link ReferenceAttribute}s.
+ */
 public abstract class TypedAttribute extends Attribute {
 
     private final DataType dataType;
@@ -24,7 +28,19 @@ public abstract class TypedAttribute extends Attribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, nullability, id, synthetic);
+        this(source, null, name, dataType, nullability, id, synthetic);
+    }
+
+    protected TypedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
+        super(source, qualifier, name, nullability, id, synthetic);
         this.dataType = dataType;
     }
 
@@ -34,12 +50,13 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), dataType);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), dataType);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(dataType, ((TypedAttribute) obj).dataType);
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
+        var other = (TypedAttribute) o;
+        return super.innerEquals(other, ignoreIds) && dataType == other.dataType;
     }
 }

@@ -13,7 +13,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,21 +52,23 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     public static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
-    private static final ParseField SLOP_FIELD = new ParseField("slop");
-    private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
-    private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
-    private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
-    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
-    private static final ParseField OPERATOR_FIELD = new ParseField("operator");
-    private static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
-    private static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
-    private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
-    private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField FIELDS_FIELD = new ParseField("fields");
-    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
-    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
+    public static final ParseField BOOST_FIELD = new ParseField("boost");
+    public static final ParseField SLOP_FIELD = new ParseField("slop");
+    public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
+    public static final ParseField FUZZINESS_FIELD = new ParseField("fuzziness");
+    public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
+    public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    public static final ParseField OPERATOR_FIELD = new ParseField("operator");
+    public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
+    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+    public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
 
     private final Object value;
     private final Map<String, Float> fieldsBoosts;
@@ -124,7 +125,7 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
          */
         BOOL_PREFIX(MatchQueryParser.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix"));
 
-        private MatchQueryParser.Type matchQueryType;
+        private final MatchQueryParser.Type matchQueryType;
         private final float tieBreaker;
         private final ParseField parseField;
 
@@ -220,9 +221,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         fuzzyRewrite = in.readOptionalString();
         tieBreaker = in.readOptionalFloat();
         lenient = in.readOptionalBoolean();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalFloat();
-        }
         zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         fuzzyTranspositions = in.readBoolean();
@@ -243,9 +241,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalFloat(tieBreaker);
         out.writeOptionalBoolean(lenient);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalFloat(null);
-        }
         zeroTermsQuery.writeTo(out);
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
         out.writeBoolean(fuzzyTranspositions);
@@ -821,6 +816,6 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,13 +52,11 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     protected static String INDEX = "test_index";
-    protected static final String ID_FIELD = "_id";
     protected static final String DOC_FIELD = "doc";
     protected static final String TEXT_FIELD = "text";
     protected static final String VECTOR_FIELD = "vector";
@@ -161,54 +160,91 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             int from = randomIntBetween(0, totalDocs - 1);
             int size = randomIntBetween(1, totalDocs - from);
-            for (int docs_to_fetch = from; docs_to_fetch < totalDocs; docs_to_fetch += size) {
+            for (int from_value = from; from_value < totalDocs; from_value += size) {
                 SearchSourceBuilder source = new SearchSourceBuilder();
-                source.from(docs_to_fetch);
+                source.from(from_value);
                 source.size(size);
-                // this one retrieves docs 1, 2, 4, 6, and 7
-                StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
-                    QueryBuilders.boolQuery()
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
-                );
-                // this one retrieves docs 2 and 6 due to prefilter
-                StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-                    QueryBuilders.boolQuery()
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
-                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
-                );
-                standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
-                // this one retrieves docs 2, 3, 6, and 7
-                KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null);
-                source.retriever(
-                    new RRFRetrieverBuilder(
-                        Arrays.asList(
-                            new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
-                            new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
-                            new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
-                        ),
-                        rankWindowSize,
-                        rankConstant
-                    )
-                );
-                SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-                int fDocs_to_fetch = docs_to_fetch;
-                ElasticsearchAssertions.assertResponse(req, resp -> {
-                    assertNull(resp.pointInTimeId());
-                    assertNotNull(resp.getHits().getTotalHits());
-                    assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
-                    assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
-                    assertThat(resp.getHits().getHits().length, lessThanOrEqualTo(size));
-                    for (int k = 0; k < Math.min(size, resp.getHits().getHits().length); k++) {
-                        assertThat(resp.getHits().getAt(k).getId(), equalTo(expectedDocIds.get(k + fDocs_to_fetch)));
-                    }
-                });
+                assertRRFPagination(source, from_value, size, rankWindowSize, rankConstant, expectedDocIds);
             }
         }
+
+        // test with `from` as the default (-1)
+        for (int i = 0; i < randomIntBetween(5, 20); i++) {
+            int size = randomIntBetween(1, totalDocs);
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.size(size);
+            assertRRFPagination(source, source.from(), size, rankWindowSize, rankConstant, expectedDocIds);
+        }
+
+        // and finally test with from = default, and size > {total docs} to be sure
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.size(totalDocs + 2);
+        assertRRFPagination(source, source.from(), totalDocs, rankWindowSize, rankConstant, expectedDocIds);
+    }
+
+    private void assertRRFPagination(
+        SearchSourceBuilder source,
+        int from,
+        int maxExpectedSize,
+        int rankWindowSize,
+        int rankConstant,
+        List<String> expectedDocIds
+    ) {
+        // this one retrieves docs 1, 2, 4, 6, and 7
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
+        );
+        // this one retrieves docs 2 and 6 due to prefilter
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        // this one retrieves docs 2, 3, 6, and 7
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+
+        int innerFrom = Math.max(from, 0);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(6L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+
+            int expectedSize = innerFrom + maxExpectedSize > 6 ? 6 - innerFrom : maxExpectedSize;
+            assertThat(resp.getHits().getHits().length, equalTo(expectedSize));
+
+            for (int k = 0; k < expectedSize; k++) {
+                assertThat(resp.getHits().getAt(k).getId(), equalTo(expectedDocIds.get(k + innerFrom)));
+            }
+        });
     }
 
     public void testRRFWithAggs() {
@@ -233,7 +269,16 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(
@@ -288,7 +333,16 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(
@@ -345,7 +399,16 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(
@@ -411,7 +474,16 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(
@@ -430,7 +502,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                     ),
                     // this one bring just doc 7 which should be ranked first eventually
                     new CompoundRetrieverBuilder.RetrieverSource(
-                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null),
+                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null, null),
                         null
                     )
                 ),
@@ -477,7 +549,16 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(
@@ -536,7 +617,16 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 2.0f },
+            null,
+            10,
+            100,
+            null,
+            null,
+            null
+        );
 
         RRFRetrieverBuilder nestedRRF = new RRFRetrieverBuilder(
             Arrays.asList(
@@ -743,6 +833,44 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
     }
 
+    public void testRRFFiltersPropagatedToKnnQueryVectorBuilder() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will retriever all but 7 only due to top-level filter
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        // this will too retrieve just doc 7
+        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+            "vector",
+            null,
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
+            10,
+            10,
+            null,
+            null,
+            null
+        );
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
+        source.size(10);
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getHits()[0].getId(), equalTo("doc_7"));
+        });
+    }
+
     public void testRewriteOnce() {
         final float[] vector = new float[] { 1 };
         AtomicInteger numAsyncCalls = new AtomicInteger();
@@ -773,8 +901,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 throw new IllegalStateException("Should not be called");
             }
         };
-        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null);
-        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
+        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null);
+        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
         var rrf = new RRFRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10,

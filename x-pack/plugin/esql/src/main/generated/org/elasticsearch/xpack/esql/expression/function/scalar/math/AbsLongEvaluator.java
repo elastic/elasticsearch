@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AbsLongEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator fieldVal;
@@ -48,21 +51,29 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += fieldVal.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendLong(Abs.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p))));
+        long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
+        result.appendLong(Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -71,7 +82,8 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Abs.process(fieldValVector.getLong(p)));
+        long fieldVal = fieldValVector.getLong(p);
+        result.appendLong(p, Abs.process(fieldVal));
       }
       return result.build();
     }

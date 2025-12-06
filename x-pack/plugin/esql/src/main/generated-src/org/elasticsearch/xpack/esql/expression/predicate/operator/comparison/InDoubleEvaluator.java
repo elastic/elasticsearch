@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -21,12 +25,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
 public class InDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InDoubleEvaluator.class);
+
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator lhs;
@@ -143,6 +150,16 @@ public class InDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
     @Override
     public String toString() {
         return "InDoubleEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        baseRamBytesUsed += lhs.baseRamBytesUsed();
+        for (EvalOperator.ExpressionEvaluator r : rhs) {
+            baseRamBytesUsed += r.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
     }
 
     @Override

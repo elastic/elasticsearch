@@ -31,7 +31,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final ClusterHealthStatus clusterStatus;
     private final SearchUsageStats searchUsageStats;
     private final RepositoryUsageStats repositoryUsageStats;
-    private final CCSTelemetrySnapshot ccsMetrics;
+    private final CCSTelemetrySnapshot searchCcsMetrics;
+    private final CCSTelemetrySnapshot esqlCcsMetrics;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -39,21 +40,15 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
         this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            searchUsageStats = new SearchUsageStats(in);
-        } else {
-            searchUsageStats = new SearchUsageStats();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+        searchUsageStats = new SearchUsageStats(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             repositoryUsageStats = RepositoryUsageStats.readFrom(in);
+            searchCcsMetrics = new CCSTelemetrySnapshot(in);
         } else {
             repositoryUsageStats = RepositoryUsageStats.EMPTY;
+            searchCcsMetrics = new CCSTelemetrySnapshot();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
-            ccsMetrics = new CCSTelemetrySnapshot(in);
-        } else {
-            ccsMetrics = new CCSTelemetrySnapshot();
-        }
+        esqlCcsMetrics = new CCSTelemetrySnapshot(in);
     }
 
     public ClusterStatsNodeResponse(
@@ -64,7 +59,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         ShardStats[] shardsStats,
         SearchUsageStats searchUsageStats,
         RepositoryUsageStats repositoryUsageStats,
-        CCSTelemetrySnapshot ccsTelemetrySnapshot
+        CCSTelemetrySnapshot ccsTelemetrySnapshot,
+        CCSTelemetrySnapshot esqlTelemetrySnapshot
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
@@ -73,7 +69,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.clusterStatus = clusterStatus;
         this.searchUsageStats = Objects.requireNonNull(searchUsageStats);
         this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
-        this.ccsMetrics = ccsTelemetrySnapshot;
+        this.searchCcsMetrics = ccsTelemetrySnapshot;
+        this.esqlCcsMetrics = esqlTelemetrySnapshot;
     }
 
     public NodeInfo nodeInfo() {
@@ -104,8 +101,12 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return repositoryUsageStats;
     }
 
-    public CCSTelemetrySnapshot getCcsMetrics() {
-        return ccsMetrics;
+    public CCSTelemetrySnapshot getSearchCcsMetrics() {
+        return searchCcsMetrics;
+    }
+
+    public CCSTelemetrySnapshot getEsqlCcsMetrics() {
+        return esqlCcsMetrics;
     }
 
     @Override
@@ -115,15 +116,12 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-            searchUsageStats.writeTo(out);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.REPOSITORIES_TELEMETRY)) {
+        searchUsageStats.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             repositoryUsageStats.writeTo(out);
+            searchCcsMetrics.writeTo(out);
         } // else just drop these stats, ok for bwc
-        if (out.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
-            ccsMetrics.writeTo(out);
-        }
+        esqlCcsMetrics.writeTo(out);
     }
 
 }

@@ -7,78 +7,159 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef.OutputFormat;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
+import static java.util.Map.entry;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef.OutputFormat.REGEX;
+import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
  * Categorizes text messages.
- *
- * This implementation is incomplete and comes with the following caveats:
- * - it only works correctly on a single node.
- * - when running on multiple nodes, category IDs of the different nodes are
- *   aggregated, even though the same ID can correspond to a totally different
- *   category
- * - the output consists of category IDs, which should be replaced by category
- *   regexes or keys
- *
- * TODO(jan, nik): fix this
+ * <p>
+ *     This function has no evaluators, as it works like an aggregation (Accumulates values, stores intermediate states, etc).
+ * </p>
+ * <p>
+ *     For the implementation, see {@link org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash}
+ * </p>
  */
-public class Categorize extends GroupingFunction implements Validatable {
+@SupportsObservabilityTier(tier = COMPLETE)
+public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction implements OptionalArgument, LicenseAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Categorize",
         Categorize::new
     );
+    private static final TransportVersion ESQL_CATEGORIZE_OPTIONS = TransportVersion.fromName("esql_categorize_options");
+
+    private static final String ANALYZER = "analyzer";
+    private static final String OUTPUT_FORMAT = "output_format";
+    private static final String SIMILARITY_THRESHOLD = "similarity_threshold";
+
+    private static final Map<String, DataType> ALLOWED_OPTIONS = new TreeMap<>(
+        Map.ofEntries(entry(ANALYZER, KEYWORD), entry(OUTPUT_FORMAT, KEYWORD), entry(SIMILARITY_THRESHOLD, INTEGER))
+    );
 
     private final Expression field;
+    private final Expression options;
 
-    @FunctionInfo(returnType = { "integer" }, description = "Categorizes text messages.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Groups text messages into categories of similarly formatted text values.",
+        detailedDescription = """
+            `CATEGORIZE` has the following limitations:
+
+            * can’t be used within other expressions
+            * can’t be used more than once in the groupings
+            * can’t be used or referenced within aggregate functions and it has to be the first grouping""",
+        examples = {
+            @Example(
+                file = "docs",
+                tag = "docsCategorize",
+                description = "This example categorizes server logs messages into categories and aggregates their counts. "
+            ) },
+        type = FunctionType.GROUPING,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1") }
+    )
     public Categorize(
         Source source,
-        @Param(name = "field", type = { "text", "keyword" }, description = "Expression to categorize") Expression field
+        @Param(name = "field", type = { "text", "keyword" }, description = "Expression to categorize") Expression field,
+        @MapParam(
+            name = "options",
+            description = "(Optional) Categorize additional options as "
+                + "<<esql-function-named-params,function named parameters>>. "
+                + "{applies_to}`stack: ga 9.2`}",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = ANALYZER,
+                    type = "keyword",
+                    valueHint = { "standard" },
+                    description = "Analyzer used to convert the field into tokens for text categorization."
+                ),
+                @MapParam.MapParamEntry(
+                    name = OUTPUT_FORMAT,
+                    type = "keyword",
+                    valueHint = { "regex", "tokens" },
+                    description = "The output format of the categories. Defaults to regex."
+                ),
+                @MapParam.MapParamEntry(
+                    name = SIMILARITY_THRESHOLD,
+                    type = "integer",
+                    valueHint = { "70" },
+                    description = "The minimum percentage of token weight that must match for text to be added to the category bucket. "
+                        + "Must be between 1 and 100. The larger the value the narrower the categories. "
+                        + "Larger values will increase memory usage and create narrower categories. Defaults to 70."
+                ), },
+            optional = true
+        ) Expression options
     ) {
-        super(source, List.of(field));
+        super(source, options == null ? List.of(field) : List.of(field, options));
         this.field = field;
+        this.options = options;
     }
 
     private Categorize(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_CATEGORIZE_OPTIONS) ? in.readOptionalNamedWriteable(Expression.class) : null
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
+        if (out.getTransportVersion().supports(ESQL_CATEGORIZE_OPTIONS)) {
+            out.writeOptionalNamedWriteable(options);
+        }
     }
 
     @Override
@@ -88,63 +169,76 @@ public class Categorize extends GroupingFunction implements Validatable {
 
     @Override
     public boolean foldable() {
-        return field.foldable();
-    }
-
-    @Evaluator
-    static int process(
-        BytesRef v,
-        @Fixed(includeInToString = false, build = true) CategorizationAnalyzer analyzer,
-        @Fixed(includeInToString = false, build = true) TokenListCategorizer.CloseableTokenListCategorizer categorizer
-    ) {
-        String s = v.utf8ToString();
-        try (TokenStream ts = analyzer.tokenStream("text", s)) {
-            return categorizer.computeCategory(ts, s.length(), 1).getId();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        // Categorize cannot be currently folded
+        return false;
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new CategorizeEvaluator.Factory(
-            source(),
-            toEvaluator.apply(field),
-            context -> new CategorizationAnalyzer(
-                // TODO(jan): get the correct analyzer in here, see CategorizationAnalyzerConfig::buildStandardCategorizationAnalyzer
-                new CustomAnalyzer(
-                    TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
-                    new CharFilterFactory[0],
-                    new TokenFilterFactory[0]
-                ),
-                true
-            ),
-            context -> new TokenListCategorizer.CloseableTokenListCategorizer(
-                new CategorizationBytesRefHash(new BytesRefHash(2048, context.bigArrays())),
-                CategorizationPartOfSpeechDictionary.getInstance(),
-                0.70f
-            )
-        );
+    public Nullability nullable() {
+        // Null strings and strings that don’t produce tokens after analysis lead to null values.
+        // This includes empty strings, only whitespace, (hexa)decimal numbers and stopwords.
+        return Nullability.TRUE;
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return isString(field(), sourceText(), DEFAULT);
+        return isString(field(), sourceText(), DEFAULT).and(
+            Options.resolve(options, source(), SECOND, ALLOWED_OPTIONS, this::verifyOptions)
+        );
+    }
+
+    private void verifyOptions(Map<String, Object> optionsMap) {
+        if (options == null) {
+            return;
+        }
+        Integer similarityThreshold = (Integer) optionsMap.get(SIMILARITY_THRESHOLD);
+        if (similarityThreshold != null) {
+            if (similarityThreshold <= 0 || similarityThreshold > 100) {
+                throw new InvalidArgumentException(
+                    format("invalid similarity threshold [{}], expecting a number between 1 and 100, inclusive", similarityThreshold)
+                );
+            }
+        }
+        String outputFormat = (String) optionsMap.get(OUTPUT_FORMAT);
+        if (outputFormat != null) {
+            try {
+                OutputFormat.valueOf(outputFormat.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new InvalidArgumentException(
+                    format(null, "invalid output format [{}], expecting one of [REGEX, TOKENS]", outputFormat)
+                );
+            }
+        }
+    }
+
+    public CategorizeDef categorizeDef() {
+        Map<String, Object> optionsMap = new HashMap<>();
+        if (options != null) {
+            Options.populateMap((MapExpression) options, optionsMap, source(), SECOND, ALLOWED_OPTIONS);
+        }
+        Integer similarityThreshold = (Integer) optionsMap.get(SIMILARITY_THRESHOLD);
+        String outputFormatString = (String) optionsMap.get(OUTPUT_FORMAT);
+        OutputFormat outputFormat = outputFormatString == null ? null : OutputFormat.valueOf(outputFormatString.toUpperCase(Locale.ROOT));
+        return new CategorizeDef(
+            (String) optionsMap.get("analyzer"),
+            outputFormat == null ? REGEX : outputFormat,
+            similarityThreshold == null ? 70 : similarityThreshold
+        );
     }
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataType.KEYWORD;
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new Categorize(source(), newChildren.get(0));
+    public Categorize replaceChildren(List<Expression> newChildren) {
+        return new Categorize(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Categorize::new, field);
+        return NodeInfo.create(this, Categorize::new, field, options);
     }
 
     public Expression field() {
@@ -154,5 +248,32 @@ public class Categorize extends GroupingFunction implements Validatable {
     @Override
     public String toString() {
         return "Categorize{field=" + field + "}";
+    }
+
+    @Override
+    public boolean licenseCheck(XPackLicenseState state) {
+        return MachineLearning.CATEGORIZE_TEXT_AGG_FEATURE.check(state);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (p, failures) -> {
+            super.postAnalysisPlanVerification().accept(p, failures);
+
+            if (p instanceof InlineStats inlineStats && inlineStats.child() instanceof Aggregate aggregate) {
+                aggregate.groupings().forEach(grp -> {
+                    if (grp instanceof Alias alias && alias.child() instanceof Categorize categorize) {
+                        failures.add(
+                            fail(
+                                categorize,
+                                "CATEGORIZE [{}] is not yet supported with INLINE STATS [{}]",
+                                categorize.sourceText(),
+                                inlineStats.sourceText()
+                            )
+                        );
+                    }
+                });
+            }
+        };
     }
 }

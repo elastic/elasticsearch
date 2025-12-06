@@ -97,7 +97,7 @@ public final class ScrollHelper {
                                     listener.onResponse(Collections.unmodifiableList(results));
                                 } else {
                                     SearchScrollRequest scrollRequest = new SearchScrollRequest(resp.getScrollId());
-                                    scrollRequest.scroll(request.scroll().keepAlive());
+                                    scrollRequest.scroll(request.scroll());
                                     client.searchScroll(scrollRequest, this);
                                 }
                             } else {

@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -43,7 +42,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -72,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
@@ -136,25 +135,28 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             try (var mockLog = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
                 mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "hot threads logging",
-                        NODE_ENVIRONMENT_LOGGER_NAME,
-                        Level.DEBUG,
-                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
-                    )
+                    new MockLog.SeenEventExpectation("hot threads logging", NODE_ENVIRONMENT_LOGGER_NAME, Level.DEBUG, """
+                        hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after [*ms]; \
+                        this shard lock is still held by a different instance of the shard and has been in state [1] for [*/*ms]*""")
                 );
                 mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
                         "second attempt should be suppressed due to throttling",
                         NODE_ENVIRONMENT_LOGGER_NAME,
                         Level.DEBUG,
-                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                        "*obtaining shard lock for [3] timed out*"
                     )
                 );
 
                 assertEquals(new ShardId(index, 0), lock.getShardId());
 
-                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
+                assertThat(
+                    expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2")).getMessage(),
+                    matchesPattern("""
+                        \\[foo]\\[0]: obtaining shard lock for \\[2] timed out after \\[0ms]; \
+                        this shard lock is still held by a different instance of the shard \
+                        and has been in state \\[1] for \\[.*/[0-9]+ms]""")
+                );
 
                 for (Path path : env.indexPaths(index)) {
                     Files.createDirectories(path.resolve("0"));
@@ -539,8 +541,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testIndexCompatibilityChecks() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
 
@@ -551,7 +551,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     env.nodeId(),
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(
@@ -584,7 +585,9 @@ public class NodeEnvironmentTests extends ESTestCase {
                     containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
+                            + (previousNodeVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                                ? previousNodeVersion
+                                : Version.CURRENT.minimumCompatibilityVersion())
                             + "]"
                     )
                 )
@@ -638,20 +641,39 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testGetBestDowngradeVersion() {
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.0"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5"), Matchers.equalTo("7.17.5"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.1234"), Matchers.equalTo("7.17.1234"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.18.0"), Matchers.equalTo("7.18.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.x"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5-SNAPSHOT"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.6b"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7.16.0"), Matchers.equalTo("7.17.0"));
-        // when we get to version 7.2147483648.0 we will have to rethink our approach, but for now we return 7.17.0 with an integer overflow
-        assertThat(NodeEnvironment.getBestDowngradeVersion("7." + Integer.MAX_VALUE + "0.0"), Matchers.equalTo("7.17.0"));
-        assertThat(NodeEnvironment.getBestDowngradeVersion("foo"), Matchers.equalTo("7.17.0"));
+        int prev = Version.CURRENT.minimumCompatibilityVersion().major;
+        int last = Version.CURRENT.minimumCompatibilityVersion().minor;
+        int old = prev - 1;
+
+        assumeTrue("The current compatibility rules are active only from 8.x onward", prev >= 7);
+        assertEquals(Version.CURRENT.major - 1, prev);
+
+        assertEquals(
+            "From an old major, recommend prev.last",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(old + ".0.0")),
+            BuildVersion.fromString(prev + "." + last + ".0")
+        );
+
+        if (last >= 1) {
+            assertEquals(
+                "From an old minor of the previous major, recommend prev.last",
+                NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + (last - 1) + ".0")),
+                BuildVersion.fromString(prev + "." + last + ".0")
+            );
+        }
+
+        assertEquals(
+            "From an old patch of prev.last, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + last + ".1")),
+            BuildVersion.fromString(prev + "." + last + ".1")
+        );
+
+        assertEquals(
+            "From the first version of this major, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(Version.CURRENT.major + ".0.0")),
+            BuildVersion.fromString(Version.CURRENT.major + ".0.0")
+        );
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

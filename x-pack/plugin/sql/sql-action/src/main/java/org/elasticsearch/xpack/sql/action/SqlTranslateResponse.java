@@ -23,7 +23,6 @@ public class SqlTranslateResponse extends ActionResponse implements ToXContentOb
     private final SearchSourceBuilder source;
 
     public SqlTranslateResponse(StreamInput in) throws IOException {
-        super(in);
         source = new SearchSourceBuilder(in);
     }
 

@@ -9,7 +9,9 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.search.SearchShardTask;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -17,19 +19,20 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -41,6 +44,8 @@ public class MockSearchService extends SearchService {
      */
     public static class TestPlugin extends Plugin {}
 
+    private static final Logger logger = LogManager.getLogger(MockSearchService.class);
+
     private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
@@ -48,7 +53,7 @@ public class MockSearchService extends SearchService {
 
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
-    private Function<SearchShardTask, SearchShardTask> onCheckCancelled = Function.identity();
+    private Function<CancellableTask, CancellableTask> onCheckCancelled = Function.identity();
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -67,7 +72,7 @@ public class MockSearchService extends SearchService {
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
     static void addActiveContext(ReaderContext context) {
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(context.toString()));
+        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(String.format(Locale.ROOT, "%s : %s", context.toString(), context.id())));
     }
 
     /**
@@ -83,12 +88,11 @@ public class MockSearchService extends SearchService {
         ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
-        RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        OnlinePrewarmingService onlinePrewarmingService
     ) {
         super(
             clusterService,
@@ -96,12 +100,11 @@ public class MockSearchService extends SearchService {
             threadPool,
             scriptService,
             bigArrays,
-            rankFeatureShardPhase,
             fetchPhase,
-            responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            onlinePrewarmingService
         );
     }
 
@@ -113,7 +116,7 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
-    protected ReaderContext removeReaderContext(long id) {
+    protected ReaderContext removeReaderContext(ShardSearchContextId id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
             onRemoveContext.accept(removed);
@@ -138,7 +141,7 @@ public class MockSearchService extends SearchService {
     protected SearchContext createContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
-        SearchShardTask task,
+        CancellableTask task,
         ResultsType resultsType,
         boolean includeAggregations
     ) throws IOException {
@@ -155,17 +158,22 @@ public class MockSearchService extends SearchService {
     @Override
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         SearchContext searchContext = super.createSearchContext(request, timeout);
-        onPutContext.accept(searchContext.readerContext());
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
         searchContext.addReleasable(() -> onRemoveContext.accept(searchContext.readerContext()));
         return searchContext;
     }
 
-    public void setOnCheckCancelled(Function<SearchShardTask, SearchShardTask> onCheckCancelled) {
+    public void setOnCheckCancelled(Function<CancellableTask, CancellableTask> onCheckCancelled) {
         this.onCheckCancelled = onCheckCancelled;
     }
 
     @Override
-    protected void checkCancelled(SearchShardTask task) {
+    protected void checkCancelled(CancellableTask task) {
         super.checkCancelled(onCheckCancelled.apply(task));
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -27,8 +28,8 @@ public class TopIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopIntAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new TopIntAggregatorFunctionSupplier(LIMIT, true);
     }
 
     @Override
@@ -37,8 +38,8 @@ public class TopIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Object[] values = input.stream().flatMapToInt(b -> allInts(b)).sorted().limit(LIMIT).boxed().toArray(Object[]::new);
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Object[] values = input.stream().flatMapToInt(p -> allInts(p.getBlock(0))).sorted().limit(LIMIT).boxed().toArray(Object[]::new);
         assertThat((List<?>) BlockUtils.toJavaObject(result, 0), contains(values));
     }
 }

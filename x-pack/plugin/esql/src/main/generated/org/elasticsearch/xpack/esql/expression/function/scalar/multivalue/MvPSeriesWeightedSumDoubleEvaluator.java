@@ -8,6 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -20,9 +21,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvPSeriesWeightedSum}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvPSeriesWeightedSumDoubleEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator block;
@@ -49,6 +52,13 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
     try (DoubleBlock blockBlock = (DoubleBlock) block.eval(page)) {
       return eval(page.getPositionCount(), blockBlock);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += block.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock blockBlock) {

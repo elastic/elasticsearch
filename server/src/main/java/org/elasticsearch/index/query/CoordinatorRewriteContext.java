@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongSupplier;
 
 /**
@@ -39,7 +41,14 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     public static final String TIER_FIELD_NAME = "_tier";
 
-    private static final ConstantFieldType TIER_FIELD_TYPE = new ConstantFieldType(TIER_FIELD_NAME, Map.of()) {
+    public static final Set<String> SUPPORTED_FIELDS = Set.of(
+        DataStream.TIMESTAMP_FIELD_NAME,
+        IndexMetadata.EVENT_INGESTED_FIELD_NAME,
+        TIER_FIELD_NAME,
+        IndexFieldMapper.NAME
+    );
+
+    static final ConstantFieldType TIER_FIELD_TYPE = new ConstantFieldType(TIER_FIELD_NAME, Map.of()) {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("fetching field values is not supported on the coordinator node");
@@ -64,11 +73,17 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getTierPreference();
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("field exists query is not supported on the coordinator node");
         }
     };
 
+    @Nullable
     private final DateFieldRangeInfo dateFieldRangeInfo;
     private final String tier;
 
@@ -85,7 +100,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        DateFieldRangeInfo dateFieldRangeInfo,
+        @Nullable DateFieldRangeInfo dateFieldRangeInfo,
         String tier
     ) {
         super(
@@ -103,7 +118,13 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null,
             null,
-            null
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            false
         );
         this.dateFieldRangeInfo = dateFieldRangeInfo;
         this.tier = tier;
@@ -116,9 +137,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      */
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
-        if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
+        if (dateFieldRangeInfo != null && DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.timestampFieldType();
-        } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
+        } else if (dateFieldRangeInfo != null && IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.eventIngestedFieldType();
         } else if (TIER_FIELD_NAME.equals(fieldName)) {
             return TIER_FIELD_TYPE;
@@ -133,9 +154,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      */
     @Nullable
     public IndexLongFieldRange getFieldRange(String fieldName) {
-        if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
+        if (dateFieldRangeInfo != null && DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.timestampRange();
-        } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
+        } else if (dateFieldRangeInfo != null && IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.eventIngestedRange();
         } else {
             return null;
@@ -153,11 +174,4 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         return tier.isEmpty() == false ? tier : null;
     }
 
-    /**
-     * We're holding on to the index tier in the context as otherwise we'd need
-     * to re-parse it from the index settings when evaluating the _tier field.
-     */
-    public String tier() {
-        return tier;
-    }
 }

@@ -10,14 +10,18 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 
-public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest> {
+public class GetPipelineRequest extends LocalClusterStateRequest {
 
     private final String[] ids;
     private final boolean summary;
@@ -35,17 +39,15 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
         this(masterNodeTimeout, false, ids);
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public GetPipelineRequest(StreamInput in) throws IOException {
         super(in);
         ids = in.readStringArray();
         summary = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(ids);
-        out.writeBoolean(summary);
     }
 
     public String[] getIds() {
@@ -59,5 +61,10 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 }

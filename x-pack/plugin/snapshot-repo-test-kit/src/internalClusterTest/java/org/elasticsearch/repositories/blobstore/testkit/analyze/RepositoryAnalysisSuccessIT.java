@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -35,6 +36,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -59,6 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
@@ -70,6 +73,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -182,17 +186,20 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
-                metadata -> new AssertingRepository(
+                (projectId, metadata) -> new AssertingRepository(
+                    projectId,
                     metadata,
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    buildBlobPath(metadata.settings())
+                    buildBlobPath(metadata.settings()),
+                    snapshotMetrics
                 )
             );
         }
@@ -216,14 +223,16 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final AtomicReference<BlobStore> blobStoreRef = new AtomicReference<>();
 
         AssertingRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            BlobPath basePath
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
         void setBlobStore(BlobStore blobStore) {
@@ -285,11 +294,6 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                 currentPath = null;
                 currentBlobContainer = null;
             }
-        }
-
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
-            assertPurpose(purpose);
         }
 
         @Override
@@ -475,6 +479,24 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
+        public void copyBlob(
+            OperationPurpose purpose,
+            BlobContainer sourceBlobContainer,
+            String sourceBlobName,
+            String blobName,
+            long blobSize
+        ) throws IOException {
+            assertPurpose(purpose);
+            assertThat(sourceBlobContainer, instanceOf(AssertingBlobContainer.class));
+            final var source = (AssertingBlobContainer) sourceBlobContainer;
+            final var sourceBlob = source.blobs.get(sourceBlobName);
+            if (sourceBlob == null) {
+                throw new FileNotFoundException(sourceBlobName + " not found");
+            }
+            blobs.put(blobName, sourceBlob);
+        }
+
+        @Override
         public DeleteResult delete(OperationPurpose purpose) {
             assertPurpose(purpose);
             synchronized (registerMutex) {
@@ -573,7 +595,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                         contendedRegisterValue = updatedValue;
                     }
                 } else {
-                    assertEquals(expected, witness); // uncontended writes always succeed
+                    assertThat(witness, equalBytes(expected)); // uncontended writes always succeed
                     assertNotEquals(expected, updated); // uncontended register sees only updates
                     if (updated.length() != 0) {
                         final var updatedValue = longFromBytes(updated);

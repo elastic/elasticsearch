@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -47,7 +48,9 @@ public class PasswordToolsTests extends PackagingTestCase {
     public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
             ServerUtils.waitForElasticsearch(installation);
-            Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
+            Shell.Result result = retryOnAuthenticationErrors(
+                () -> installation.executables().setupPasswordsTool.run("auto --batch", null)
+            );
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(
@@ -102,20 +105,26 @@ public class PasswordToolsTests extends PackagingTestCase {
         installation.executables().keystoreTool.run("add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
 
         assertWhileRunning(() -> {
-            String response = ServerUtils.makeRequest(
-                Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
-                "elastic",
-                BOOTSTRAP_PASSWORD,
-                null
+            ServerUtils.waitForElasticsearch("green", null, installation, "elastic", BOOTSTRAP_PASSWORD, null);
+            final String response = retryOnAuthenticationErrors(
+                () -> ServerUtils.makeRequest(
+                    Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
+                    "elastic",
+                    BOOTSTRAP_PASSWORD,
+                    null
+                )
             );
             assertThat(response, containsString("\"status\":\"green\""));
         });
+
     }
 
     public void test40GeneratePasswordsBootstrapAlreadySet() throws Exception {
         assertWhileRunning(() -> {
-
-            Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
+            ServerUtils.waitForElasticsearch("green", null, installation, "elastic", BOOTSTRAP_PASSWORD, null);
+            Shell.Result result = retryOnAuthenticationErrors(
+                () -> installation.executables().setupPasswordsTool.run("auto --batch", null)
+            );
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
@@ -128,6 +137,48 @@ public class PasswordToolsTests extends PackagingTestCase {
                 assertThat(response, containsString("You Know, for Search"));
             }
         });
+    }
+
+    /**
+     * The security index is created on startup.
+     * It can happen that even when the security index exists, we get an authentication failure as `elastic`
+     * user because the reserved realm checks the security index first.
+     * This is because we check the security index too early (just after the creation) when all shards did not get allocated yet.
+     * Hence, the call can result in an `UnavailableShardsException` and cause the authentication to fail.
+     * We retry here on authentication errors for a couple of seconds just to verify that this is not the case.
+     */
+    private <R> R retryOnAuthenticationErrors(final Callable<R> callable) throws Exception {
+        Exception failure = null;
+        int retries = 5;
+        while (retries-- > 0) {
+            try {
+                return callable.call();
+            } catch (Exception e) {
+                if (e.getMessage() != null
+                    && (e.getMessage().contains("401 Unauthorized") || e.getMessage().contains("Failed to authenticate user"))) {
+                    logger.info(
+                        "Authentication failed (possibly due to UnavailableShardsException for the security index), retrying [{}].",
+                        retries,
+                        e
+                    );
+                    if (failure == null) {
+                        failure = e;
+                    } else {
+                        failure.addSuppressed(e);
+                    }
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        failure.addSuppressed(interrupted);
+                        throw failure;
+                    }
+                } else {
+                    throw e;
+                }
+            }
+        }
+        throw failure;
     }
 
     private Map<String, String> parseUsersAndPasswords(String output) {

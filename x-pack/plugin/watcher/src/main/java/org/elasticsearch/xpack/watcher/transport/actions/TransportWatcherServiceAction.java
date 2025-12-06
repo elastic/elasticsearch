@@ -18,8 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
@@ -36,6 +35,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNodeAction<WatcherServiceRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportWatcherServiceAction(
@@ -43,7 +43,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             WatcherServiceAction.NAME,
@@ -52,9 +52,9 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             WatcherServiceRequest::new,
-            indexNameExpressionResolver,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -77,15 +77,14 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
                     XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
                     WatcherMetadata newWatcherMetadata = new WatcherMetadata(manuallyStopped);
-                    WatcherMetadata currentMetadata = clusterState.metadata().custom(WatcherMetadata.TYPE);
+                    final var project = projectResolver.getProjectMetadata(clusterState);
+                    WatcherMetadata currentMetadata = project.custom(WatcherMetadata.TYPE);
 
                     // adhere to the contract of returning the original state if nothing has changed
                     if (newWatcherMetadata.equals(currentMetadata)) {
                         return clusterState;
                     } else {
-                        ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                        builder.metadata(Metadata.builder(clusterState.getMetadata()).putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
-                        return builder.build();
+                        return clusterState.copyAndUpdateProject(project.id(), b -> b.putCustom(WatcherMetadata.TYPE, newWatcherMetadata));
                     }
                 }
 

@@ -7,73 +7,124 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
-import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.huggingface.action.HuggingFaceActionCreator;
+import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
+import org.elasticsearch.xpack.inference.services.huggingface.request.completion.HuggingFaceUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 
-public class HuggingFaceService extends HuggingFaceBaseService {
+/**
+ * This class is responsible for managing the Hugging Face inference service.
+ * It manages model creation, as well as chunked, non-chunked, and unified completion inference.
+ */
+public class HuggingFaceService extends HuggingFaceBaseService implements RerankingInferenceService {
     public static final String NAME = "hugging_face";
 
-    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
-    }
+    private static final String SERVICE_NAME = "Hugging Face";
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
+        TaskType.RERANK,
+        TaskType.TEXT_EMBEDDING,
+        TaskType.SPARSE_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
+    );
+    private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
+        "hugging face chat completion",
+        OpenAiChatCompletionResponseEntity::fromResponse
+    );
 
-    @Override
-    protected HuggingFaceModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
-        ConfigurationParseContext context
+    public HuggingFaceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(inferenceEntityId, taskType, NAME, serviceSettings, secretSettings, context);
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
-        };
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
+    protected HuggingFaceModel createModel(HuggingFaceModelParameters params) {
+        return switch (params.taskType()) {
+            case RERANK -> new HuggingFaceRerankModel(
+                params.inferenceEntityId(),
+                params.taskType(),
+                NAME,
+                params.serviceSettings(),
+                params.taskSettings(),
+                params.secretSettings(),
+                params.context()
+            );
+            case TEXT_EMBEDDING -> new HuggingFaceEmbeddingsModel(
+                params.inferenceEntityId(),
+                params.taskType(),
+                NAME,
+                params.serviceSettings(),
+                params.chunkingSettings(),
+                params.secretSettings(),
+                params.context()
+            );
+            case SPARSE_EMBEDDING -> new HuggingFaceElserModel(
+                params.inferenceEntityId(),
+                params.taskType(),
+                NAME,
+                params.serviceSettings(),
+                params.secretSettings(),
+                params.context()
+            );
+            case CHAT_COMPLETION, COMPLETION -> new HuggingFaceChatCompletionModel(
+                params.inferenceEntityId(),
+                params.taskType(),
+                NAME,
+                params.serviceSettings(),
+                params.secretSettings(),
+                params.context()
+            );
+            default -> throw createInvalidTaskTypeException(params.inferenceEntityId(), NAME, params.taskType(), params.context());
+        };
     }
 
     @Override
@@ -100,12 +151,11 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         if (model instanceof HuggingFaceModel == false) {
             listener.onFailure(createInvalidModelException(model));
@@ -115,26 +165,58 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         var huggingFaceModel = (HuggingFaceModel) model;
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
-        if (ChunkingSettingsFeatureFlag.isEnabled()) {
-            batchedRequests = new EmbeddingRequestChunker(
-                inputs.getInputs(),
-                EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                huggingFaceModel.getConfigurations().getChunkingSettings()
-            ).batchRequestsWithListeners(listener);
-        } else {
-            batchedRequests = new EmbeddingRequestChunker(
-                inputs.getInputs(),
-                EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT
-            ).batchRequestsWithListeners(listener);
-        }
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+            inputs,
+            EMBEDDING_MAX_BATCH_SIZE,
+            huggingFaceModel.getConfigurations().getChunkingSettings()
+        ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = huggingFaceModel.accept(actionCreator);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof HuggingFaceChatCompletionModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        HuggingFaceChatCompletionModel huggingFaceChatCompletionModel = (HuggingFaceChatCompletionModel) model;
+        var overriddenModel = HuggingFaceChatCompletionModel.of(huggingFaceChatCompletionModel, inputs.getRequest());
+        var manager = new GenericRequestManager<>(
+            getServiceComponents().threadPool(),
+            overriddenModel,
+            UNIFIED_CHAT_COMPLETION_HANDLER,
+            unifiedChatInput -> new HuggingFaceUnifiedChatCompletionRequest(unifiedChatInput, overriddenModel),
+            UnifiedChatInput.class
+        );
+        var errorMessage = HuggingFaceActionCreator.buildErrorMessage(TaskType.CHAT_COMPLETION, model.getInferenceEntityId());
+        var action = new SenderExecutableAction(getSender(), manager, errorMessage);
+
+        action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -145,5 +227,46 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_15_0;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // Assume a small window size as the true value is not known.
+        // TODO make the rerank window size configurable
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
+    }
+
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
+
+        private Configuration() {}
+
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    URL,
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The URL endpoint to use for the requests.")
+                        .setLabel("URL")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
+                    .setConfigurations(configurationMap)
+                    .build();
+            }
+        );
     }
 }

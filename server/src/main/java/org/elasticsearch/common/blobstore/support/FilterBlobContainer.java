@@ -89,6 +89,22 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return delegate.supportsConcurrentMultipartUploads();
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        delegate.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(
         OperationPurpose purpose,
         String blobName,
@@ -103,6 +119,14 @@ public abstract class FilterBlobContainer implements BlobContainer {
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         delegate.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void copyBlob(OperationPurpose purpose, BlobContainer sourceBlobContainer, String sourceBlobName, String blobName, long blobSize)
+        throws IOException {
+        // FsBlobContainer accesses internals of the sourceBlobContainer in copyBlob so it needs the delegate
+        assert sourceBlobContainer instanceof FilterBlobContainer;
+        delegate.copyBlob(purpose, ((FilterBlobContainer) sourceBlobContainer).delegate, sourceBlobName, blobName, blobSize);
     }
 
     @Override

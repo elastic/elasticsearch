@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 
@@ -28,7 +29,7 @@ public final class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionR
     }
 
     @Override
-    protected Expression rule(Case c) {
-        return c.partiallyFold();
+    protected Expression rule(Case c, LogicalOptimizerContext ctx) {
+        return c.partiallyFold(ctx.foldCtx());
     }
 }

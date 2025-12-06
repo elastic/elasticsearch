@@ -1,6 +1,0 @@
-pr: 111413
-summary: "ESQL: Fix synthetic attribute pruning"
-area: ES|QL
-type: bug
-issues:
- - 105821

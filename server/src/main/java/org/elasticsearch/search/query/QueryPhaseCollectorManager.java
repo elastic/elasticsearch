@@ -58,6 +58,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
@@ -238,7 +239,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
             if (rescore) {
-                assert searchContext.sort() == null;
+                assert RescorePhase.validateSort(searchContext.sort());
                 for (RescoreContext rescoreContext : searchContext.rescore()) {
                     numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }

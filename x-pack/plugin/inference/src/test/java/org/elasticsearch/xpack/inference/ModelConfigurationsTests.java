@@ -14,10 +14,13 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
 
@@ -29,7 +32,7 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
             randomAlphaOfLength(6),
             randomServiceSettings(),
             randomTaskSettings(taskType),
-            ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
+            randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
         );
     }
 
@@ -71,7 +74,10 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
+        namedWriteables.addAll(XPackClientPlugin.getChunkingSettingsNamedWriteables());
+
+        return new NamedWriteableRegistry(namedWriteables);
     }
 
     @Override
@@ -88,4 +94,5 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
     protected ModelConfigurations mutateInstance(ModelConfigurations instance) {
         return mutateTestInstance(instance);
     }
+
 }

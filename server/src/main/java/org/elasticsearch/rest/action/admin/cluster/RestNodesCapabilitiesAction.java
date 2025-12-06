@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -30,8 +29,6 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
-    public static final NodeFeature CAPABILITIES_ACTION = new NodeFeature("rest.capabilities_action");
-    public static final NodeFeature LOCAL_ONLY_CAPABILITIES = new NodeFeature("rest.local_only_capabilities");
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
         "timeout",
         "method",
@@ -69,8 +66,10 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
         NodesCapabilitiesRequest r = requestNodes.method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(path)
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))
-            .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY))
-            .restApiVersion(request.getRestApiVersion());
+            .capabilities(request.paramAsStringArray("capabilities", Strings.EMPTY_ARRAY));
+        if (request.hasExplicitRestApiVersion()) {
+            r.restApiVersion(request.getRestApiVersion());
+        }
 
         return channel -> client.admin().cluster().nodesCapabilities(r, new NodesResponseRestListener<>(channel));
     }

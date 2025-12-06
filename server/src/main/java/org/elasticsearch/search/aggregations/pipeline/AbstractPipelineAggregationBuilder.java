@@ -68,8 +68,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      */
     @Override
     public final PipelineAggregator create() {
-        PipelineAggregator aggregator = createInternal(this.metadata);
-        return aggregator;
+        return createInternal(this.metadata);
     }
 
     @SuppressWarnings("unchecked")

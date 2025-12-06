@@ -17,7 +17,7 @@ import com.avast.gradle.dockercompose.tasks.ComposeUp;
 
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
@@ -47,6 +47,8 @@ import java.util.function.BiConsumer;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
+
 public class TestFixturesPlugin implements Plugin<Project> {
 
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
@@ -68,6 +70,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
 
         TaskContainer tasks = project.getTasks();
         Provider<DockerComposeThrottle> dockerComposeThrottle = project.getGradle()
@@ -127,7 +131,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
         tasks.withType(ComposeUp.class).named("composeUp").configure(t -> {
             // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
-            if (BuildParams.isCi()) {
+            if (buildParams.getCi()) {
                 t.usesService(dockerComposeThrottle);
                 t.usesService(dockerSupport);
             }

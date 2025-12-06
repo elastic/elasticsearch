@@ -96,11 +96,10 @@ import static org.junit.Assume.assumeTrue;
 /**
  * This class tests the Elasticsearch Docker images. We have several:
  * <ul>
- *     <li>The default image with a custom, small base image</li>
- *     <li>A UBI-based image</li>
+ *     <li>The default image UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
  *     <li>A WOLFI-based image</li>
- *     <li>Images for Cloud</li>
+ *     <li>Image for Cloud</li>
  * </ul>
  */
 @ThreadLeakFilters(defaultFilters = true, filters = { HttpClientThreadsFilter.class })
@@ -206,7 +205,7 @@ public class DockerTests extends PackagingTestCase {
 
         listPluginArchive().forEach(System.out::println);
         assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
-        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasSize(16));
+        assertThat("Expected " + plugin + " available in archive", listPluginArchive(), hasItems(containsString(plugin)));
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
@@ -383,15 +382,14 @@ public class DockerTests extends PackagingTestCase {
     public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout();
 
-        if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+        if (distribution.packaging == Packaging.DOCKER || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
         } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
         } else {
-            // Whereas on other images, it's a real file so the real path is the same
-            assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));
+            fail("Unknown distribution: " + distribution.packaging);
         }
     }
 
@@ -1025,8 +1023,8 @@ public class DockerTests extends PackagingTestCase {
     public void test150MachineDependentHeap() throws Exception {
         final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.5 * 1536
-        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
+        // This is roughly 0.5 * (1536 - 100) where 100 MB is the server-cli overhead
+        assertThat(xArgs, hasItems("-Xms718m", "-Xmx718m"));
     }
 
     /**
@@ -1037,12 +1035,12 @@ public class DockerTests extends PackagingTestCase {
     public void test151MachineDependentHeapWithSizeOverride() throws Exception {
         final List<String> xArgs = machineDependentHeapTest(
             "942m",
-            // 799014912 = 762m
-            List.of("-Des.total_memory_bytes=799014912")
+            // 799014912 = 762m, 52428800 = 50m
+            List.of("-Des.total_memory_bytes=799014912", "-Des.total_memory_overhead_bytes=52428800")
         );
 
-        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
+        // This is roughly 0.4 * (762 - 50)
+        assertThat(xArgs, hasItems("-Xms284m", "-Xmx284m"));
     }
 
     private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {
@@ -1126,25 +1124,25 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the UBI images has the correct license information in the correct place.
+     * Check that the Docker images have the correct license information in the correct place.
      */
-    public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
+    public void test200ImagesHaveLicenseDirectory() {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
 
         final String[] files = sh.run("find /licenses -type f").stdout().split("\n");
         assertThat(files, arrayContaining("/licenses/LICENSE"));
 
         // UBI image doesn't contain `diff`
-        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout();
+        final String imageLicense = sh.run("cat /licenses/LICENSE").stdout();
         final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout();
-        assertThat(ubiLicense, equalTo(distroLicense));
+        assertThat(imageLicense, equalTo(distroLicense));
     }
 
     /**
-     * Check that the UBI image has the expected labels
+     * Check that the images has the expected labels
      */
-    public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
+    public void test210Labels() throws Exception {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
 
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -1178,23 +1176,6 @@ public class DockerTests extends PackagingTestCase {
         final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout();
         final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout();
         assertThat(ubiLicense, equalTo(distroLicense));
-    }
-
-    /**
-     * Check that the Iron Bank image doesn't define extra labels
-     */
-    public void test310IronBankImageHasNoAdditionalLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_IRON_BANK);
-
-        final Map<String, String> labels = getImageLabels(distribution);
-
-        final Set<String> labelKeys = labels.keySet();
-
-        // We can't just assert that the labels map is empty, because it can inherit labels from its base.
-        // This is certainly the case when we build the Iron Bank image using a UBI base. It is unknown
-        // if that is true for genuine Iron Bank builds.
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.label-schema.")));
-        assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
     }
 
     /**

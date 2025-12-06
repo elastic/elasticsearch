@@ -266,7 +266,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
-        GetIndexResponse index = indicesAdmin().prepareGetIndex().setIndices(originalIndexOrAlias).get();
+        GetIndexResponse index = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(originalIndexOrAlias).get();
         MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
@@ -275,14 +275,18 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.uuid");
         newSettings.remove("index.creation_date");
         newSettings.remove("index.version.created");
+        newSettings.remove("index.transport_version.created");
 
         assertAcked(indicesAdmin().prepareCreate(to).setMapping(mapping.sourceAsMap()).setSettings(newSettings));
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
+        boolean watchesIsAlias = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, originalIndexOrAlias)
+            .get()
+            .getAliases()
+            .isEmpty() == false;
         if (watchesIsAlias) {
-            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(originalIndexOrAlias).get();
+            GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
             aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
                 assertEquals(1, aliasRecord.getValue().size());
@@ -290,7 +294,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             });
         }
         indicesAdmin().prepareDelete(originalIndex.get()).get();
-        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {
@@ -510,7 +514,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertBusy(() -> {
             GetComposableIndexTemplateAction.Response response = client().execute(
                 GetComposableIndexTemplateAction.INSTANCE,
-                new GetComposableIndexTemplateAction.Request(HISTORY_TEMPLATE_NAME)
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, HISTORY_TEMPLATE_NAME)
             ).get();
             assertThat("[" + HISTORY_TEMPLATE_NAME + "] is missing", response.indexTemplates().size(), equalTo(1));
         });

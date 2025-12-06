@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -18,12 +16,12 @@ tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api project(':libs:elasticsearch-plugin-api')
+  api project(':libs:plugin-api')
 }
 
 
 tasks.named('forbiddenApisMain').configure {
-  // :libs:elasticsearch-logging does not depend on server
+  // :libs:logging does not depend on server
   replaceSignatureFiles 'jdk-signatures'
 }
 

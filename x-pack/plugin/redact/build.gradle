@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-redact'
-  description 'Elasticsearch Expanded Pack Plugin - Redact'
-  classname 'org.elasticsearch.xpack.redact.RedactPlugin'
+  name = 'x-pack-redact'
+  description = 'Elasticsearch Expanded Pack Plugin - Redact'
+  classname ='org.elasticsearch.xpack.redact.RedactPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

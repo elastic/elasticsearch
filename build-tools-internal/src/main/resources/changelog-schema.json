@@ -86,6 +86,7 @@
             "Rollup",
             "SQL",
             "Search",
+            "Searchable Snapshots",
             "Security",
             "Snapshot/Restore",
             "Stats",
@@ -279,6 +280,7 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Aggregations",
         "Analysis",
         "Authorization",
         "Cluster and node setting",
@@ -290,11 +292,13 @@
         "JVM option",
         "Java API",
         "Logging",
+        "Logs",
         "Mapping",
         "Packaging",
         "Painless",
         "REST API",
         "Rollup",
+        "Search",
         "System requirement",
         "Transform"
       ]

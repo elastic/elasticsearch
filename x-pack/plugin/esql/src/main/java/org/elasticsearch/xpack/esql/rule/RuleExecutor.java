@@ -21,6 +21,25 @@ import java.util.function.Function;
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     private final Logger log = LogManager.getLogger(getClass());
+    /**
+     * Sub-logger intended to show only changes made by the rules. Intended for debugging.
+     *
+     * Enable it like this for the respective optimizers and the analyzer, resp. all inheritors of this class:
+     * <pre>{@code
+     * PUT localhost:9200/_cluster/settings
+     *
+     * {
+     *   "transient" : {
+     *     "logger.org.elasticsearch.xpack.esql.analysis.Analyzer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.changes": "TRACE"
+     *   }
+     * }
+     * }</pre>
+     */
+    private final Logger changeLog = LogManager.getLogger(getClass().getName() + ".changes");
 
     public static class Limiter {
         public static final Limiter DEFAULT = new Limiter(100);
@@ -66,6 +85,10 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
         public String name() {
             return name;
+        }
+
+        public Batch<TreeType> with(Rule<?, TreeType>[] rules) {
+            return new Batch<>(name, limit, rules);
         }
 
         public Rule<?, TreeType>[] rules() {
@@ -170,8 +193,8 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
                     if (tf.hasChanged()) {
                         hasChanged = true;
-                        if (log.isTraceEnabled()) {
-                            log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
+                        if (changeLog.isTraceEnabled()) {
+                            changeLog.trace("Rule {} applied with change\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
                         }
                     } else {
                         if (log.isTraceEnabled()) {

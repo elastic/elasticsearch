@@ -24,9 +24,11 @@ import java.util.List;
 public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 
     private final String name;
+    private final boolean isSystemThread;
 
-    public ExecutorBuilder(String name) {
+    public ExecutorBuilder(String name, boolean isSystemThread) {
         this.name = name;
+        this.isSystemThread = isSystemThread;
     }
 
     protected String name() {
@@ -39,6 +41,8 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     protected static int applyHardSizeLimit(final Settings settings, final String name) {
         if (name.equals("bulk")
+            || name.equals(ThreadPool.Names.WRITE_COORDINATION)
+            || name.equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION)
             || name.equals(ThreadPool.Names.WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {
@@ -90,4 +94,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     }
 
+    public boolean isSystemThread() {
+        return isSystemThread;
+    }
 }

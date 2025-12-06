@@ -9,7 +9,12 @@ package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URI;
+
 public interface CohereRateLimitServiceSettings {
     RateLimitSettings rateLimitSettings();
 
+    CohereServiceSettings.CohereApiVersion apiVersion();
+
+    URI uri();
 }

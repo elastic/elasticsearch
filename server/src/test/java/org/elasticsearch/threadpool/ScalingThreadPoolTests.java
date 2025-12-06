@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.test.TestEsExecutors;
 import org.hamcrest.Matcher;
 
 import java.util.HashMap;
@@ -119,6 +120,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         sizes.put(ThreadPool.Names.SNAPSHOT_META, n -> Math.min(n * 3, 50));
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);
+        sizes.put(ThreadPool.Names.MERGE, Function.identity());
         return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 
@@ -204,7 +206,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             randomLongBetween(0, 100),
             TimeUnit.MILLISECONDS,
             rejectAfterShutdown,
-            EsExecutors.daemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
             new ThreadContext(Settings.EMPTY)
         );
         try {
@@ -307,7 +309,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             randomLongBetween(0, 100),
             TimeUnit.MILLISECONDS,
             true,
-            EsExecutors.daemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
             new ThreadContext(Settings.EMPTY)
         );
         try {

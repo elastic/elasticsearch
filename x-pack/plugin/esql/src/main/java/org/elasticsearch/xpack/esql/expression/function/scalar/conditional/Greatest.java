@@ -43,7 +43,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
         description = "Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>>\n"
             + "except it is intended to run on multiple columns at once.",
         note = "When run on `keyword` or `text` fields, this returns the last string in alphabetical order. "
@@ -104,12 +104,12 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         for (int position = 0; position < children().size(); position++) {
             Expression child = children().get(position);
             if (dataType == null || dataType == NULL) {
-                dataType = child.dataType();
+                dataType = child.dataType().noText();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
                 child,
-                t -> t == dataType,
+                t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
                 dataType.typeName()

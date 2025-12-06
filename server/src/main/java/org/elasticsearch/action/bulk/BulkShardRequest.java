@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -50,12 +51,31 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         }
     }
 
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary reshardSplitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items
+    ) {
+        this(shardId, reshardSplitShardCountSummary, refreshPolicy, items, false);
+    }
+
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        this(shardId, refreshPolicy, items, false);
+        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, false);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
-        super(shardId);
+        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, isSimulated);
+    }
+
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary reshardSplitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items,
+        boolean isSimulated
+    ) {
+        super(shardId, reshardSplitShardCountSummary);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
         this.isSimulated = isSimulated;
@@ -90,17 +110,31 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                if (((IndexRequest) request).source() != null) {
-                    totalSizeInBytes += ((IndexRequest) request).source().length();
-                }
+                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null && doc.source() != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
+                if (doc != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
                 }
             }
         }
         return totalSizeInBytes;
+    }
+
+    public long maxOperationSizeInBytes() {
+        long maxOperationSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).indexSource().byteLength());
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
+                }
+            }
+        }
+        return maxOperationSizeInBytes;
     }
 
     public BulkItemRequest[] items() {
@@ -197,6 +231,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public long largestOperationSize() {
+        long maxOperationSize = 0;
+        for (BulkItemRequest item : items) {
+            maxOperationSize = Math.max(maxOperationSize, item.ramBytesUsed());
+        }
+        return maxOperationSize;
     }
 
     public boolean isSimulated() {

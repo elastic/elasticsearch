@@ -11,6 +11,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -260,6 +261,32 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(formatter.format(instant), is("-0.12345"));
             assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
         }
+        {
+            Instant instant = Instant.from(formatter.parse("12345."));
+            assertThat(instant.getEpochSecond(), is(12L));
+            assertThat(instant.getNano(), is(345_000_000));
+            assertThat(formatter.format(instant), is("12345"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("12345.0."));
+            assertThat(e.getMessage(), is("failed to parse date field [12345.0.] with format [epoch_millis]"));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000"));
+            assertThat(instant.getEpochSecond(), is(-86400L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-86400000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000.999999"));
+            assertThat(instant.getEpochSecond(), is(-86401L));
+            assertThat(instant.getNano(), is(999000001));
+            assertThat(formatter.format(instant), is("-86400000.999999"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+
     }
 
     /**
@@ -1244,16 +1271,16 @@ public class DateFormattersTests extends ESTestCase {
         assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_millis", 19);
         assertParseException("2018-12-31T12:12:12", "strict_date_hour_minute_second_fraction", 19);
         assertParses("2018-12-31", "strict_date_optional_time");
-        assertParseException("2018-12-1", "strict_date_optional_time", 7);
-        assertParseException("2018-1-31", "strict_date_optional_time", 4);
+        assertParseException("2018-12-1", "strict_date_optional_time", 8);
+        assertParseException("2018-1-31", "strict_date_optional_time", 5);
         assertParseException("10000-01-31", "strict_date_optional_time", 4);
         assertParses("2010-01-05T02:00", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30Z", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30+0100", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30+01:00", "strict_date_optional_time");
-        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time", 16);
-        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time", 13);
+        assertParseException("2018-12-31T10:15:3", "strict_date_optional_time", 17);
+        assertParseException("2018-12-31T10:5:30", "strict_date_optional_time", 14);
         assertParseException("2018-12-31T9:15:30", "strict_date_optional_time", 11);
         assertParses("2015-01-04T00:00Z", "strict_date_optional_time");
         assertParses("2018-12-31T10:15:30.1Z", "strict_date_time");
@@ -1441,5 +1468,20 @@ public class DateFormattersTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
         assertThat(e.getCause(), instanceOf(ClassCastException.class));
         assertThat(e.getMessage(), containsString(input));
+    }
+
+    public void testXContentElasticsearchExtensionDefaultFormatter() {
+        final var formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSame(XContentElasticsearchExtension.DEFAULT_FORMATTER, formatter);
+
+        assertEquals("2025-09-12T08:12:12.123Z", formatter.format(Instant.ofEpochMilli(1757664732123L)));
+        assertEquals("2025-09-12T08:12:12.000Z", formatter.format(Instant.ofEpochMilli(1757664732000L)));
+        assertEquals("2025-09-12T08:12:00.000Z", formatter.format(Instant.ofEpochMilli(1757664720000L)));
+        assertEquals("2025-09-12T08:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757664000000L)));
+        assertEquals("2025-09-12T00:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757635200000L)));
+
+        // NB differs from Instant.toString():
+        assertEquals("2025-09-12T08:12:12.123Z", Instant.ofEpochMilli(1757664732123L).toString());
+        assertEquals("2025-09-12T08:12:00Z", Instant.ofEpochMilli(1757664720000L).toString());
     }
 }

@@ -11,17 +11,24 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 
-class BucketPriorityQueue<B extends InternalGeoGridBucket> extends ObjectArrayPriorityQueue<B> {
+import java.util.function.Function;
 
-    BucketPriorityQueue(int size, BigArrays bigArrays) {
+class BucketPriorityQueue<A, B extends InternalGeoGridBucket> extends ObjectArrayPriorityQueue<A> {
+
+    private final Function<A, B> bucketSupplier;
+
+    BucketPriorityQueue(int size, BigArrays bigArrays, Function<A, B> bucketSupplier) {
         super(size, bigArrays);
+        this.bucketSupplier = bucketSupplier;
     }
 
     @Override
-    protected boolean lessThan(InternalGeoGridBucket o1, InternalGeoGridBucket o2) {
-        int cmp = Long.compare(o2.getDocCount(), o1.getDocCount());
+    protected boolean lessThan(A o1, A o2) {
+        final B b1 = bucketSupplier.apply(o1);
+        final B b2 = bucketSupplier.apply(o2);
+        int cmp = Long.compare(b2.getDocCount(), b1.getDocCount());
         if (cmp == 0) {
-            cmp = o2.compareTo(o1);
+            cmp = b2.compareTo(b1);
             if (cmp == 0) {
                 cmp = System.identityHashCode(o2) - System.identityHashCode(o1);
             }

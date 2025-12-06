@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
+import java.io.IOException;
+
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.Matchers.containsString;
@@ -18,15 +20,19 @@ import static org.hamcrest.Matchers.containsString;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class UnregisteredSettingsIntegTests extends SecurityIntegTestCase {
 
-    public void testIncludeReservedRolesSettingNotRegistered() {
+    public void testIncludeReservedRolesSettingNotRegistered() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         final Settings.Builder builder = Settings.builder()
             .put(randomBoolean() ? masterNode() : dataOnlyNode())
             .putList("xpack.security.reserved_roles.include", "superuser");
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
-        assertThat(e.getMessage(), containsString("unknown setting [xpack.security.reserved_roles.include]"));
+        try {
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
+            assertThat(e.getMessage(), containsString("unknown setting [xpack.security.reserved_roles.include]"));
+        } finally {
+            internalCluster().close();
+        }
     }
 
     public void testSamlExcludeRolesSettingNotRegistered() throws Exception {
@@ -36,7 +42,11 @@ public class UnregisteredSettingsIntegTests extends SecurityIntegTestCase {
             .put(randomBoolean() ? masterNode() : dataOnlyNode())
             .putList("xpack.security.authc.realms.saml.saml1.exclude_roles", "superuser");
 
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
-        assertThat(e.getMessage(), containsString("unknown setting [xpack.security.authc.realms.saml.saml1.exclude_roles]"));
+        try {
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(builder));
+            assertThat(e.getMessage(), containsString("unknown setting [xpack.security.authc.realms.saml.saml1.exclude_roles]"));
+        } finally {
+            internalCluster().close();
+        }
     }
 }

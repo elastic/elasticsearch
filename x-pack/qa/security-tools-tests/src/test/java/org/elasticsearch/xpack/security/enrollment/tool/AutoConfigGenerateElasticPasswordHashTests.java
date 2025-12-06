@@ -97,18 +97,18 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
     public void testSuccessfullyGenerateAndStoreHash() throws Exception {
         execute();
         assertThat(terminal.getOutput(), hasLength(20));
-        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
+        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configDir());
         assertNotNull(keyStoreWrapper);
         keyStoreWrapper.decrypt(new char[0]);
         assertThat(keyStoreWrapper.getSettingNames(), containsInAnyOrder(AUTOCONFIG_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
     }
 
     public void testExistingKeystoreWithWrongPassword() throws Exception {
-        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
+        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configDir());
         assertNotNull(keyStoreWrapper);
         keyStoreWrapper.decrypt(new char[0]);
         // set a random password so that we fail to decrypt it in GenerateElasticPasswordHash#execute
-        keyStoreWrapper.save(env.configFile(), randomAlphaOfLength(16).toCharArray());
+        keyStoreWrapper.save(env.configDir(), randomAlphaOfLength(16).toCharArray());
         UserException e = expectThrows(UserException.class, this::execute);
         assertThat(e.getMessage(), equalTo("Failed to generate a password for the elastic user"));
         assertThat(terminal.getOutput(), is(emptyString()));

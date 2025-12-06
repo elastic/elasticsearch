@@ -1,0 +1,5 @@
+pr: 137560
+summary: More friendly exceptions for validation errors
+area: SQL
+type: bug
+issues: []

@@ -1,34 +1,44 @@
 {
-  "ilm.migrate_to_data_tiers":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-migrate-to-data-tiers.html",
-      "description": "Migrates the indices and ILM policies away from custom node attribute allocation routing to data tiers routing"
+  "ilm.migrate_to_data_tiers": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-migrate-to-data-tiers",
+      "description": "Migrate to data tiers routing"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ilm/migrate_to_data_tiers",
-          "methods":[
+          "path": "/_ilm/migrate_to_data_tiers",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
     "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
       "dry_run": {
         "type": "boolean",
+        "default": false,
         "description": "If set to true it will simulate the migration, providing a way to retrieve the ILM policies and indices that need to be migrated. The default is false"
       }
     },
-    "body":{
-      "description":"Optionally specify a legacy index template name to delete and optionally specify a node attribute name used for index shard routing (defaults to \"data\")",
-      "required":false
+    "body": {
+      "description": "Optionally specify a legacy index template name to delete and optionally specify a node attribute name used for index shard routing (defaults to \"data\")",
+      "required": false
     }
   }
 }

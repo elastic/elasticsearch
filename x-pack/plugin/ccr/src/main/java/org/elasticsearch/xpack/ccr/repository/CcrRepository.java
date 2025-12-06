@@ -19,8 +19,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -72,6 +73,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
+import org.elasticsearch.repositories.RepositoriesStats;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -85,6 +87,7 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -138,6 +141,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private static final SnapshotId SNAPSHOT_ID = new SnapshotId(LATEST, LATEST);
     private static final String IN_SYNC_ALLOCATION_ID = "ccr_restore";
 
+    private final ProjectId projectId;
     private final RepositoryMetadata metadata;
     private final CcrSettings ccrSettings;
     private final String localClusterName;
@@ -151,7 +155,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private final SingleResultDeduplicator<ClusterState> csDeduplicator;
 
-    public CcrRepository(RepositoryMetadata metadata, Client client, Settings settings, CcrSettings ccrSettings, ThreadPool threadPool) {
+    public CcrRepository(
+        ProjectId projectId,
+        RepositoryMetadata metadata,
+        Client client,
+        Settings settings,
+        CcrSettings ccrSettings,
+        ThreadPool threadPool
+    ) {
+        this.projectId = projectId;
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
         this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
@@ -165,7 +177,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             threadPool.getThreadContext(),
             l -> getRemoteClusterClient().execute(
                 ClusterStateAction.REMOTE_TYPE,
-                new ClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true),
+                new RemoteClusterStateRequest(TimeValue.MAX_VALUE).clear().metadata(true).nodes(true),
                 l.map(ClusterStateResponse::getState)
             )
         );
@@ -179,6 +191,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     protected void doClose() {}
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
 
     @Override
     public RepositoryMetadata getMetadata() {
@@ -216,8 +233,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     if (IndexVersion.current().equals(maxIndexVersion)) {
                         for (var node : response.nodes()) {
                             if (node.canContainData() && node.getMaxIndexVersion().equals(maxIndexVersion)) {
-                                // TODO: Revisit when looking into removing release version from DiscoveryNode
-                                BuildVersion remoteVersion = BuildVersion.fromVersionId(node.getVersion().id);
+                                BuildVersion remoteVersion = node.getBuildVersion();
                                 if (remoteVersion.isFutureVersion()) {
                                     throw new SnapshotException(
                                         snapshot,
@@ -233,12 +249,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     }
 
                     Metadata responseMetadata = response.metadata();
-                    Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
+                    Map<String, IndexMetadata> indicesMap = responseMetadata.getProject().indices();
                     consumer.accept(
                         new SnapshotInfo(
                             snapshot,
                             List.copyOf(indicesMap.keySet()),
-                            List.copyOf(responseMetadata.dataStreams().keySet()),
+                            List.copyOf(responseMetadata.getProject().dataStreams().keySet()),
                             List.of(),
                             maxIndexVersion,
                             SnapshotState.SUCCESS
@@ -267,7 +283,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         var remoteClient = getRemoteClusterClient();
         ClusterStateResponse clusterState = executeRecoveryAction(
@@ -295,7 +311,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         // Validates whether the leader cluster has been configured properly:
         PlainActionFuture<String[]> future = new PlainActionFuture<>();
-        IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().index(leaderIndex);
+        IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().getProject().index(leaderIndex);
         CcrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet(ccrSettings.getRecoveryActionTimeout());
 
@@ -326,11 +342,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         try {
             csDeduplicator.execute(new ThreadedActionListener<>(responseExecutor, listener.map(response -> {
                 final Metadata remoteMetadata = response.getMetadata();
-                final String[] concreteAllIndices = remoteMetadata.getConcreteAllIndices();
+                final String[] concreteAllIndices = remoteMetadata.getProject().getConcreteAllIndices();
                 final Map<String, SnapshotId> copiedSnapshotIds = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(concreteAllIndices.length);
                 final Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(concreteAllIndices.length);
-                final Map<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
+                final Map<String, IndexMetadata> remoteIndices = remoteMetadata.getProject().indices();
                 for (String indexName : concreteAllIndices) {
                     // Both the Snapshot name and UUID are set to _latest_
                     final SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
@@ -373,16 +389,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Runnable onCompletion
     ) {
         repositoryDataUpdateListener.onFailure(new UnsupportedOperationException("Unsupported for repository of type: " + TYPE));
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        return throttledTime.count();
     }
 
     @Override
@@ -603,6 +609,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void awaitIdle() {}
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        return new RepositoriesStats.SnapshotStats(throttledTime.count(), 0);
+    }
 
     private void updateMappings(
         RemoteClusterClient leaderClient,

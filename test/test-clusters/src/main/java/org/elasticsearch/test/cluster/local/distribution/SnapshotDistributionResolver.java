@@ -38,7 +38,8 @@ public class SnapshotDistributionResolver implements DistributionResolver {
             }
 
             // Snapshot distributions are never release builds and always use the default distribution
-            return new DefaultDistributionDescriptor(version, true, distributionDir, DistributionType.DEFAULT);
+            boolean isSnapshot = System.getProperty("tests.bwc.snapshot", "true").equals("false") == false;
+            return new DefaultDistributionDescriptor(version, isSnapshot, distributionDir, DistributionType.DEFAULT);
         }
 
         return delegate.resolve(version, type);

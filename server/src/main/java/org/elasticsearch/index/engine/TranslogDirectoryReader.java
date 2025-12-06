@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
@@ -39,6 +40,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -46,6 +48,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
@@ -76,31 +81,56 @@ import java.util.concurrent.atomic.AtomicReference;
  * into an in-memory Lucene segment that is created on-demand.
  */
 final class TranslogDirectoryReader extends DirectoryReader {
-    private final TranslogLeafReader leafReader;
+    private final LeafReader leafReader;
 
-    TranslogDirectoryReader(
+    static DirectoryReader create(
         ShardId shardId,
         Translog.Index operation,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
         EngineConfig engineConfig,
-        Runnable onSegmentCreated
+        Runnable onSegmentCreated,
+        boolean forceSynthetic
     ) throws IOException {
-        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, engineConfig, onSegmentCreated));
+        final Directory directory = new ByteBuffersDirectory();
+        boolean success = false;
+        try {
+            final LeafReader leafReader;
+            // When using synthetic source, the translog operation must always be reindexed into an in-memory Lucene to ensure consistent
+            // output for realtime-get operations. However, this can degrade the performance of realtime-get and update operations.
+            // If slight inconsistencies in realtime-get operations are acceptable, the translog operation can be reindexed lazily.
+            if (mappingLookup.isSourceSynthetic() || forceSynthetic) {
+                onSegmentCreated.run();
+                leafReader = createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, false, operation);
+            } else {
+                leafReader = new TranslogLeafReader(
+                    shardId,
+                    operation,
+                    mappingLookup,
+                    documentParser,
+                    engineConfig,
+                    directory,
+                    onSegmentCreated
+                );
+            }
+            var directoryReader = ElasticsearchDirectoryReader.wrap(new TranslogDirectoryReader(directory, leafReader), shardId);
+            success = true;
+            return directoryReader;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(directory);
+            }
+        }
     }
 
-    private TranslogDirectoryReader(TranslogLeafReader leafReader) throws IOException {
-        super(leafReader.directory, new LeafReader[] { leafReader }, null);
+    private TranslogDirectoryReader(Directory directory, LeafReader leafReader) throws IOException {
+        super(directory, new LeafReader[] { leafReader }, null);
         this.leafReader = leafReader;
     }
 
     private static UnsupportedOperationException unsupported() {
         assert false : "unsupported operation";
         return new UnsupportedOperationException();
-    }
-
-    public TranslogLeafReader getLeafReader() {
-        return leafReader;
     }
 
     @Override
@@ -141,6 +171,82 @@ final class TranslogDirectoryReader extends DirectoryReader {
     @Override
     public CacheHelper getReaderCacheHelper() {
         return leafReader.getReaderCacheHelper();
+    }
+
+    private static LeafReader createInMemoryReader(
+        ShardId shardId,
+        EngineConfig engineConfig,
+        Directory directory,
+        DocumentParser documentParser,
+        MappingLookup mappingLookup,
+        boolean rootDocOnly,
+        Translog.Index operation
+    ) {
+        final String id = Uid.decodeId(operation.uid());
+        final ParsedDocument parsedDocs = documentParser.parseDocument(
+            new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
+            mappingLookup
+        );
+
+        parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
+        parsedDocs.version().setLongValue(operation.version());
+        // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
+        final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
+            IndexWriterConfig.OpenMode.CREATE
+        ).setCodec(engineConfig.getCodec());
+        try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
+            final int numDocs;
+            if (rootDocOnly) {
+                numDocs = 1;
+                writer.addDocument(parsedDocs.rootDoc());
+            } else {
+                numDocs = parsedDocs.docs().size();
+                writer.addDocuments(parsedDocs.docs());
+            }
+            final DirectoryReader reader = open(writer);
+            if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != numDocs) {
+                reader.close();
+                throw new IllegalStateException(
+                    "Expected a single segment with "
+                        + numDocs
+                        + " documents, "
+                        + "but ["
+                        + reader.leaves().size()
+                        + " segments with "
+                        + reader.leaves().get(0).reader().numDocs()
+                        + " documents"
+                );
+            }
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            return new SequentialStoredFieldsLeafReader(leafReader) {
+                @Override
+                protected void doClose() throws IOException {
+                    IOUtils.close(super::doClose, directory);
+                }
+
+                @Override
+                public CacheHelper getCoreCacheHelper() {
+                    return leafReader.getCoreCacheHelper();
+                }
+
+                @Override
+                public CacheHelper getReaderCacheHelper() {
+                    return leafReader.getReaderCacheHelper();
+                }
+
+                @Override
+                public StoredFieldsReader getSequentialStoredFieldsReader() {
+                    return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
+                }
+
+                @Override
+                protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                    return reader;
+                }
+            };
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to create an in-memory segment for get [" + id + "]", e);
+        }
     }
 
     private static class TranslogLeafReader extends LeafReader {
@@ -224,6 +330,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             MappingLookup mappingLookup,
             DocumentParser documentParser,
             EngineConfig engineConfig,
+            Directory directory,
             Runnable onSegmentCreated
         ) {
             this.shardId = shardId;
@@ -232,8 +339,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
             this.documentParser = documentParser;
             this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
-            this.directory = new ByteBuffersDirectory();
-            this.uid = Uid.encodeId(operation.id());
+            this.directory = directory;
+            this.uid = operation.uid();
         }
 
         private LeafReader getDelegate() {
@@ -244,7 +351,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
                     ensureOpen();
                     reader = delegate.get();
                     if (reader == null) {
-                        reader = createInMemoryLeafReader();
+                        var indexReader = createInMemoryReader(
+                            shardId,
+                            engineConfig,
+                            directory,
+                            documentParser,
+                            mappingLookup,
+                            true,
+                            operation
+                        );
+                        reader = indexReader.leaves().get(0).reader();
                         final LeafReader existing = delegate.getAndSet(reader);
                         assert existing == null;
                         onSegmentCreated.run();
@@ -252,39 +368,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 }
             }
             return reader;
-        }
-
-        private LeafReader createInMemoryLeafReader() {
-            assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = documentParser.parseDocument(
-                new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
-                mappingLookup
-            );
-
-            parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
-            parsedDocs.version().setLongValue(operation.version());
-            // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
-            final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
-                IndexWriterConfig.OpenMode.CREATE
-            ).setCodec(engineConfig.getCodec());
-            try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
-                writer.addDocument(parsedDocs.rootDoc());
-                final DirectoryReader reader = open(writer);
-                if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != 1) {
-                    reader.close();
-                    throw new IllegalStateException(
-                        "Expected a single document segment; "
-                            + "but ["
-                            + reader.leaves().size()
-                            + " segments with "
-                            + reader.leaves().get(0).reader().numDocs()
-                            + " documents"
-                    );
-                }
-                return reader.leaves().get(0).reader();
-            } catch (IOException e) {
-                throw new EngineException(shardId, "failed to create an in-memory segment for get [" + operation.id() + "]", e);
-            }
         }
 
         @Override
@@ -366,12 +449,12 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
         }
 
@@ -440,7 +523,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
                 SourceFieldMapper mapper = mappingLookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
                 if (mapper != null) {
                     try {
-                        sourceBytes = mapper.applyFilters(sourceBytes, null);
+                        sourceBytes = mapper.applyFilters(mappingLookup, sourceBytes, null, true);
                     } catch (IOException e) {
                         throw new IOException("Failed to reapply filters after reading from translog", e);
                     }
@@ -461,7 +544,12 @@ final class TranslogDirectoryReader extends DirectoryReader {
 
         @Override
         protected synchronized void doClose() throws IOException {
-            IOUtils.close(delegate.get(), directory);
+            final LeafReader leaf = delegate.get();
+            if (leaf != null) {
+                leaf.close();
+            } else {
+                directory.close();
+            }
         }
     }
 

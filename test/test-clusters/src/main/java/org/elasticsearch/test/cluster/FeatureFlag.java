@@ -17,11 +17,18 @@ import org.elasticsearch.test.cluster.util.Version;
  */
 public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
-    FAILURE_STORE_ENABLED("es.failure_store_feature_flag_enabled=true", Version.fromString("8.12.0"), null),
-    SUB_OBJECTS_AUTO_ENABLED("es.sub_objects_auto_feature_flag_enabled=true", Version.fromString("8.16.0"), null),
-    CHUNKING_SETTINGS_ENABLED("es.inference_chunking_settings_feature_flag_enabled=true", Version.fromString("8.16.0"), null),
-    INFERENCE_DEFAULT_ELSER("es.inference_default_elser_feature_flag_enabled=true", Version.fromString("8.16.0"), null),
-    ML_SCALE_FROM_ZERO("es.ml_scale_from_zero_feature_flag_enabled=true", Version.fromString("8.16.0"), null);
+    DOC_VALUES_SKIPPER("es.doc_values_skipper_feature_flag_enabled=true", Version.fromString("8.18.1"), null),
+    LOGS_STREAM("es.logs_stream_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
+    SYNTHETIC_VECTORS("es.mapping_synthetic_vectors=true", Version.fromString("9.2.0"), null),
+    INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG(
+        "es.index_dimensions_tsid_optimization_feature_flag_enabled=true",
+        Version.fromString("9.2.0"),
+        null
+    ),
+    RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
+    INFERENCE_API_CCM("es.inference_api_ccm_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    TSDB_SYNTHETIC_ID_FEATURE_FLAG("es.tsdb_synthetic_id_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    GPU_FORMAT("es.gpu_vectors_indexing_feature_flag_enabled=true", Version.fromString("9.2.0"), null);
 
     public final String systemProperty;
     public final Version from;

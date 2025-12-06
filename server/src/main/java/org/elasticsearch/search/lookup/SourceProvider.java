@@ -10,10 +10,8 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
-import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
 
@@ -28,27 +26,27 @@ public interface SourceProvider {
     Source getSource(LeafReaderContext ctx, int doc) throws IOException;
 
     /**
-     * A SourceProvider that loads source from stored fields
+     * A SourceProvider that delegate loading source to the provided {@link MappingLookup}.
      *
      * The returned SourceProvider is thread-safe across segments, in that it may be
      * safely used by a searcher that searches different segments on different threads,
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromStoredFields() {
-        StoredFieldLoader storedFieldLoader = StoredFieldLoader.sequentialSource();
-        return new StoredFieldSourceProvider(storedFieldLoader);
+    static SourceProvider fromLookup(MappingLookup lookup, SourceFilter filter, SourceFieldMetrics metrics) {
+        return new ConcurrentSegmentSourceProvider(lookup, filter, metrics);
     }
 
     /**
-     * A SourceProvider that loads source from synthetic source
+     * Optionally returns a new {@link SourceProvider} that is more optimized to load source with the provided source filter in mind.
+     * <p>
+     * Currently this is only the case if source mode is synthetic, and only a subset of fields is requested,
+     * then only loading source for requested fields is much more efficient.
      *
-     * The returned SourceProvider is thread-safe across segments, in that it may be
-     * safely used by a searcher that searches different segments on different threads,
-     * but it is not safe to use this to access documents from the same segment across
-     * multiple threads.
+     * @param sourceFilter The part of the source the caller is actually interested in.
+     * @return a new instance if source can be loaded in a more optimal way, otherwise returns this instance.
      */
-    static SourceProvider fromSyntheticSource(Mapping mapping, SourceFieldMetrics metrics) {
-        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics));
+    default SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
+        return this;
     }
 }

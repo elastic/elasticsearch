@@ -12,7 +12,7 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.transport.TcpServerChannel;
 
 import java.net.InetSocketAddress;
@@ -22,7 +22,7 @@ import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
 public class Netty4TcpServerChannel implements TcpServerChannel {
 
     private final Channel channel;
-    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+    private final SubscribableListener<Void> closeContext = new SubscribableListener<>();
 
     Netty4TcpServerChannel(Channel channel) {
         this.channel = channel;

@@ -50,7 +50,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
             return YES_SIMULATING;
         }
 
-        final int maxRetries = SETTING_ALLOCATION_MAX_RETRY.get(allocation.metadata().getIndexSafe(shardRouting.index()).getSettings());
+        final int maxRetries = SETTING_ALLOCATION_MAX_RETRY.get(allocation.metadata().indexMetadata(shardRouting.index()).getSettings());
         final var unassignedInfo = shardRouting.unassignedInfo();
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.failedAllocations();
         if (numFailedAllocations > 0) {

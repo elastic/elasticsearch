@@ -14,7 +14,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -68,11 +67,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         this.randomUID = in.readLong();
         this.failure = in.readException();
         this.shardId = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            this.index = in.readOptionalString();
-        } else {
-            this.index = null;
-        }
+        this.index = in.readOptionalString();
     }
 
     @Override
@@ -80,9 +75,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         out.writeLong(randomUID);
         out.writeException(failure);
         out.writeVInt(shardId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeOptionalString(index);
-        }
+        out.writeOptionalString(index);
     }
 
     @Override
@@ -142,6 +135,6 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -28,7 +28,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class);
     }
 
     public void testCreateIndexWithSemanticTextField() {
@@ -58,7 +58,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        assertEquals(resultingState.metadata().index("test").getInferenceFields().get("field").getInferenceId(), "test_model");
+        assertEquals(resultingState.metadata().getProject().index("test").getInferenceFields().get("field").getInferenceId(), "test_model");
     }
 
     public void testCopyToSemanticTextField() throws Exception {
@@ -96,7 +96,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        IndexMetadata indexMetadata = resultingState.metadata().index("test");
+        IndexMetadata indexMetadata = resultingState.metadata().getProject().index("test");
         InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get("semantic");
         assertThat(inferenceFieldMetadata.getInferenceId(), equalTo("test_model"));
         assertThat(

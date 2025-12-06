@@ -44,16 +44,6 @@ public abstract class FilterRestHandler implements RestHandler {
     }
 
     @Override
-    public boolean allowsUnsafeBuffers() {
-        return delegate.allowsUnsafeBuffers();
-    }
-
-    @Override
-    public boolean supportsBulkContent() {
-        return delegate.supportsBulkContent();
-    }
-
-    @Override
     public boolean mediaTypesValid(RestRequest request) {
         return delegate.mediaTypesValid(request);
     }

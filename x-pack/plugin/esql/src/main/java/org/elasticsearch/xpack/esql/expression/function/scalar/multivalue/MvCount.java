@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
@@ -24,7 +25,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -50,6 +52,9 @@ public class MvCount extends AbstractMultivalueFunction {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -74,7 +79,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), DataType::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override
@@ -110,6 +115,8 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     private static class Evaluator extends AbstractEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
+
         protected Evaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
             super(driverContext, field);
         }
@@ -152,6 +159,11 @@ public class MvCount extends AbstractMultivalueFunction {
         @Override
         protected Block evalSingleValuedNotNullable(Block ref) {
             return driverContext.blockFactory().newConstantIntBlockWith(1, ref.getPositionCount());
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
         }
     }
 }

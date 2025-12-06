@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.rollup.action;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
@@ -35,8 +34,8 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
                     }
                 }
                 """;
-            var metadata = createMetadata(mappings);
-            assertTrue(TransportPutRollupJobAction.hasRollupIndices(metadata));
+            var project = createProject(mappings);
+            assertTrue(TransportPutRollupJobAction.hasRollupIndices(project));
         }
         {
             String mappings = """
@@ -55,8 +54,8 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
                     }
                 }
                 """;
-            var metadata = createMetadata(mappings);
-            assertTrue(TransportPutRollupJobAction.hasRollupIndices(metadata));
+            var project = createProject(mappings);
+            assertTrue(TransportPutRollupJobAction.hasRollupIndices(project));
         }
         {
             String mappings = """
@@ -76,8 +75,8 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
                     }
                 }
                 """;
-            var metadata = createMetadata(mappings);
-            assertTrue(TransportPutRollupJobAction.hasRollupIndices(metadata));
+            var project = createProject(mappings);
+            assertTrue(TransportPutRollupJobAction.hasRollupIndices(project));
         }
         {
             String mappings = """
@@ -91,8 +90,8 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
                     }
                 }
                 """;
-            var metadata = createMetadata(mappings);
-            assertFalse(TransportPutRollupJobAction.hasRollupIndices(metadata));
+            var project = createProject(mappings);
+            assertFalse(TransportPutRollupJobAction.hasRollupIndices(project));
         }
         {
             String mappings = """
@@ -101,8 +100,8 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
                     }
                 }
                 """;
-            var metadata = createMetadata(mappings);
-            assertFalse(TransportPutRollupJobAction.hasRollupIndices(metadata));
+            var project = createProject(mappings);
+            assertFalse(TransportPutRollupJobAction.hasRollupIndices(project));
         }
         {
             String mappings = """
@@ -119,17 +118,15 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
                     }
                 }
                 """;
-            var metadata = createMetadata(mappings);
-            assertFalse(TransportPutRollupJobAction.hasRollupIndices(metadata));
+            var project = createProject(mappings);
+            assertFalse(TransportPutRollupJobAction.hasRollupIndices(project));
         }
     }
 
-    private static Metadata createMetadata(String mappings) {
-        Settings.Builder b = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
-        var metadata = Metadata.builder()
-            .put(IndexMetadata.builder("my-rollup-index").settings(b).numberOfShards(1).numberOfReplicas(0).putMapping(mappings))
+    private static ProjectMetadata createProject(String mappings) {
+        return ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder("my-rollup-index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(mappings))
             .build();
-        return metadata;
     }
 
 }

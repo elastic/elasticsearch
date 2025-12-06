@@ -13,15 +13,16 @@ import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 
+import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
-import org.gradle.plugins.ide.eclipse.model.ProjectDependency
-import org.elasticsearch.gradle.DistributionDownloadPlugin
 
+import groovy.xml.XmlParser;
+import groovy.xml.XmlNodePrinter;
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -29,10 +30,6 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 buildscript {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-
     mavenCentral()
   }
 }
@@ -40,11 +37,11 @@ buildscript {
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.jdk-download'
   id 'elasticsearch.global-build-info'
   id 'elasticsearch.build-complete'
   id 'elasticsearch.build-scan'
-  id 'elasticsearch.jdk-download'
-  id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
@@ -53,8 +50,34 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.run-ccs'
+  id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'com.gradleup.nmcp.aggregation'
+}
+
+version = VersionProperties.elasticsearch
+
+/**
+ * Here we package and aggregation zip file containing all maven artifacts we want to
+ * publish to maven central.
+ * The aggregation is done by picking all projects that have the elasticsearch.publish plugin applied,
+ * indicating the artifact is meant for beeing published to maven central.
+ * */
+nmcpAggregation {
+  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+tasks.named('zipAggregation').configure {
+  // put this in a place that works well with our DRA infrastructure
+  archiveFileName.unset();
+  archiveBaseName.set("elasticsearch-maven-aggregation")
+  archiveVersion.set(VersionProperties.elasticsearch)
+  destinationDirectory.set(layout.buildDirectory.dir("distributions"));
+
+  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
+  from(zipTree("build-tools/build/nmcp/zip/publicationElastic.zip"))
 }
 
 /**
@@ -72,7 +95,7 @@ plugins {
 ext.testArtifact = { p, String name = "test" ->
   def projectDependency = p.dependencies.create(p)
   projectDependency.capabilities {
-    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
+    requireCapabilities("${p.group}:${projectDependency.name}-${name}-artifacts")
   };
 }
 
@@ -89,7 +112,7 @@ class ListExpansion {
 
 // Filters out intermediate patch releases to reduce the load of CI testing
 def filterIntermediatePatches = { List<Version> versions ->
-  versions.groupBy {"${it.major}.${it.minor}"}.values().collect {it.max()}
+  versions.groupBy { "${it.major}.${it.minor}" }.values().collect { it.max() }
 }
 
 tasks.register("updateCIBwcVersions") {
@@ -101,7 +124,10 @@ tasks.register("updateCIBwcVersions") {
     }
   }
 
-  def writeBuildkitePipeline = { String outputFilePath, String pipelineTemplatePath, List<ListExpansion> listExpansions, List<StepExpansion> stepExpansions = [] ->
+  def writeBuildkitePipeline = { String outputFilePath,
+                                 String pipelineTemplatePath,
+                                 List<ListExpansion> listExpansions,
+                                 List<StepExpansion> stepExpansions = [] ->
     def outputFile = file(outputFilePath)
     def pipelineTemplate = file(pipelineTemplatePath)
 
@@ -123,34 +149,65 @@ tasks.register("updateCIBwcVersions") {
     outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipeline
   }
 
-  // Writes a Buildkite pipelime from a template, and replaces $BWC_LIST with an array of versions
+  // Writes a Buildkite pipelime from a template, and replaces a variable with an array of versions
   // Useful for writing a list of versions in a matrix configuration
-  def expandBwcList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
-    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: "BWC_LIST")])
+  def expandList = { String outputFilePath, String pipelineTemplatePath, String variable, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: variable)])
   }
 
   // Writes a Buildkite pipeline from a template, and replaces $BWC_STEPS with a list of steps, one for each version
   // Useful when you need to configure more versions than are allowed in a matrix configuration
   def expandBwcSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
-    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [], [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")])
+    writeBuildkitePipeline(
+      outputFilePath,
+      pipelineTemplatePath,
+      [],
+      [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")]
+    )
   }
 
   doLast {
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
-    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
-    expandBwcList(
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
+    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible))
+    expandList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",
-      filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible)
+      "BWC_LIST",
+      filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible)
+    )
+    expandList(
+      ".buildkite/pipelines/periodic-fwc.yml",
+      ".buildkite/pipelines/periodic-fwc.template.yml",
+      "FWC_LIST",
+      buildParams.bwcVersions.released.findAll { it.major == VersionProperties.elasticsearchVersion.major && it.minor == VersionProperties.elasticsearchVersion.minor }
     )
     writeBuildkitePipeline(
       ".buildkite/pipelines/periodic.yml",
       ".buildkite/pipelines/periodic.template.yml",
       [
-        new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+        new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
       ],
       [
-        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible), variable: "BWC_STEPS"),
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic.bwc.template.yml",
+          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
+      ]
+    )
+
+    writeBuildkitePipeline(
+      ".buildkite/pipelines/periodic-java-ea.yml",
+      ".buildkite/pipelines/periodic-java-ea.template.yml",
+      [
+        new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic-java-ea.bwc.template.yml",
+          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
       ]
     )
 
@@ -158,7 +215,7 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
-      filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible)
+      filterIntermediatePatches(buildParams.bwcVersions.indexCompatible)
     )
   }
 }
@@ -180,19 +237,19 @@ tasks.register("verifyVersions") {
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      BuildParams.bwcVersions.compareToAuthoritative(
+      buildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
-    verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
+    verifyCiYaml(file(".ci/snapshotBwcVersions"), buildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date
     JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))
-    BuildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
+    buildParams.bwcVersions.forPreviousUnreleased { unreleasedVersion ->
       boolean valid = backportConfig.get("targetBranchChoices").elements().any { branchChoice ->
         if (branchChoice.isObject()) {
           return branchChoice.get("name").textValue() == unreleasedVersion.branch
@@ -215,25 +272,27 @@ tasks.register("verifyVersions") {
   }
 }
 
-/*
- * When adding backcompat behavior that spans major versions, temporarily
- * disabling the backcompat tests is necessary. This flag controls
- * the enabled state of every bwc task. It should be set back to true
- * after the backport of the backcompat code is complete.
- */
-
-boolean bwc_tests_enabled = true
-// place a PR link here when committing bwc changes:
-String bwc_tests_disabled_issue = ""
-if (bwc_tests_enabled == false) {
-  if (bwc_tests_disabled_issue.isEmpty()) {
-    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
+def generateUpgradeCompatibilityFile = tasks.register("generateUpgradeCompatibilityFile") {
+  def outputFile = project.layout.buildDirectory.file("rolling-upgrade-compatible-${VersionProperties.elasticsearch}.json")
+  def rollingUpgradeCompatibleVersions = buildParams.bwcVersions.wireCompatible - VersionProperties.elasticsearchVersion
+  inputs.property("rollingUpgradeCompatibleVersions", rollingUpgradeCompatibleVersions)
+  outputs.file(outputFile)
+  doLast {
+    def versionsString = rollingUpgradeCompatibleVersions.collect { "\"${it.toString()}\"" }.join(', ')
+    outputFile.get().asFile.write("""{"rolling_upgrade_compatible_versions" : [${versionsString}]}""")
   }
-  println "========================= WARNING ========================="
-  println "         Backwards compatibility tests are disabled!"
-  println "See ${bwc_tests_disabled_issue}"
-  println "==========================================================="
 }
+
+def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
+  archiveFile.set(project.layout.buildDirectory.file("distributions/rolling-upgrade-compatible-${VersionProperties.elasticsearch}.zip"))
+  from(generateUpgradeCompatibilityFile)
+}
+
+// TODO: This flag existed as a mechanism to disable bwc tests during a backport. It is no
+// longer used for that purpose, but instead a way to run only functional tests. We should
+// rework the functionalTests task to be more explicit about which tasks it wants to run
+// so that that this flag is no longer needed.
+boolean bwc_tests_enabled = true
 if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
   // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
   bwc_tests_enabled = false
@@ -253,15 +312,6 @@ allprojects {
       compileOnly project(":server")
       testImplementation project(":test:framework")
     }
-  }
-
-  // injecting groovy property variables into all projects
-  project.ext {
-    // for ide hacks...
-    isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
-      providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
-      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-      gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 
   ext.bwc_tests_enabled = bwc_tests_enabled
@@ -288,32 +338,79 @@ allprojects {
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
     configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    resolveJavaToolChain = true
+
+    if (project.path == ':') {
+      resolveJavaToolChain = true
+    }
+    // ensure we have best possible caching of bwc builds
+    if(project.path.startsWith(":distribution:bwc:")) {
+      dependsOn project.tasks.matching { it.name == 'buildBwcLinuxTar' }
+    }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
     if (project.path.contains(":distribution:docker")) {
       enabled = false
     }
+    if (project.path.contains(":libs:cli")) {
+      // ensure we resolve p2 dependencies for the spotless eclipse formatter
+      dependsOn "spotlessJavaCheck"
+    }
 
+  }
+
+  ext.withReleaseBuild = { Closure config ->
+    if (buildParams.snapshotBuild == false) {
+      config.call()
+    }
+  }
+
+  def splitForCI = { proj, partString ->
+    proj.tasks.register("check$partString") {
+      dependsOn 'check'
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
+
+    proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
+      if(name.endsWith("#bwcTest$partString")) {
+        proj.project.getTasks().register(name) {
+          task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
+        }
+      }
+    }
+
+    proj.tasks.register("bcUpgradeTest$partString") {
+      dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
   }
 
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
-        tasks.register('checkPart4') { dependsOn 'check' }
-      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
-        tasks.register('checkPart3') { dependsOn 'check' }
+        splitForCI(project, "Part4")
+      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
+        splitForCI(project, "Part3")
       } else if (project.path.contains("multi-node")) {
-        tasks.register('checkPart5') { dependsOn 'check' }
+        splitForCI(project, "Part5")
       } else {
-        tasks.register('checkPart2') { dependsOn 'check' }
+        splitForCI(project, "Part2")
       }
+    } else if(project.path.startsWith(":qa:")) {
+      splitForCI(project, "Part6")
     } else {
-      tasks.register('checkPart1') { dependsOn 'check' }
+      splitForCI(project, "Part1")
     }
-
-    tasks.register('functionalTests') { dependsOn 'check' }
+    tasks.register('functionalTests') {
+      dependsOn 'check'
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
   }
 
   /*
@@ -359,6 +456,38 @@ allprojects {
   apply plugin: 'elasticsearch.formatting'
 }
 
+tasks.named("updateDaemonJvm") {
+  def myPlatforms = [
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.MAC_OS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.LINUX
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.LINUX
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    // anyone still using x86 osx?
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.MAC_OS
+    )
+  ]
+  toolchainPlatforms.set(myPlatforms)
+  languageVersion = JavaLanguageVersion.of(21)
+  vendor = JvmVendorSpec.ADOPTIUM
+}
 
 tasks.register("verifyBwcTestsEnabled") {
   doLast {
@@ -369,24 +498,24 @@ tasks.register("verifyBwcTestsEnabled") {
 }
 
 tasks.register("branchConsistency") {
-  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
-  group 'Verification'
+  description = 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  group = 'Verification'
   dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 tasks.named("wrapper").configure {
   distributionType = 'ALL'
+  def minimumGradleVersionFile = project.file('build-tools-internal/src/main/resources/minimumGradleVersion')
   doLast {
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
     def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
-    Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
+    Files.copy(getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
     // copy wrapper properties file to plugins/examples to allow seamless idea integration
     def examplePluginsWrapperProperties = new File("plugins/examples/gradle/wrapper/gradle-wrapper.properties")
-    Files.copy(wrapper.getPropertiesFile().toPath(), examplePluginsWrapperProperties.toPath(), REPLACE_EXISTING)
-
+    Files.copy(getPropertiesFile().toPath(), examplePluginsWrapperProperties.toPath(), REPLACE_EXISTING)
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project.file('build-tools-internal/src/main/resources/minimumGradleVersion').text = gradleVersion
+    minimumGradleVersionFile.text = gradleVersion
     println "Updated minimum Gradle Version"
   }
 }
@@ -406,6 +535,13 @@ gradle.projectsEvaluated {
           "https://github.com/gradle/gradle/issues/847"
       )
     }
+  }
+}
+
+tasks.named("validateChangelogs").configure {
+  def triggeredTaskNames = gradle.startParameter.taskNames
+  onlyIf {
+    triggeredTaskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false
   }
 }
 
@@ -447,6 +583,7 @@ tasks.register("buildReleaseArtifacts").configure {
   }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }
+  dependsOn upgradeCompatibilityZip
 }
 
 tasks.register("spotlessApply").configure {

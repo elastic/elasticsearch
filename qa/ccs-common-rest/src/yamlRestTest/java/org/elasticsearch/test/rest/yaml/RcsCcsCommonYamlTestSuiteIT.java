@@ -30,7 +30,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
@@ -45,8 +44,8 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -64,7 +63,7 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
  * using the client running against the "write" cluster.
  *
  */
-@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 25 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(RcsCcsCommonYamlTestSuiteIT.class);
@@ -75,6 +74,11 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     // the remote cluster is the one we write index operations etc... to
     private static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicBoolean isRemoteConfigured = new AtomicBoolean(false);
+    private static final AtomicBoolean isCombinedComputed = new AtomicBoolean(false);
+    private static final AtomicReference<TestFeatureService> combinedTestFeatureServiceRef = new AtomicReference<>();
+    private static final AtomicReference<Set<String>> combinedOsSetRef = new AtomicReference<>();
+    private static final AtomicReference<Set<String>> combinedNodeVersionsRef = new AtomicReference<>();
 
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
@@ -91,7 +95,8 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_server.ssl.enabled", "false")
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
@@ -214,7 +219,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                         basicAuthHeaderValue("remote_search_user", new SecureString("x-pack-test-password".toCharArray()))
                     )
                     .build(),
-                clusterHosts.toArray(new HttpHost[clusterHosts.size()])
+                clusterHosts.toArray(new HttpHost[0])
             );
             adminSearchClient = buildClient(
                 Settings.builder()
@@ -223,13 +228,18 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                         basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
                     )
                     .build(),
-                clusterHosts.toArray(new HttpHost[clusterHosts.size()])
+                clusterHosts.toArray(new HttpHost[0])
             );
 
             searchYamlTestClient = new TestCandidateAwareClient(getRestSpec(), searchClient, hosts, this::getClientBuilderWithSniffedHosts);
+        }
 
+        assert searchClient != null;
+        assert adminSearchClient != null;
+        assert clusterHosts != null;
+
+        if (isRemoteConfigured.compareAndSet(false, true)) {
             configureRemoteCluster();
-            // check that we have an established CCS connection
             Request request = new Request("GET", "_remote/info");
             Response response = adminSearchClient.performRequest(request);
             assertOK(response);
@@ -238,11 +248,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             assertEquals("::es_redacted::", responseObject.evaluate(REMOTE_CLUSTER_NAME + ".cluster_credentials"));
             logger.info("Established connection to remote cluster [" + REMOTE_CLUSTER_NAME + "]");
         }
-
-        assert searchClient != null;
-        assert adminSearchClient != null;
-        assert clusterHosts != null;
-
         searchYamlTestClient.setTestCandidate(getTestCandidate());
     }
 
@@ -285,42 +290,42 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             // Ensure the test specific initialization is run by calling it explicitly (@Before annotations on base-derived class may
             // be called in a different order)
             initSearchClient();
-            // Reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
-            var searchOs = readOsFromNodesInfo(adminSearchClient);
-            var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
-            var semanticNodeVersions = searchNodeVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-            final TestFeatureService searchTestFeatureService = createTestFeatureService(
-                getClusterStateFeatures(adminSearchClient),
-                semanticNodeVersions
-            );
-            final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
-                boolean adminFeature = testFeatureService.clusterHasFeature(featureId, any);
-                boolean searchFeature = searchTestFeatureService.clusterHasFeature(featureId, any);
-                return any ? adminFeature || searchFeature : adminFeature && searchFeature;
-            };
 
-            final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
-            final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
-                .collect(Collectors.toSet());
+            // Compute & cache combined features/OS/versions
+            if (isCombinedComputed.compareAndSet(false, true)) {
+                var searchOs = readOsFromNodesInfo(adminSearchClient);
+                var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
+
+                final TestFeatureService searchTestFeatureService = createTestFeatureService(
+                    getClusterStateFeatures(adminSearchClient),
+                    fromSemanticVersions(searchNodeVersions)
+                );
+
+                final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
+                    boolean adminFeature = testFeatureService.clusterHasFeature(featureId, any);
+                    boolean searchFeature = searchTestFeatureService.clusterHasFeature(featureId, any);
+                    return any ? (adminFeature || searchFeature) : (adminFeature && searchFeature);
+                };
+                final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
+                final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
+                    .collect(Collectors.toSet());
+
+                combinedTestFeatureServiceRef.set(combinedTestFeatureService);
+                combinedOsSetRef.set(combinedOsSet);
+                combinedNodeVersionsRef.set(combinedNodeVersions);
+            }
 
             return new ClientYamlTestExecutionContext(
                 clientYamlTestCandidate,
                 clientYamlTestClient,
                 randomizeContentType(),
-                combinedNodeVersions,
-                combinedTestFeatureService,
-                combinedOsSet
+                combinedNodeVersionsRef.get(),
+                combinedTestFeatureServiceRef.get(),
+                combinedOsSetRef.get()
             ) {
                 // depending on the API called, we either return the client running against the "write" or the "search" cluster here
                 protected ClientYamlTestClient clientYamlTestClient(String apiName) {
-                    if (CCS_APIS.contains(apiName)) {
-                        return searchYamlTestClient;
-                    } else {
-                        return super.clientYamlTestClient(apiName);
-                    }
+                    return CCS_APIS.contains(apiName) ? searchYamlTestClient : super.clientYamlTestClient(apiName);
                 }
             };
         } catch (IOException e) {

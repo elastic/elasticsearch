@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -41,6 +42,10 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
     long appliedOperations() {
         return appliedOperations.get();
+    }
+
+    public TranslogHandler(MapperService mapperService) {
+        this.mapperService = mapperService;
     }
 
     public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
@@ -93,7 +98,12 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
+                    new SourceToParse(
+                        Uid.decodeId(index.uid()),
+                        index.source(),
+                        XContentHelper.xContentType(index.source()),
+                        index.routing()
+                    ),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),
@@ -110,7 +120,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
                 return IndexShard.prepareDelete(
-                    delete.id(),
+                    Uid.decodeId(delete.uid()),
                     delete.seqNo(),
                     delete.primaryTerm(),
                     delete.version(),

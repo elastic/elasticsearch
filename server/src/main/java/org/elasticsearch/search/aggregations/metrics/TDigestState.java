@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +41,7 @@ public class TDigestState implements Releasable, Accountable {
     private final TDigest tdigest;
 
     // Supported tdigest types.
-    protected enum Type {
+    public enum Type {
         HYBRID,
         AVL_TREE,
         MERGING,
@@ -84,7 +83,7 @@ public class TDigestState implements Releasable, Accountable {
         }
     }
 
-    static TDigestState createOfType(CircuitBreaker breaker, Type type, double compression) {
+    public static TDigestState createOfType(CircuitBreaker breaker, Type type, double compression) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-create-with-type");
         try {
             return new TDigestState(breaker, type, compression);
@@ -173,10 +172,8 @@ public class TDigestState implements Releasable, Accountable {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeString(state.type.toString());
-            out.writeVLong(state.tdigest.size());
-        }
+        out.writeString(state.type.toString());
+        out.writeVLong(state.tdigest.size());
 
         out.writeVInt(state.centroidCount());
         for (Centroid centroid : state.centroids()) {
@@ -202,12 +199,8 @@ public class TDigestState implements Releasable, Accountable {
         try {
             breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "tdigest-state-read");
             try {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                    state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
-                    size = in.readVLong();
-                } else {
-                    state = new TDigestState(breaker, Type.valueForHighAccuracy(), compression);
-                }
+                state = new TDigestState(breaker, Type.valueOf(in.readString()), compression);
+                size = in.readVLong();
             } finally {
                 if (state == null) {
                     breaker.addWithoutBreaking(-SHALLOW_SIZE);

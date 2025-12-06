@@ -7,64 +7,61 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Stats;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+
 /**
- * Removes {@link Stats} overrides in grouping, aggregates and across them inside.
+ * Removes {@link Aggregate} overrides in grouping, aggregates and across them inside.
  * The overrides appear when the same alias is used multiple times in aggregations
  * and/or groupings:
  * {@code STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10}
  * becomes
  * {@code STATS BY x = c + 10}
  * and
- * {@code INLINESTATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10}
+ * {@code INLINE STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10}
  * becomes
- * {@code INLINESTATS BY x = c + 10}
+ * {@code INLINE STATS BY x = c + 10}
  * This is "last one wins", with groups having priority over aggregates.
  * Separately, it replaces expressions used as group keys inside the aggregates with references:
  * {@code STATS max(a + b + 1) BY a + b}
  * becomes
  * {@code STATS max($x + 1) BY $x = a + b}
  */
-public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
+public final class RemoveStatsOverride extends OptimizerRules.OptimizerRule<Aggregate> {
 
     @Override
-    protected boolean skipResolved() {
-        return false;
-    }
-
-    @Override
-    protected LogicalPlan rule(LogicalPlan p) {
-        if (p.resolved() == false) {
-            return p;
-        }
-        if (p instanceof Stats stats) {
-            return (LogicalPlan) stats.with(
-                stats.child(),
-                removeDuplicateNames(stats.groupings()),
-                removeDuplicateNames(stats.aggregates())
-            );
-        }
-        return p;
+    protected LogicalPlan rule(Aggregate aggregate) {
+        return aggregate.with(removeDuplicateNames(aggregate.groupings()), removeDuplicateNames(aggregate.aggregates()));
     }
 
     private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {
         var newList = new ArrayList<>(list);
-        var nameSet = Sets.newHashSetWithExpectedSize(list.size());
+        var expressionsByName = Maps.<String, T>newMapWithExpectedSize(list.size());
 
         // remove duplicates
         for (int i = list.size() - 1; i >= 0; i--) {
             var element = list.get(i);
             var name = Expressions.name(element);
-            if (nameSet.add(name) == false) {
+            var previousExpression = expressionsByName.putIfAbsent(name, element);
+            if (previousExpression != null) {
+                var source = element.source().source();
+                var previousSource = previousExpression.source().source();
+                addWarning(
+                    "Line {}:{}: Field '{}' shadowed by field at line {}:{}",
+                    source.getLineNumber(),
+                    source.getColumnNumber(),
+                    name,
+                    previousSource.getLineNumber(),
+                    previousSource.getColumnNumber()
+                );
                 newList.remove(i);
             }
         }

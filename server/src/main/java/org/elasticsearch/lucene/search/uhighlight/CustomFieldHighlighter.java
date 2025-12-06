@@ -34,7 +34,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
     private String fieldValue;
-    private final Integer queryMaxAnalyzedOffset;
+    private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
 
     CustomFieldHighlighter(
         String field,
@@ -47,7 +47,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
         PassageFormatter passageFormatter,
         Comparator<Passage> passageSortComparator,
         int noMatchSize,
-        Integer queryMaxAnalyzedOffset
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset
     ) {
         super(
             field,
@@ -113,7 +113,7 @@ class CustomFieldHighlighter extends FieldHighlighter {
     @Override
     protected Passage[] highlightOffsetsEnums(OffsetsEnum off) throws IOException {
         if (queryMaxAnalyzedOffset != null) {
-            off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset);
+            off = new LimitedOffsetsEnum(off, queryMaxAnalyzedOffset.getNotNull());
         }
         return super.highlightOffsetsEnums(off);
     }

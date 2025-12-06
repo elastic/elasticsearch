@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
@@ -47,7 +48,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(matchQuery("randomized", true)).addAggregation(children("to_comment", "comment")),
             response -> {
-                Children childrenAgg = response.getAggregations().get("to_comment");
+                SingleBucketAggregation childrenAgg = response.getAggregations().get("to_comment");
                 assertThat("Response: " + response + "\n", childrenAgg.getDocCount(), equalTo(count));
             }
         );
@@ -73,7 +74,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                     assertThat(categoryBucket.getKeyAsString(), equalTo(entry1.getKey()));
                     assertThat(categoryBucket.getDocCount(), equalTo((long) entry1.getValue().articleIds.size()));
 
-                    Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
+                    SingleBucketAggregation childrenBucket = categoryBucket.getAggregations().get("to_comment");
                     assertThat(childrenBucket.getName(), equalTo("to_comment"));
                     assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
                     assertThat(
@@ -113,7 +114,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
                 for (Terms.Bucket bucket : categoryTerms.getBuckets()) {
                     logger.info("bucket={}", bucket.getKey());
-                    Children childrenBucket = bucket.getAggregations().get("to_comment");
+                    SingleBucketAggregation childrenBucket = bucket.getAggregations().get("to_comment");
                     TopHits topHits = childrenBucket.getAggregations().get("top_comments");
                     logger.info("total_hits={}", topHits.getHits().getTotalHits().value());
                     for (SearchHit searchHit : topHits.getHits()) {
@@ -125,7 +126,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 assertThat(categoryBucket.getKeyAsString(), equalTo("a"));
                 assertThat(categoryBucket.getDocCount(), equalTo(3L));
 
-                Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
+                SingleBucketAggregation childrenBucket = categoryBucket.getAggregations().get("to_comment");
                 assertThat(childrenBucket.getName(), equalTo("to_comment"));
                 assertThat(childrenBucket.getDocCount(), equalTo(2L));
                 TopHits topHits = childrenBucket.getAggregations().get("top_comments");
@@ -178,7 +179,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             assertNoFailuresAndResponse(
                 prepareSearch(indexName).addAggregation(children("children", "child").subAggregation(sum("counts").field("count"))),
                 response -> {
-                    Children children = response.getAggregations().get("children");
+                    SingleBucketAggregation children = response.getAggregations().get("children");
                     assertThat(children.getDocCount(), equalTo(4L));
 
                     Sum count = children.getAggregations().get("counts");
@@ -205,7 +206,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testNonExistingChildType() throws Exception {
         assertNoFailuresAndResponse(prepareSearch("test").addAggregation(children("non-existing", "xyz")), response -> {
-            Children children = response.getAggregations().get("non-existing");
+            SingleBucketAggregation children = response.getAggregations().get("non-existing");
             assertThat(children.getName(), equalTo("non-existing"));
             assertThat(children.getDocCount(), equalTo(0L));
         });
@@ -264,7 +265,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             response -> {
                 assertHitCount(response, 1L);
 
-                Children childrenAgg = response.getAggregations().get("my-refinements");
+                SingleBucketAggregation childrenAgg = response.getAggregations().get("my-refinements");
                 assertThat(childrenAgg.getDocCount(), equalTo(7L));
 
                 Terms termsAgg = childrenAgg.getAggregations().get("my-colors");
@@ -316,7 +317,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             response -> {
                 assertHitCount(response, 1L);
 
-                Children children = response.getAggregations().get(parentType);
+                SingleBucketAggregation children = response.getAggregations().get(parentType);
                 assertThat(children.getName(), equalTo(parentType));
                 assertThat(children.getDocCount(), equalTo(1L));
                 children = children.getAggregations().get(childType);
@@ -379,7 +380,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 assertThat(parents.getBuckets().size(), equalTo(2));
                 assertThat(parents.getBuckets().get(0).getKeyAsString(), equalTo("Alice"));
                 assertThat(parents.getBuckets().get(0).getDocCount(), equalTo(1L));
-                Children children = parents.getBuckets().get(0).getAggregations().get("child_docs");
+                SingleBucketAggregation children = parents.getBuckets().get(0).getAggregations().get("child_docs");
                 assertThat(children.getDocCount(), equalTo(1L));
 
                 assertThat(parents.getBuckets().get(1).getKeyAsString(), equalTo("Bill"));

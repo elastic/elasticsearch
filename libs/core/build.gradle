@@ -8,24 +8,23 @@
  */
 
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
-  compileOnly project(':libs:elasticsearch-logging')
+  compileOnly project(':libs:logging')
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
+    exclude group: 'org.elasticsearch', module: 'core'
   }
 }
 
 tasks.named('forbiddenApisMain').configure {
-  // :libs:elasticsearch-core does not depend on server
+  // :libs:core does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
   replaceSignatureFiles 'jdk-signatures'
 }

@@ -8,14 +8,16 @@
  */
 
 import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  description 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
-  classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+  description = 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
+  classname ='org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 
   bundleSpec.from("${project.buildDir}/ingest-geoip") {
     into '/'
@@ -28,12 +30,14 @@ tasks.named('internalClusterTestTestingConventions').configure {
 }
 
 dependencies {
-  implementation('com.maxmind.geoip2:geoip2:4.2.0')
+  implementation('com.maxmind.geoip2:geoip2:4.2.1')
   // geoip2 dependencies:
   runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   runtimeOnly("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
   runtimeOnly("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
-  implementation('com.maxmind.db:maxmind-db:3.1.0')
+  // when you upgrade maxmind dependency, please also do so in libs/logstash-bridge/build.gradle
+  // elastic_integration plugin embeds this module but references through logstash-bridge
+  implementation('com.maxmind.db:maxmind-db:3.1.1')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
   internalClusterTestImplementation project(':modules:reindex')
@@ -78,10 +82,13 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /geoip.*/, to: 'maxmind-geolite2-eula'
   mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
   mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("dependencyLicenses").configure {
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }
 
@@ -92,4 +99,6 @@ artifacts {
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ingest_geoip/40_geoip_databases/Test adding, getting, and removing geoip databases",
     "get databases behavior began returning more results in 8.16")
+  task.skipTest("ingest_geoip/60_ip_location_databases/Test adding, getting, and removing ip location databases",
+    "get databases behavior began returning more results in 9.2.1")
 })

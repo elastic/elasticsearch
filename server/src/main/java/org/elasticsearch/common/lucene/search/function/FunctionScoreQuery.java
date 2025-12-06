@@ -9,7 +9,6 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -22,7 +21,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -81,8 +79,8 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        protected ScoreFunction rewrite(IndexReader reader) throws IOException {
-            Query newFilter = filter.rewrite(new IndexSearcher(reader));
+        protected ScoreFunction rewrite(IndexSearcher searcher) throws IOException {
+            Query newFilter = filter.rewrite(searcher);
             if (newFilter == filter) {
                 return this;
             }
@@ -199,6 +197,14 @@ public class FunctionScoreQuery extends Query {
         return combineFunction;
     }
 
+    public ScoreMode getScoreMode() {
+        return scoreMode;
+    }
+
+    public Float getMaxBoost() {
+        return maxBoost;
+    }
+
     @Override
     public void visit(QueryVisitor visitor) {
         // Highlighters must visit the child query to extract terms
@@ -215,7 +221,7 @@ public class FunctionScoreQuery extends Query {
         ScoreFunction[] newFunctions = new ScoreFunction[functions.length];
         boolean needsRewrite = (newQ != subQuery);
         for (int i = 0; i < functions.length; i++) {
-            newFunctions[i] = functions[i].rewrite(searcher.getIndexReader());
+            newFunctions[i] = functions[i].rewrite(searcher);
             needsRewrite |= (newFunctions[i] != functions[i]);
         }
         if (needsRewrite) {
@@ -449,7 +455,13 @@ public class FunctionScoreQuery extends Query {
                   These scores are invalid for score based {@link org.apache.lucene.search.TopDocsCollector}s.
                   See {@link org.apache.lucene.search.TopScoreDocCollector} for details.
                  */
-                throw new ElasticsearchException("function score query returned an invalid score: " + finalScore + " for doc: " + docId);
+                throw new IllegalArgumentException(
+                    "function score query returned an invalid score: "
+                        + finalScore
+                        + " for doc: "
+                        + docId
+                        + "; score must be a non-negative real number"
+                );
             }
             return finalScore;
         }

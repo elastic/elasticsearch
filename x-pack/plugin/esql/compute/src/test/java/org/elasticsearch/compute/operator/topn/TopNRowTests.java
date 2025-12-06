@@ -63,6 +63,7 @@ public class TopNRowTests extends ESTestCase {
         expected -= RamUsageTester.ramUsed("topn");
         // the sort orders are shared
         expected -= RamUsageTester.ramUsed(sortOrders());
+        // expected -= RamUsageTester.ramUsed(row.docVector);
         return expected;
     }
 }

@@ -19,9 +19,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -84,16 +82,6 @@ import static org.junit.Assert.fail;
  */
 public class DoSection implements ExecutableSection {
     public static DoSection parse(XContentParser parser) throws IOException {
-        return parse(parser, false);
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @Deprecated
-    public static DoSection parseWithLegacyNodeSelectorSupport(XContentParser parser) throws IOException {
-        return parse(parser, true);
-    }
-
-    private static DoSection parse(XContentParser parser, boolean enableLegacyNodeSelectorSupport) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
 
@@ -183,7 +171,7 @@ public class DoSection implements ExecutableSection {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
                         } else {
-                            NodeSelector newSelector = buildNodeSelector(selectorName, parser, enableLegacyNodeSelectorSupport);
+                            NodeSelector newSelector = buildNodeSelector(selectorName, parser);
                             nodeSelector = nodeSelector == NodeSelector.ANY
                                 ? newSelector
                                 : new ComposeNodeSelector(nodeSelector, newSelector);
@@ -371,13 +359,7 @@ public class DoSection implements ExecutableSection {
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
 
-            var fixedProductionHeader = executionContext.clusterHasFeature(
-                RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id(),
-                false
-            );
-            if (fixedProductionHeader) {
-                checkElasticProductHeader(response.getHeaders("X-elastic-product"));
-            }
+            checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
             checkResponseException(e, executionContext);
@@ -608,11 +590,10 @@ public class DoSection implements ExecutableSection {
         )
     );
 
-    private static NodeSelector buildNodeSelector(String name, XContentParser parser, boolean enableLegacyVersionSupport)
-        throws IOException {
+    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
         return switch (name) {
             case "attribute" -> parseAttributeValuesSelector(parser);
-            case "version" -> parseVersionSelector(parser, enableLegacyVersionSupport);
+            case "version" -> parseVersionSelector(parser);
             default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
         };
     }
@@ -677,7 +658,7 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private static NodeSelector parseVersionSelector(XContentParser parser, boolean enableLegacyVersionSupport) throws IOException {
+    private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
@@ -691,16 +672,10 @@ public class DoSection implements ExecutableSection {
             nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion) == false;
             versionSelectorString = "version is not current (original)";
         } else {
-            if (enableLegacyVersionSupport) {
-                var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
-                nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
-                versionSelectorString = "version ranges " + acceptedVersionRange;
-            } else {
-                throw new XContentParseException(
-                    parser.getTokenLocation(),
-                    "unknown version selector [" + parser.text() + "]. Only [current] and [original] are allowed."
-                );
-            }
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "unknown version selector [" + parser.text() + "]. Only [current] and [original] are allowed."
+            );
         }
 
         return new NodeSelector() {

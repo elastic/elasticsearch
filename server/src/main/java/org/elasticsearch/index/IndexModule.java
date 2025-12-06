@@ -674,7 +674,8 @@ public final class IndexModule {
             query -> {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
-            mapperMetrics
+            mapperMetrics,
+            null
         );
     }
 

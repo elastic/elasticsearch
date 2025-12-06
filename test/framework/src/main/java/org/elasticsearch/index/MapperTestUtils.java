@@ -95,7 +95,8 @@ public class MapperTestUtils {
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE,
             bitsetFilterCache::getBitSetProducer,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            null
         );
     }
 }

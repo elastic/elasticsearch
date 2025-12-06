@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+/* This class is used to toggle serverless API protections on and off. */
+
 package org.elasticsearch.rest;
 
 public class ServerlessApiProtections {

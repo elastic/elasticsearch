@@ -1,0 +1,3 @@
+- Do not reference deprecated parts of the codebase.
+- If suggesting updates in /server/src ensure you also provide corresponding changes to /plugins/src and vice versa (obviously as and when appropriate).
+- If suggesting modifications or new code you should also offer to update the corresponding tests.

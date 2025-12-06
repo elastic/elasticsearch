@@ -19,9 +19,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -84,6 +86,12 @@ public class CrossProjectIndexResolutionValidator {
             return null;
         }
 
+        Map<String, ElasticsearchSecurityException> remoteAuthorizationExceptions = null;
+        Map<String, List<String>> remoteUnauthorizedIndices = null;
+        ElasticsearchSecurityException localAuthorizationException = null;
+        List<String> localUnauthorizedIndices = null;
+        IndexNotFoundException notFoundException = null;
+
         final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
         logger.debug(
             "Checking index existence for [{}] and [{}] with indices options [{}]{}",
@@ -103,32 +111,47 @@ public class CrossProjectIndexResolutionValidator {
             Set<String> remoteExpressions = localResolvedIndices.remoteExpressions();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
             ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
+            ElasticsearchException localException = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
+
             if (isQualifiedExpression) {
-                ElasticsearchException e = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
-                if (e != null) {
-                    return e;
+                if (localException != null) {
+                    if (localException instanceof ElasticsearchSecurityException securityException) {
+                        if (localAuthorizationException == null) {
+                            localAuthorizationException = securityException;
+                            localUnauthorizedIndices = new ArrayList<>();
+                        }
+                        localUnauthorizedIndices.add(originalExpression);
+                    } else {
+                        notFoundException = (IndexNotFoundException) localException;
+                    }
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
-                    ElasticsearchException exception = checkSingleRemoteExpression(
+                    var projectAlias = splitResource[0];
+                    var resource = splitResource[1];
+
+                    ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
-                        splitResource[0], // projectAlias
-                        splitResource[1], // resource
+                        projectAlias,
+                        resource,
                         remoteExpression,
                         indicesOptions
                     );
-                    if (exception != null) {
-                        return exception;
+                    if (remoteException != null) {
+                        if (remoteException instanceof ElasticsearchSecurityException securityException) {
+                            if (remoteAuthorizationExceptions == null) {
+                                remoteAuthorizationExceptions = new HashMap<>();
+                                remoteUnauthorizedIndices = new HashMap<>();
+                            }
+                            remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
+                            remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(remoteExpression);
+                        } else {
+                            if (notFoundException == null) notFoundException = (IndexNotFoundException) remoteException;
+                        }
                     }
                 }
             } else {
-                ElasticsearchException localException = checkResolutionFailure(
-                    localExpressions,
-                    result,
-                    originalExpression,
-                    indicesOptions
-                );
                 if (localException == null) {
                     // found locally, continue to next expression
                     continue;
@@ -138,33 +161,80 @@ public class CrossProjectIndexResolutionValidator {
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
                     String[] splitResource = splitQualifiedResource(remoteExpression);
-                    ElasticsearchException exception = checkSingleRemoteExpression(
+                    var projectAlias = splitResource[0];
+                    var resource = splitResource[1];
+
+                    ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
-                        splitResource[0], // projectAlias
-                        splitResource[1], // resource
+                        projectAlias,
+                        resource,
                         remoteExpression,
                         indicesOptions
                     );
-                    if (exception == null) {
+                    if (remoteException == null) {
                         // found flat expression somewhere
                         foundFlat = true;
+                        if (remoteAuthorizationExceptions != null) {
+                            remoteAuthorizationExceptions.clear();
+                            remoteUnauthorizedIndices.clear();
+                        }
                         break;
                     }
-                    if (false == isUnauthorized && exception instanceof ElasticsearchSecurityException) {
+                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException securityException) {
                         isUnauthorized = true;
+                        if (remoteAuthorizationExceptions == null) {
+                            remoteAuthorizationExceptions = new HashMap<>();
+                            remoteUnauthorizedIndices = new HashMap<>();
+                        }
+                        remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
+                        remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(resource);
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
-                if (isUnauthorized) {
-                    return localException;
+                if (isUnauthorized && localException instanceof ElasticsearchSecurityException securityException) {
+                    if (localAuthorizationException == null) {
+                        localAuthorizationException = securityException;
+                        localUnauthorizedIndices = new ArrayList<>();
+                    }
+                    localUnauthorizedIndices.add(originalExpression);
+                } else {
+                    notFoundException = new IndexNotFoundException(originalExpression);
                 }
-                return new IndexNotFoundException(originalExpression);
             }
         }
-        // if we didn't throw before it means that we can proceed with the request
-        return null;
+
+        if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
+            return notFoundException;
+        } else {
+            var firstException = localAuthorizationException != null
+                ? formatAuthorizationException(localAuthorizationException, localUnauthorizedIndices)
+                : null;
+
+            if (remoteAuthorizationExceptions != null) {
+                for (var e : remoteAuthorizationExceptions.entrySet()) {
+                    var exception = formatAuthorizationException(e.getValue(), remoteUnauthorizedIndices.get(e.getKey()));
+                    if (firstException == null) {
+                        firstException = exception;
+                    } else {
+                        firstException.addSuppressed(exception);
+                    }
+                }
+            }
+
+            return firstException;
+        }
+    }
+
+    private static ElasticsearchSecurityException formatAuthorizationException(
+        ElasticsearchException exceptionWithPlaceholder,
+        List<String> unauthorizedIndices
+    ) {
+        return new ElasticsearchSecurityException(
+            Strings.replace(exceptionWithPlaceholder.getMessage(), "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices)),
+            exceptionWithPlaceholder.status()
+        );
     }
 
     public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
@@ -173,11 +243,6 @@ public class CrossProjectIndexResolutionValidator {
             .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
             .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
             .build();
-    }
-
-    private static ElasticsearchSecurityException securityException(String originalExpression) {
-        // TODO plug in proper recorded authorization exceptions instead, once available
-        return new ElasticsearchSecurityException("user cannot access [" + originalExpression + "]", RestStatus.FORBIDDEN);
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(

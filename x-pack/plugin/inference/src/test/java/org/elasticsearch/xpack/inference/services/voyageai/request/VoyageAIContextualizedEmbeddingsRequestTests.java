@@ -13,10 +13,10 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingType;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingType;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -28,13 +28,21 @@ import static org.elasticsearch.xpack.inference.services.voyageai.request.Voyage
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
+public class VoyageAIContextualizedEmbeddingsRequestTests extends ESTestCase {
+
     public void testCreateRequest_UrlDefined() throws IOException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
-            List.of("abc"),
+            List.of(List.of("abc")),
             inputType,
-            VoyageAIEmbeddingsModelTests.createModel("url", "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, "model")
+            VoyageAIContextualEmbeddingsModelTests.createModel(
+                "url",
+                "secret",
+                VoyageAIContextualEmbeddingsTaskSettings.EMPTY_SETTINGS,
+                null,
+                null,
+                "voyage-context-3"
+            )
         );
 
         var httpRequest = request.createHttpRequest();
@@ -53,61 +61,42 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertToString(inputType);
+            // Note: contextual uses nested "inputs" (List<List<String>>) and includes output_dtype
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float", "input_type", convertedInputType))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(List.of("abc")),
+                        "model",
+                        "voyage-context-3",
+                        "output_dtype",
+                        "float",
+                        "input_type",
+                        convertedInputType
+                    )
+                )
             );
         } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("inputs", List.of(List.of("abc")), "model", "voyage-context-3", "output_dtype", "float"))
+            );
         }
     }
 
     public void testCreateRequest_AllOptionsDefined() throws IOException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
-            List.of("abc"),
+            List.of(List.of("abc")),
             inputType,
-            VoyageAIEmbeddingsModelTests.createModel("url", "secret", new VoyageAIEmbeddingsTaskSettings(null, null), null, null, "model")
-        );
-
-        var httpRequest = request.createHttpRequest();
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
-            is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
-        );
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (InputType.isSpecified(inputType)) {
-            var convertedInputType = convertToString(inputType);
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
-            );
-        } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float")));
-        }
-
-    }
-
-    public void testCreateRequest_DimensionDefined() throws IOException {
-        var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
-        var request = createRequest(
-            List.of("abc"),
-            inputType,
-            VoyageAIEmbeddingsModelTests.createModel(
+            VoyageAIContextualEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
+                new VoyageAIContextualEmbeddingsTaskSettings((InputType) null),
                 null,
-                2048,
-                "model"
+                null,
+                "voyage-context-3"
             )
         );
 
@@ -131,10 +120,64 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "input",
-                        List.of("abc"),
+                        "inputs",
+                        List.of(List.of("abc")),
                         "model",
+                        "voyage-context-3",
+                        "input_type",
+                        convertedInputType,
+                        "output_dtype",
+                        "float"
+                    )
+                )
+            );
+        } else {
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("inputs", List.of(List.of("abc")), "model", "voyage-context-3", "output_dtype", "float"))
+            );
+        }
+    }
+
+    public void testCreateRequest_DimensionDefined() throws IOException {
+        var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
+        var request = createRequest(
+            List.of(List.of("abc")),
+            inputType,
+            VoyageAIContextualEmbeddingsModelTests.createModel(
+                "url",
+                "secret",
+                new VoyageAIContextualEmbeddingsTaskSettings(InputType.INGEST),
+                null,
+                2048,
+                "voyage-context-3"
+            )
+        );
+
+        var httpRequest = request.createHttpRequest();
+        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
+        );
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        if (InputType.isSpecified(inputType)) {
+            var convertedInputType = convertToString(inputType);
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(List.of("abc")),
                         "model",
+                        "voyage-context-3",
                         "input_type",
                         convertedInputType,
                         "output_dtype",
@@ -149,10 +192,10 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "input",
-                        List.of("abc"),
+                        "inputs",
+                        List.of(List.of("abc")),
                         "model",
-                        "model",
+                        "voyage-context-3",
                         "input_type",
                         "document",
                         "output_dtype",
@@ -168,16 +211,16 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_EmbeddingTypeDefined() throws IOException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
-            List.of("abc"),
+            List.of(List.of("abc")),
             inputType,
-            VoyageAIEmbeddingsModelTests.createModel(
+            VoyageAIContextualEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
+                new VoyageAIContextualEmbeddingsTaskSettings(InputType.INGEST),
                 null,
                 2048,
-                "model",
-                VoyageAIEmbeddingType.BYTE
+                "voyage-context-3",
+                VoyageAIContextualEmbeddingType.INT8
             )
         );
 
@@ -201,10 +244,10 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "input",
-                        List.of("abc"),
+                        "inputs",
+                        List.of(List.of("abc")),
                         "model",
-                        "model",
+                        "voyage-context-3",
                         "input_type",
                         convertedInputType,
                         "output_dtype",
@@ -219,10 +262,10 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "input",
-                        List.of("abc"),
+                        "inputs",
+                        List.of(List.of("abc")),
                         "model",
-                        "model",
+                        "voyage-context-3",
                         "input_type",
                         "document",
                         "output_dtype",
@@ -238,15 +281,15 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_TaskSettingsInputType() throws IOException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
-            List.of("abc"),
+            List.of(List.of("abc")),
             null,
-            VoyageAIEmbeddingsModelTests.createModel(
+            VoyageAIContextualEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings(inputType, null),
+                new VoyageAIContextualEmbeddingsTaskSettings(inputType),
                 null,
                 null,
-                "model"
+                "voyage-context-3"
             )
         );
 
@@ -268,10 +311,24 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             var convertedInputType = convertToString(inputType);
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(List.of("abc")),
+                        "model",
+                        "voyage-context-3",
+                        "input_type",
+                        convertedInputType,
+                        "output_dtype",
+                        "float"
+                    )
+                )
             );
         } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("inputs", List.of(List.of("abc")), "model", "voyage-context-3", "output_dtype", "float"))
+            );
         }
     }
 
@@ -279,15 +336,15 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         var requestInputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var taskSettingsInputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
-            List.of("abc"),
+            List.of(List.of("abc")),
             requestInputType,
-            VoyageAIEmbeddingsModelTests.createModel(
+            VoyageAIContextualEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings(taskSettingsInputType, null),
+                new VoyageAIContextualEmbeddingsTaskSettings(taskSettingsInputType),
                 null,
                 null,
-                "model"
+                "voyage-context-3"
             )
         );
 
@@ -309,20 +366,49 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             var convertedInputType = convertToString(requestInputType);
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(List.of("abc")),
+                        "model",
+                        "voyage-context-3",
+                        "input_type",
+                        convertedInputType,
+                        "output_dtype",
+                        "float"
+                    )
+                )
             );
         } else if (InputType.isSpecified(taskSettingsInputType)) {
             var convertedInputType = convertToString(taskSettingsInputType);
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "model", "input_type", convertedInputType, "output_dtype", "float"))
+                is(
+                    Map.of(
+                        "inputs",
+                        List.of(List.of("abc")),
+                        "model",
+                        "voyage-context-3",
+                        "input_type",
+                        convertedInputType,
+                        "output_dtype",
+                        "float"
+                    )
+                )
             );
         } else {
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("inputs", List.of(List.of("abc")), "model", "voyage-context-3", "output_dtype", "float"))
+            );
         }
     }
 
-    public static VoyageAIEmbeddingsRequest createRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel model) {
-        return new VoyageAIEmbeddingsRequest(input, inputType, model);
+    public static VoyageAIContextualizedEmbeddingsRequest createRequest(
+        List<List<String>> inputs,
+        InputType inputType,
+        VoyageAIContextualEmbeddingsModel model
+    ) {
+        return new VoyageAIContextualizedEmbeddingsRequest(inputs, inputType, model);
     }
 }

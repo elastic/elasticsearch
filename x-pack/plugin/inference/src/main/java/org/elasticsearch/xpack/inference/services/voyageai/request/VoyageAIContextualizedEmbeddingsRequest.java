@@ -13,23 +13,23 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.text.VoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.contextual.VoyageAIContextualEmbeddingsServiceSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
+public class VoyageAIContextualizedEmbeddingsRequest extends VoyageAIRequest {
 
-    private final List<String> input;
+    private final List<List<String>> inputs;
     private final InputType inputType;
-    private final VoyageAIEmbeddingsModel embeddingsModel;
+    private final VoyageAIContextualEmbeddingsModel embeddingsModel;
 
-    public VoyageAIEmbeddingsRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
+    public VoyageAIContextualizedEmbeddingsRequest(List<List<String>> inputs, InputType inputType, VoyageAIContextualEmbeddingsModel embeddingsModel) {
         this.embeddingsModel = Objects.requireNonNull(embeddingsModel);
-        this.input = Objects.requireNonNull(input);
+        this.inputs = Objects.requireNonNull(inputs);
         this.inputType = inputType;
     }
 
@@ -39,8 +39,8 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new VoyageAIEmbeddingsRequestEntity(
-                    input,
+                new VoyageAIContextualizedEmbeddingsRequestEntity(
+                    inputs,
                     inputType,
                     embeddingsModel.getServiceSettings(),
                     embeddingsModel.getTaskSettings(),
@@ -75,7 +75,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         return null;
     }
 
-    public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
+    public VoyageAIContextualEmbeddingsServiceSettings getServiceSettings() {
         return embeddingsModel.getServiceSettings();
     }
 }

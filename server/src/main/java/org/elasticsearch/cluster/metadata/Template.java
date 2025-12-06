@@ -225,9 +225,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            out.writeOptionalWriteable(lifecycle);
-        }
+        out.writeOptionalWriteable(lifecycle);
         ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
     }
 

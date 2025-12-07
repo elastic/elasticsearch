@@ -291,7 +291,7 @@ public enum DataType implements Writeable {
     /**
      * Represents a half-inclusive range between two dates.
      */
-    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().supportedSince(ESQL_LONG_RANGES)),
+    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().underConstruction(ESQL_LONG_RANGES)),
     /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>

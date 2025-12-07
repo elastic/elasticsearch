@@ -88,7 +88,11 @@ public final class TypeResolutions {
     ) {
         return isType(
             e,
-            dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE && dt != EXPONENTIAL_HISTOGRAM && dt != DATE_RANGE,
+            dt -> isRepresentable(dt)
+                && dt != DENSE_VECTOR
+                && dt != AGGREGATE_METRIC_DOUBLE
+                && dt != EXPONENTIAL_HISTOGRAM
+                && dt != DATE_RANGE,
             operationName,
             paramOrd,
             "any type except counter types, dense_vector, aggregate_metric_double, exponential_histogram or date_range"

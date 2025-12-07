@@ -227,7 +227,6 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
-            case TDIGEST -> ((TDigestBlockBuilder) builder).append((TDigestHolder) val);
             case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
             case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
             case TDIGEST -> ((TDigestBlockBuilder) builder).append((TDigestHolder) val);

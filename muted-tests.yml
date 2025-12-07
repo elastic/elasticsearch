@@ -506,6 +506,9 @@ tests:
 - class: org.elasticsearch.xpack.core.security.authc.AuthenticationTests
   method: testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata
   issue: https://github.com/elastic/elasticsearch/issues/139167
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=eql/10_basic/Sequence checking correct join key ordering.}
+  issue: https://github.com/elastic/elasticsearch/issues/139173
 
 # Examples:
 #

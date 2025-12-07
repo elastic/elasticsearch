@@ -30,37 +30,36 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 //
-public class ToLongBase extends EsqlScalarFunction {
+public class ToIntegerBase extends EsqlScalarFunction {
 
     private static final TransportVersion ESQL_BASE_CONVERSION = TransportVersion.fromName("esql_base_conversion");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "ToLongBase",
-        ToLongBase::new
+        "ToIntegerBase",
+        ToIntegerBase::new
     );
 
     private final Expression string;
     private final Expression base;
 
-    public ToLongBase(Source source, Expression string, Expression base) {
+    public ToIntegerBase(Source source, Expression string, Expression base) {
         super(source, List.of(string, base));
         this.string = string;
         this.base = base;
     }
 
-    private ToLongBase(StreamInput in) throws IOException {
+    private ToIntegerBase(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ESQL_BASE_CONVERSION) == false) {
-            throw new UnsupportedOperationException("version does not support to_long(string, base)");
+            throw new UnsupportedOperationException("version does not support to_integer(string, base)");
         }
         source().writeTo(out);
         out.writeNamedWriteable(string);
@@ -90,16 +89,16 @@ public class ToLongBase extends EsqlScalarFunction {
     }
 
     @Evaluator(warnExceptions = { InvalidArgumentException.class })
-    static long process(BytesRef string, int base) {
+    static int process(BytesRef string, int base) {
         var value = string.utf8ToString();
         try {
             if (base == 10) {
-                return stringToLong(value);
+                return stringToInt(value);
             }
             if (base == 16 && value.startsWith("0x")) {
                 value = value.substring(2);
             }
-            return Long.parseLong(value, base);
+            return Integer.parseInt(value, base);
 
         } catch (NumberFormatException e) {
             throw new InvalidArgumentException(e, "Unable to convert [{}] to number of base [{}]", value, base);
@@ -108,12 +107,12 @@ public class ToLongBase extends EsqlScalarFunction {
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new ToLongBase(source(), newChildren.get(0), newChildren.get(1));
+        return new ToIntegerBase(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToLongBase::new, string, base);
+        return NodeInfo.create(this, ToIntegerBase::new, string, base);
     }
 
     public Expression string() {
@@ -126,13 +125,13 @@ public class ToLongBase extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return LONG;
+        return INTEGER;
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var stringEval = toEvaluator.apply(string);
         var baseEval = toEvaluator.apply(base);
-        return new ToLongBaseEvaluator.Factory(source(), stringEval, baseEval);
+        return new ToIntegerBaseEvaluator.Factory(source(), stringEval, baseEval);
     }
 }

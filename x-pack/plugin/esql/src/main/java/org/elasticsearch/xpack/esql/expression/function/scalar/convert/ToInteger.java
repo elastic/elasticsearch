@@ -44,7 +44,7 @@ public class ToInteger extends AbstractConvertFunction {
         ToInteger::new
     );
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+    static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(INTEGER, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToIntegerFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),

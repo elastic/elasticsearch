@@ -75,7 +75,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
 
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
     private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
     private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
     static final TransportVersion INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS = TransportVersion.fromName(
@@ -197,10 +196,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
         dynamicTemplates = in.readMap(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readBoolean(); // obsolete, prior to tracking normalisedBytesParsed
-        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.listExecutedPipelines = in.readBoolean();
             if (listExecutedPipelines) {
@@ -791,10 +786,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(requireAlias);
         out.writeMap(dynamicTemplates, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(false); // obsolete, prior to tracking normalisedBytesParsed
-        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(listExecutedPipelines);
             if (listExecutedPipelines) {

@@ -48,7 +48,6 @@ import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -147,12 +146,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
@@ -405,12 +402,11 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-                && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+            if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                            + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                             + "] or higher to support creating cross cluster API keys"
                     )
                 );
@@ -426,23 +422,10 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
-                userRoleDescriptors,
-                transportVersion,
-                request.getId()
-            );
+            Set<RoleDescriptor> filteredRoleDescriptors = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
 
             createApiKeyAndIndexIt(authentication, request, filteredRoleDescriptors, listener);
         }
-    }
-
-    private Set<RoleDescriptor> filterRoleDescriptorsForMixedCluster(
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final TransportVersion transportVersion,
-        final String... apiKeyIds
-    ) {
-        final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
-        return maybeRemoveRemotePrivileges(userRolesWithoutDescription, transportVersion, apiKeyIds);
     }
 
     private boolean validateRoleDescriptorsForMixedCluster(
@@ -450,12 +433,12 @@ public class ApiKeyService implements Closeable {
         final List<RoleDescriptor> roleDescriptors,
         final TransportVersion transportVersion
     ) {
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(roleDescriptors)) {
+        if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && hasRemoteIndices(roleDescriptors)) {
             // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -543,13 +526,6 @@ public class ApiKeyService implements Closeable {
         final long numberOfRoleDescriptorsWithRestriction = getNumberOfRoleDescriptorsWithRestriction(requestRoleDescriptors);
         if (numberOfRoleDescriptorsWithRestriction > 0L) {
             // creating/updating API keys with restrictions is not allowed in a mixed cluster.
-            if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
-                return new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
-                        + "] or higher to support restrictions for API keys"
-                );
-            }
             // It's only allowed to create/update API keys with a single role descriptor that is restricted.
             if (numberOfRoleDescriptorsWithRestriction != 1L) {
                 return new IllegalArgumentException("more than one role descriptor with restriction is not supported");
@@ -722,11 +698,7 @@ public class ApiKeyService implements Closeable {
             logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
         }
 
-        Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
-            userRoleDescriptors,
-            transportVersion,
-            apiKeyIds
-        );
+        Set<RoleDescriptor> filteredRoleDescriptors = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
 
         findVersionedApiKeyDocsForSubject(
             authentication,
@@ -830,81 +802,6 @@ public class ApiKeyService implements Closeable {
                 "cannot update API key of type [" + apiKeyDoc.type.value() + "] while expected type is [" + expectedType.value() + "]"
             );
         }
-    }
-
-    /**
-     * This method removes remote indices and cluster privileges from the given role descriptors
-     * when we are in a mixed cluster in which some of the nodes do not support remote indices/clusters.
-     * Storing these roles would cause parsing issues on old nodes
-     * (i.e. nodes running with transport version before
-     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY}).
-     */
-    static Set<RoleDescriptor> maybeRemoveRemotePrivileges(
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final TransportVersion transportVersion,
-        final String... apiKeyIds
-    ) {
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            || transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
-            final Set<RoleDescriptor> affectedRoles = new HashSet<>();
-            final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
-                if (roleDescriptor.hasRemoteIndicesPrivileges() || roleDescriptor.hasRemoteClusterPermissions()) {
-                    affectedRoles.add(roleDescriptor);
-                    return new RoleDescriptor(
-                        roleDescriptor.getName(),
-                        roleDescriptor.getClusterPrivileges(),
-                        roleDescriptor.getIndicesPrivileges(),
-                        roleDescriptor.getApplicationPrivileges(),
-                        roleDescriptor.getConditionalClusterPrivileges(),
-                        roleDescriptor.getRunAs(),
-                        roleDescriptor.getMetadata(),
-                        roleDescriptor.getTransientMetadata(),
-                        roleDescriptor.hasRemoteIndicesPrivileges()
-                            && transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-                                ? null
-                                : roleDescriptor.getRemoteIndicesPrivileges(),
-                        roleDescriptor.hasRemoteClusterPermissions() && transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)
-                            ? null
-                            : roleDescriptor.getRemoteClusterPermissions(),
-                        roleDescriptor.getRestriction(),
-                        roleDescriptor.getDescription()
-                    );
-                }
-                return roleDescriptor;
-            }).collect(Collectors.toSet());
-
-            if (false == affectedRoles.isEmpty()) {
-                List<String> affectedRolesNames = affectedRoles.stream().map(RoleDescriptor::getName).sorted().collect(Collectors.toList());
-                if (affectedRoles.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
-                    && transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
-                    logger.info(
-                        "removed remote indices privileges from role(s) {} for API key(s) [{}]",
-                        affectedRolesNames,
-                        buildDelimitedStringWithLimit(10, apiKeyIds)
-                    );
-                    HeaderWarning.addWarning(
-                        "Removed API key's remote indices privileges from role(s) "
-                            + affectedRolesNames
-                            + ". Remote indices are not supported by all nodes in the cluster. "
-                    );
-                }
-                if (affectedRoles.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions)
-                    && transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
-                    logger.info(
-                        "removed remote cluster privileges from role(s) {} for API key(s) [{}]",
-                        affectedRolesNames,
-                        buildDelimitedStringWithLimit(10, apiKeyIds)
-                    );
-                    HeaderWarning.addWarning(
-                        "Removed API key's remote cluster privileges from role(s) "
-                            + affectedRolesNames
-                            + ". Remote cluster privileges are not supported by all nodes in the cluster."
-                    );
-                }
-            }
-            return result;
-        }
-        return userRoleDescriptors;
     }
 
     /**

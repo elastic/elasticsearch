@@ -140,6 +140,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
 
+    public static ES819TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock) {
+        return useLargeNumericBlock ? new ES819TSDBDocValuesFormat(NUMERIC_LARGE_BLOCK_SHIFT) : new ES819TSDBDocValuesFormat();
+    }
+
     public ES819TSDBDocValuesFormat() {
         this(NUMERIC_BLOCK_SHIFT);
     }

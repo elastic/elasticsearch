@@ -169,7 +169,13 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             agg -> new BytesRef(EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString(agg)),
             List.of()
         );
-
+        TestCaseSupplier.forUnaryExponentialHistogram(
+            suppliers,
+            "ToStringFromExponentialHistogramEvaluator[histogram=" + read + "]",
+            DataType.KEYWORD,
+            eh -> new BytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
+            List.of()
+        );
         TestCaseSupplier.forUnaryDateRange(
             suppliers,
             "ToStringFromDateRangeEvaluator[field=" + read + "]",
@@ -177,7 +183,6 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             dr -> new BytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
             List.of()
         );
-
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

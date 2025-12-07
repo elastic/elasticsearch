@@ -146,10 +146,13 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR && dt != DataType.DATE_RANGE,
+            dt -> dt.isCounter() == false
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.DATE_RANGE
+                && dt != DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             DEFAULT,
-            "any type except counter types, dense_vector or date_range"
+            "any type except counter types, dense_vector, date_range or exponential_histogram"
         );
     }
 

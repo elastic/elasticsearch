@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
@@ -80,31 +81,36 @@ public final class TypeResolutions {
     /**
      * @see DataType#isRepresentable(DataType)
      */
-    public static TypeResolution isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(
+    public static TypeResolution isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(
         Expression e,
         String operationName,
         ParamOrdinal paramOrd
     ) {
         return isType(
             e,
-            dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE && dt != DATE_RANGE,
+            dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE && dt != EXPONENTIAL_HISTOGRAM && dt != DATE_RANGE,
             operationName,
             paramOrd,
-            "any type except counter types, dense_vector, aggregate_metric_double or date_range"
+            "any type except counter types, dense_vector, aggregate_metric_double, exponential_histogram or date_range"
         );
     }
 
-    public static TypeResolution isRepresentableExceptUnsortableTypes(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndExponentialHistogram(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
         return isType(
             e,
             (t) -> isSpatialOrGrid(t) == false
                 && DataType.isRepresentable(t)
                 && t != DENSE_VECTOR
                 && t != AGGREGATE_METRIC_DOUBLE
+                && t != EXPONENTIAL_HISTOGRAM
                 && t != DATE_RANGE,
             operationName,
             paramOrd,
-            "any type except counter, spatial types, dense_vector, aggregate_metric_double or date_range"
+            "any type except counter, spatial types, dense_vector, aggregate_metric_double, exponential_histogram or date_range"
         );
     }
 

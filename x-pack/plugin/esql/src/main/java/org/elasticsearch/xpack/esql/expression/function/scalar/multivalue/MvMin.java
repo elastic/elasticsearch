@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptUnsortableTypes;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndExponentialHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
@@ -72,7 +72,7 @@ public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpr
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isRepresentableExceptUnsortableTypes(field(), sourceText(), DEFAULT);
+        return isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndExponentialHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override

@@ -33,11 +33,12 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(
-            "argument of ["
-                + signature.getFirst().esType()
-                + "] must be [any type except counter types, dense_vector or date_range], found value [] type ["
-                + signature.getFirst().esType()
-                + "]"
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "any type except counter types, dense_vector, date_range or exponential_histogram"
+            )
         );
     }
 

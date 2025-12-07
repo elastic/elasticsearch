@@ -16,6 +16,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 
+import static org.elasticsearch.compute.data.ElementType.TDIGEST;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -225,10 +227,12 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
+            case TDIGEST -> ((TDigestBlockBuilder) builder).append((TDigestHolder) val);
             case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
             case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
+            case TDIGEST -> ((TDigestBlockBuilder) builder).append((TDigestHolder) val);
             case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendDateRange((LongRangeBlockBuilder.LongRange) val);
-            default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
+            case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
 
@@ -258,6 +262,7 @@ public final class BlockUtils {
             case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
+            case TDIGEST -> blockFactory.newConstantTDigestBlock((TDigestHolder) val, size);
             case LONG_RANGE -> blockFactory.newConstantLongRangeBlock((LongRangeBlockBuilder.LongRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
@@ -317,6 +322,10 @@ public final class BlockUtils {
                 ExponentialHistogram histogram = histoBlock.getExponentialHistogram(offset, new ExponentialHistogramScratch());
                 // return a copy so that the returned value is not bound to the lifetime of the block
                 yield ExponentialHistogram.builder(histogram, ExponentialHistogramCircuitBreaker.noop()).build();
+            }
+            case TDIGEST -> {
+                TDigestBlock tDigestBlock = (TDigestBlock) block;
+                yield tDigestBlock.getTDigestHolder(offset);
             }
             case LONG_RANGE -> {
                 LongRangeBlock b = (LongRangeBlock) block;

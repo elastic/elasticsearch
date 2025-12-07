@@ -17,7 +17,6 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
@@ -33,20 +32,7 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        if (signature.getFirst() == DataType.DENSE_VECTOR || signature.getFirst() == DataType.DATE_RANGE) {
-            return equalTo(
-                "first argument of ["
-                    + sourceForSignature(signature)
-                    + "] must be [any type except counter types, dense_vector,"
-                    + " aggregate_metric_double or date_range], found value [] type ["
-                    + signature.getFirst().esType()
-                    + "]"
-            );
-        }
-        if (signature.getFirst() == DataType.NULL && signature.get(1) == DataType.DENSE_VECTOR) {
-            return containsString(typeErrorMessage(false, validPerPosition, signature, (v, p) -> "integer"));
-        }
-        if (signature.get(1).equals(DataType.NULL) && signature.get(0).equals(DataType.AGGREGATE_METRIC_DOUBLE) == false) {
+        if (validPerPosition.get(0).contains(signature.get(0)) && signature.get(1).equals(DataType.NULL)) {
             return equalTo("second argument of [" + sourceForSignature(signature) + "] cannot be null, received []");
         }
         return equalTo(
@@ -54,7 +40,9 @@ public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 true,
                 validPerPosition,
                 signature,
-                (v, p) -> p == 1 ? "integer" : "any type except counter types, dense_vector, aggregate_metric_double or date_range"
+                (v, p) -> p == 1
+                    ? "integer"
+                    : "any type except counter types, dense_vector, aggregate_metric_double, date_range or exponential_histogram"
             )
         );
     }

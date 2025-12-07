@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
@@ -47,6 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
@@ -79,7 +82,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(GEOTILE, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE)),
         Map.entry(GEOHEX, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
         Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new),
-        Map.entry(DATE_RANGE, ToStringFromDateRangeEvaluator.Factory::new)
+        Map.entry(DATE_RANGE, ToStringFromDateRangeEvaluator.Factory::new),
+        Map.entry(EXPONENTIAL_HISTOGRAM, ToStringFromExponentialHistogramEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -114,7 +118,8 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
                 "text",
                 "unsigned_long",
                 "version",
-                "date_range" },
+                "date_range",
+                "exponential_histogram" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression v
     ) {
@@ -223,5 +228,10 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromGeoGrid")
     static BytesRef fromGeoGrid(long gridId, @Fixed DataType dataType) {
         return new BytesRef(geoGridToString(gridId, dataType));
+    }
+
+    @ConvertEvaluator(extraName = "FromExponentialHistogram")
+    static BytesRef fromExponentialHistogram(ExponentialHistogram histogram) {
+        return new BytesRef(exponentialHistogramToString(histogram));
     }
 }

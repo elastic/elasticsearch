@@ -37,7 +37,7 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double or date_range"
+                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double, date_range or exponential_histogram"
             )
         );
     }

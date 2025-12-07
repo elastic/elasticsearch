@@ -83,6 +83,7 @@ import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.data.ElementType.LONG_RANGE;
+import static org.elasticsearch.compute.data.ElementType.TDIGEST;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
@@ -536,7 +537,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -611,6 +612,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 || e == COMPOSITE
                 || e == AGGREGATE_METRIC_DOUBLE
                 || e == EXPONENTIAL_HISTOGRAM
+                || e == TDIGEST
                 || e == LONG_RANGE) {
                 continue;
             }
@@ -1048,6 +1050,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
+                    || t == TDIGEST
                     || t == LONG_RANGE,
                 () -> randomFrom(ElementType.values())
             );

@@ -136,7 +136,7 @@ public class ExtractorTests extends ESTestCase {
                             ) }
                     );
                 }
-                case EXPONENTIAL_HISTOGRAM ->
+                case TDIGEST, EXPONENTIAL_HISTOGRAM ->
                     // multi values are not supported
                     cases.add(valueTestCase("single " + e, e, TopNEncoder.DEFAULT_UNSORTABLE, () -> BlockTestUtils.randomValue(e)));
                 case NULL -> {
@@ -217,7 +217,8 @@ public class ExtractorTests extends ESTestCase {
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 
-        assertThat(result.build(), equalTo(value));
+        Block resultBlock = result.build();
+        assertThat(resultBlock, equalTo(value));
     }
 
     public void testInKey() {

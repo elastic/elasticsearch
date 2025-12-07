@@ -56,6 +56,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 
 /**
@@ -677,14 +678,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
-    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
-        "index.mapping.use_doc_values_skipper",
-        true,
-        Property.IndexScope,
-        Property.Final
-    );
-
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
         "index.mapping.use_synthetic_id",
@@ -760,6 +753,21 @@ public final class IndexSettings {
         Property.Final,
         Property.ServerlessPublic
     );
+
+    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
+        IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
+        if (MODE.get(s) == IndexMode.TIME_SERIES) {
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+                return "true";
+            }
+            return "false";
+        }
+        if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+            return "true";
+        }
+        return "false";
+    }, Property.IndexScope, Property.Final);
 
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
@@ -1017,6 +1025,7 @@ public final class IndexSettings {
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile long mappingNestedFieldsLimit;
+    private volatile long mappingNestedParentsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
@@ -1197,6 +1206,7 @@ public final class IndexSettings {
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        mappingNestedParentsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
@@ -1338,6 +1348,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING, this::setMappingNestedParentsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
@@ -1872,6 +1883,14 @@ public final class IndexSettings {
 
     private void setMappingNestedFieldsLimit(long value) {
         this.mappingNestedFieldsLimit = value;
+    }
+
+    public long getMappingNestedParentsLimit() {
+        return mappingNestedParentsLimit;
+    }
+
+    private void setMappingNestedParentsLimit(long value) {
+        this.mappingNestedParentsLimit = value;
     }
 
     public long getMappingNestedDocsLimit() {

@@ -62,7 +62,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
             FROM {}, (FROM {})
             """, mainQueryIndexPattern, subqueryIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
 
         UnionAll unionAll = as(plan, UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
@@ -152,7 +152,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
             | RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
             """, mainQueryIndexPattern, subqueryIndexPattern, joinIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Rerank rerank = as(plan, Rerank.class);
         Sample sample = as(rerank.child(), Sample.class);
         Completion completion = as(sample.child(), Completion.class);
@@ -182,7 +182,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
             UnionAll unionAll = as(filter.child(), UnionAll.class);
             List<LogicalPlan> children = unionAll.children();
             assertEquals(2, children.size());
-            // main query
+            // main statement
             UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
             assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
             // subquery
@@ -268,7 +268,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
                               | RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" })
             """, mainQueryIndexPattern, subqueryIndexPattern, joinIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         UnionAll unionAll = as(plan, UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
         assertEquals(2, children.size());
@@ -309,7 +309,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A combination of the two previous tests with processing commands in both the subquery and main query.
+     * A combination of the two previous tests with processing commands in both the subquery and main statement.
      * Plan string is skipped as it is too long, and it should be the combination of the above two tests..
      */
     public void testSubqueryWithProcessingCommandsInSubqueryAndMainquery() {
@@ -359,7 +359,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
              | RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
             """, mainQueryIndexPattern, subqueryIndexPattern, joinIndexPattern, joinIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Rerank rerank = as(plan, Rerank.class);
         Sample sample = as(rerank.child(), Sample.class);
         Completion completion = as(sample.child(), Completion.class);
@@ -389,7 +389,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
             UnionAll unionAll = as(filter.child(), UnionAll.class);
             List<LogicalPlan> children = unionAll.children();
             assertEquals(2, children.size());
-            // main query
+            // main statement
             UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
             assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
             // subquery
@@ -451,12 +451,12 @@ public class SubqueryTests extends AbstractStatementParserTests {
                   | WHERE a > 10
                 """, mainQueryIndexPattern, subqueryIndexPattern, processingCommand);
 
-            LogicalPlan plan = statement(query);
+            LogicalPlan plan = query(query);
             Filter filter = as(plan, Filter.class);
             UnionAll unionAll = as(filter.child(), UnionAll.class);
             List<LogicalPlan> children = unionAll.children();
             assertEquals(2, children.size());
-            // main query
+            // main statement
             UnresolvedRelation unresolvedRelation = as(children.get(0), UnresolvedRelation.class);
             assertEquals(unquoteIndexPattern(mainQueryIndexPattern), unresolvedRelation.indexPattern().indexPattern());
             // subquery
@@ -482,7 +482,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
              FROM (FROM {}), (FROM {}), (FROM {})
             """, subqueryIndexPattern1, subqueryIndexPattern2, subqueryIndexPattern3);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         UnionAll unionAll = as(plan, UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
         assertEquals(3, children.size());
@@ -535,7 +535,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
              | KEEP g
             """, subqueryIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Keep keep = as(plan, Keep.class);
         Drop drop = as(keep.child(), Drop.class);
         Limit limit = as(drop.child(), Limit.class);
@@ -586,7 +586,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
                          | KEEP g)
             """, subqueryIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Keep keep = as(plan, Keep.class);
         Drop drop = as(keep.child(), Drop.class);
         Limit limit = as(drop.child(), Limit.class);
@@ -677,7 +677,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
               | KEEP g
             """, subqueryIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Keep keep = as(plan, Keep.class);
         Drop drop = as(keep.child(), Drop.class);
         Limit limit = as(drop.child(), Limit.class);
@@ -729,7 +729,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
              FROM {}, (FROM {}), {}, (FROM {})
             """, indexPattern1, indexPattern2, indexPattern3, indexPattern4);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         UnionAll unionAll = as(plan, UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
         assertEquals(3, children.size());
@@ -850,7 +850,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
               | KEEP g
             """, mainIndexPattern1, subqueryIndexPattern1, joinIndexPattern, mainIndexPattern2, subqueryIndexPattern2, joinIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Keep keep = as(plan, Keep.class);
         Drop drop = as(keep.child(), Drop.class);
         Limit limit = as(drop.child(), Limit.class);
@@ -924,7 +924,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
              FROM {}, (FROM {}, (FROM {}, (FROM {})))
             """, indexPattern1, indexPattern2, indexPattern3, indexPattern4);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
 
         UnionAll unionAll = as(plan, UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
@@ -986,7 +986,7 @@ public class SubqueryTests extends AbstractStatementParserTests {
             | LIMIT 10
             """, indexPattern1, indexPattern2, indexPattern3, indexPattern4);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
@@ -1036,12 +1036,12 @@ public class SubqueryTests extends AbstractStatementParserTests {
              | STATS cnt = COUNT(*) BY a
             """, indexPattern1, indexPattern2, indexPattern3);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Aggregate aggregate = as(plan, Aggregate.class);
         UnionAll unionAll = as(aggregate.child(), UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
         assertEquals(2, children.size());
-        // main query
+        // main statement
         UnresolvedRelation mainRelation = as(children.get(0), UnresolvedRelation.class);
         assertEquals(unquoteIndexPattern(indexPattern1), mainRelation.indexPattern().indexPattern());
         List<Attribute> metadata = mainRelation.metadataFields();
@@ -1091,12 +1091,12 @@ public class SubqueryTests extends AbstractStatementParserTests {
              | STATS cnt = COUNT(*) BY a
             """, mainRemoteIndexPattern, mainIndexPattern, subqueryRemoteIndexPattern, subqueryIndexPattern);
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Aggregate aggregate = as(plan, Aggregate.class);
         UnionAll unionAll = as(aggregate.child(), UnionAll.class);
         List<LogicalPlan> children = unionAll.children();
         assertEquals(2, children.size());
-        // main query
+        // main statement
         UnresolvedRelation mainRelation = as(children.get(0), UnresolvedRelation.class);
         assertEquals(combinedMainIndexPattern, mainRelation.indexPattern().indexPattern());
         // subquery
@@ -1114,10 +1114,6 @@ public class SubqueryTests extends AbstractStatementParserTests {
              TS index1, (FROM index2)
             """, mainIndexPattern, subqueryIndexPattern);
 
-        expectThrows(
-            ParsingException.class,
-            containsString("line 1:2: Subqueries are not supported in TS command"),
-            () -> statement(query)
-        );
+        expectThrows(ParsingException.class, containsString("line 1:2: Subqueries are not supported in TS command"), () -> query(query));
     }
 }

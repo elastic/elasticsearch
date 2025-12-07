@@ -26,7 +26,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
 
     private final AggregateMetricDoubleFieldType aggMetricFieldType;
 
-    private final AbstractDownsampleFieldProducer fieldProducer;
+    private final AbstractDownsampleFieldProducer<?> fieldProducer;
 
     AggregateSubMetricFieldValueFetcher(
         MappedFieldType fieldType,
@@ -40,7 +40,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
     }
 
     @Override
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer<?> fieldProducer() {
         return fieldProducer;
     }
 
@@ -64,7 +64,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
         return fetchers;
     }
 
-    private AbstractDownsampleFieldProducer createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
+    private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         AggregateMetricDoubleFieldMapper.Metric metric = null;
         for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
             NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
@@ -79,7 +79,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
             if (samplingMethod != DownsampleConfig.SamplingMethod.LAST_VALUE) {
                 // If the field is an aggregate_metric_double field, we should use the correct subfields
                 // for each aggregation. This is a downsample-of-downsample case
-                return new MetricFieldProducer.AggregateSubMetricFieldProducer(aggMetricFieldType.name(), metric);
+                return new NumericMetricFieldProducer.AggregateSubMetricFieldProducer(aggMetricFieldType.name(), metric);
             } else {
                 return LastValueFieldProducer.createForAggregateSubMetricMetric(aggMetricFieldType.name(), metric);
             }

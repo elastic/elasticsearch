@@ -68,6 +68,9 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
             if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
                 nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
             } else {
+                if (a.toAttribute().equals(aliasesBuilder.build().resolve(a.child()))) {
+                    return;
+                }
                 aliasesBuilder.put(a.toAttribute(), a.child());
             }
         });

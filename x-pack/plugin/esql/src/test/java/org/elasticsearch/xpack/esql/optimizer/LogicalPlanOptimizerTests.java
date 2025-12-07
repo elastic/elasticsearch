@@ -9587,7 +9587,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongSurrogateFoldsToLong() {
-        LogicalPlan statement = parser.createStatement("""
+        LogicalPlan statement = parser.parseQuery("""
             FROM  base_conversion
             | EVAL to_long = TO_LONG(string)
             | KEEP to_long
@@ -9621,7 +9621,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongSurrogateFoldsToLongBase() {
-        LogicalPlan statement = parser.createStatement("""
+        LogicalPlan statement = parser.parseQuery("""
             FROM  base_conversion
             | EVAL to_long = TO_LONG(string, base)
             | KEEP to_long
@@ -9655,7 +9655,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongSurrogateFoldsToLongBaseWithToInteger() {
-        LogicalPlan statement = parser.createStatement("""
+        LogicalPlan statement = parser.parseQuery("""
             FROM  base_conversion
             | EVAL ubase = TO_UNSIGNED_LONG(base)
             | EVAL to_long = TO_LONG(string, ubase)

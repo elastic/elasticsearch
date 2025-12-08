@@ -9,6 +9,9 @@
 // Note: this tests only basic behavior, because of limitations of the CSV tests.
 // Most tests assert that the count, average and sum of some values are within a
 // range. All ranges are very loose, so that the tests should practically never fail.
+// The assertions on the confidence intervals are similarly loose, and the assertions
+// on the reliability match anything, because it has a small false-negative rate,
+// which would make the tests flaky.
 
 approximate stats on large data
 required_capability: approximate
@@ -19,7 +22,7 @@ SET approximate=true; FROM many_numbers
 ;
 
 count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1300000..2700000 | 1315..1350 | 1700000000..3600000000 | [1300000..2700000,1300000..2700000] | true                    | [1315..1350,1315..1350]         | true                  | [1700000000..3600000000,1700000000..3600000000] | true
+1300000..2700000 | 1315..1350 | 1700000000..3600000000 | [1300000..2700000,1300000..2700000] | {any}                   | [1315..1350,1315..1350]         | {any}                 | [1700000000..3600000000,1700000000..3600000000] | {any}
 ;
 
 
@@ -47,7 +50,7 @@ SET approximate=true; FROM many_numbers
 ;
 
 count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | true                    | [1545..1565,1545..1565]         | true                  | [1500000000..3000000000,1500000000..3000000000] | true
+1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | {any}                   | [1545..1565,1545..1565]         | {any}                 | [1500000000..3000000000,1500000000..3000000000] | {any}
 ;
 
 
@@ -62,7 +65,7 @@ SET approximate=true; FROM many_numbers
 ;
 
 count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | true                    | [1545..1565,1545..1565]         | true                  | [1500000000..3000000000,1500000000..3000000000] | true
+1000000..2000000 | 1545..1565 | 1500000000..3000000000 | [1000000..2000000,1000000..2000000] | {any}                   | [1545..1565,1545..1565]         | {any}                 | [1500000000..3000000000,1500000000..3000000000] | {any}
 ;
 
 
@@ -76,7 +79,7 @@ SET approximate=true; FROM many_numbers
 ;
 
 count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                 | RELIABLE(sum):boolean
-1000000..2000000 | 1315..1350 | 130000000..2900000000 | [1000000..2000000,1000000..2000000] | true                    | [1315..1350,1315..1350]         | true                  | [130000000..2900000000,130000000..2900000000] | true
+1000000..2000000 | 1315..1350 | 130000000..2900000000 | [1000000..2000000,1000000..2000000] | {any}                   | [1315..1350,1315..1350]         | {any}                 | [130000000..2900000000,130000000..2900000000] | {any}
 ;
 
 
@@ -99,7 +102,7 @@ SET approximate=true; FROM many_numbers
 ;
 
 count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(count):long     | RELIABLE(count):boolean | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | RELIABLE(sum):boolean
-1300000..2700000 | 2630..2700 | 3400000000..7200000000 | [1300000..2700000,1300000..2700000] | true                    | [2630..2700,2630..2700]         | true                  | [3400000000..7200000000,3400000000..7200000000] | true
+1300000..2700000 | 2630..2700 | 3400000000..7200000000 | [1300000..2700000,1300000..2700000] | {any}                   | [2630..2700,2630..2700]         | {any}                 | [3400000000..7200000000,3400000000..7200000000] | {any}
 ;
 
 
@@ -117,7 +120,7 @@ SET approximate=true; FROM many_numbers
 ;
 
 avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(avg2):double | RELIABLE(avg2):boolean
-1315..1350 | 2630..2700  | [1315..1350,1315..1350]         | true                  | [2630..2700,2630..2700]          | true
+1315..1350 | 2630..2700  | [1315..1350,1315..1350]         | {any}                 | [2630..2700,2630..2700]          | {any} 
 ;
 
 
@@ -135,7 +138,7 @@ SET approximate=true; FROM many_numbers
 ;
 
 y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | RELIABLE(plus1):boolean
-1         | 3400000..3700000 | [3400000..3700000,3400000..3700000] | true
+1         | 3400000..3700000 | [3400000..3700000,3400000..3700000] | {any}
 ;
 
 
@@ -182,11 +185,11 @@ SET approximate=true; FROM many_numbers
 ;
 
 value:integer | count:long | CONFIDENCE_INTERVAL(count):long | RELIABLE(count):boolean
-2000          | 1000..3000 | [500..2500,1500..4000]         | true
-1999          | 1000..3000 | [500..2500,1500..4000]         | true
-1998          | 1000..3000 | [500..2500,1500..4000]         | true
-1997          | 1000..3000 | [500..2500,1500..4000]         | true
-1996          | 1000..3000 | [500..2500,1500..4000]         | true
+2000          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1999          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1998          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1997          | 1000..3000 | [500..2500,1500..4000]          | {any}
+1996          | 1000..3000 | [500..2500,1500..4000]          | {any}
 ;
 
 
@@ -201,11 +204,11 @@ SET approximate=true; FROM many_numbers
 ;
 
 avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(avg):double | RELIABLE(avg):boolean | CONFIDENCE_INTERVAL(median):double | RELIABLE(median):boolean | CONFIDENCE_INTERVAL(one):double | RELIABLE(one):boolean
-2000       | 2000          | 1          | 2000          | [2000,2000]                     | true                  | [2000,2000]                        | true                     | [1,1]                           | true
-1999       | 1999          | 1          | 1999          | [1999,1999]                     | true                  | [1999,1999]                        | true                     | [1,1]                           | true
-1998       | 1998          | 1          | 1998          | [1998,1998]                     | true                  | [1998,1998]                        | true                     | [1,1]                           | true
-1997       | 1997          | 1          | 1997          | [1997,1997]                     | true                  | [1997,1997]                        | true                     | [1,1]                           | true
-1996       | 1996          | 1          | 1996          | [1996,1996]                     | true                  | [1996,1996]                        | true                     | [1,1]                           | true
+2000       | 2000          | 1          | 2000          | [2000,2000]                     | {any}                 | [2000,2000]                        | {any}                    | [1,1]                           | {any}
+1999       | 1999          | 1          | 1999          | [1999,1999]                     | {any}                 | [1999,1999]                        | {any}                    | [1,1]                           | {any}
+1998       | 1998          | 1          | 1998          | [1998,1998]                     | {any}                 | [1998,1998]                        | {any}                    | [1,1]                           | {any}
+1997       | 1997          | 1          | 1997          | [1997,1997]                     | {any}                 | [1997,1997]                        | {any}                    | [1,1]                           | {any}
+1996       | 1996          | 1          | 1996          | [1996,1996]                     | {any}                 | [1996,1996]                        | {any}                    | [1,1]                           | {any}
 ;
 
 

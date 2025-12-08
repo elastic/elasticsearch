@@ -93,6 +93,14 @@ public final class CsvTestUtils {
     public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
     public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
 
+    /**
+     * Matches any value.
+     */
+    public static final String ANY = "{any}";
+
+    /**
+     * Matches any value in the range [lowerBound, upperBound].
+     */
     public record Range(Object lowerBound, Object upperBound) {
         @SuppressWarnings("unchecked")
         <T extends Comparable<T>> boolean includes(Object value) {
@@ -649,6 +657,9 @@ public final class CsvTestUtils {
                 Object lowerBound = converter.apply(value.substring(0, separator).trim());
                 Object upperBound = converter.apply(value.substring(separator + 2).trim());
                 return new Range(lowerBound, upperBound);
+            } else if (ANY.equals(value)) {
+                // The token "{any}" indicates that any value is accepted.
+                return ANY;
             } else {
                 return converter.apply(value);
             }

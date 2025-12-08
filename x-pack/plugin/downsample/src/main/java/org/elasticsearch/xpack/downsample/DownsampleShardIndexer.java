@@ -380,6 +380,11 @@ class DownsampleShardIndexer {
                         exponentialHistogramProducer,
                         fieldValueFetcher.getExponentialHistogramLeaf(ctx)
                     );
+                } else if (fieldProducer instanceof AggregateMetricDoubleFieldProducer numericFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        numericFieldProducer,
+                        fieldValueFetcher.getNumericLeaf(ctx)
+                    );
                 } else if (fieldProducer instanceof LastValueFieldProducer lastValueFieldProducer) {
                     fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
                         lastValueFieldProducer,
@@ -598,7 +603,7 @@ class DownsampleShardIndexer {
                     if (e.getValue().size() == 1) {
                         return e.getValue().get(0);
                     } else {
-                        return new AggregateMetricFieldSerializer(e.getKey(), e.getValue());
+                        return new AggregateMetricDoubleFieldProducer.Serializer(e.getKey(), e.getValue());
                     }
                 })
                 .toArray(DownsampleFieldSerializer[]::new);

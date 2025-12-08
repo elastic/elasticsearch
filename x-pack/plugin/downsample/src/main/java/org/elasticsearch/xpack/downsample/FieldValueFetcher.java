@@ -14,6 +14,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -26,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITION;
 
 /**
  * Utility class used for fetching field values by reading field data.
@@ -82,21 +85,18 @@ class FieldValueFetcher {
             return ExponentialHistogramFieldProducer.create(name(), samplingMethod);
         }
         if (fieldType.getMetricType() != null) {
-            return switch (fieldType.getMetricType()) {
-                case GAUGE -> NumericMetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
-                case COUNTER -> LastValueFieldProducer.createForMetric(name());
-                case HISTOGRAM -> {
-                    if ("exponential_histogram".equals(fieldType.typeName())) {
-                        yield ExponentialHistogramFieldProducer.create(name(), samplingMethod);
-                    }
-                    throw new IllegalArgumentException("Time series metrics supports only exponential histogram");
-                }
-                // TODO: Support POSITION in downsampling
-                case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
-            };
+            // TODO: Support POSITION in downsampling
+            if (fieldType.getMetricType() == POSITION) {
+                throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
+            }
+            if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE
+                && fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
+                return new NumericMetricFieldProducer.AggregateGauge(name());
+            }
+            return new NumericMetricFieldProducer.LastValue(name());
         } else {
             // If a field is not a metric, we downsample it as a label
-            return LastValueFieldProducer.createForLabel(name(), fieldType.typeName());
+            return LastValueFieldProducer.create(name(), fieldType.typeName());
         }
     }
 
@@ -116,7 +116,7 @@ class FieldValueFetcher {
             assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
-                fetchers.addAll(AggregateSubMetricFieldValueFetcher.create(context, aggMetricFieldType, samplingMethod));
+                fetchers.addAll(AggregateMetricDoubleFieldValueFetcher.create(context, aggMetricFieldType, samplingMethod));
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;

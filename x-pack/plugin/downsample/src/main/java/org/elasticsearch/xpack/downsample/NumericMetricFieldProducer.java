@@ -12,7 +12,6 @@ import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
 import java.io.IOException;
 
@@ -27,16 +26,13 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
         super(name);
     }
 
-    @Override
-    public abstract void collect(SortedNumericDoubleValues docValues, IntArrayList buffer) throws IOException;
-
     public static AbstractDownsampleFieldProducer<?> createFieldProducerForGauge(
         String name,
         DownsampleConfig.SamplingMethod samplingMethod
     ) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new AggregateGaugeMetricFieldProducer(name);
-            case LAST_VALUE -> LastValueFieldProducer.createForMetric(name);
+            case AGGREGATE -> new AggregateGauge(name);
+            case LAST_VALUE -> new LastValue(name);
         };
     }
 
@@ -46,14 +42,14 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
     /**
      * {@link NumericMetricFieldProducer} implementation for creating an aggregate gauge metric field
      */
-    static final class AggregateGaugeMetricFieldProducer extends NumericMetricFieldProducer {
+    static final class AggregateGauge extends NumericMetricFieldProducer {
 
         double max = MAX_NO_VALUE;
         double min = MIN_NO_VALUE;
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregateGaugeMetricFieldProducer(String name) {
+        AggregateGauge(String name) {
             super(name);
         }
 
@@ -98,65 +94,47 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
         }
     }
 
-    // For downsampling downsampled indices:
-    static final class AggregateSubMetricFieldProducer extends NumericMetricFieldProducer {
+    /**
+     * {@link NumericMetricFieldProducer} implementation for sampling the last value of a numeric metric field
+     */
+    static final class LastValue extends NumericMetricFieldProducer {
 
-        final AggregateMetricDoubleFieldMapper.Metric metric;
+        double lastValue = Double.NaN;
 
-        double max = MAX_NO_VALUE;
-        double min = MIN_NO_VALUE;
-        final CompensatedSum sum = new CompensatedSum();
-        long count;
-
-        AggregateSubMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
+        LastValue(String name) {
             super(name);
-            this.metric = metric;
         }
 
         @Override
         public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+            if (isEmpty() == false) {
+                return;
+            }
+
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                int docValuesCount = docValues.docValueCount();
-                for (int j = 0; j < docValuesCount; j++) {
-                    double value = docValues.nextValue();
-                    switch (metric) {
-                        case min -> min = Math.min(value, min);
-                        case max -> max = Math.max(value, max);
-                        case sum -> sum.add(value);
-                        // This is the reason why we can't use GaugeMetricFieldProducer
-                        // For downsampled indices aggregate metric double's value count field needs to be summed.
-                        // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
-                        case value_count -> count += Math.round(value);
-                    }
+                if (docValues.advanceExact(docId)) {
+                    isEmpty = false;
+                    lastValue = docValues.nextValue();
+                    return;
                 }
             }
+        }
+
+        public Double lastValue() {
+            return lastValue;
         }
 
         @Override
         public void reset() {
             isEmpty = true;
-            max = MAX_NO_VALUE;
-            min = MIN_NO_VALUE;
-            sum.reset(0, 0);
-            count = 0;
+            lastValue = Double.NaN;
         }
 
         @Override
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
-                builder.startObject(name());
-                switch (metric) {
-                    case min -> builder.field("min", min);
-                    case max -> builder.field("max", max);
-                    case sum -> builder.field("sum", sum.value());
-                    case value_count -> builder.field("value_count", count);
-                }
-                builder.endObject();
+                builder.field(name(), lastValue);
             }
         }
     }

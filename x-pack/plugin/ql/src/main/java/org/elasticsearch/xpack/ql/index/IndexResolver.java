@@ -761,8 +761,12 @@ public class IndexResolver {
 
     }
 
+    /**
+     * Filter out remote index expressions.
+     * TODO: SQL Metadata commands currently do not support remote indices.
+     * See also: showTablesIdentifierPatternOnAliases-Ignore
+     */
     private static String[] onlyLocalIndices(String[] indices) {
-        // FIXME: this is not really a good solution, but will do for now
         return Arrays.stream(indices).filter(i -> RemoteClusterAware.isRemoteIndexName(i) == false).toArray(String[]::new);
     }
 

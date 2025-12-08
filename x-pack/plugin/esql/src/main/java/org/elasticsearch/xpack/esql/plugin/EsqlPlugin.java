@@ -196,12 +196,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
-        final ViewService viewService = new ViewService(services.clusterService(), services.projectResolver(), settings);
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
 
-        return List.of(
+        List<Object> components = List.of(
             new PlanExecutor(
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
@@ -215,9 +214,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ThreadPool.Names.SEARCH,
                 blockFactoryProvider.blockFactory()
             ),
-            blockFactoryProvider,
-            viewService
+            blockFactoryProvider
         );
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            components = new ArrayList<>(components);
+            components.add(new ViewService(services.clusterService(), services.projectResolver(), settings));
+        }
+        return components;
     }
 
     protected BlockFactoryProvider blockFactoryProvider(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {

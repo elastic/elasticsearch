@@ -106,6 +106,11 @@ public class InMemoryViewService extends ViewService implements Closeable {
         }
     }
 
+    protected boolean viewsFeatureEnabled() {
+        // This is a test implementation, so we assume the feature is always enabled
+        return true;
+    }
+
     @Override
     public void close() {
         if (this.threadPool != null) {

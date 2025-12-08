@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,19 +57,22 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     private final Client client;
     private final Executor recoveryExecutor;
     private final SplitSourceService splitSourceService;
+    private final SplitTargetService splitTargetService;
 
     @Inject
     public TransportReshardSplitAction(
         Client client,
         TransportService transportService,
         ActionFilters actionFilters,
-        SplitSourceService splitSourceService
+        SplitSourceService splitSourceService,
+        SplitTargetService splitTargetService
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.transportService = transportService;
         this.recoveryExecutor = transportService.getThreadPool().generic();
         this.splitSourceService = splitSourceService;
+        this.splitTargetService = splitTargetService;
 
         transportService.registerRequestHandler(
             START_SPLIT_ACTION_NAME,
@@ -158,13 +160,7 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     }
 
     private void handleSplitHandoffOnTarget(Request request, ActionListener<Void> listener) {
-        SplitStateRequest splitStateRequest = new SplitStateRequest(
-            request.shardId,
-            IndexReshardingState.Split.TargetShardState.HANDOFF,
-            request.sourcePrimaryTerm,
-            request.targetPrimaryTerm
-        );
-        client.execute(TransportUpdateSplitStateAction.TYPE, splitStateRequest, listener.map(r -> null));
+        ActionListener.run(listener, l -> splitTargetService.acceptHandoff(request, l));
     }
 
     public static class SplitRequest extends ActionRequest {
@@ -230,12 +226,20 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
             return shardId;
         }
 
-        public long targetPrimaryTerm() {
-            return targetPrimaryTerm;
-        }
-
         public DiscoveryNode sourceNode() {
             return sourceNode;
+        }
+
+        public DiscoveryNode targetNode() {
+            return targetNode;
+        }
+
+        public long sourcePrimaryTerm() {
+            return sourcePrimaryTerm;
+        }
+
+        public long targetPrimaryTerm() {
+            return targetPrimaryTerm;
         }
 
         @Override

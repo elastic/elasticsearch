@@ -454,9 +454,6 @@ tests:
 - class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138819
-- class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
-  method: testILMWaitsForTimeSeriesEndTimeToLapse
-  issue: https://github.com/elastic/elasticsearch/issues/138843
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/610_function_score/formulating a function score query with a negative number returns bad request}
   issue: https://github.com/elastic/elasticsearch/issues/138908

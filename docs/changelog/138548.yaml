@@ -1,5 +1,0 @@
-pr: 138548
-summary: Store high-cardinality keyword fields in binary doc values
-area: Mapping
-type: feature
-issues: []

@@ -785,8 +785,11 @@ public class ServerlessStatelessPlugin extends Plugin
             createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService)
         );
         components.add(reshardIndexService);
-        splitTargetService.set(new SplitTargetService(settings, client, clusterService, reshardIndexService));
-        var taskManager = services.taskManager();
+        var splitTargetService = setAndGet(
+            this.splitTargetService,
+            new SplitTargetService(settings, client, clusterService, reshardIndexService)
+        );
+        components.add(splitTargetService);
         var splitSourceService = setAndGet(
             this.splitSourceService,
             new SplitSourceService(
@@ -796,7 +799,7 @@ public class ServerlessStatelessPlugin extends Plugin
                 commitService,
                 objectStoreService,
                 reshardIndexService,
-                taskManager
+                services.taskManager()
             )
         );
         components.add(splitSourceService);

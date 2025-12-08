@@ -45,6 +45,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SplitTargetService {
@@ -61,7 +62,7 @@ public class SplitTargetService {
     private final ReshardIndexService reshardIndexService;
     private final TimeValue searchShardsOnlineTimeout;
 
-    private final ConcurrentHashMap<IndexShard, Split> onGoingSplits = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ShardId, Split> onGoingSplits = new ConcurrentHashMap<>();
 
     public SplitTargetService(Settings settings, Client client, ClusterService clusterService, ReshardIndexService reshardIndexService) {
         this.client = client;
@@ -80,7 +81,7 @@ public class SplitTargetService {
         long sourcePrimaryTerm = indexMetadata.primaryTerm(splitMetadata.sourceShard(shardId.id()));
 
         Split split = new Split(shardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
-        onGoingSplits.put(indexShard, split);
+        putSplit(split);
 
         if (splitMetadata.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
             listener.onResponse(null);
@@ -91,7 +92,7 @@ public class SplitTargetService {
 
     public void afterSplitTargetIndexShardStarted(IndexShard indexShard, IndexReshardingMetadata reshardingMetadata) {
         ShardId shardId = indexShard.shardId();
-        Split split = onGoingSplits.get(indexShard);
+        Split split = onGoingSplits.get(indexShard.shardId());
         if (split == null) {
             throw new IllegalStateException("No on-going split found for shard " + shardId);
         }
@@ -103,8 +104,36 @@ public class SplitTargetService {
             // If current state of the target shard is SPLIT we know that it was applied, but we can't be sure it was acked.
             // We'll need to confirm that it is acked here using some to-be-created API.
             case SPLIT -> moveToDone(indexShard, split);
-            case DONE -> onGoingSplits.remove(indexShard);
+            case DONE -> onGoingSplits.remove(indexShard.shardId());
         }
+    }
+
+    public void acceptHandoff(TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> listener) {
+        var splitFromRequest = new Split(
+            handoffRequest.shardId(),
+            handoffRequest.sourceNode(),
+            handoffRequest.targetNode(),
+            handoffRequest.sourcePrimaryTerm(),
+            handoffRequest.targetPrimaryTerm()
+        );
+
+        if (Objects.equals(onGoingSplits.get(splitFromRequest.shardId()), splitFromRequest) == false) {
+            logger.debug("Received a stale split handoff request: {}", splitFromRequest);
+            throw new IllegalStateException("Received a stale split handoff request for shard " + splitFromRequest.shardId());
+        }
+
+        SplitStateRequest splitStateRequest = new SplitStateRequest(
+            splitFromRequest.shardId,
+            IndexReshardingState.Split.TargetShardState.HANDOFF,
+            splitFromRequest.sourcePrimaryTerm,
+            splitFromRequest.targetPrimaryTerm
+        );
+        client.execute(TransportUpdateSplitStateAction.TYPE, splitStateRequest, listener.map(r -> null));
+    }
+
+    // visible for tests
+    void putSplit(Split split) {
+        onGoingSplits.put(split.shardId(), split);
     }
 
     private void moveToSplit(IndexShard indexShard, Split split) {
@@ -208,7 +237,7 @@ public class SplitTargetService {
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
-            if (onGoingSplits.get(indexShard) != split) {
+            if (onGoingSplits.get(indexShard.shardId()) != split) {
                 // Shard is closed, nothing to do.
                 return;
             }
@@ -225,7 +254,7 @@ public class SplitTargetService {
                     );
                     changeStateToDone.run();
                 })
-                .andThenAccept(ignored -> onGoingSplits.remove(indexShard))
+                .andThenAccept(ignored -> onGoingSplits.remove(indexShard.shardId()))
                 .addListener(listener.delegateResponse((l, e) -> {
                     stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.DONE, e);
                     l.onFailure(e);
@@ -245,7 +274,7 @@ public class SplitTargetService {
     }
 
     private void stateError(IndexShard shard, Split split, IndexReshardingState.Split.TargetShardState state, Exception e) {
-        if (onGoingSplits.get(shard) == split) {
+        if (onGoingSplits.get(shard.shardId()) == split) {
             // TODO: Consider failing shard if this happens
             logger.error(Strings.format("unexpected failure to transition target shard %s state to %s", shard.shardId(), state), e);
         }
@@ -283,7 +312,7 @@ public class SplitTargetService {
 
         @Override
         public void tryAction(ActionListener<ActionResponse> listener) {
-            if (onGoingSplits.get(indexShard) == split) {
+            if (onGoingSplits.get(indexShard.shardId()) == split) {
                 client.execute(TransportUpdateSplitStateAction.TYPE, splitStateRequest, listener);
             } else {
                 listener.onFailure(new AlreadyClosedException("IndexShard has been closed."));
@@ -293,12 +322,12 @@ public class SplitTargetService {
         @Override
         public boolean shouldRetry(Exception e) {
             // Retry forever unless the split is removed which happens when the shard closes
-            return onGoingSplits.get(indexShard) == split;
+            return onGoingSplits.get(indexShard.shardId()) == split;
         }
     }
 
     public void cancelSplits(IndexShard indexShard) {
-        onGoingSplits.remove(indexShard);
+        onGoingSplits.remove(indexShard.shardId());
     }
 
     private static boolean searchShardsOnlineOrNewPrimaryTerm(ClusterState state, ShardId shardId, long primaryTerm) {

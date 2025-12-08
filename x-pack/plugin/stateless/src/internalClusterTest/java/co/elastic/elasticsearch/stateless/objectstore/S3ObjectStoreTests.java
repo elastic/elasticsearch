@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.ServerlessStatelessPlugin;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -682,7 +683,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         private volatile Interceptor interceptor;
 
         InterceptableS3HttpHandler(String bucket) {
-            super(bucket);
+            super(bucket, S3ConsistencyModel.AWS_DEFAULT);
         }
 
         @Override

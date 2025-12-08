@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrder
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PullUpOrderByBeforeInlineJoin;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeInlineJoin;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
@@ -214,7 +214,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneRedundantSortClauses(),
             new PruneLeftJoinOnNullMatchingField(),
             new PruneInlineJoinOnEmptyRightSide(),
-            new PullUpOrderByBeforeInlineJoin(),
+            new HoistOrderByBeforeInlineJoin(),
             new PruneEmptyAggregates()
         );
     }

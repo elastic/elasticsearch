@@ -38,32 +38,31 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryName
  * <p>
  * See also {@link PruneRedundantOrderBy}.
  */
-public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public final class HoistOrderByBeforeInlineJoin extends OptimizerRules.OptimizerRule<LogicalPlan>
+    implements
+        OptimizerRules.CoordinatorOnly {
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
-        return plan.transformUp(LogicalPlan.class, PullUpOrderByBeforeInlineJoin::pullUpOrderByBeforeInlineJoin);
+        return plan.transformUp(InlineJoin.class, HoistOrderByBeforeInlineJoin::hoistOrderByBeforeInlineJoin);
     }
 
-    private static LogicalPlan pullUpOrderByBeforeInlineJoin(LogicalPlan plan) {
-        if (plan instanceof InlineJoin inlineJoin) {
-            Holder<OrderBy> orderByHolder = new Holder<>();
-            inlineJoin.forEachDownMayReturnEarly((node, breakEarly) -> {
-                if (node instanceof OrderBy orderBy) {
-                    orderByHolder.set(orderBy);
-                    breakEarly.set(true);
-                } else {
-                    breakEarly.set(isSortBreaker(node));
-                }
-            });
+    private static LogicalPlan hoistOrderByBeforeInlineJoin(InlineJoin inlineJoin) {
+        Holder<OrderBy> orderByHolder = new Holder<>();
+        inlineJoin.forEachDownMayReturnEarly((node, breakEarly) -> {
+            if (node instanceof OrderBy orderBy) {
+                orderByHolder.set(orderBy);
+                breakEarly.set(true);
+            } else {
+                breakEarly.set(isSortBreaker(node));
+            }
+        });
 
-            OrderBy orderBy = orderByHolder.get();
-            plan = orderBy == null ? plan : pullUpOrderByBeforeInlineJoin(inlineJoin, orderBy);
-        }
-        return plan;
+        OrderBy orderBy = orderByHolder.get();
+        return orderBy == null ? inlineJoin : hoistOrderByBeforeInlineJoin(inlineJoin, orderBy);
     }
 
-    private static LogicalPlan pullUpOrderByBeforeInlineJoin(InlineJoin inlineJoin, OrderBy orderBy) {
+    private static LogicalPlan hoistOrderByBeforeInlineJoin(InlineJoin inlineJoin, OrderBy orderBy) {
         List<Alias> evalAliases = new ArrayList<>();
         AttributeMap.Builder<Attribute> orderByAttrMapBuilder = AttributeMap.builder();
         // Collect all attributes referenced by the OrderBy that are no longer present in the InlineJoin input; i.e., that have been
@@ -81,7 +80,7 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
 
         return evalAliases.isEmpty()
             ? orderBy.replaceChild(inlineJoin.transformUp(OrderBy.class, ob -> ob == orderBy ? orderBy.child() : ob))
-            : pullUpRewritingMidProjections(inlineJoin, orderBy, evalAliases, orderByAttrMapBuilder.build());
+            : hoistRewritingMidProjections(inlineJoin, orderBy, evalAliases, orderByAttrMapBuilder.build());
     }
 
     /**
@@ -89,7 +88,7 @@ public final class PullUpOrderByBeforeInlineJoin extends OptimizerRules.Optimize
      * updates all the {@code Project}s in-between to include the temporary attributes and then adds another top projection,
      * that drops the temporary attributes.
      */
-    private static LogicalPlan pullUpRewritingMidProjections(
+    private static LogicalPlan hoistRewritingMidProjections(
         InlineJoin inlineJoin,
         OrderBy orderBy,
         List<Alias> evalAliases,

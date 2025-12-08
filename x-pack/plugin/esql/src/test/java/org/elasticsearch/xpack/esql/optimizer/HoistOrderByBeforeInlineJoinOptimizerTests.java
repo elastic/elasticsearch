@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalPlanOptimizerTests {
+public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     /*
      * EsqlProject[[emp_no{f}#12, avg{r}#6, languages{f}#15, gender{f}#14]]
@@ -708,7 +708,7 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /**
+    /*
      * Project[[emp_idx{r}#9, salary{f}#20, sum{r}#13, languages{f}#18]]
      * \_TopN[[Order[$$emp_no$temp_name$27{r}#28,ASC,LAST]],1000[INTEGER],false]
      *   \_InlineJoin[LEFT,[languages{f}#18],[languages{r}#18]]
@@ -783,6 +783,122 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
      *       \_StubRelation[[s{r}#11, emp_no{f}#16, languages{f}#19]]
      */
     public void testInlineStatsAfterSortAndStats() {
+        var query = """
+            FROM employees
+            | EVAL s1 = salary + 1
+            | SORT s1
+            | STATS s = SUM(s1) BY emp_no, languages
+            | INLINE STATS cd = COUNT_DISTINCT(languages)
+            | WHERE emp_no > 50000
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        var filter = as(limit.child(), Filter.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
+        assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(50000));
+
+        var inlineJoin = as(filter.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().type(), is(JoinTypes.LEFT));
+        assertThat(inlineJoin.config().leftFields(), empty());
+        assertThat(inlineJoin.config().rightFields(), empty());
+
+        // Left side of the join
+        var leftAgg = as(inlineJoin.left(), Aggregate.class);
+        assertThat(Expressions.names(leftAgg.groupings()), is(List.of("emp_no", "languages")));
+        assertThat(leftAgg.aggregates(), hasSize(3));
+        var leftAggFunction = as(leftAgg.aggregates().get(0), Alias.class);
+        assertThat(leftAggFunction.name(), is("s"));
+        assertThat(leftAggFunction.child().nodeName(), is("Sum"));
+        var leftEval = as(leftAgg.child(), Eval.class);
+        assertThat(Expressions.names(leftEval.fields()), is(List.of("s1")));
+        var relation = as(leftEval.child(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+
+        // Right side of the join
+        var rightAgg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(rightAgg.groupings(), empty());
+        assertThat(rightAgg.aggregates(), hasSize(1));
+        var rightAggFunction = as(rightAgg.aggregates().get(0), Alias.class);
+        assertThat(rightAggFunction.name(), is("cd"));
+        assertThat(rightAggFunction.child(), instanceOf(CountDistinct.class));
+        var stub = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /**
+     * TopN[[Order[salary{r}#11,DESC,FIRST]],5[INTEGER],false]
+     * \_InlineJoin[LEFT,[gender{f}#18],[gender{r}#18]]
+     *   |_Aggregate[[gender{f}#18],[MAX(salary{f}#21,true[BOOLEAN],PT0S[TIME_DURATION]) AS salary#11, gender{f}#18]]
+     *   | \_EsRelation[employees][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *   \_Aggregate[[gender{f}#18],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS s#14, gender{f}#18]]
+     *     \_StubRelation[[salary{r}#11, gender{f}#18]]
+     */
+    public void testInlineStatsAfterSortAndStatsAndSort() {
+        var query = """
+            FROM employees
+            | KEEP salary, emp_no, first_name, gender
+            | SORT salary
+            | STATS salary = MAX(salary) BY gender
+            | SORT salary DESC
+            | INLINE STATS s = COUNT(*) BY gender
+            | LIMIT 5
+            """;
+        if (releaseBuildForInlineStats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
+        assertThat(topN.order(), hasSize(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(Expressions.name(order.child()), is("salary"));
+
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(inlineJoin.config().type(), is(JoinTypes.LEFT));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("gender")));
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("gender")));
+
+        // Left side of the join
+        var leftAgg = as(inlineJoin.left(), Aggregate.class);
+        assertThat(Expressions.names(leftAgg.groupings()), is(List.of("gender")));
+        assertThat(leftAgg.aggregates(), hasSize(2));
+        var leftAggFunction = as(leftAgg.aggregates().get(0), Alias.class);
+        assertThat(leftAggFunction.name(), is("salary"));
+        assertThat(leftAggFunction.child().nodeName(), is("Max"));
+        var relation = as(leftAgg.child(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+
+        // Right side of the join
+        var rightAgg = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(rightAgg.groupings()), is(List.of("gender")));
+        assertThat(rightAgg.aggregates(), hasSize(2));
+        var rightAggFunction = as(rightAgg.aggregates().get(0), Alias.class);
+        assertThat(rightAggFunction.name(), is("s"));
+        assertThat(rightAggFunction.child().nodeName(), is("Count"));
+        var stub = as(rightAgg.child(), StubRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Filter[emp_no{f}#16 > 50000[INTEGER]]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Aggregate[[emp_no{f}#16, languages{f}#19],[SUM(s1{r}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS s#11,
+     *          emp_no{f}#16, languages{f}#19]]
+     *     | \_Eval[[salary{f}#21 + 1[INTEGER] AS s1#5]]
+     *     |   \_EsRelation[employees][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *     \_Aggregate[[],[COUNTDISTINCT(languages{f}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS cd#14]]
+     *       \_StubRelation[[s{r}#11, emp_no{f}#16, languages{f}#19]]
+     */
+    public void testInlineStatsAfterEvalAndSortAndStats() {
         var query = """
             FROM employees
             | EVAL s1 = salary + 1
@@ -903,7 +1019,7 @@ public class PullUpOrderByBeforeInlineJoinOptimizerTests extends AbstractLogical
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    /**
+    /*
      * Project[[abbrev{f}#20, scalerank{f}#22 AS backup_scalerank#5, language_name{f}#29 AS scalerank#13]]
      * \_Limit[1000[INTEGER],true,false]
      *   \_Join[LEFT,[scalerank{f}#22],[language_code{f}#28],null]

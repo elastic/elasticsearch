@@ -4511,7 +4511,7 @@ emp_no:integer |avg:double |salary:integer
 10060          |29175.0    |29175
 ;
 
-inlineStatsAfterSortShaddowed
+inlineStatsAfterSortShadowed
 required_capability: inline_stats_preceeded_by_sort
 
 FROM employees
@@ -4615,6 +4615,49 @@ emp_no:integer |first_name:keyword|sal:integer    |language_code:keyword | langu
 10058          |Berhard           |38376          |3                     |Spanish                |17             |3
 ;
 
+inlineStatsAfterSortDropped
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| EVAL old_salary = salary
+| SORT old_salary, emp_no
+| DROP old_salary
+| INLINE STATS salary = COUNT(*) BY gender
+| LIMIT 5
+;
+
+emp_no:integer |first_name:keyword |salary:long    |gender:keyword
+10015          |Guoxiang           |10             |null
+10035          |null               |57             |M
+10092          |Valdiodio          |33             |F
+10048          |Florian            |57             |M
+10057          |Ebbe               |33             |F
+;
+
+inlineStatsAfterSortDroppedAndResort
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| EVAL old_salary = salary
+| SORT old_salary, emp_no
+| DROP old_salary
+| EVAL salary = salary / 1000
+| RENAME salary AS s
+| SORT s, first_name
+| INLINE STATS s = COUNT(*) BY gender
+| LIMIT 5
+;
+
+emp_no:integer |first_name:keyword |s:long         |gender:keyword
+10015          |Guoxiang           |10             |null
+10092          |Valdiodio          |33             |F
+10035          |null               |57             |M
+10048          |Florian            |57             |M
+10057          |Ebbe               |33             |F
+;
+
 inlineStatsDoubledAfterSortDropped
 required_capability: inline_stats_preceeded_by_sort
 
@@ -4635,4 +4678,40 @@ emp_no:integer |cd:long        |languages:integer|salary:integer |sum:long
 10007          |4              |4                |74572          |10
 10045          |4              |3                |74970          |10
 10029          |4              |null             |74999          |10
+;
+
+inlineStatsAfterStats
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| SORT salary
+| STATS salary = MAX(salary) BY gender
+| INLINE STATS s = COUNT(*) BY gender
+| LIMIT 5
+| SORT salary
+;
+
+salary:integer |s:long         |gender:keyword     
+73717          |1              |null           
+74572          |1              |F              
+74999          |1              |M              
+;
+
+inlineStatsAfterStatsAndSort
+required_capability: inline_stats_preceeded_by_sort
+
+FROM employees
+| KEEP salary, emp_no, first_name, gender
+| SORT salary
+| STATS salary = MAX(salary) BY gender
+| SORT salary DESC
+| INLINE STATS s = COUNT(*) BY gender
+| LIMIT 5
+;
+
+salary:integer |s:long         |gender:keyword     
+74999          |1              |M              
+74572          |1              |F              
+73717          |1              |null           
 ;

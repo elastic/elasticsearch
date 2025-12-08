@@ -13,14 +13,14 @@ DEV_PROMQL : {this.isDevVersion()}? 'promql' -> pushMode(PROMQL_MODE);
 
 mode PROMQL_MODE;
 
-// Simple unquoted identifier for parameter names
-// Note that this overlaps with UNQUOTED_SOURCE which is needed for index patterns
-// For parameter names we restrict to letters, digits and underscores only to avoid mistaking PromQL queries for parameter names
-// Example: PROMQL step=1m foo{bar="baz"}
-// foo{bar should not be treated as a parameter name
-PROMQL_UNQUOTED_IDENTIFIER
-    : [a-z0-9][a-z0-9_]*
-    ;
+// Used for for parameter names
+// Note that this overlaps with UNQUOTED_SOURCE which is needed for index patterns.
+// For parameter names we restrict to letters, digits, and underscores only - to avoid mistaking PromQL queries for parameter names.
+// Example: PROMQL step=1m foo{bar="baz"} - foo{bar should not be treated as a parameter name.
+// As UNQUOTED_SOURCE supports a superset of UNQUOTED_IDENTIFIER characters, we need to define UNQUOTED_IDENTIFIER before UNQUOTED_SOURCE.
+// This way, the lexer will match UNQUOTED_IDENTIFIER first when possible.
+// This requires us to duplicate the parsing for promql index patterns as we may get an UNQUOTED_IDENTIFIER token instead of UNQUOTED_SOURCE.
+PROMQL_UNQUOTED_IDENTIFIER : UNQUOTED_IDENTIFIER  -> type(UNQUOTED_IDENTIFIER);
 
 // Also support quoted identifiers and named parameters
 PROMQL_QUOTED_IDENTIFIER: QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);

@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -57,7 +58,10 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -171,7 +175,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
@@ -223,6 +226,8 @@ public final class EsqlTestUtils {
     public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
     public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
     public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+
+    private static final Logger LOGGER = LogManager.getLogger(EsqlTestUtils.class);
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -399,6 +404,11 @@ public final class EsqlTestUtils {
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            return Map.of();
         }
     }
 
@@ -1055,7 +1065,7 @@ public final class EsqlTestUtils {
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
         }, type);
@@ -1300,7 +1310,7 @@ public final class EsqlTestUtils {
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
-            String[] indices = new EsqlParser().createStatement(afterSetStatements)
+            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
                 .collect(UnresolvedRelation.class)
                 .getFirst()
                 .indexPattern()
@@ -1309,33 +1319,30 @@ public final class EsqlTestUtils {
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
-                String stuffAfterIndices = getStuffAfterIndices(commandArgs, indices[indices.length - 1]);
                 if (Arrays.stream(indices).anyMatch(i -> lookupIndices.contains(i.trim().toLowerCase(Locale.ROOT)))) {
                     // If the query contains lookup indices, use only remotes to avoid duplication
                     onlyRemotes = true;
                 }
-                final boolean onlyRemotesFinal = onlyRemotes;
-                final String remoteIndices = Arrays.stream(indices)
-                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
-                    .collect(Collectors.joining(","));
-                String newFirstCommand = command + " " + remoteIndices + " " + stuffAfterIndices;
+                int i = 0;
+                for (String index : indices) {
+                    i = commandArgs.indexOf(index, i);
+                    String newIndex = unquoteAndRequoteAsRemote(index.trim(), onlyRemotes);
+                    if (i >= 0) {
+                        commandArgs = commandArgs.substring(0, i) + newIndex + commandArgs.substring(i + index.length());
+                    } else if (command.equalsIgnoreCase("PROMQL")) {
+                        // PROMQL queries may not list indices explicitly, relying on the default value
+                        newIndex = "index=" + newIndex + " ";
+                        commandArgs = newIndex + commandArgs;
+                    } else {
+                        throw new IllegalStateException("Could not find index [" + index + "] in command arguments [" + commandArgs + "]");
+                    }
+                    i += newIndex.length();
+                }
+                String newFirstCommand = command + " " + commandArgs;
                 return (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();
             }
         }
         return query;
-    }
-
-    private static String getStuffAfterIndices(String commandArgs, String lastIndex) {
-        String stuffAfterIndices;
-        if (commandArgs.contains(lastIndex)) {
-            stuffAfterIndices = commandArgs.substring(commandArgs.lastIndexOf(lastIndex) + lastIndex.length()).trim();
-        } else {
-            stuffAfterIndices = commandArgs.trim();
-        }
-        while (stuffAfterIndices.startsWith("\"")) {
-            stuffAfterIndices = stuffAfterIndices.substring(1).trim();
-        }
-        return stuffAfterIndices;
     }
 
     /**
@@ -1372,4 +1379,100 @@ public final class EsqlTestUtils {
         return index.substring(numOfQuotes, index.length() - numOfQuotes);
     }
 
+    /**
+     * Convert index patterns and subqueries in FROM commands to use remote indices.
+     */
+    public static String convertSubqueryToRemoteIndices(String testQuery) {
+        String query = testQuery;
+        // find the main from command, ignoring pipes inside subqueries
+        List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
+        String mainFrom = mainFromCommandAndTheRest.get(0).strip();
+        List<String> theRest = mainFromCommandAndTheRest.size() > 1
+            ? mainFromCommandAndTheRest.subList(1, mainFromCommandAndTheRest.size())
+            : List.of();
+        // check for metadata in the main from command
+        List<String> mainFromCommandWithMetadata = splitIgnoringParentheses(mainFrom, "metadata");
+        mainFrom = mainFromCommandWithMetadata.get(0).strip();
+        // if there is metadata, we need to add it back later
+        String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
+        // the main from command could be a comma separated list of index patterns, and subqueries
+        List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
+        List<String> transformed = new ArrayList<>();
+        for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
+            // remove the from keyword if it's there
+            indexPatternOrSubquery = indexPatternOrSubquery.strip();
+            if (indexPatternOrSubquery.toLowerCase(Locale.ROOT).startsWith("from ")) {
+                indexPatternOrSubquery = indexPatternOrSubquery.strip().substring(5);
+            }
+            // substitute the index patterns or subquery with remote index patterns
+            if (isSubquery(indexPatternOrSubquery)) {
+                // it's a subquery, we need to process it recursively
+                String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
+                String transformedSubquery = convertSubqueryToRemoteIndices(subquery);
+                transformed.add("(" + transformedSubquery + ")");
+            } else {
+                // It's an index pattern, we need to convert it to remote index pattern.
+                String remoteIndex = unquoteAndRequoteAsRemote(indexPatternOrSubquery, false);
+                transformed.add(remoteIndex);
+            }
+        }
+        // rebuild from command from transformed index patterns and subqueries
+        String transformedFrom = "FROM " + String.join(", ", transformed) + metadata;
+        // rebuild the whole query
+        mainFromCommandAndTheRest.set(0, transformedFrom);
+        testQuery = String.join(" | ", mainFromCommandAndTheRest);
+
+        LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
+        return testQuery;
+    }
+
+    /**
+     * Checks if the given string is a subquery (enclosed in parentheses).
+     */
+    private static boolean isSubquery(String indexPatternOrSubquery) {
+        String trimmed = indexPatternOrSubquery.strip();
+        return trimmed.startsWith("(") && trimmed.endsWith(")");
+    }
+
+    /**
+     * Splits the input string by the given delimiter, ignoring delimiters inside parentheses.
+     */
+    public static List<String> splitIgnoringParentheses(String input, String delimiter) {
+        List<String> results = new ArrayList<>();
+        if (input == null || input.isEmpty()) return results;
+
+        int depth = 0; // parentheses nesting
+        int lastSplit = 0;
+        int delimiterLength = delimiter.length();
+
+        for (int i = 0; i <= input.length() - delimiterLength; i++) {
+            char c = input.charAt(i);
+
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                if (depth > 0) depth--;
+            }
+
+            // check delimiter only outside parentheses
+            if (depth == 0) {
+                boolean match;
+                if (delimiter.length() == 1) {
+                    match = c == delimiter.charAt(0);
+                } else {
+                    match = input.regionMatches(true, i, delimiter, 0, delimiterLength);
+                }
+
+                if (match) {
+                    results.add(input.substring(lastSplit, i).trim());
+                    lastSplit = i + delimiterLength;
+                    i += delimiterLength - 1; // skip the delimiter
+                }
+            }
+        }
+        // add remaining part
+        results.add(input.substring(lastSplit).trim());
+
+        return results;
+    }
 }

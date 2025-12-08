@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -135,11 +134,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
         this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            this.completionTimeMillis = in.readOptionalVLong();
-        } else {
-            this.completionTimeMillis = null;
-        }
+        this.completionTimeMillis = in.readOptionalVLong();
     }
 
     @Override
@@ -158,9 +153,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         }
         // optional since only CCS uses is; it is null for local-only searches
         out.writeOptionalWriteable(clusters);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeOptionalVLong(completionTimeMillis);
-        }
+        out.writeOptionalVLong(completionTimeMillis);
     }
 
     @Override

@@ -235,6 +235,9 @@ public final class CsvAssert {
                 for (int column = 0; column < expectedRow.size(); column++) {
                     Type expectedType = expected.columnTypes().get(column);
                     Object expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
+                    if (expectedValue == CsvTestUtils.ANY) {
+                        continue;
+                    }
                     Object actualValue = actualRow.get(column);
 
                     Object transformedExpected = valueTransformer.apply(expectedType, expectedValue);

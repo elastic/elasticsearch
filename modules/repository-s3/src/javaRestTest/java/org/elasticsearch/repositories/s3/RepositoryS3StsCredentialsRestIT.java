@@ -13,6 +13,7 @@ import fixture.aws.DynamicAwsCredentials;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.sts.AwsStsHttpFixture;
 import fixture.aws.sts.AwsStsHttpHandler;
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -39,7 +40,13 @@ public class RepositoryS3StsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
-    private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
+    private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        S3ConsistencyModel::randomConsistencyModel,
+        dynamicCredentials::isAuthorized
+    );
 
     private static final String WEB_IDENTITY_TOKEN_FILE_CONTENTS = """
         Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\

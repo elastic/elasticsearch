@@ -29,6 +29,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -488,9 +489,18 @@ public class InferenceQueryUtils {
         ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener
     ) {
         // TODO: Get timeout from INFERENCE_QUERY_TIMEOUT
-        List<CoordinatedInferenceAction.Request> inferenceRequests = inferenceIds.stream()
-            .map(i -> CoordinatedInferenceAction.Request.forTextInput(i, List.of(query), null, false, DEFAULT_TIMEOUT_FOR_API))
-            .toList();
+        List<CoordinatedInferenceAction.Request> inferenceRequests = inferenceIds.stream().map(inferenceId -> {
+            var request = CoordinatedInferenceAction.Request.forTextInput(
+                inferenceId,
+                List.of(query),
+                null,
+                false,
+                DEFAULT_TIMEOUT_FOR_API
+            );
+            request.setHighPriority(true);
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+            return request;
+        }).toList();
 
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> wrappedListener = listener.delegateFailureAndWrap((l, m) -> {

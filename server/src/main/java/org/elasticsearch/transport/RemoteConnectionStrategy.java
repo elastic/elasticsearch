@@ -79,8 +79,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     private static final String metricLabelPrefix = "es_linked_project";
-    static final String linkedProjectIdLabel = metricLabelPrefix + ".linked_project_id";
-    static final String linkedProjectAliasLabel = metricLabelPrefix + ".linked_project_alias";
+    static final String linkedProjectIdLabel = metricLabelPrefix + ".id";
+    static final String linkedProjectAliasLabel = metricLabelPrefix + ".alias";
     static final String connectionAtemptLabel = metricLabelPrefix + ".attempt";
 
     private final int maxPendingConnectionListeners;

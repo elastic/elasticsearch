@@ -51,7 +51,7 @@ public class CCMCrudIT extends CCMRestBaseIT {
         .setting(CCM_SUPPORTED_ENVIRONMENT.getKey(), "true")
         .setting(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), mockEISServer::getUrl)
         .setting(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), "false")
-        // TODO disable the authorization task so it doesn't try to call the mock server
+        .setting(ElasticInferenceServiceSettings.AUTHORIZATION_ENABLED.getKey(), "false")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 

@@ -60,7 +60,6 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion WORKFLOWS_RESTRICTION_VERSION = TransportVersions.V_8_9_X;
     public static final TransportVersion SECURITY_ROLE_DESCRIPTION = TransportVersions.V_8_15_0;
 
     public static final String ROLE_TYPE = "role";
@@ -215,16 +214,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
-        } else {
-            this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
-        }
-        if (in.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
-            this.restriction = new Restriction(in);
-        } else {
-            this.restriction = Restriction.NONE;
-        }
+        this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
+        this.restriction = new Restriction(in);
         if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             this.remoteClusterPermissions = new RemoteClusterPermissions(in);
         } else {
@@ -484,12 +475,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeArray(remoteIndicesPrivileges);
-        }
-        if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
-            restriction.writeTo(out);
-        }
+        out.writeArray(remoteIndicesPrivileges);
+        restriction.writeTo(out);
         if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         }

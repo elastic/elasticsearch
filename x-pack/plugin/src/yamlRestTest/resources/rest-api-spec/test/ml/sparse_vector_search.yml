@@ -279,7 +279,7 @@ teardown:
               field: ml.tokens
               query_vector:
                 the: 0.5
-                comforter: 2.0
+                comforter: 3.0
                 smells: 1.0
                 bad: 1.0
               prune: true
@@ -289,7 +289,7 @@ teardown:
                 only_score_pruned_tokens: false
 
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._score: 4 }
+  - match: { hits.hits.0._score: 6 }
 
 ---
 "Test sparse_vector search with query vector and pruning config with only score pruned tokens":

@@ -111,13 +111,13 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             case 1 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
             case 2 -> unifiedCompletionRequest = randomValueOtherThan(
                 unifiedCompletionRequest,
-                () -> UnifiedCompletionRequestTests.randomUnifiedCompletionRequest()
+                UnifiedCompletionRequestTests::randomUnifiedCompletionRequest
             );
             case 3 -> inferenceContext = randomValueOtherThan(inferenceContext, () -> new InferenceContext(randomAlphaOfLength(10)));
             case 4 -> timeout = randomValueOtherThan(timeout, () -> TimeValue.timeValueMillis(randomLongBetween(1, 2048)));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
+        return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, inferenceContext, timeout);
     }
 
     @Override

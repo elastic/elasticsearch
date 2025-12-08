@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
@@ -640,7 +641,7 @@ public final class SamlRealm extends Realm implements Releasable {
         }));
     }
 
-    public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session, String inResponseTo) {
+    public Map<String, Object> createTokenMetadata(@Nullable SamlNameId nameId, String session, @Nullable String inResponseTo) {
         final Map<String, Object> tokenMeta = new HashMap<>();
         if (nameId != null) {
             tokenMeta.put(TOKEN_METADATA_NAMEID_VALUE, nameId.value);

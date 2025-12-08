@@ -592,7 +592,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 int blockStartDocId = (int) docOffsets.get(blockId);
                 int blockEndDocId = (int) docOffsets.get(blockId + 1);
                 int numDocsInBlock = blockEndDocId - blockStartDocId;
-                decompressBlock(blockId, numDocsInBlock);
+                if (blockId != lastBlockId) {
+                    decompressBlock(blockId, numDocsInBlock);
+                }
 
                 int startDocId = blockId == firstBlockId ? firstDocId : blockStartDocId;
                 // lastDocId is inclusive and blockEndDocId is exclusive!

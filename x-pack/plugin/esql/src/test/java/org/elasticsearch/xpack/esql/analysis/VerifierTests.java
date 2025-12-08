@@ -3336,8 +3336,9 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsFunctionInvalidInputs() {
         assumeTrue("Requires top snippet function", EsqlCapabilities.Cap.TOP_SNIPPETS_FUNCTION.isEnabled());
+
         // Null field allowed
-        query("from test | | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
+        query("from test | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
 
         assertThat(
             error("from test | EVAL snippets = TOP_SNIPPETS(42, \"query\")", fullTextAnalyzer, VerificationException.class),
@@ -3401,6 +3402,39 @@ public class VerifierTests extends ESTestCase {
                     + "cannot cast [foobar] to [integer]"
             )
         );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [0]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
+        );
+
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

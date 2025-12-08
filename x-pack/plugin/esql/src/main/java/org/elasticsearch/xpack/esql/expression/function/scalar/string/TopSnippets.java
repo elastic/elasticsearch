@@ -24,13 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.MapParam;
-import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.*;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -146,7 +140,31 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         }
 
         return isString(field(), sourceText(), FIRST).and(() -> isString(query(), sourceText(), SECOND))
-            .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS));
+            .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS))
+            .and(this::validateOptions);
+    }
+
+    private TypeResolution validateOptions() {
+        if (options() == null) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        MapExpression optionsMap = (MapExpression) options();
+        return validateOptionValueIsPositiveInteger(optionsMap, NUM_SNIPPETS).and(
+            validateOptionValueIsPositiveInteger(optionsMap, NUM_WORDS)
+        );
+    }
+
+    private TypeResolution validateOptionValueIsPositiveInteger(MapExpression optionsMap, String paramName) {
+        Expression expr = optionsMap.keyFoldedMap().get(paramName);
+        if (expr != null) {
+            Object value = expr.fold(FoldContext.small());
+            if (value != null && ((Number) value).intValue() <= 0) {
+                return new TypeResolution(
+                    "'" + paramName + "' option must be a positive integer, found [" + ((Number) value).intValue() + "]"
+                );
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -237,14 +255,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
 
         int numSnippets = numSnippets();
-        if (numSnippets <= 0) {
-            throw new IllegalArgumentException(NUM_SNIPPETS + " parameter must be a positive integer, found [" + numSnippets + "]");
-        }
         int numWords = numWords();
-        if (numWords <= 0) {
-            throw new IllegalArgumentException(NUM_WORDS + " parameter must be a positive integer, found [" + numWords + "]");
-        }
-
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 

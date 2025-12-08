@@ -128,9 +128,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -462,8 +465,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         };
         assertSearch(searchCoordinator, indexName, handoffSearchAssertion, useEsql);
 
-        // we can still index between handoff and split but refresh is blocked, so we
-        // won't see the results reflected in search yet
+        // we can still index between handoff and split but refresh is blocked
         final int handoffIndexedDocuments = randomIntBetween(10, 20);
         indexDocs(indexName, handoffIndexedDocuments);
         totalNumberOfDocumentsInIndex += handoffIndexedDocuments;
@@ -482,19 +484,34 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         refreshThread.start();
 
         final long handoffNewDocsTotalDocuments = totalNumberOfDocumentsInIndex - handoffIndexedDocuments;
+        // We may see some of the documents written, e.g., because refresh proceeds on the source shard
         var handoffNewDocsSearchAssertion = new SearchAssertion() {
             @Override
             public void assertEsql(long documentCount) {
-                assertEquals("Unexpected document count during split", handoffNewDocsTotalDocuments, documentCount);
+                logger.info("ESQL: documentCount during split = {}", documentCount);
+                assertThat(
+                    "ESQL: unexpected document count during split",
+                    documentCount,
+                    is(
+                        both(greaterThanOrEqualTo(handoffNewDocsTotalDocuments)).and(
+                            lessThanOrEqualTo(handoffNewDocsTotalDocuments + handoffIndexedDocuments)
+                        )
+                    )
+                );
             }
 
             @Override
             public void assertSearch(SearchResponse response) {
                 assertEquals(1, response.getTotalShards());
-                assertEquals(
-                    "Unexpected document count during split",
-                    response.getHits().getTotalHits().value(),
-                    handoffNewDocsTotalDocuments
+                final long documentCount = response.getHits().getTotalHits().value();
+                assertThat(
+                    "unexpected document count during split",
+                    documentCount,
+                    is(
+                        both(greaterThanOrEqualTo(handoffNewDocsTotalDocuments)).and(
+                            lessThanOrEqualTo(handoffNewDocsTotalDocuments + handoffIndexedDocuments)
+                        )
+                    )
                 );
             }
         };

@@ -21,6 +21,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
@@ -32,11 +35,14 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
+
+    public static final EsqlParser INSTANCE = new EsqlParser();
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
@@ -88,27 +94,28 @@ public class EsqlParser {
         replaceSymbolWithLiteral(symbolReplacements, lexerVocab.getLiteralNames(), lexerVocab.getSymbolicNames());
     }
 
-    private EsqlConfig config = new EsqlConfig();
+    private final EsqlConfig config;
 
-    public EsqlConfig config() {
-        return config;
-    }
-
-    public void setEsqlConfig(EsqlConfig config) {
+    public EsqlParser(EsqlConfig config) {
         this.config = config;
     }
 
-    // testing utility
-    public LogicalPlan createStatement(String query) {
-        return createStatement(query, new QueryParams());
+    private EsqlParser() { // when default, use the INSTANCE member
+        this(new EsqlConfig());
     }
 
     // testing utility
-    public LogicalPlan createStatement(String query, QueryParams params) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+    public LogicalPlan parseQuery(String query) {
+        return parseQuery(query, new QueryParams());
     }
 
-    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics) {
+    // testing utility
+    public LogicalPlan parseQuery(String query, QueryParams params) {
+        return parseQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+    }
+
+    // testing utility
+    public LogicalPlan parseQuery(String query, QueryParams params, PlanTelemetry metrics) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
@@ -116,16 +123,26 @@ public class EsqlParser {
     }
 
     // testing utility
-    public EsqlStatement createQuery(String query) {
-        return createQuery(query, new QueryParams());
+    public EsqlStatement createStatement(String query) {
+        return createStatement(query, new QueryParams());
     }
 
     // testing utility
-    public EsqlStatement createQuery(String query, QueryParams params) {
-        return createQuery(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+    public EsqlStatement createStatement(String query, QueryParams params) {
+        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
     }
 
-    public EsqlStatement createQuery(String query, QueryParams params, PlanTelemetry metrics) {
+    public EsqlStatement parse(String query, QueryParams params, SettingsValidationContext settingsValidationCtx, PlanTelemetry metrics) {
+        var parsed = createStatement(query, params, metrics);
+        if (log.isDebugEnabled()) {
+            log.debug("Parsed logical plan:\n{}", parsed.plan());
+            log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
+        }
+        QuerySettings.validate(parsed, settingsValidationCtx);
+        return parsed;
+    }
+
+    private EsqlStatement createStatement(String query, QueryParams params, PlanTelemetry metrics) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }

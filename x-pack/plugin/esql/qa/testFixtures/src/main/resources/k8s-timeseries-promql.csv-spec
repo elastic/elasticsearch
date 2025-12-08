@@ -1,8 +1,20 @@
+// Contains tests for functionality that's PromQL specific.
+// Otherwise, PromQL tests go alongside TS tests grouped by functionality k8s-timeseries-<function>.csv-spec.
+// This makes it easy to verify that PromQL and TS produce the same results for the same functionality where applicable
+// and helps to ensure we have the same test coverage for PromQL vs TS|STATS.
 promql_start_end_step
-required_capability: promql_pre_tech_preview_v3
-PROMQL k8s step 5m start "2024-05-10T00:20:00.000Z" end "2024-05-10T00:25:00.000Z" (
+required_capability: promql_pre_tech_preview_v7
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
   sum(avg_over_time(network.cost[5m]))
 );
+
+sum(avg_over_time(network.cost[5m])):double | step:date
+50.25                                       | 2024-05-10T00:20:00.000Z
+;
+
+no_parentheses
+required_capability: promql_pre_tech_preview_v7
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" sum(avg_over_time(network.cost[5m]));
 
 sum(avg_over_time(network.cost[5m])):double | step:date
 50.25                                       | 2024-05-10T00:20:00.000Z

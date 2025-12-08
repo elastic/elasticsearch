@@ -1905,9 +1905,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
         }
 
-        IndexVersion statelessSkipperVersion = IndexVersions.STATELESS_SKIPPERS_ENABLED_BY_DEFAULT;
+        Settings statelessSkipperTSDB = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        IndexVersion statelessSkipperVersion = IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB;
         {
-            MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperDefault, fieldMapping(b -> {
+            MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperTSDB, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        Settings statelessSkipperEnabled = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .build();
+        {
+            MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperEnabled, fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("doc_values", true);
                 b.field("index", false);

@@ -38,9 +38,11 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
+        private final boolean isDateNanos;
 
-        public FunctionSupplier(boolean isRateOverTime) {
+        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos) {
             this.isRateOverTime = isRateOverTime;
+            this.isDateNanos = isDateNanos;
         }
 
         @Override
@@ -60,7 +62,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
         @Override
         public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateIntGroupingAggregatorFunction(channels, driverContext, isRateOverTime);
+            return new RateIntGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos);
         }
 
         @Override
@@ -82,13 +84,20 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
+    private final double dateFactor;
 
-    public RateIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
+    public RateIntGroupingAggregatorFunction(
+        List<Integer> channels,
+        DriverContext driverContext,
+        boolean isRateOverTime,
+        boolean isDateNanos
+    ) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
         this.isRateOverTime = isRateOverTime;
         ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
+        this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         try {
             this.reducedStates = driverContext.bigArrays().newObjectArray(256);
             this.buffers = buffers;
@@ -581,7 +590,13 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), isRateOverTime);
+                    rate = extrapolateRate(
+                        state,
+                        tsContext.rangeStartInMillis(group) / 1000.0,
+                        tsContext.rangeEndInMillis(group) / 1000.0,
+                        isRateOverTime,
+                        dateFactor
+                    );
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime);
                 }
@@ -674,31 +689,37 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd, boolean isRateOverTime) {
+    private static double extrapolateRate(
+        ReducedState state,
+        double rangeStartSec,
+        double rangeEndSec,
+        boolean isRateOverTime,
+        double dateFactor
+    ) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
-        final long firstTS = state.intervals[state.intervals.length - 1].t2;
-        final long lastTS = state.intervals[0].t1;
+        final double firstTsSec = state.intervals[state.intervals.length - 1].t2 / dateFactor;
+        final double lastTsSec = state.intervals[0].t1 / dateFactor;
         double firstValue = state.intervals[state.intervals.length - 1].v2;
         double lastValue = state.intervals[0].v1 + state.resets;
-        final double sampleTS = lastTS - firstTS;
-        final double averageSampleInterval = sampleTS / state.samples;
-        final double slope = (lastValue - firstValue) / sampleTS;
-        double startGap = firstTS - rangeStart;
-        if (startGap > 0) {
-            if (startGap > averageSampleInterval * 1.1) {
-                startGap = averageSampleInterval / 2.0;
+        final double sampleTsSec = lastTsSec - firstTsSec;
+        final double averageSampleInterval = sampleTsSec / state.samples;
+        final double slope = (lastValue - firstValue) / sampleTsSec;
+        double startGapSec = firstTsSec - rangeStartSec;
+        if (startGapSec > 0) {
+            if (startGapSec > averageSampleInterval * 1.1) {
+                startGapSec = averageSampleInterval / 2.0;
             }
-            firstValue = Math.max(0.0, firstValue - startGap * slope);
+            firstValue = Math.max(0.0, firstValue - startGapSec * slope);
         }
-        double endGap = rangeEnd - lastTS;
-        if (endGap > 0) {
-            if (endGap > averageSampleInterval * 1.1) {
-                endGap = averageSampleInterval / 2.0;
+        double endGapSec = rangeEndSec - lastTsSec;
+        if (endGapSec > 0) {
+            if (endGapSec > averageSampleInterval * 1.1) {
+                endGapSec = averageSampleInterval / 2.0;
             }
-            lastValue = lastValue + endGap * slope;
+            lastValue = lastValue + endGapSec * slope;
         }
         if (isRateOverTime) {
-            return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+            return (lastValue - firstValue) / (rangeEndSec - rangeStartSec);
         } else {
             return lastValue - firstValue;
         }

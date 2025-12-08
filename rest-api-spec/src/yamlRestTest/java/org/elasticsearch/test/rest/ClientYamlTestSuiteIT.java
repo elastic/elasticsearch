@@ -37,7 +37,6 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
-        .feature(FeatureFlag.GENERIC_VECTOR_FORMAT)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

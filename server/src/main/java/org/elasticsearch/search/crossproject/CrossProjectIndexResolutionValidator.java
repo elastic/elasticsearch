@@ -97,8 +97,8 @@ public class CrossProjectIndexResolutionValidator {
             String originalExpression = localResolvedIndices.original();
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
 
-            // Check if this is a qualified resource (project:index pattern) or has project routing
-            boolean isQualifiedExpression = hasProjectRouting || RemoteClusterAware.isRemoteIndexName(originalExpression);
+            // Check if this is a qualified resource (project:index pattern)
+            boolean isQualifiedExpression = RemoteClusterAware.isRemoteIndexName(originalExpression);
 
             Set<String> remoteExpressions = localResolvedIndices.remoteExpressions();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
@@ -129,11 +129,14 @@ public class CrossProjectIndexResolutionValidator {
                     originalExpression,
                     indicesOptions
                 );
-                if (localException == null) {
+                ElasticsearchSecurityException unauthorizedException = null;
+                if (localException == null && localExpressions != ResolvedIndexExpression.LocalExpressions.NONE) {
                     // found locally, continue to next expression
                     continue;
                 }
-                boolean isUnauthorized = localException instanceof ElasticsearchSecurityException;
+                if (localException instanceof ElasticsearchSecurityException securityException) {
+                    unauthorizedException = securityException;
+                }
                 boolean foundFlat = false;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
@@ -150,15 +153,15 @@ public class CrossProjectIndexResolutionValidator {
                         foundFlat = true;
                         break;
                     }
-                    if (false == isUnauthorized && exception instanceof ElasticsearchSecurityException) {
-                        isUnauthorized = true;
+                    if (unauthorizedException == null && exception instanceof ElasticsearchSecurityException securityException) {
+                        unauthorizedException = securityException;
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
-                if (isUnauthorized) {
-                    return localException;
+                if (unauthorizedException != null) {
+                    return unauthorizedException;
                 }
                 return new IndexNotFoundException(originalExpression);
             }

@@ -74,7 +74,12 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     LogicalPlan processingCommand(String e, QueryParams params, Settings settings) {
-        return parser.createStatement("row a = 1 | " + e, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(settings));
+        return parser.parseQuery(
+            "row a = 1 | " + e,
+            params,
+            new PlanTelemetry(new EsqlFunctionRegistry()),
+            new InferenceSettings(settings)
+        );
     }
 
     static UnresolvedAttribute attribute(String name) {

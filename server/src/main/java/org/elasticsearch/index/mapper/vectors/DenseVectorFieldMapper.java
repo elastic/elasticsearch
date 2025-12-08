@@ -50,6 +50,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
+import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -1854,6 +1856,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            if (elementType.equals(ElementType.BIT)) {
+                return new ES815BitFlatVectorFormat();
+            }
             return new ES93FlatVectorFormat(elementType);
         }
 
@@ -2165,6 +2170,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
+            if (elementType == ElementType.BIT) {
+                return new ES815HnswBitVectorsFormat(m, efConstruction);
+            }
             return new ES93HnswVectorsFormat(m, efConstruction, elementType);
         }
 

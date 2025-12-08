@@ -29,6 +29,10 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
         super(NAME);
     }
 
+    public ES815HnswBitVectorsFormat(int maxConn, int beamWidth) {
+        super(NAME, maxConn, beamWidth);
+    }
+
     @Override
     protected FlatVectorsFormat flatVectorsFormat() {
         return flatVectorsFormat;

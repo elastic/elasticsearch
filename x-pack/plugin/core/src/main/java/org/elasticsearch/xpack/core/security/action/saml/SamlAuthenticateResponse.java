@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
@@ -29,7 +30,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
 
     // Constructor used in Serverless
     public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
-        this(authentication, tokenString, refreshToken, expiresIn, /* inResponseTo= */ null);
+        this(authentication, tokenString, refreshToken, expiresIn, null);
     }
 
     public SamlAuthenticateResponse(
@@ -37,7 +38,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         String tokenString,
         String refreshToken,
         TimeValue expiresIn,
-        String inResponseTo
+        @Nullable String inResponseTo
     ) {
         this.principal = authentication.getEffectiveSubject().getUser().principal();
         this.realm = authentication.getEffectiveSubject().getRealm().getName();
@@ -76,6 +77,9 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         return inResponseTo;
     }
 
+    // note that this method is not used in any current code path,
+    // but is left here for compatibility with old versions, and as such
+    // is not up to date, i.e. it does not write 'inResponseTo'
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
@@ -84,6 +88,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         out.writeString(refreshToken);
         out.writeTimeValue(expiresIn);
         authentication.writeTo(out);
-        out.writeString(inResponseTo);
+        // intentionally missing inResponseTo
     }
 }

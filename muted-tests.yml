@@ -325,9 +325,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/40_tsdb/error on rename timestamp}
-  issue: https://github.com/elastic/elasticsearch/issues/137259
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
@@ -367,15 +364,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/138129
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/138130
-- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/138206
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/95_sort_mixed_numeric_types/Simple sort}
   issue: https://github.com/elastic/elasticsearch/issues/138297
@@ -463,15 +451,6 @@ tests:
 - class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138819
-- class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
-  method: testILMWaitsForTimeSeriesEndTimeToLapse
-  issue: https://github.com/elastic/elasticsearch/issues/138843
-- class: org.elasticsearch.common.settings.ScopedSettingsTests
-  method: testValidateArchivedSetting
-  issue: https://github.com/elastic/elasticsearch/issues/138895
-- class: org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCaseMultipleFailuresIT
-  method: test {p0=/20_multiple_failures/Test with multiple failures}
-  issue: https://github.com/elastic/elasticsearch/issues/138896
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/610_function_score/formulating a function score query with a negative number returns bad request}
   issue: https://github.com/elastic/elasticsearch/issues/138908
@@ -485,8 +464,54 @@ tests:
   method: test {p0=search.vectors/60_dense_vector_dynamic_mapping/Sub-objects mapped as dense_vector without dims dynamically map the dim size to the first
     indexed document}
   issue: https://github.com/elastic/elasticsearch/issues/138945
-- class: org.elasticsearch.xpack.gpu.GPUClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/138946
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  method: testStopLookback_closeJobFalse
+  issue: https://github.com/elastic/elasticsearch/issues/139024
+- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
+  method: testInvalidateRefreshTokenThatIsAlreadyInvalidated
+  issue: https://github.com/elastic/elasticsearch/issues/139026
+- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
+  method: testSupersedingTokenEncryption
+  issue: https://github.com/elastic/elasticsearch/issues/139031
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/370_profile/dfs knn vector profiling collector name}
+  issue: https://github.com/elastic/elasticsearch/issues/139065
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
+  issue: https://github.com/elastic/elasticsearch/issues/139066
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/139127
+- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
+  method: testIndexSortForNumericTypes {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/139128
+- class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
+  method: testConcurrentStatusFetchWhileTaskCloses
+  issue: https://github.com/elastic/elasticsearch/issues/138543
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/130_knn_query_nested_search/nested kNN search pre-filtered on alias with filter on top level fields}
+  issue: https://github.com/elastic/elasticsearch/issues/139131
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139152
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/139153
+- class: org.elasticsearch.xpack.core.security.authc.AuthenticationTests
+  method: testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/139167
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=eql/10_basic/Sequence checking correct join key ordering.}
+  issue: https://github.com/elastic/elasticsearch/issues/139173
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139195
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+  issue: https://github.com/elastic/elasticsearch/issues/139196
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/139213
 
 # Examples:
 #

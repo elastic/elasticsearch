@@ -12,7 +12,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 /** Noddy implementation, you likely do not want to use this in production, check that vectorLength > 1. */
-public class DefaultVectorComparisonUtils implements VectorComparisonUtils {
+public final class DefaultVectorComparisonUtils implements VectorComparisonUtils {
 
     public static DefaultVectorComparisonUtils INSTANCE = new DefaultVectorComparisonUtils();
 

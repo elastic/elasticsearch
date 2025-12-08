@@ -24,8 +24,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
@@ -34,6 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
+// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 20)
 public class Ordinator64Tests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
@@ -323,6 +326,149 @@ public class Ordinator64Tests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("over test limit"));
         assertThat(recycler.open, hasSize(0));
+    }
+
+    // High-probability bucket collisions. You just need structural patterns that
+    // tend to collide in the bucket selection logic.
+
+    public void testSameBucketCollisionsSmall() {
+        testSameBucketCollisionsImpl(1000);
+    }
+
+    public void testSameBucketCollisionsBig() {
+        testSameBucketCollisionsImpl(10000);
+    }
+
+    private void testSameBucketCollisionsImpl(int count) {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+            // mask must match the table mask used by Ordinator64
+            int mask = 0xFFFF; // oversized; we only need lower bits locked
+            long base = randomLong();
+
+            long[] keys = makeSameBucketKeys(base, mask, count);
+
+            Map<Long, Integer> expected = new HashMap<>();
+            for (long k : keys) {
+                int id = ord.add(k);
+                expected.put(k, id);
+            }
+
+            // Verify lookups
+            for (long k : keys) {
+                assertThat(ord.find(k), equalTo(expected.get(k)));
+            }
+        }
+    }
+
+    public void testSameControlDataCollisionsSmall() {
+        testSameControlDataCollisionsImpl(800);
+        testSameControlDataCollisionsImpl(1000);
+        testSameControlDataCollisionsImpl(1200);
+    }
+
+    public void testSameControlDataCollisionsBig() {
+        testSameControlDataCollisionsImpl(3000);
+        testSameControlDataCollisionsImpl(10000);
+        testSameControlDataCollisionsImpl(20000);
+    }
+
+    private void testSameControlDataCollisionsImpl(int count) {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+            int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
+            long[] keys = makeSameControlDataKeys(control, count);
+            Map<Long, Integer> expected = new HashMap<>();
+            for (long k : keys) {
+                int id = ord.add(k);
+                expected.put(k, id);
+            }
+
+            // All must be findable despite metadata aliasing
+            for (long k : keys) {
+                assertThat(ord.find(k), equalTo(expected.get(k)));
+            }
+
+            // Check iteration completeness
+            int seen = 0;
+            var itr = ord.iterator();
+            while (itr.next()) {
+                assertTrue(expected.containsKey(itr.key()));
+                seen++;
+            }
+            assertThat(seen, equalTo(expected.size()));
+        }
+    }
+
+    public void testWorstCaseCollisionClusterSmall() {
+        testWorstCaseCollisionClusterImpl(1000);  // small core
+    }
+
+    public void testWorstCaseCollisionClusterBig() {
+        testWorstCaseCollisionClusterImpl(3000);  // big core
+        testWorstCaseCollisionClusterImpl(5000);
+        testWorstCaseCollisionClusterImpl(10000);
+    }
+
+    private void testWorstCaseCollisionClusterImpl(int count) {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+            // Pick a fixed 7-bit metadata and fixed low bits.
+            int control = randomIntBetween(1, 120);
+            long fixedBucketBits = randomLong() & 0xFFFF; // lock bucket range
+
+            long[] keys = new long[count];
+            for (int i = 0; i < count; i++) {
+                long upper = ((long) control) << (64 - 7);
+                long mid = ((long) i) << 16;       // differing mid bits
+                long lower = fixedBucketBits;
+                keys[i] = upper | mid | lower;
+            }
+
+            Map<Long, Integer> expected = new HashMap<>();
+            for (long k : keys) {
+                int id = ord.add(k);
+                expected.put(k, id);
+            }
+
+            // Validate correctness
+            for (long k : keys) {
+                assertThat(ord.find(k), equalTo(expected.get(k)));
+            }
+
+            // Validate iteration covers all keys
+            int total = 0;
+            var itr = ord.iterator();
+            while (itr.next()) {
+                long key = itr.key();
+                assertTrue("Iteration returned unexpected key " + key, expected.containsKey(key));
+                total++;
+            }
+            assertThat(total, equalTo(count));
+        }
+    }
+
+    private long[] makeSameBucketKeys(long base, int mask, int count) {
+        long[] result = new long[count];
+        for (int i = 0; i < count; i++) {
+            // Force same bucket: (hash(x) & mask) = fixed value.
+            // Here we simply mutate upper bits while leaving lower bits constant.
+            result[i] = (base & mask) | ((long) i << 32);
+        }
+        return result;
+    }
+
+    private long[] makeSameControlDataKeys(int controlValue, int count) {
+        long[] result = new long[count];
+        for (int i = 0; i < count; i++) {
+            long upper = (long) controlValue << (64 - 7);
+            long lower = randomLong() & ((1L << (64 - 7)) - 1);
+            result[i] = upper | lower;
+        }
+        return result;
     }
 
     private void assertStatus(Ordinator64 ord) {

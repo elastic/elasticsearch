@@ -219,7 +219,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
      *     This uses one page from the {@link PageCacheRecycler} for the {@code ids}.
      * </p>
      */
-    class SmallCore extends Core {
+    final class SmallCore extends Core {
         static final float FILL_FACTOR = 0.6F;
 
         private final byte[] idPage;
@@ -343,7 +343,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
      * The ids are stored many {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES}
      * arrays.
      */
-    class BigCore extends Core {
+    final class BigCore extends Core {
         static final float FILL_FACTOR = 0.85F;
 
         private static final byte CONTROL_EMPTY = (byte) 0b1111_1111;

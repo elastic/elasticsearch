@@ -52,7 +52,7 @@ import java.util.Arrays;
  *     and read all values in the old "big core" into the new one.
  * </p>
  */
-public class Ordinator64 extends Ordinator implements Releasable {
+public final class Ordinator64 extends Ordinator implements Releasable {
     private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
 
     private static final int BYTE_VECTOR_LANES = VECTOR_UTILS.byteVectorLanes();
@@ -65,7 +65,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
 
     private static final int ID_SIZE = Integer.BYTES;
 
-    static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / KEY_SIZE;
+    public static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / KEY_SIZE;
 
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
@@ -88,9 +88,10 @@ public class Ordinator64 extends Ordinator implements Releasable {
     private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
-    private SmallCore smallCore;
-    private BigCore bigCore;
+    SmallCore smallCore;
+    BigCore bigCore;
 
+    @SuppressWarnings("this-escape")
     public Ordinator64(PageCacheRecycler recycler, CircuitBreaker breaker, IdSpace idSpace) {
         super(recycler, breaker, idSpace, INITIAL_CAPACITY, Ordinator64.SmallCore.FILL_FACTOR);
         this.smallCore = new SmallCore();
@@ -224,7 +225,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
      *     for the {@code keys} and one for the {@code ids}.
      * </p>
      */
-    class SmallCore extends Core {
+    final class SmallCore extends Core {
         static final float FILL_FACTOR = 0.6F;
 
         private final byte[] keyPage;
@@ -356,7 +357,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
      * can be sure the array and offset into the array can be calculated by right
      * shifts.
      */
-    class BigCore extends Core {
+    final class BigCore extends Core {
         static final float FILL_FACTOR = 0.85F;
 
         private static final byte CONTROL_EMPTY = (byte) 0b1111_1111;
@@ -473,7 +474,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
                     candidateMatches &= ~(1L << first);
                 }
 
-                if (VectorComparisonUtils.anyTrue(controlMatches(slot, CONTROL_EMPTY))) {
+                if (controlMatches(slot, CONTROL_EMPTY) != 0) {
                     return -1;
                 }
 
@@ -518,14 +519,12 @@ public class Ordinator64 extends Ordinator implements Releasable {
                     longHandle.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, key);
                     intHandle.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
                     controlData[slot] = control;
-                    /*
-                     * Mirror the first VECTOR_UTILS.vectorLength() bytes to the end of the array. All
-                     * other positions are just written twice.
-                     */
-                    controlData[((slot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
+                    // mirror only if slot is within the first group size, to handle wraparound loads
+                    if (slot < BYTE_VECTOR_LANES) {
+                        controlData[slot + capacity] = control;
+                    }
                     return;
                 }
-
                 slotIncrement += BYTE_VECTOR_LANES;
                 slot = slot(slot + slotIncrement);
                 insertProbes++;
@@ -574,18 +573,18 @@ public class Ordinator64 extends Ordinator implements Releasable {
             int slot = 0;
             while (slot < oldCapacity) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
-                // TODO iterate like in find - it's faster.
                 for (int i = 0; i < BYTE_VECTOR_LANES && slot + i < oldCapacity; i++) {
-                    if ((empty & (1L << i)) != 0L) {
-                        slot++;
+                    if ((empty & (1L << i)) != 0) {
                         continue;
                     }
-                    long key = key(slot);
+                    int actualSlot = slot + i;
+                    long key = key(actualSlot);
+                    int id = id(actualSlot);
                     int hash = hash(key);
-                    int id = id(slot);
-                    bigCore.insert(key, hash, control(hash), id);
-                    slot++;
+                    byte control = control(hash);
+                    bigCore.insert(key, hash, control, id);
                 }
+                slot += BYTE_VECTOR_LANES;
             }
         }
 
@@ -597,6 +596,7 @@ public class Ordinator64 extends Ordinator implements Releasable {
          */
         private long controlMatches(int slot, byte control) {
             return VECTOR_UTILS.equalMask(controlData, slot, control);
+            // return ByteVector.fromArray(BS, controlData, slot).eq(control).toLong();
         }
 
         private long key(int slot) {

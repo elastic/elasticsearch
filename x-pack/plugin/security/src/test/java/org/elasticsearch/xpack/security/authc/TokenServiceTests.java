@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -235,10 +234,6 @@ public class TokenServiceTests extends ESTestCase {
             // tokens docs on a separate index)
             pre72OldNode = addAnother7071DataNode(this.clusterService);
         }
-        if (randomBoolean()) {
-            // before refresh tokens used GET, i.e. TokenService#VERSION_GET_TOKEN_DOC_FOR_REFRESH
-            pre8500040OldNode = addAnotherPre8500DataNode(this.clusterService);
-        }
     }
 
     private static DiscoveryNode addAnother7071DataNode(ClusterService clusterService) {
@@ -251,14 +246,6 @@ public class TokenServiceTests extends ESTestCase {
             version = Version.V_7_1_0;
             transportVersion = TransportVersion.fromId(7_01_00_99);
         }
-        return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
-    }
-
-    private static DiscoveryNode addAnotherPre8500DataNode(ClusterService clusterService) {
-        Version version;
-        TransportVersion transportVersion;
-        version = Version.V_8_9_0;
-        transportVersion = TransportVersions.V_8_9_X;
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
 

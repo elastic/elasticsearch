@@ -205,7 +205,7 @@ public interface BlockLoader {
          *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
          * @param toDouble       a function to convert long values to double, or null if no conversion is needed/supported
          * @param toInt          whether to convert to int in case int block / vector is needed
-         * @param asCustomBinary
+         * @param binaryMultiValuedFormat whether the multi-valued binary format is used (CustomBinaryDocValuesField).
          */
         @Nullable
         BlockLoader.Block tryRead(
@@ -215,7 +215,7 @@ public interface BlockLoader {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean asCustomBinary
+            boolean binaryMultiValuedFormat
         ) throws IOException;
     }
 

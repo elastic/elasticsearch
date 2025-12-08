@@ -118,18 +118,6 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "date_range",
-          "optional" : false,
-          "description" : "Value to check. It can be a single- or multi-valued column or an expression."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "field",
           "type" : "dense_vector",
           "optional" : false,
           "description" : "Value to check. It can be a single- or multi-valued column or an expression."

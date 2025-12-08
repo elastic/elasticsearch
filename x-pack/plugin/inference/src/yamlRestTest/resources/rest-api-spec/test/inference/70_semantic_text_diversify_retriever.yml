@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: [ "retriever.result_diversification_mmr" ]
-      reason: "Added retriever for result diversification using MMR"
+      cluster_features: "text_embedding_query_vector_builder.used_by.result_diversification_mmr_retriever"
+      reason: "Added retriever for result diversification using MMR in 9.3.0"
 
   - requires:
       test_runner_features:
@@ -125,3 +125,55 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
+
+---
+"Validate query_vector_builder validation and proper syntax":
+
+  - do:
+      catch: /\[unknown-model-id\] is not an inference service model or a deployed ml model/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              query_vector_builder:
+                text_embedding:
+                  model_id: unknown-model-id
+                  model_text: test
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { status: 404 }
+  - match: { error.type: status_exception }
+
+  - do:
+      catch: /Required \[model_text\]/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              query_vector_builder:
+                text_embedding:
+                  model_id: dense-inference-id
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }

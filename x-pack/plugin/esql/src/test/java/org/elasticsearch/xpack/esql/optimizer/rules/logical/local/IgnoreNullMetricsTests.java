@@ -59,12 +59,10 @@ import static org.hamcrest.Matchers.instanceOf;
 public class IgnoreNullMetricsTests extends ESTestCase {
 
     private static Analyzer analyzer;
-    private static EsqlParser parser;
     private static LogicalPlanOptimizer logicalOptimizer;
 
     @BeforeClass
     private static void init() {
-        parser = new EsqlParser();
         EnrichResolution enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
         LogicalOptimizerContext logicalOptimizerCtx = unboundLogicalOptimizerContext();
@@ -99,7 +97,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

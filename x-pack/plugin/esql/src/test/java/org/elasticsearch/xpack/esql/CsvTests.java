@@ -200,7 +200,6 @@ public class CsvTests extends ESTestCase {
      */
     private Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-    private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper();
     private ThreadPool threadPool;
     private Executor executor;
@@ -301,7 +300,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't load metrics in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V1.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.capabilityName())
             );
             assumeFalse(
                 "can't use QSTR function in csv tests",
@@ -365,7 +364,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use PromQL in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V1.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {
@@ -666,7 +665,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        EsqlStatement statement = parser.createQuery(testCase.query);
+        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(testCase.query);
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
             testCase.query,
@@ -680,6 +679,7 @@ public class CsvTests extends ESTestCase {
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
             getTestName(),
+            TransportVersion.current(),
             queryClusterSettings(),
             null,
             null,

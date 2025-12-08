@@ -19,15 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
-    private static final String LOCAL_INDEX_NAME = "local-index";
-    private static final String REMOTE_INDEX_NAME = "remote-index";
-    private static final String FULLY_QUALIFIED_REMOTE_INDEX_NAME = fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME);
-
-    private static final List<IndexWithBoost> QUERY_INDICES = List.of(
-        new IndexWithBoost(LOCAL_INDEX_NAME, 10.0f),
-        new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)
-    );
-
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
     private static final String VARIABLE_INFERENCE_ID_FIELD = "variable-inference-id-field";
 
@@ -72,7 +63,7 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         // Query an inference field on a remote cluster
         assertSearchResponse(
             new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)))
         );
     }
@@ -105,14 +96,14 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         // Query an inference field on a remote cluster
         assertSearchResponse(
             new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)
         );
 
         // Use a point in time to implicitly set ccs_minimize_roundtrips=false
-        BytesReference pitId = openPointInTime(convertToArray(QUERY_INDICES), TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(QUERY_INDICES, TimeValue.timeValueMinutes(2));
         assertSearchResponse(
             new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
             null,

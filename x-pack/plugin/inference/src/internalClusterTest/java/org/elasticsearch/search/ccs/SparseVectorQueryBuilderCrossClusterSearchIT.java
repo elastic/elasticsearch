@@ -17,15 +17,6 @@ import java.util.Map;
 import java.util.Set;
 
 public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
-    private static final String LOCAL_INDEX_NAME = "local-index";
-    private static final String REMOTE_INDEX_NAME = "remote-index";
-    private static final String FULLY_QUALIFIED_REMOTE_INDEX_NAME = fullyQualifiedIndexName(REMOTE_CLUSTER, REMOTE_INDEX_NAME);
-
-    private static final List<IndexWithBoost> QUERY_INDICES = List.of(
-        new IndexWithBoost(LOCAL_INDEX_NAME),
-        new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)
-    );
-
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
     private static final String MIXED_TYPE_FIELD_1 = "mixed-type-field-1";
     private static final String MIXED_TYPE_FIELD_2 = "mixed-type-field-2";
@@ -124,7 +115,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         );
         assertSearchResponse(
             new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, COMMON_INFERENCE_ID, "foo"),
-            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD)))
         );
     }
@@ -193,7 +184,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         // Query an inference field on a remote cluster
         assertSearchResponse(
             new SparseVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, null, "a"),
-            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)
@@ -209,7 +200,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         );
         assertSearchFailure(
             new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_2, null, "c"),
-            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             IllegalArgumentException.class,
             "inference_id required to perform vector search on query string",
             s -> s.setCcsMinimizeRoundtrips(false)
@@ -228,7 +219,7 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         );
         assertSearchResponse(
             new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, COMMON_INFERENCE_ID, "foo"),
-            List.of(new IndexWithBoost(FULLY_QUALIFIED_REMOTE_INDEX_NAME)),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD))),
             null,
             s -> s.setCcsMinimizeRoundtrips(false)

@@ -212,6 +212,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      */
     protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {}
 
+    protected T rewriteToOriginalQuery(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+        return originalQuery;
+    }
+
     /**
      * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
      * An example usage is {@link InterceptedInferenceKnnVectorQueryBuilder} which needs to rewrite the knn queries filters.
@@ -332,14 +336,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             ccsMinimizeRoundTripsFalseSupportCheck(queryRewriteContext, inferenceInfo, originalQuery.getName());
             postInferenceCoordinatorNodeValidate(inferenceInfo);
 
-            // TODO: Get query vector from inference results map when not intercepting and an inference ID override is set
             QueryBuilder rewritten = this;
             int inferenceFieldCount = inferenceInfo.inferenceFieldCount();
             var newInferenceResultsMap = inferenceInfo.inferenceResultsMap();
             if (inferenceFieldCount == 0 && interceptedCcsRequest == false) {
                 // We aren't querying any inference fields and this query wasn't intercepted in a previous coordinator node rewrite.
                 // Therefore, we don't need to intercept the query.
-                rewritten = originalQuery;
+                rewritten = rewriteToOriginalQuery(newInferenceResultsMap);
             } else if (Objects.equals(inferenceResultsMap, newInferenceResultsMap) == false) {
                 inferenceResultsErrorCheck(newInferenceResultsMap);
                 boolean newInterceptedCcsRequest = this.interceptedCcsRequest

@@ -120,6 +120,46 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
+    protected SparseVectorQueryBuilder rewriteToOriginalQuery(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+        SparseVectorQueryBuilder rewritten = originalQuery;
+
+        FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();
+        if (inferenceIdOverride != null) {
+            InferenceResults inferenceResults = inferenceResultsMap.get(inferenceIdOverride);
+            if (inferenceResults == null) {
+                // The inference results map should always contain the inference results for the override
+                throw new IllegalStateException(
+                    "Inference results map does not contain inference results for [" + inferenceIdOverride + "]"
+                );
+            }
+
+            if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
+                rewritten = new SparseVectorQueryBuilder(
+                    originalQuery.getFieldName(),
+                    textExpansionResults.getWeightedTokens(),
+                    null,
+                    null,
+                    originalQuery.shouldPruneTokens(),
+                    originalQuery.getTokenPruningConfig()
+                );
+                rewritten.queryName(originalQuery.queryName()).boost(originalQuery.boost());
+            } else {
+                throw new IllegalArgumentException(
+                    "expected a result of type ["
+                        + TextExpansionResults.NAME
+                        + "] received ["
+                        + inferenceResults.getWriteableName()
+                        + "]. Is ["
+                        + inferenceIdOverride.inferenceId()
+                        + "] a compatible model?"
+                );
+            }
+        }
+
+        return rewritten;
+    }
+
+    @Override
     protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = this;
         if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {

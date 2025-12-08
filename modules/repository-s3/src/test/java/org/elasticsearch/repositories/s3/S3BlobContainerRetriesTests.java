@@ -32,7 +32,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -249,7 +248,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             S3Repository.MAX_COPY_SIZE_BEFORE_MULTIPART.getDefault(Settings.EMPTY),
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-            S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES.getDefault(Settings.EMPTY),
+            S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getDefault(Settings.EMPTY),
             repositoryMetadata,
             BigArrays.NON_RECYCLING_INSTANCE,
             new DeterministicTaskQueue().getThreadPool(),
@@ -430,7 +429,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
                 if (countDownUploads.decrementAndGet() % 2 == 0) {
-                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
+                    exchange.getResponseHeaders().add("ETag", S3HttpHandler.getEtagFromContents(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -529,7 +528,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
                 if (counterUploads.incrementAndGet() % 2 == 0) {
                     bytesReceived.addAndGet(bytes.length());
-                    exchange.getResponseHeaders().add("ETag", getBase16MD5Digest(bytes));
+                    exchange.getResponseHeaders().add("ETag", S3HttpHandler.getEtagFromContents(bytes));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
                     exchange.close();
                     return;
@@ -1346,19 +1345,40 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertEquals(denyAccessAfterAttempt <= maxRetries ? 1 : 0, accessDeniedResponseCount.get());
     }
 
-    private static String getBase16MD5Digest(BytesReference bytesReference) {
-        return MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5()));
-    }
+    public void testUploadNotFoundInCompareAndExchange() {
+        final var blobContainerPath = BlobPath.EMPTY.add(getTestName());
+        final var statefulBlobContainer = createBlobContainer(1, null, null, null, null, null, blobContainerPath);
 
-    public void testGetBase16MD5Digest() {
-        // from Wikipedia, see also org.elasticsearch.common.hash.MessageDigestsTests.testMd5
-        assertBase16MD5Digest("", "d41d8cd98f00b204e9800998ecf8427e");
-        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog", "9e107d9d372bb6826bd81d3542a419d6");
-        assertBase16MD5Digest("The quick brown fox jumps over the lazy dog.", "e4d909c290d0fb1ca068ffaddf22cbd0");
-    }
+        @SuppressForbidden(reason = "use a http server")
+        class RejectsUploadPartRequests extends S3HttpHandler {
+            RejectsUploadPartRequests() {
+                super("bucket");
+            }
 
-    private static void assertBase16MD5Digest(String input, String expectedDigestString) {
-        assertEquals(expectedDigestString, getBase16MD5Digest(new BytesArray(input)));
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                if (parseRequest(exchange).isUploadPartRequest()) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    super.handle(exchange);
+                }
+            }
+        }
+
+        httpServer.createContext("/", new RejectsUploadPartRequests());
+
+        safeAwait(
+            l -> statefulBlobContainer.compareAndExchangeRegister(
+                randomPurpose(),
+                "not_found_register",
+                BytesArray.EMPTY,
+                new BytesArray(new byte[1]),
+                l.map(result -> {
+                    assertFalse(result.isPresent());
+                    return null;
+                })
+            )
+        );
     }
 
     @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,6 +20,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafeRefCounted implements AggregateMetricDoubleBlock {
+    public static final TransportVersion WRITE_TYPED_BLOCK = TransportVersion.fromName("aggregate_metric_double_typed_block");
+
     private final DoubleBlock minBlock;
     private final DoubleBlock maxBlock;
     private final DoubleBlock sumBlock;
@@ -236,7 +239,11 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            block.writeTo(out);
+            if (out.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
+                Block.writeTypedBlock(block, out);
+            } else {
+                block.writeTo(out);
+            }
         }
     }
 
@@ -248,10 +255,17 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         IntBlock countBlock = null;
         BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         try {
-            minBlock = DoubleBlock.readFrom(blockStreamInput);
-            maxBlock = DoubleBlock.readFrom(blockStreamInput);
-            sumBlock = DoubleBlock.readFrom(blockStreamInput);
-            countBlock = IntBlock.readFrom(blockStreamInput);
+            if (in.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
+                minBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                maxBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                sumBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                countBlock = (IntBlock) Block.readTypedBlock(blockStreamInput);
+            } else {
+                minBlock = DoubleBlock.readFrom(blockStreamInput);
+                maxBlock = DoubleBlock.readFrom(blockStreamInput);
+                sumBlock = DoubleBlock.readFrom(blockStreamInput);
+                countBlock = IntBlock.readFrom(blockStreamInput);
+            }
             AggregateMetricDoubleArrayBlock result = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
             success = true;
             return result;

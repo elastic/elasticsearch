@@ -31,6 +31,23 @@ public interface VectorSimilarityFunctions {
     MethodHandle dotProductHandle7u();
 
     /**
+     * Produces a method handle which computes the dot product of several byte (unsigned
+     * int7) vectors. This bulk operation can be used to compute the dot product between a
+     * single query vector and a number of other vectors.
+     *
+     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
+     *
+     * <p> The type of the method handle will have {@code void} as return type. The type of
+     * its first and second arguments will be {@code MemorySegment}, the former contains the
+     * vector data bytes for several vectors, while the latter just a single vector. The
+     * type of the third argument is an int, representing the dimensions of each vector. The
+     * type of the fourth argument is an int, representing the number of vectors in the
+     * first argument. The type of the final argument is a MemorySegment, into which the
+     * computed dot product float values will be stored.
+     */
+    MethodHandle dotProductHandle7uBulk();
+
+    /**
      * Produces a method handle returning the square distance of byte (unsigned int7) vectors.
      *
      * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).

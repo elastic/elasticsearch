@@ -9,7 +9,7 @@ mapped_pages:
 
 The Zoom connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/zoom.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/zoom) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).

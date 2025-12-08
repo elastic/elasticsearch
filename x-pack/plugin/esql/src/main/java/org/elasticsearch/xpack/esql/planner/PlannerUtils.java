@@ -8,18 +8,20 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -61,22 +63,22 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
+    private static final Logger LOGGER = LogManager.getLogger(PlannerUtils.class);
 
     /**
      * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
@@ -155,30 +157,6 @@ public class PlannerUtils {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
-    /**
-     * Returns a set of concrete indices after resolving the original indices specified in the FROM command.
-     */
-    public static Set<String> planConcreteIndices(PhysicalPlan plan) {
-        if (plan == null) {
-            return Set.of();
-        }
-        var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
-        return indices;
-    }
-
-    /**
-     * Returns the original indices specified in the FROM command of the query. We need the original query to resolve alias filters.
-     */
-    public static String[] planOriginalIndices(PhysicalPlan plan) {
-        if (plan == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        var indices = new LinkedHashSet<String>();
-        forEachRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
-        return indices.toArray(String[]::new);
-    }
-
     public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
         return plan.anyMatch(e -> {
             if (e instanceof FragmentExec f) {
@@ -188,7 +166,7 @@ public class PlannerUtils {
         });
     }
 
-    private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
+    public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
                 action.accept(r);
@@ -223,6 +201,18 @@ public class PlannerUtils {
         return localPlan(plan, logicalOptimizer, physicalOptimizer);
     }
 
+    public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
+        return esFilter == null ? plan : plan.transformUp(FragmentExec.class, f -> {
+            var fragmentFilter = f.esFilter();
+            // TODO: have an ESFilter and push down to EsQueryExec / EsSource
+            // This is an ugly hack to push the filter parameter to Lucene
+            // TODO: filter integration testing
+            var filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(esFilter) : esFilter;
+            LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+            return f.withFilter(filter);
+        });
+    }
+
     public static PhysicalPlan localPlan(
         PhysicalPlan plan,
         LocalLogicalPlanOptimizer logicalOptimizer,
@@ -249,14 +239,7 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(
-                        Source.EMPTY,
-                        query.indexPattern(),
-                        query.indexMode(),
-                        query.indexNameWithModes(),
-                        query.output(),
-                        filter
-                    )
+                    query -> new EsSourceExec(Source.EMPTY, query.indexPattern(), query.indexMode(), query.output(), filter)
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);

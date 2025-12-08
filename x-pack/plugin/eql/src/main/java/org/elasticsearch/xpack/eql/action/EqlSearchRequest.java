@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,6 +66,8 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
     private Boolean allowPartialSearchResults;
     private Boolean allowPartialSequenceResults;
+    private String projectRouting;
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -140,6 +143,16 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             allowPartialSearchResults = false;
             allowPartialSequenceResults = false;
         }
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public EqlSearchRequest projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
     }
 
     @Override
@@ -295,6 +308,21 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     public EqlSearchRequest indices(String... indices) {
         this.indices = indices;
         return this;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 
     public QueryBuilder filter() {

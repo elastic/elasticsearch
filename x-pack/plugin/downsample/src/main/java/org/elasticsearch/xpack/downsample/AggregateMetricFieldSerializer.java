@@ -12,6 +12,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * This serialiser can be used to convert a list of producers to an aggregate metric double field. The producer should produce an
+ * aggregate metric double or a sub metric of one, any other producers will trigger an error.
+ */
 final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
     private final Collection<AbstractDownsampleFieldProducer> producers;
     private final String name;
@@ -36,31 +40,33 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
         builder.startObject(name);
         for (AbstractDownsampleFieldProducer fieldProducer : producers) {
             assert name.equals(fieldProducer.name()) : "producer has a different name";
-            if (fieldProducer.isEmpty() == false) {
-                if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
-                    if (metricFieldProducer instanceof MetricFieldProducer.AggregateScalarMetricFieldProducer gaugeProducer) {
-                        builder.field("max", gaugeProducer.max);
-                        builder.field("min", gaugeProducer.min);
-                        builder.field("sum", gaugeProducer.sum.value());
-                        builder.field("value_count", gaugeProducer.count);
-                    } else if (metricFieldProducer instanceof MetricFieldProducer.LastValueScalarMetricFieldProducer lastValueProducer) {
-                        builder.field(lastValueProducer.sampleLabel(), lastValueProducer.lastValue);
-                    } else if (metricFieldProducer instanceof MetricFieldProducer.AggregatePreAggregatedMetricFieldProducer producer) {
-                        switch (producer.metric) {
-                            case max -> builder.field("max", producer.max);
-                            case min -> builder.field("min", producer.min);
-                            case sum -> builder.field("sum", producer.sum.value());
-                            case value_count -> builder.field("value_count", producer.count);
-                        }
-                    } else {
-                        throw new IllegalStateException();
-                    }
-                } else if (fieldProducer instanceof LabelFieldProducer labelFieldProducer) {
-                    LabelFieldProducer.Label label = labelFieldProducer.label();
-                    if (label.get() != null) {
-                        builder.field(label.name(), label.get());
+            if (fieldProducer.isEmpty()) {
+                continue;
+            }
+            switch (fieldProducer) {
+                case MetricFieldProducer.AggregateGaugeMetricFieldProducer producer -> {
+                    builder.field("max", producer.max);
+                    builder.field("min", producer.min);
+                    builder.field("sum", producer.sum.value());
+                    builder.field("value_count", producer.count);
+                }
+                case MetricFieldProducer.AggregateSubMetricFieldProducer producer -> {
+                    switch (producer.metric) {
+                        case max -> builder.field("max", producer.max);
+                        case min -> builder.field("min", producer.min);
+                        case sum -> builder.field("sum", producer.sum.value());
+                        case value_count -> builder.field("value_count", producer.count);
                     }
                 }
+                case LastValueFieldProducer.AggregateSubMetricFieldProducer lastValueFieldProducer -> {
+                    Object lastValue = lastValueFieldProducer.lastValue();
+                    if (lastValue != null) {
+                        builder.field(lastValueFieldProducer.subMetric(), lastValue);
+                    }
+                }
+                default -> throw new IllegalStateException(
+                    "Unexpected field producer class: " + fieldProducer.getClass().getSimpleName() + " for " + name + " field"
+                );
             }
         }
         builder.endObject();

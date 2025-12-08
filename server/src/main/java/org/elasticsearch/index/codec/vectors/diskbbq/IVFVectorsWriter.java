@@ -199,6 +199,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // build a float vector values with random access
             FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
             // precondition the vectors if necessary
+            // FIXME: precondition them all upfront and write them to a temp file to avoid holding all vectors in memory
             floatVectorValues = preconditionVectors(floatVectorValues);
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
@@ -575,12 +576,18 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         if (ivfClusters != null) {
             CodecUtil.writeFooter(ivfClusters);
         }
+        doFinish();
     }
+
+    protected abstract void doFinish() throws IOException;
 
     @Override
     public final void close() throws IOException {
         IOUtils.close(rawVectorDelegate, ivfMeta, ivfCentroids, ivfClusters);
+        doClose();
     }
+
+    protected abstract void doClose() throws IOException;
 
     @Override
     public final long ramBytesUsed() {

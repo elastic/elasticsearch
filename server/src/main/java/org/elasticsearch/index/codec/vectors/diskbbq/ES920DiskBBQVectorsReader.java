@@ -27,7 +27,6 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -44,6 +43,11 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
     ES920DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader) throws IOException {
         super(state, getFormatReader);
+    }
+
+    @Override
+    public void doInitExtraFiles(SegmentReadState state, int version) throws IOException {
+        // no extra files to init
     }
 
     public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
@@ -175,7 +179,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    protected float[] preconditionVector(FieldInfo fieldInfo, float[] vector) {
+    protected float[] preconditionVector(float[] vector) {
         // no-op
         return vector;
     }
@@ -398,11 +402,6 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         // max postings list size, no longer utilized
         indexInput.readVInt();
         return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, acceptDocs);
-    }
-
-    @Override
-    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        return Map.of();
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {

@@ -27,7 +27,6 @@ import java.util.Random;
 
 // TODO: apply to other formats
 // TODO: instead of manually having to indicate preconditioning add the ability to decide when to use it given the data on the segment
-// TODO: consider global version of preconditioning?
 
 public class PreconditioningProvider {
 
@@ -35,18 +34,15 @@ public class PreconditioningProvider {
     final int[][] permutationMatrix;
     final float[][][] blocks;
 
-    public PreconditioningProvider(int blockDim, FloatVectorValues vectors) throws IOException {
+    public PreconditioningProvider(int blockDim, int vectorDim) {
         this.blockDim = blockDim;
-        int dim = vectors.dimension();
         Random random = new Random(42L);
-        blocks = PreconditioningProvider.generateRandomOrthogonalMatrix(dim, blockDim, random);
+        blocks = PreconditioningProvider.generateRandomOrthogonalMatrix(vectorDim, blockDim, random);
         int[] dimBlocks = new int[blocks.length];
         for (int i = 0; i < blocks.length; i++) {
             dimBlocks[i] = blocks[i].length;
         }
-        // TODO: test random permutation matrix vs variance based
-        permutationMatrix = PreconditioningProvider.createPermutationMatrixWEqualVariance(dimBlocks, vectors);
-        // permutationMatrix = PreconditioningProvider.createPermutationMatrixRandomly(dim, dimBlocks, random);
+        permutationMatrix = PreconditioningProvider.createPermutationMatrixRandomly(vectorDim, dimBlocks, random);
     }
 
     private PreconditioningProvider(int blockDim, float[][][] blocks, int[][] permutationMatrix) {

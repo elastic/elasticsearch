@@ -509,11 +509,21 @@ public class BlockFactory {
         DoubleBlock minima,
         DoubleBlock maxima,
         DoubleBlock sums,
-        LongBlock valueCounts,
+        DoubleBlock valueCounts,
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
         return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
+    public BlockLoader.Block newTDigestBlockFromDocValues(
+        BytesRefBlock encodedDigests,
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock counts
+    ) {
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(

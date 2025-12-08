@@ -14,7 +14,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -26,8 +25,8 @@ import java.util.List;
 
 /**
  * Utility class used for fetching field values by reading field data.
- * For fields whose type is multi-valued the 'name' matches the parent field
- * name (normally used for indexing data), while the actual sub-field
+ * For fields whose type is multivalued the 'name' matches the parent field
+ * name (normally used for indexing data), while the actual subfield
  * name is accessible by means of {@link MappedFieldType#name()}.
  */
 class FieldValueFetcher {
@@ -68,21 +67,19 @@ class FieldValueFetcher {
     }
 
     private AbstractDownsampleFieldProducer createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
+        assert "aggregate_metric_double".equals(fieldType.typeName()) == false
+            : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> MetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
-                case COUNTER -> MetricFieldProducer.createFieldProducerForCounter(name());
+                case COUNTER -> LastValueFieldProducer.createForMetric(name());
+                case HISTOGRAM -> throw new IllegalArgumentException("Unsupported metric type [histogram] for downsampling, coming soon");
                 // TODO: Support POSITION in downsampling
                 case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };
         } else {
-            // If field is not a metric, we downsample it as a label
-            if ("histogram".equals(fieldType.typeName())) {
-                return new LabelFieldProducer.HistogramLastLabelFieldProducer(name());
-            } else if ("flattened".equals(fieldType.typeName())) {
-                return new LabelFieldProducer.FlattenedLastValueFieldProducer(name());
-            }
-            return new LabelFieldProducer.LabelLastValueFieldProducer(name());
+            // If a field is not a metric, we downsample it as a label
+            return LastValueFieldProducer.createForLabel(name(), fieldType.typeName());
         }
     }
 
@@ -96,14 +93,7 @@ class FieldValueFetcher {
             assert fieldType != null : "Unknown field type for field: [" + field + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
-                // If the field is an aggregate_metric_double field, we should load all its subfields
-                // This is usually a downsample-of-downsample case
-                for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
-                    if (context.fieldExistsInIndex(metricSubField.name())) {
-                        IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
-                        fetchers.add(new AggregateMetricFieldValueFetcher(metricSubField, aggMetricFieldType, fieldData, samplingMethod));
-                    }
-                }
+                fetchers.addAll(AggregateSubMetricFieldValueFetcher.create(context, aggMetricFieldType, samplingMethod));
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;

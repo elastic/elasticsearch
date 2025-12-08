@@ -5,3 +5,6 @@
 `number`
 :   Expression that outputs values to average.
 
+`window`
+:   the time window over which to compute the average
+

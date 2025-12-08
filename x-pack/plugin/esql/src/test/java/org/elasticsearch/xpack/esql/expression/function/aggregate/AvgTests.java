@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -39,7 +40,8 @@ public class AvgTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE)
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
         ).flatMap(List::stream).map(AvgTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         suppliers.add(
@@ -72,12 +74,17 @@ public class AvgTests extends AbstractAggregationTestCase {
 
             if (fieldData.size() == 1) {
                 // For single elements, we directly return them to avoid precision issues
-                if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
-                    var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) fieldData.get(0);
-                    expected = aggMetric.sum() / (aggMetric.count().doubleValue());
-                } else {
-                    expected = ((Number) fieldData.get(0)).doubleValue();
-                }
+                expected = switch (fieldTypedData.type()) {
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) fieldData.get(0);
+                        yield aggMetric.sum() / (aggMetric.count().doubleValue());
+                    }
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        var expHisto = (ExponentialHistogram) fieldData.get(0);
+                        yield expHisto.sum() / expHisto.valueCount();
+                    }
+                    default -> ((Number) fieldData.get(0)).doubleValue();
+                };
             } else if (fieldData.size() > 1) {
                 expected = switch (fieldTypedData.type().widenSmallNumeric()) {
                     case INTEGER -> fieldData.stream()
@@ -96,6 +103,11 @@ public class AvgTests extends AbstractAggregationTestCase {
                         double count = fieldData.stream()
                             .mapToInt(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
                             .sum();
+                        yield count == 0 ? null : sum / count;
+                    }
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        double sum = fieldData.stream().mapToDouble(v -> ((ExponentialHistogram) v).sum()).sum();
+                        double count = fieldData.stream().mapToLong(v -> ((ExponentialHistogram) v).valueCount()).sum();
                         yield count == 0 ? null : sum / count;
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());

@@ -10,6 +10,8 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
@@ -26,7 +28,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
  */
 public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("value", ElementType.EXPONENTIAL_HISTOGRAM)  );
+      new IntermediateStateDesc("value", ElementType.EXPONENTIAL_HISTOGRAM),
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final ExponentialHistogramStates.GroupingState state;
 
@@ -116,6 +119,12 @@ public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction 
       return;
     }
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == seen.getPositionCount();
     ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -126,7 +135,7 @@ public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction 
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
+        HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -165,6 +174,12 @@ public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction 
       return;
     }
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == seen.getPositionCount();
     ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -175,7 +190,7 @@ public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction 
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
+        HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
@@ -207,11 +222,17 @@ public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction 
       return;
     }
     ExponentialHistogramBlock value = (ExponentialHistogramBlock) valueUncast;
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert value.getPositionCount() == seen.getPositionCount();
     ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch));
+      HistogramMergeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
     }
   }
 

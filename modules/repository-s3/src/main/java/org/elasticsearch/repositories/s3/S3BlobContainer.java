@@ -608,7 +608,24 @@ class S3BlobContainer extends AbstractBlobContainer {
             final String uploadId;
             try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
                 uploadId = clientReference.client().createMultipartUpload(createMultipartUpload(purpose, operation, blobName)).uploadId();
-                cleanupOnFailureActions.add(() -> abortMultiPartUpload(purpose, uploadId, blobName));
+                cleanupOnFailureActions.add(() -> {
+                    try {
+                        abortMultiPartUpload(purpose, uploadId, blobName);
+                    } catch (Exception e) {
+                        if (e instanceof SdkServiceException sdkServiceException
+                            && sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                            // NOT_FOUND is what we wanted
+                            logger.atDebug()
+                                .withThrowable(e)
+                                .log("multipart upload of [{}] with ID [{}] not found on abort", blobName, uploadId);
+                        } else {
+                            // aborting the upload on failure is a best-effort cleanup step - if it fails then we must just move on
+                            logger.atWarn()
+                                .withThrowable(e)
+                                .log("failed to clean up multipart upload of [{}] with ID [{}] after earlier failure", blobName, uploadId);
+                        }
+                    }
+                });
             }
             if (Strings.isEmpty(uploadId)) {
                 throw new IOException("Failed to initialize multipart operation for " + blobName);
@@ -783,7 +800,10 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private class CompareAndExchangeOperation {
+    /**
+     * An implementation of {@link BlobContainer#compareAndExchangeRegister} based on strongly-consistent multipart upload APIs.
+     */
+    private class MultipartUploadCompareAndExchangeOperation {
 
         private final OperationPurpose purpose;
         private final S3Client client;
@@ -792,7 +812,13 @@ class S3BlobContainer extends AbstractBlobContainer {
         private final String blobKey;
         private final ThreadPool threadPool;
 
-        CompareAndExchangeOperation(OperationPurpose purpose, S3Client client, String bucket, String key, ThreadPool threadPool) {
+        MultipartUploadCompareAndExchangeOperation(
+            OperationPurpose purpose,
+            S3Client client,
+            String bucket,
+            String key,
+            ThreadPool threadPool
+        ) {
             this.purpose = purpose;
             this.client = client;
             this.bucket = bucket;
@@ -801,7 +827,24 @@ class S3BlobContainer extends AbstractBlobContainer {
             this.threadPool = threadPool;
         }
 
-        void run(BytesReference expected, BytesReference updated, ActionListener<OptionalBytesReference> listener) throws Exception {
+        void run(BytesReference expected, BytesReference updated, ActionListener<OptionalBytesReference> listener) {
+            ActionListener.run(listener.delegateResponse((delegate, e) -> {
+                logger.trace(() -> Strings.format("[%s]: compareAndExchangeRegister failed", rawKey), e);
+                if ((e instanceof AwsServiceException awsServiceException)
+                    && (awsServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()
+                        || awsServiceException.statusCode() == RestStatus.OK.getStatus()
+                            && "NoSuchUpload".equals(awsServiceException.awsErrorDetails().errorCode()))) {
+                    // An uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it.
+                    // Also (rarely) S3 can start processing the request during a concurrent abort and this can result in a 200 OK with an
+                    // <Error><Code>NoSuchUpload</Code>... in the response. Either way, this means that our write encountered contention:
+                    delegate.onResponse(OptionalBytesReference.MISSING);
+                } else {
+                    delegate.onFailure(e);
+                }
+            }), l -> innerRun(expected, updated, l));
+        }
+
+        void innerRun(BytesReference expected, BytesReference updated, ActionListener<OptionalBytesReference> listener) throws Exception {
             BlobContainerUtils.ensureValidRegisterContent(updated);
 
             if (hasPreexistingUploads()) {
@@ -1094,26 +1137,13 @@ class S3BlobContainer extends AbstractBlobContainer {
         ActionListener<OptionalBytesReference> listener
     ) {
         final var clientReference = blobStore.clientReference();
-        ActionListener.run(ActionListener.releaseAfter(listener.delegateResponse((delegate, e) -> {
-            logger.trace(() -> Strings.format("[%s]: compareAndExchangeRegister failed", key), e);
-            if (e instanceof AwsServiceException awsServiceException
-                && (awsServiceException.statusCode() == 404
-                    || awsServiceException.statusCode() == 200
-                        && "NoSuchUpload".equals(awsServiceException.awsErrorDetails().errorCode()))) {
-                // An uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it.
-                // Also (rarely) S3 can start processing the request during a concurrent abort and this can result in a 200 OK with an
-                // <Error><Code>NoSuchUpload</Code>... in the response. Either way, this means that our write encountered contention:
-                delegate.onResponse(OptionalBytesReference.MISSING);
-            } else {
-                delegate.onFailure(e);
-            }
-        }), clientReference),
-            l -> new CompareAndExchangeOperation(purpose, clientReference.client(), blobStore.bucket(), key, blobStore.getThreadPool()).run(
-                expected,
-                updated,
-                l
-            )
-        );
+        new MultipartUploadCompareAndExchangeOperation(
+            purpose,
+            clientReference.client(),
+            blobStore.bucket(),
+            key,
+            blobStore.getThreadPool()
+        ).run(expected, updated, ActionListener.releaseBefore(clientReference, listener));
     }
 
     @Override

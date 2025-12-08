@@ -59,13 +59,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "Shard is unassigned. Decider takes no action.");
         }
 
-        // Check whether the shard being relocated has any write load estimate. If it does not, then this decider has no opinion.
-        var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-        var shardWriteLoad = allShardWriteLoads.get(shardRouting.shardId());
-        if (shardWriteLoad == null || shardWriteLoad == 0) {
-            return allocation.decision(Decision.YES, NAME, "Shard has no estimated write load. Decider takes no action.");
-        }
-
         var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
         var nodeUsageStatsForThreadPools = allNodeUsageStats.get(node.nodeId());
         if (nodeUsageStatsForThreadPools == null) {
@@ -98,6 +91,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             }
         }
 
+        var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
+        var shardWriteLoad = allShardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0);
         var newWriteThreadPoolUtilization = calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad);
         if (newWriteThreadPoolUtilization >= nodeWriteThreadPoolLoadThreshold) {
             // The node's write thread pool usage would be raised above the high utilization threshold with assignment of the new shard.
@@ -195,7 +190,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
      * Returns the percent thread pool utilization change.
      */
     private float calculateShardMovementChange(ThreadPoolUsageStats nodeWriteThreadPoolStats, double shardWriteLoad) {
-        assert shardWriteLoad > 0;
         return ShardMovementWriteLoadSimulator.updateNodeUtilizationWithShardMovements(
             nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
             (float) shardWriteLoad,

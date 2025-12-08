@@ -20,6 +20,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -58,6 +60,8 @@ public class DirectIOIT extends ESIntegTestCase {
         } catch (IOException e) {
             SUPPORTED = false;
         }
+
+        assumeTrue("Generic format supporting direct IO not enabled", ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled());
     }
 
     static DirectIODirectory open(Path path) throws IOException {
@@ -73,7 +77,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return List.of(new Object[] { "bbq_hnsw" }, new Object[] { "bbq_disk" });
+        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw", "bbq_disk").map(s -> new Object[] { s }).toList();
     }
 
     public DirectIOIT(String type) {

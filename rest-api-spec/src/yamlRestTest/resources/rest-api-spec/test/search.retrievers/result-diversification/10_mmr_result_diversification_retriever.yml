@@ -1,0 +1,741 @@
+setup:
+  - requires:
+      cluster_features: [ "retriever.result_diversification_mmr" ]
+      reason: "Added retriever for result diversification using MMR"
+
+  - requires:
+      test_runner_features:
+        - contains
+        - headers
+
+  - do:
+      indices.create:
+        index: test-result-diversification-index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              textbody:
+                type: text
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+
+  - do:
+      indices.create:
+        index: test-result-diversification-index-other
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              textbody:
+                type: text
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+
+  - do:
+      indices.create:
+        index: test-result-byte-diversification-index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              textbody:
+                type: text
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 16
+                element_type: bit
+
+  - do:
+      indices.create:
+        index: any-shards-test-result-diversification-index
+        body:
+          mappings:
+            properties:
+              textbody:
+                type: text
+              keywordfield:
+                type: keyword
+              textvector:
+                type: dense_vector
+                dims: 4
+              rankfield:
+                type: integer
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
+          {"index":{}}
+          {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
+          {"index":{}}
+          {"textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
+          {"index":{}}
+          {"textbody": "third text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
+          {"index":{}}
+          {"textbody": "third text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
+          {"index":{}}
+          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
+          {"index":{}}
+          {"textbody": "fifth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
+          {"index":{}}
+          {"textbody": "sixth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
+          {"index":{}}
+          {"textbody": "seventh text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test7"}
+          {"index":{}}
+          {"textbody": "eighth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test8"}
+          {"index":{}}
+          {"textbody": "ninth text", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test9"}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-diversification-index-other
+        refresh: true
+        body: |
+          {"index":{}}
+          {"textbody": "first text other", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
+          {"index":{}}
+          {"textbody": "second text other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
+          {"index":{}}
+          {"textbody": "second text duplicate other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
+          {"index":{}}
+          {"textbody": "third text other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
+          {"index":{}}
+          {"textbody": "third text duplicate other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
+          {"index":{}}
+          {"textbody": "fourth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
+          {"index":{}}
+          {"textbody": "fifth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
+          {"index":{}}
+          {"textbody": "sixth text other", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-result-byte-diversification-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"textbody": "first text", "textvector": "0BB8", "keywordfield": "test1"}
+          {"index":{}}
+          {"textbody": "second text", "textvector": "94A2", "keywordfield": "test2"}
+          {"index":{}}
+          {"textbody": "second text duplicate", "textvector": "94A2", "keywordfield": "test2_dup"}
+          {"index":{}}
+          {"textbody": "third text", "textvector": "0560", "keywordfield": "test3"}
+          {"index":{}}
+          {"textbody": "third text duplicate", "textvector": "0560", "keywordfield": "test3_dup"}
+          {"index":{}}
+          {"textbody": "fourth text", "textvector": "2112", "keywordfield": "test4"}
+          {"index":{}}
+          {"textbody": "fifth text", "textvector": "5051", "keywordfield": "test5"}
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: any-shards-test-result-diversification-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"textbody": "first text", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1", "rankfield": 1}
+          {"index":{}}
+          {"textbody": "second text", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2", "rankfield": 2}
+          {"index":{}}
+          {"textbody": "second text duplicate", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup", "rankfield": 3}
+          {"index":{}}
+          {"textbody": "another first text", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another", "rankfield": 4}
+          {"index":{}}
+          {"textbody": "another first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test1_another_dup", "rankfield": 5}
+          {"index":{}}
+          {"textbody": "third and fourth first text duplicate", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_4_1_dup", "rankfield": 6}
+          {"index":{}}
+          {"textbody": "fourth text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4", "rankfield": 7}
+          {"index":{}}
+          {"textbody": "more first text to add additional results text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test1_more", "rankfield": 8}
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: [ test-result-diversification-index, test-result-diversification-index-other, test-result-byte-diversification-index, any-shards-test-result-diversification-index ]
+        ignore: 404
+
+  - do:
+      indices.refresh: { }
+
+---
+"Test MMR result diversification single index float type":
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            knn:
+              field: "textvector"
+              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+              k: 10
+              num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "second text duplicate" }
+  - match: { hits.hits.2._source.textbody: "third text" }
+  - match: { hits.hits.3._source.textbody: "third text duplicate" }
+  - match: { hits.hits.4._source.textbody: "first text" }
+  - match: { hits.hits.5._source.textbody: "sixth text" }
+  - match: { hits.hits.6._source.textbody: "ninth text" }
+  - match: { hits.hits.7._source.textbody: "fourth text" }
+  - match: { hits.hits.8._source.textbody: "fifth text" }
+  - match: { hits.hits.9._source.textbody: "seventh text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "sixth text" }
+  - match: { hits.hits.2._source.textbody: "ninth text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            standard:
+              query:
+                match_all: { }
+
+  - match: { hits.total.value: 11 }
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.textbody: "first text" }
+  - match: { hits.hits.1._source.textbody: "second text" }
+  - match: { hits.hits.2._source.textbody: "second text duplicate" }
+  - match: { hits.hits.3._source.textbody: "third text" }
+  - match: { hits.hits.4._source.textbody: "third text duplicate" }
+  - match: { hits.hits.5._source.textbody: "fourth text" }
+  - match: { hits.hits.6._source.textbody: "fifth text" }
+  - match: { hits.hits.7._source.textbody: "sixth text" }
+  - match: { hits.hits.8._source.textbody: "seventh text" }
+  - match: { hits.hits.9._source.textbody: "eighth text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+
+  - match: { hits.total.value: 11 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "first text" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "sixth text" }
+
+---
+"Test MMR result diversification with query vector parameter":
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            knn:
+              field: "textvector"
+              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+              k: 10
+              num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "second text duplicate" }
+  - match: { hits.hits.2._source.textbody: "third text" }
+  - match: { hits.hits.3._source.textbody: "third text duplicate" }
+  - match: { hits.hits.4._source.textbody: "first text" }
+  - match: { hits.hits.5._source.textbody: "sixth text" }
+  - match: { hits.hits.6._source.textbody: "ninth text" }
+  - match: { hits.hits.7._source.textbody: "fourth text" }
+  - match: { hits.hits.8._source.textbody: "fifth text" }
+  - match: { hits.hits.9._source.textbody: "seventh text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              query_vector: [ 0.4, 0.2, 0.3, 0.3 ]
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "sixth text" }
+  - match: { hits.hits.2._source.textbody: "ninth text" }
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 1.0
+              query_vector: [ 0.4, 0.2, 0.3, 0.3 ]
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "fourth text" }
+  - match: { hits.hits.2._source.textbody: "fifth text" }
+
+---
+"Test MMR result diversification byte vector type":
+  - do:
+      search:
+        index: test-result-byte-diversification-index
+        body:
+          retriever:
+            standard:
+              query:
+                match_all: { }
+
+  - match: { hits.total.value: 7 }
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.textbody: "first text" }
+  - match: { hits.hits.1._source.textbody: "second text" }
+  - match: { hits.hits.2._source.textbody: "second text duplicate" }
+  - match: { hits.hits.3._source.textbody: "third text" }
+  - match: { hits.hits.4._source.textbody: "third text duplicate" }
+  - match: { hits.hits.5._source.textbody: "fourth text" }
+  - match: { hits.hits.6._source.textbody: "fifth text" }
+
+  - do:
+      search:
+        index: test-result-byte-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.7
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+
+  - match: { hits.total.value: 7 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "first text" }
+  - match: { hits.hits.1._source.textbody: "fourth text" }
+  - match: { hits.hits.2._source.textbody: "fifth text" }
+
+---
+"Test MMR diversification with arbitrary shards":
+  - do:
+      search:
+        index: any-shards-test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.9
+              size: 3
+              retriever:
+                standard:
+                  query:
+                    function_score:
+                      field_value_factor:
+                        field: "rankfield"
+                        factor: 1.0
+                        missing: 1.0
+                  sort:
+                    _score: "desc"
+
+  - match: { hits.total.value: 8 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.keywordfield: "test1_more" }
+  - match: { hits.hits.1._source.keywordfield: "test3_4_1_dup" }
+  - match: { hits.hits.2._source.keywordfield: "test1_another_dup" }
+
+---
+"Test MMR result diversification multiple indexes":
+  - do:
+      search:
+        index: "test-result-diversification-index*"
+        body:
+          retriever:
+            standard:
+              query:
+                match_all: { }
+
+  - match: { hits.total.value: 19 }
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.textbody: "first text" }
+  - match: { hits.hits.1._source.textbody: "second text" }
+  - match: { hits.hits.2._source.textbody: "second text duplicate" }
+  - match: { hits.hits.3._source.textbody: "third text" }
+  - match: { hits.hits.4._source.textbody: "third text duplicate" }
+  - match: { hits.hits.5._source.textbody: "fourth text" }
+  - match: { hits.hits.6._source.textbody: "fifth text" }
+  - match: { hits.hits.7._source.textbody: "sixth text" }
+  - match: { hits.hits.8._source.textbody: "seventh text" }
+  - match: { hits.hits.9._source.textbody: "eighth text" }
+
+  - do:
+      search:
+        index: "test-result-diversification-index*"
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.textbody: "second text other" }
+  - match: { hits.hits.1._source.textbody: "third text" }
+  - match: { hits.hits.2._source.textbody: "third text duplicate" }
+
+---
+"Test MMR result diversification with default size should return results":
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 10 }
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "second text duplicate" }
+  - match: { hits.hits.2._source.textbody: "third text" }
+  - match: { hits.hits.3._source.textbody: "third text duplicate" }
+  - match: { hits.hits.4._source.textbody: "first text" }
+  - match: { hits.hits.5._source.textbody: "sixth text" }
+  - match: { hits.hits.6._source.textbody: "ninth text" }
+  - match: { hits.hits.7._source.textbody: "fourth text" }
+  - match: { hits.hits.8._source.textbody: "fifth text" }
+  - match: { hits.hits.9._source.textbody: "seventh text" }
+
+---
+"Test MMR result diversification rank_window_size restricts top docs":
+
+  - do:
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              rank_window_size: 2
+              size: 2
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "second text duplicate" }
+
+---
+"Test MMR result diversification required parameters":
+
+  - do:
+      catch: /Required \[type\]/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              field: "textvector"
+              lambda: 0.7
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+
+  - do:
+      catch: /unknown result diversification type \[invalid\]/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "invalid"
+              field: "textvector"
+              lambda: 0.7
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+
+  - do:
+      catch: /Required \[retriever\]/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.7
+              size: 3
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+
+  - do:
+      catch: /\[diversify\] MMR result diversification must have a \[lambda\] between 0.0 and 1.0. The value provided was null/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+
+  - do:
+      catch: /\[diversify\] MMR result diversification must have a \[lambda\] between 0.0 and 1.0. The value provided was -0.5/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: -0.5
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+
+  - do:
+      catch: /\[diversify\] MMR result diversification must have a \[lambda\] between 0.0 and 1.0. The value provided was 1.5/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 1.5
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+
+  - do:
+      catch: /\[diversify\] MMR result diversification \[size\] of 3 cannot be greater than the \[rank_window_size\] of 2/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.7
+              rank_window_size: 2
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+
+---
+"Test MMR result diversification required field type":
+
+  - do:
+      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] field?/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "unknown_field"
+              lambda: 0.7
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+  - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
+  - match: { error.suppressed.0.type: status_exception }
+
+  - do:
+      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] field?/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "keywordfield"
+              lambda: 0.7
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+  - contains: { error.reason: "[diversify] search failed - retrievers '[diversify]'" }
+  - match: { error.suppressed.0.type: status_exception }
+
+  - do:
+      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] field?/
+      search:
+        index: test-result-diversification-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textbody"
+              lambda: 0.7
+              size: 3
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 6
+                  num_candidates: 6
+
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
+  - contains: { error.reason: "[diversify] search failed" }
+  - match: { error.suppressed.0.type: illegal_argument_exception }

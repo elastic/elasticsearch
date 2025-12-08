@@ -30,12 +30,12 @@ import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_DIMENSIONS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
@@ -50,11 +50,13 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
     @Before
     @Override
     public void setUp() throws Exception {
+        int dims = random().nextInt(8, MAX_DIMENSIONS);
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
             ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
         )];
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
+                dims,
                 encoding,
                 random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
@@ -65,6 +67,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
             );
         } else if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
+                dims,
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
@@ -76,6 +79,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
         } else {
             // run with low numbers to force many clusters with parents
             format = new ESNextDiskBBQVectorsFormat(
+                dims,
                 encoding,
                 random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
@@ -126,9 +130,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
             }
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
-            // IVF doesn't report stats at the moment
-            assertThat(offHeap, anEmptyMap());
-            assertThat(totalByteSize, equalTo(0L));
+            assertThat(offHeap.size(), equalTo(3));
+            assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
         }

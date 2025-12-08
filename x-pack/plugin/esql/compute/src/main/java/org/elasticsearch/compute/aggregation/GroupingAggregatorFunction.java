@@ -149,6 +149,10 @@ public interface GroupingAggregatorFunction extends Releasable {
      * Build the final results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
+     *
+     * <p>This function is called in the coordinator node after all intermediate
+     *    results have been gathered from the worker nodes, and aggregated into
+     *    intermediate blocks.</p>
      */
     void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
 

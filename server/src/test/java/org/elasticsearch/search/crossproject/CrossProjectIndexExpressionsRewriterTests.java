@@ -17,8 +17,11 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
@@ -354,19 +357,43 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
     }
 
     public void testRewritingShouldThrowIfNotProjectMatchExpression() {
-        ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
-        List<ProjectRoutingInfo> linked = List.of(
-            createRandomProjectWithAlias("P1"),
-            createRandomProjectWithAlias("P2"),
-            createRandomProjectWithAlias("Q1"),
-            createRandomProjectWithAlias("Q2")
-        );
-        String[] requestedResources = new String[] { "X*:metrics" };
+        {
+            final var projectRouting = "_alias:" + randomAlphaOfLengthBetween(1, 10);
 
-        expectThrows(
-            NoMatchingProjectException.class,
-            () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpressions(origin, linked, requestedResources)
-        );
+            final var e = expectThrows(
+                NoMatchingProjectException.class,
+                () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(randomIdentifier(), null, Set.of(), projectRouting)
+            );
+            assertThat(e.getMessage(), equalTo("no matching project after applying project routing [" + projectRouting + "]"));
+        }
+
+        {
+            ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+            List<ProjectRoutingInfo> linked = List.of(
+                createRandomProjectWithAlias("P1"),
+                createRandomProjectWithAlias("P2"),
+                createRandomProjectWithAlias("Q1"),
+                createRandomProjectWithAlias("Q2")
+            );
+            String indexExpression = "X*:metrics";
+            final var projectRouting = randomBoolean() ? "_alias:" + randomAlphaOfLengthBetween(1, 10) : null;
+
+            final var e = expectThrows(
+                NoMatchingProjectException.class,
+                () -> CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
+                    indexExpression,
+                    origin.projectAlias(),
+                    linked.stream().map(ProjectRoutingInfo::projectAlias).collect(Collectors.toUnmodifiableSet()),
+                    projectRouting
+                )
+            );
+
+            if (projectRouting != null) {
+                assertThat(e.getMessage(), equalTo("No such project: [X*] with project routing [" + projectRouting + "]"));
+            } else {
+                assertThat(e.getMessage(), equalTo("No such project: [X*]"));
+            }
+        }
     }
 
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {

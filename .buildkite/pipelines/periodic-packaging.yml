@@ -352,8 +352,8 @@ steps:
         env:
           BWC_VERSION: 8.19.8
 
-      - label: "{{matrix.image}} / 9.0.7 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.7
+      - label: "{{matrix.image}} / 9.0.8 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.8
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -366,7 +366,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.0.7
+          BWC_VERSION: 9.0.8
 
       - label: "{{matrix.image}} / 9.1.8 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.1.8

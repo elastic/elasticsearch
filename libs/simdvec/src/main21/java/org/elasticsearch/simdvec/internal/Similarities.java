@@ -23,6 +23,7 @@ public class Similarities {
 
     static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.dotProductHandle7u();
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
+    static final MethodHandle DOT_PRODUCT_7U_BULK = DISTANCE_FUNCS.dotProductHandle7uBulk();
 
     static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
@@ -41,6 +42,20 @@ public class Similarities {
     static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
         try {
             return (int) SQUARE_DISTANCE_7U.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_7U_BULK.invokeExact(a, b, length, count, scores);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

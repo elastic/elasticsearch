@@ -21,13 +21,11 @@ import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.COUNTS
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MAX_FIELD_NAME;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.MIN_FIELD_NAME;
 import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.SUM_FIELD_NAME;
-import static org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper.TOTAL_COUNT_FIELD_NAME;
 
 public class TDigestParser {
 
     private static final ParseField COUNTS_FIELD = new ParseField(COUNTS_NAME);
     private static final ParseField CENTROIDS_FIELD = new ParseField(CENTROIDS_NAME);
-    private static final ParseField TOTAL_COUNT_FIELD = new ParseField(TOTAL_COUNT_FIELD_NAME);
     private static final ParseField SUM_FIELD = new ParseField(SUM_FIELD_NAME);
     private static final ParseField MAX_FIELD = new ParseField(MAX_FIELD_NAME);
     private static final ParseField MIN_FIELD = new ParseField(MIN_FIELD_NAME);
@@ -37,7 +35,7 @@ public class TDigestParser {
      * @param centroids the centroids, guaranteed to be distinct and in increasing order
      * @param counts the counts, guaranteed to be non-negative and of the same length as the centroids array
      */
-    public record ParsedTDigest(List<Double> centroids, List<Long> counts, Long count, Double sum, Double min, Double max) {
+    public record ParsedTDigest(List<Double> centroids, List<Long> counts, Double sum, Double min, Double max) {
         @Override
         public Double max() {
             if (max != null) {
@@ -75,11 +73,7 @@ public class TDigestParser {
             return Double.NaN;
         }
 
-        @Override
         public Long count() {
-            if (count != null) {
-                return count;
-            }
             if (counts != null && counts.isEmpty() == false) {
                 long observedCount = 0;
                 for (Long count : counts) {
@@ -102,7 +96,6 @@ public class TDigestParser {
     public static ParsedTDigest parse(String mappedFieldName, XContentParser parser) throws IOException {
         ArrayList<Double> centroids = null;
         ArrayList<Long> counts = null;
-        Long count = null;
         Double sum = null;
         Double min = null;
         Double max = null;
@@ -127,10 +120,6 @@ public class TDigestParser {
                 token = parser.nextToken();
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                 max = parser.doubleValue();
-            } else if (fieldName.equals(TOTAL_COUNT_FIELD.getPreferredName())) {
-                token = parser.nextToken();
-                ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                count = parser.longValue();
             } else {
                 throw new DocumentParsingException(
                     parser.getTokenLocation(),
@@ -169,12 +158,11 @@ public class TDigestParser {
             );
         }
         if (centroids.isEmpty()) {
-            count = 0L;
-            sum = 0.0;
+            sum = null;
             min = null;
             max = null;
         }
-        return new ParsedTDigest(centroids, counts, count, sum, min, max);
+        return new ParsedTDigest(centroids, counts, sum, min, max);
     }
 
     private static ArrayList<Long> getCounts(String mappedFieldName, XContentParser parser) throws IOException {

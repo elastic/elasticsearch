@@ -35,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.transport.LinkedProjectConfig;
@@ -77,14 +76,14 @@ class IndicesAndAliasesResolver {
         Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
         IndexNameExpressionResolver resolver,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectRoutingResolver crossProjectRoutingResolver
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        // TODO: This should be injected when we have the implementation provided from the serverless side
-        this.crossProjectRoutingResolver = new CrossProjectRoutingResolver();
+        this.crossProjectRoutingResolver = crossProjectRoutingResolver;
     }
 
     /**
@@ -399,7 +398,8 @@ class IndicesAndAliasesResolver {
                         final var rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
                             resolvedProjects.originProjectAlias(),
-                            resolvedProjects.allProjectAliases()
+                            resolvedProjects.allProjectAliases(),
+                            replaceable.getProjectRouting()
                         );
                         remoteIndices = rewritten.remoteExpressions();
                         if (resolvedProjects.originProject() == null || rewritten.localExpression() == null) {
@@ -448,7 +448,8 @@ class IndicesAndAliasesResolver {
                         authorizedIndices::all,
                         authorizedIndices::check,
                         resolvedProjects,
-                        indicesRequest.includeDataStreams()
+                        indicesRequest.includeDataStreams(),
+                        replaceable.getProjectRouting()
                     );
                     setResolvedIndexExpressionsIfUnset(replaceable, resolved);
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());

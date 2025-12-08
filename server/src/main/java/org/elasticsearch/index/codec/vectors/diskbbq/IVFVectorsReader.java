@@ -42,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CENTROID_EXTENSION;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
@@ -87,20 +89,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             } finally {
                 CodecUtil.checkFooter(ivfMeta, priorE);
             }
-            ivfCentroids = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
-            ivfClusters = openDataInput(
-                state,
-                versionMeta,
-                ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-                ES920DiskBBQVectorsFormat.NAME,
-                state.context
-            );
+            ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
+            ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
+            doInitExtraFiles(state, versionMeta);
             success = true;
         } finally {
             if (success == false) {
@@ -108,6 +99,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
         }
     }
+
+    protected abstract void doInitExtraFiles(SegmentReadState state, int versionMeta) throws IOException;
 
     public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
@@ -121,7 +114,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         float visitRatio
     ) throws IOException;
 
-    private static IndexInput openDataInput(
+    protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
         String fileExtension,
@@ -275,7 +268,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return getReaderForField(field).getByteVectorValues(field);
     }
 
-    protected abstract float[] preconditionVector(FieldInfo fieldInfo, float[] vector);
+    protected abstract float[] preconditionVector(float[] vector);
 
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
@@ -320,7 +313,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             visitRatio = estimated / numVectors;
         }
         // precondition the query vector if necessary
-        target = preconditionVector(fieldInfo, target);
+        target = preconditionVector(target);
 
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
@@ -394,12 +387,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
             return raw;
         }
-        return raw;  // for now just return the size of raw
 
-        // TODO: determine desired off off-heap requirements
-        // var centroids = Map.of(EXTENSION, fe.xxxLength());
-        // var clusters = Map.of(EXTENSION, fe.yyyLength());
-        // return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroids, clusters);
+        var centroidsClusters = Map.of(CENTROID_EXTENSION, fe.centroidLength, CLUSTER_EXTENSION, fe.postingListLength);
+        return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }
 
     @Override

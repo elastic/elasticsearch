@@ -1606,7 +1606,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     ) {
         return suppliers.stream()
             .map(supplier -> new TestCaseSupplier(supplier.name(), supplier.types(), () -> mapper.apply(supplier.get())))
-            .toList();
+            .collect(Collectors.toCollection(ArrayList::new));
     }
 
     public static final class TestCase {
@@ -1820,19 +1820,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Object extra() {
             return extra;
-        }
-
-        /**
-         * Build a new {@link TestCase} with the {@link #TEST_CONFIGURATION}.
-         * <p>
-         *     The source is also set to match the configuration
-         * </p>
-         *
-         * @deprecated Use a custom configuration instead, and test the results.
-         */
-        @Deprecated
-        public TestCase withStaticConfiguration() {
-            return withConfiguration(TEST_SOURCE, TEST_CONFIGURATION);
         }
 
         /**

@@ -440,6 +440,72 @@ public class BlockSerializationTests extends SerializationTestCase {
         }
     }
 
+    public void testAggregateMetricDouble() throws IOException {
+        final int positionCount = randomIntBetween(1, 1000);
+        DoubleBlock minBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock maxBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        DoubleBlock suBlock = (DoubleBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.DOUBLE, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        IntBlock countBlock = (IntBlock) RandomBlock.randomBlock(
+            blockFactory,
+            randomFrom(ElementType.INT, ElementType.NULL),
+            positionCount,
+            true,
+            0,
+            1,
+            0,
+            0
+        ).block();
+
+        try (var origBlock = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, suBlock, countBlock)) {
+            try (
+                AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
+                    origBlock,
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        AggregateMetricDoubleArrayBlock.WRITE_TYPED_BLOCK,
+                        TransportVersion.current()
+                    )
+                )
+            ) {
+                assertThat(deserBlock.minBlock(), equalTo(minBlock));
+                assertThat(deserBlock.minBlock(), equalTo(minBlock));
+                assertThat(deserBlock.minBlock(), equalTo(minBlock));
+                assertThat(deserBlock.minBlock(), equalTo(minBlock));
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
+            }
+        }
+    }
+
     static BytesRef randomBytesRef() {
         return new BytesRef(randomAlphaOfLengthBetween(0, 10));
     }

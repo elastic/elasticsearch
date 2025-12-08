@@ -36,68 +36,11 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
 
     public abstract void collect(SortedNumericDoubleValues docValues, IntArrayList buffer) throws IOException;
 
-    public static MetricFieldProducer createFieldProducerForCounter(String name) {
-        return new LastValueScalarMetricFieldProducer(name);
-    }
-
-    public static MetricFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+    public static AbstractDownsampleFieldProducer createFieldProducerForGauge(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new AggregateScalarMetricFieldProducer(name);
-            case LAST_VALUE -> new LastValueScalarMetricFieldProducer(name);
+            case AGGREGATE -> new AggregateGaugeMetricFieldProducer(name);
+            case LAST_VALUE -> LastValueFieldProducer.createForMetric(name);
         };
-    }
-
-    /**
-     * {@link MetricFieldProducer} implementation for downsampling a metric field by preserving the last value.
-     */
-    static final class LastValueScalarMetricFieldProducer extends MetricFieldProducer {
-
-        static final double NO_VALUE = Double.MIN_VALUE;
-        private final AggregateMetricDoubleFieldMapper.Metric subMetric;
-
-        double lastValue = NO_VALUE;
-
-        LastValueScalarMetricFieldProducer(String name) {
-            this(name, null);
-        }
-
-        LastValueScalarMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric subMetric) {
-            super(name);
-            this.subMetric = subMetric;
-        }
-
-        @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId)) {
-                    isEmpty = false;
-                    lastValue = docValues.nextValue();
-                    return;
-                }
-            }
-        }
-
-        @Override
-        public void reset() {
-            isEmpty = true;
-            lastValue = NO_VALUE;
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                builder.field(name(), lastValue);
-            }
-        }
-
-        public String sampleLabel() {
-            return subMetric == null ? "last_value" : subMetric.name();
-        }
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
@@ -106,14 +49,14 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     /**
      * {@link MetricFieldProducer} implementation for creating an aggregate gauge metric field
      */
-    static final class AggregateScalarMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateGaugeMetricFieldProducer extends MetricFieldProducer {
 
         double max = MAX_NO_VALUE;
         double min = MIN_NO_VALUE;
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregateScalarMetricFieldProducer(String name) {
+        AggregateGaugeMetricFieldProducer(String name) {
             super(name);
         }
 
@@ -159,7 +102,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     // For downsampling downsampled indices:
-    static final class AggregatePreAggregatedMetricFieldProducer extends MetricFieldProducer {
+    static final class AggregateSubMetricFieldProducer extends MetricFieldProducer {
 
         final AggregateMetricDoubleFieldMapper.Metric metric;
 
@@ -168,7 +111,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregatePreAggregatedMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
+        AggregateSubMetricFieldProducer(String name, AggregateMetricDoubleFieldMapper.Metric metric) {
             super(name);
             this.metric = metric;
         }

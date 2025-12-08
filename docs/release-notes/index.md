@@ -20,10 +20,62 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.1.7 [elasticsearch-9.1.7-release-notes]
+
+### Features and enhancements [elasticsearch-9.1.7-features-enhancements]
+
+Authorization:
+* [Cyera] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#134894](https://github.com/elastic/elasticsearch/pull/134894) (issue: [#134183](https://github.com/elastic/elasticsearch/issues/134183))
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the threat event data stream. [#137222](https://github.com/elastic/elasticsearch/pull/137222) (issue: [#240901](https://github.com/elastic/elasticsearch/issues/240901))
+
+Infra/Core:
+* Upgrade ASM to 9.9 [#136963](https://github.com/elastic/elasticsearch/pull/136963)
+
+Infra/Plugins:
+* Error if installed plugin is inside plugins folder [#137398](https://github.com/elastic/elasticsearch/pull/137398) (issue: [#27401](https://github.com/elastic/elasticsearch/issues/27401))
+
+Packaging:
+* Update bundled JDK to Java 25.0.1+8 [#137640](https://github.com/elastic/elasticsearch/pull/137640)
+
+
+### Fixes [elasticsearch-9.1.7-fixes]
+
+Authorization:
+* Grants `kibana_system` the ability to forcemerge certain indices [#135795](https://github.com/elastic/elasticsearch/pull/135795)
+* Handle ._original stored fields with fls [#137442](https://github.com/elastic/elasticsearch/pull/137442)
+
+ES|QL:
+* Fix `ReplaceAliasingEvalWithProject` in case of shadowing [#137025](https://github.com/elastic/elasticsearch/pull/137025) (issue: [#137019](https://github.com/elastic/elasticsearch/issues/137019))
+
+Geo:
+* Fix `ignore_unmapped` setting when using `geo_shape` query with a pre-indexed shape [#136961](https://github.com/elastic/elasticsearch/pull/136961) (issue: [#136954](https://github.com/elastic/elasticsearch/issues/136954))
+
+Indices APIs:
+* Reindex-from-remote: Fail on manual slicing param [#137275](https://github.com/elastic/elasticsearch/pull/137275) (issue: [#136269](https://github.com/elastic/elasticsearch/issues/136269))
+
+Infra/Node Lifecycle:
+* Start readiness service after http is started [#136729](https://github.com/elastic/elasticsearch/pull/136729)
+
+Ingest Node:
+* Improve concurrency design of `EnterpriseGeoIpDownloader` [#134223](https://github.com/elastic/elasticsearch/pull/134223) (issue: [#126124](https://github.com/elastic/elasticsearch/issues/126124))
+
+Machine Learning:
+* Do not create inference endpoint if ID is used in existing mappings [#137055](https://github.com/elastic/elasticsearch/pull/137055) (issue: [#124272](https://github.com/elastic/elasticsearch/issues/124272))
+* Perform query field validation for rerank task type [#137219](https://github.com/elastic/elasticsearch/pull/137219)
+
+Mapping:
+* Fix dropped ignore above fields [#137394](https://github.com/elastic/elasticsearch/pull/137394) (issue: [#137360](https://github.com/elastic/elasticsearch/issues/137360))
+* Fixed geo point block loader slowness [#136147](https://github.com/elastic/elasticsearch/pull/136147)
+
+Recovery:
+* Catch exceptions from `mapperService` in `StoreRecovery.recoverFromLocalShards` [#137077](https://github.com/elastic/elasticsearch/pull/137077)
+
+Search:
+* Make `MutableSearchResponse` ref-counted to prevent use-after-close in async search [#134359](https://github.com/elastic/elasticsearch/pull/134359)
+* Remove early phase failure in batched [#136889](https://github.com/elastic/elasticsearch/pull/136889) (issue: [#134151](https://github.com/elastic/elasticsearch/issues/134151))
+* [LTR] Fix feature display order when using explain [#137671](https://github.com/elastic/elasticsearch/pull/137671)
+
 ## 9.2.1 [elasticsearch-9.2.1-release-notes]
-```{applies_to}
-stack: ga 9.2.1
-```
 
 ### Features and enhancements [elasticsearch-9.2.1-features-enhancements]
 
@@ -113,66 +165,6 @@ TSDB:
 
 Vector Search:
 * Use Suppliers To Get Inference Results In Semantic Queries [#136720](https://github.com/elastic/elasticsearch/pull/136720) (issue: [#136621](https://github.com/elastic/elasticsearch/issues/136621))
-
-## 9.1.7 [elasticsearch-9.1.7-release-notes]
-```{applies_to}
-stack: ga 9.1.7
-```
-
-### Features and enhancements [elasticsearch-9.1.7-features-enhancements]
-
-Authorization:
-* [Cyera] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#134894](https://github.com/elastic/elasticsearch/pull/134894) (issue: [#134183](https://github.com/elastic/elasticsearch/issues/134183))
-* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the threat event data stream. [#137222](https://github.com/elastic/elasticsearch/pull/137222) (issue: [#240901](https://github.com/elastic/elasticsearch/issues/240901))
-
-Infra/Core:
-* Upgrade ASM to 9.9 [#136963](https://github.com/elastic/elasticsearch/pull/136963)
-
-Infra/Plugins:
-* Error if installed plugin is inside plugins folder [#137398](https://github.com/elastic/elasticsearch/pull/137398) (issue: [#27401](https://github.com/elastic/elasticsearch/issues/27401))
-
-Packaging:
-* Update bundled JDK to Java 25.0.1+8 [#137640](https://github.com/elastic/elasticsearch/pull/137640)
-
-
-### Fixes [elasticsearch-9.1.7-fixes]
-
-Authorization:
-* Grants `kibana_system` the ability to forcemerge certain indices [#135795](https://github.com/elastic/elasticsearch/pull/135795)
-* Handle ._original stored fields with fls [#137442](https://github.com/elastic/elasticsearch/pull/137442)
-
-ES|QL:
-* Fix `ReplaceAliasingEvalWithProject` in case of shadowing [#137025](https://github.com/elastic/elasticsearch/pull/137025) (issue: [#137019](https://github.com/elastic/elasticsearch/issues/137019))
-
-Geo:
-* Fix `ignore_unmapped` setting when using `geo_shape` query with a pre-indexed shape [#136961](https://github.com/elastic/elasticsearch/pull/136961) (issue: [#136954](https://github.com/elastic/elasticsearch/issues/136954))
-
-Indices APIs:
-* Reindex-from-remote: Fail on manual slicing param [#137275](https://github.com/elastic/elasticsearch/pull/137275) (issue: [#136269](https://github.com/elastic/elasticsearch/issues/136269))
-
-Infra/Node Lifecycle:
-* Start readiness service after http is started [#136729](https://github.com/elastic/elasticsearch/pull/136729)
-
-Ingest Node:
-* Improve concurrency design of `EnterpriseGeoIpDownloader` [#134223](https://github.com/elastic/elasticsearch/pull/134223) (issue: [#126124](https://github.com/elastic/elasticsearch/issues/126124))
-
-Machine Learning:
-* Do not create inference endpoint if ID is used in existing mappings [#137055](https://github.com/elastic/elasticsearch/pull/137055) (issue: [#124272](https://github.com/elastic/elasticsearch/issues/124272))
-* Perform query field validation for rerank task type [#137219](https://github.com/elastic/elasticsearch/pull/137219)
-
-Mapping:
-* Fix dropped ignore above fields [#137394](https://github.com/elastic/elasticsearch/pull/137394) (issue: [#137360](https://github.com/elastic/elasticsearch/issues/137360))
-* Fixed geo point block loader slowness [#136147](https://github.com/elastic/elasticsearch/pull/136147)
-
-Recovery:
-* Catch exceptions from `mapperService` in `StoreRecovery.recoverFromLocalShards` [#137077](https://github.com/elastic/elasticsearch/pull/137077)
-
-Search:
-* Make `MutableSearchResponse` ref-counted to prevent use-after-close in async search [#134359](https://github.com/elastic/elasticsearch/pull/134359)
-* Remove early phase failure in batched [#136889](https://github.com/elastic/elasticsearch/pull/136889) (issue: [#134151](https://github.com/elastic/elasticsearch/issues/134151))
-* [LTR] Fix feature display order when using explain [#137671](https://github.com/elastic/elasticsearch/pull/137671)
-
-
 
 ## 9.1.6 [elasticsearch-9.1.6-release-notes]
 

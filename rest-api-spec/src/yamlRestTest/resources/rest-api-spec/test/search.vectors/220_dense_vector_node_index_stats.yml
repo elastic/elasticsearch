@@ -123,30 +123,40 @@
    - gt:    { indices.non_quantized.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
    - match: { indices.non_quantized.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
    - gt:    { indices.non_quantized.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.total_cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.total_clivf_size_bytes
    # vector1, hnsw (float)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
    # vector2, flat (float)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
    # vector3, hnsw (byte)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.clivf_size_bytes
    # vector4, flat (byte)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vec_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veq_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vex_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.clivf_size_bytes
 
 ---
 "index node stats int8_and int4_quantized":
@@ -276,24 +286,32 @@
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
-   # vector2, int8_flat
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
+  # vector2, int8_flat
    - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
    # vector3, int4_hnsw
    - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.clivf_size_bytes
    # vector4, int4_flat
    - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vec_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veq_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veb_size_bytes
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vex_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.clivf_size_bytes
 
 ---
 "index node stats bbq_quantized":
@@ -429,12 +447,125 @@
    - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
    - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
    # vector2, bbq_flat
    - is_true: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2
    - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes: 0 }
    - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
    - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
+
+---
+"index node stats bbq_disk quantized":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "Uses bbq"
+  - requires:
+      cluster_features: ["mapper.bbq_disk_support"]
+      reason: Needs mapper.bbq_disk_support feature
+  - requires:
+      cluster_features: ["mapper.bbq_disk_stats_support"]
+      reason: Needs bbq_disk DenseVectorStats support
+
+  - do:
+      indices.create:
+        index: bbq_quantized
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector3:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      index:
+        index: bbq_quantized
+        id: "3"
+        body:
+          vector3: [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cat.shards:
+        format: "json"
+        h: [ id ]
+        index: "bbq_quantized"
+
+  - do:
+      nodes.stats:
+        metric: [ indices ]
+        node_id: $body.0.id
+
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: cluster_name
+  - is_true: nodes
+  - is_true: nodes.$node_id.name
+  - is_true: nodes.$node_id.indices.dense_vector
+  - match: { nodes.$node_id.indices.dense_vector.value_count: 1 }
+  - is_true: nodes.$node_id.indices.dense_vector.off_heap
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_cenivf_size_bytes: 0 }
+  - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_clivf_size_bytes: 0 }
+  - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+  - do:
+      indices.stats: { index: _all }
+
+  - is_true:  _all.primaries.dense_vector.off_heap
+  - is_false: _all.primaries.dense_vector.off_heap.fielddata
+  - is_true:  _all.total.dense_vector.off_heap
+  - is_false: _all.total.dense_vector.off_heap.fielddata
+
+  - is_true: indices.bbq_quantized.primaries.dense_vector
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+  - match: { indices.bbq_quantized.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+  - match: { indices.bbq_quantized.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+  - match: { indices.bbq_quantized.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_cenivf_size_bytes: 0 }
+  - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_clivf_size_bytes: 0 }
+  # vector3, bbq_disk
+  - is_true: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3
+  - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
+  - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.cenivf_size_bytes: 0 }
+  - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.clivf_size_bytes: 0 }
+  - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
+  - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes
+  - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes
+
 
 ---
 "index node stats bit_vectors":
@@ -539,12 +670,16 @@
    - gt:    { indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
    # vector2, flat
    - is_true: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2
    - gt: { indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
 
 ---
 "index node stats empty":
@@ -615,6 +750,8 @@
    - match: { indices.empty_index.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
    - match: { indices.empty_index.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
    - is_false: indices.empty_index.primaries.dense_vector.off_heap.fielddata
+
+
 
 ---
 "index node stats multiple indices":
@@ -752,6 +889,8 @@
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
    - match: { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.total_cenivf_size_bytes
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.total_clivf_size_bytes
    - is_true: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata
    # foo.foo, bbq_hnsw
    - is_true: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo
@@ -759,6 +898,8 @@
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.vec_size_bytes: 0 }
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.vex_size_bytes: 0 }
    - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.veq_size_bytes
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.cenivf_size_bytes
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.clivf_size_bytes
 
    # index type bbq_flat
    - is_true: indices.bbq_quantized2.primaries.dense_vector
@@ -774,6 +915,8 @@
    - gt:    { indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.vec_size_bytes: 0 }
    - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.veq_size_bytes
    - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.vex_size_bytes
+   - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.cenivf_size_bytes
+   - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.clivf_size_bytes
 
    # index type hnsw_idx
    - is_true: indices.hnsw_idx.primaries.dense_vector
@@ -782,6 +925,8 @@
    - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
    - match: { indices.hnsw_idx.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
    - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.total_cenivf_size_bytes
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.total_clivf_size_bytes
    - is_true: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata
    # baz, hnsw (float)
    - is_true: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz
@@ -789,6 +934,8 @@
    - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.vex_size_bytes: 0 }
    - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.veb_size_bytes
    - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.veq_size_bytes
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.cenivf_size_bytes
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.clivf_size_bytes
 
 ---
 "index node stats non-indexed":

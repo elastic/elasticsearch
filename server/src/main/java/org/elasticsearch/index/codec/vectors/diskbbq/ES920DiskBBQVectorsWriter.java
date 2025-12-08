@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -21,6 +22,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
@@ -562,6 +564,16 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
         assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
         indexOutput.writeShort((short) corrections.quantizedComponentSum());
+    }
+
+    @Override
+    public void doFinish() throws IOException {
+        // no-op
+    }
+
+    @Override
+    public void doClose() throws IOException {
+        // no-op
     }
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {

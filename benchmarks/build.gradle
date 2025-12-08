@@ -91,6 +91,12 @@ tasks.named("run").configure {
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
 }
 
+tasks.named('test').configure {
+  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
+    jvmArgs '--add-modules=jdk.incubator.vector'
+  }
+}
+
 spotless {
   java {
     // IDEs can sometimes run annotation processors that leave files in

@@ -17,6 +17,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.PreconditioningProvider;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -75,6 +76,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int DEFAULT_PRECONDITIONING_BLOCK_DIMENSION = 32;
     public static final int MIN_PRECONDITIONING_BLOCK_DIMS = 8;
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
+    public static final int MAX_DIMENSIONS = 4096;
+    public static final String PRECONDITIONING_EXTENSION = "pivf";
 
     public enum QuantEncoding {
         ONE_BIT_4BIT_QUERY(0, (byte) 1, (byte) 4) {
@@ -218,13 +221,17 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
+    private final int dimensions;
+    private final PreconditioningProvider preconditioningProvider;
 
+    // FIXME: dimensions doesn't get used but this is super confusing if someone were to try to use dims for something else
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
-        this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
+        this(0, QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
-    public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
+    public ESNextDiskBBQVectorsFormat(int dimensions, QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
         this(
+            dimensions,
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -236,6 +243,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     }
 
     public ESNextDiskBBQVectorsFormat(
+        int dimensions,
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -265,18 +273,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                     + centroidsPerParentCluster
             );
         }
-        this.vectorPerCluster = vectorPerCluster;
-        this.centroidsPerParentCluster = centroidsPerParentCluster;
-        this.quantEncoding = quantEncoding;
-        this.rawVectorFormat = switch (elementType) {
-            case FLOAT -> float32VectorFormat;
-            case BFLOAT16 -> bfloat16VectorFormat;
-            default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
-        };
-        this.useDirectIO = useDirectIO;
-
-        if (preconditioningBlockDimension < MIN_PRECONDITIONING_BLOCK_DIMS
-            || preconditioningBlockDimension > MAX_PRECONDITIONING_BLOCK_DIMS) {
+        if (doPrecondition && (preconditioningBlockDimension < MIN_PRECONDITIONING_BLOCK_DIMS
+            || preconditioningBlockDimension > MAX_PRECONDITIONING_BLOCK_DIMS)) {
             throw new IllegalArgumentException(
                 "preconditioningBlockDimension must be between "
                     + MIN_PRECONDITIONING_BLOCK_DIMS
@@ -286,11 +284,30 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                     + preconditioningBlockDimension
             );
         }
-        // TODO: make these settable via DenseVectorFieldMapper
+
+        this.dimensions = dimensions;
+        this.quantEncoding = quantEncoding;
+        this.vectorPerCluster = vectorPerCluster;
+        this.centroidsPerParentCluster = centroidsPerParentCluster;
+        this.rawVectorFormat = switch (elementType) {
+            case FLOAT -> float32VectorFormat;
+            case BFLOAT16 -> bfloat16VectorFormat;
+            default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
+        };
+        this.useDirectIO = useDirectIO;
+
+        // FIXME: make these settable via DenseVectorFieldMapper
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
+
+        if(doPrecondition) {
+            this.preconditioningProvider = new PreconditioningProvider(this.preconditioningBlockDimension, this.dimensions);
+        } else {
+            this.preconditioningProvider = null;
+        }
     }
 
+    // FIXME: dimensions doesn't get used but this is super confusing if someone were to try to use dims for something else
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
     public ESNextDiskBBQVectorsFormat() {
         this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
@@ -306,8 +323,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
-            doPrecondition,
-            preconditioningBlockDimension
+            preconditioningProvider
         );
     }
 
@@ -322,7 +338,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public int getMaxDimensions(String fieldName) {
-        return 4096;
+        return MAX_DIMENSIONS;
     }
 
     @Override

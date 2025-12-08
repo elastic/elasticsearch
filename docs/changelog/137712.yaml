@@ -1,0 +1,5 @@
+pr: 137712
+summary: Add User Profile Size Limit Enforced During Profile Updates
+area: Security
+type: bug
+issues: []

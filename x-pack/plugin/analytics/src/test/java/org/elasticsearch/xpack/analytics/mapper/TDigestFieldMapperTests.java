@@ -434,6 +434,9 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         {
             expected.startArray("field");
             expected.startObject();
+            expected.field("min", 1.0d);
+            expected.field("max", 3.0d);
+            expected.field("sum", 14.0d);
             expected.field("centroids", new double[] { 1, 2, 3 });
             expected.field("counts", new int[] { 1, 2, 3 });
             expected.endObject();
@@ -447,7 +450,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 
-    private static Map<String, Object> generateRandomFieldValues(int maxVals) {
+    static Map<String, Object> generateRandomFieldValues(int maxVals) {
         Map<String, Object> value = new LinkedHashMap<>();
         int size = between(1, maxVals);
         TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
@@ -458,10 +461,17 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         }
         List<Double> centroids = new ArrayList<>();
         List<Long> counts = new ArrayList<>();
+        double sum = 0.0;
         for (Centroid c : digest.centroids()) {
             centroids.add(c.mean());
             counts.add(c.count());
+            sum += c.mean() * c.count();
         }
+        double min = digest.getMin();
+        double max = digest.getMax();
+        value.put("min", min);
+        value.put("max", max);
+        value.put("sum", sum);
         value.put("centroids", centroids);
         value.put("counts", counts);
 

@@ -82,6 +82,7 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
         .setting("s3.client.repo_test_kit.region", regionSupplier, (n) -> USE_FIXTURE)
         .setting("s3.client.repo-test_kit.add_purpose_custom_query_parameter", () -> randomFrom("true", "false"), n -> randomBoolean())
         .setting("xpack.security.enabled", "false")
+        .setting("thread_pool.snapshot.max", "10")
         .build();
 
     @ClassRule

@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -143,7 +144,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         parser = new EsqlParser();
 
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
         analyzer = new Analyzer(
@@ -158,7 +159,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var allTypesMapping = loadMapping("mapping-all-types.json");
-        EsIndex testAll = new EsIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
+        EsIndex testAll = EsIndexGenerator.esIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
         allTypesAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -545,7 +546,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
 
-        EsIndex index = new EsIndex("large", large, Map.of("large", IndexMode.STANDARD));
+        EsIndex index = EsIndexGenerator.esIndex("large", large, Map.of("large", IndexMode.STANDARD));
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
         var analyzer = new Analyzer(
@@ -1656,6 +1657,21 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Pushed LENGTH to the same field in a <strong>ton</strong> of unique and curious ways. All
      * of these pushdowns should be fused to one.
+     *
+     * <pre>{@code
+     * Project[[l{r}#23]]
+     * \_Eval[[$$SUM$SUM(LENGTH(last>$0{r$}#37 / $$COUNT$$$AVG$SUM(LENGTH(last>$1$1{r$}#41 AS $$AVG$SUM(LENGTH(last>$1#38, $
+     * $SUM$SUM(LENGTH(last>$0{r$}#37 + $$AVG$SUM(LENGTH(last>$1{r$}#38 + $$SUM$SUM(LENGTH(last>$2{r$}#39 AS l#23]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#35,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$SUM(LE
+     *          NGTH(last>$0#37,
+     *          COUNT(a3{r}#11,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$$$AVG$SUM(LENGTH(last>$1$1#41,
+     *          SUM($$LENGTH(first_na>$SUM$1{r$}#36,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$2#39]]
+     *       \_Eval[[$$last_name$LENGTH$920787299{f$}#42 AS a3#11, $$last_name$LENGTH$920787299{f$}#42 AS $$LENGTH(last_nam>$SUM$0
+     * #35, $$first_name$LENGTH$920787299{f$}#43 AS $$LENGTH(first_na>$SUM$1#36]]
+     *         \_Filter[$$last_name$LENGTH$920787299{f$}#42 > 1[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     * }</pre>
      */
     public void testLengthPushdownZoo() {
         assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
@@ -1674,13 +1690,26 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         // Eval - computes final aggregation result (SUM + AVG + SUM)
         var eval1 = as(project.child(), Eval.class);
         assertThat(eval1.fields(), hasSize(2));
+        // The avg is computed as the SUM(LENGTH(last_name)) / COUNT(LENGTH(last_name))
+        var avg = eval1.fields().get(0);
+        var avgDiv = as(avg.child(), Div.class);
+        // SUM(LENGTH(last_name))
+        var evalSumLastName = as(avgDiv.left(), ReferenceAttribute.class);
+        var evalCountLastName = as(avgDiv.right(), ReferenceAttribute.class);
+        var finalAgg = as(eval1.fields().get(1).child(), Add.class);
+        var leftFinalAgg = as(finalAgg.left(), Add.class);
+        assertThat(leftFinalAgg.left(), equalTo(evalSumLastName));
+        assertThat(as(leftFinalAgg.right(), ReferenceAttribute.class).id(), equalTo(avg.id()));
+        // SUM(LENGTH(first_name))
+        var evalSumFirstName = as(finalAgg.right(), ReferenceAttribute.class);
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(eval1.child(), Limit.class);
 
-        // Aggregate with 4 aggregates: SUM for last_name, SUM and COUNT for AVG(a3), SUM for first_name
+        // Aggregate with 3 aggregates: SUM for last_name, COUNT for last_name
+        // (the AVG uses the sum and the count), SUM for first_name
         var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.aggregates(), hasSize(4));
+        assertThat(agg.aggregates(), hasSize(3));
 
         // Eval - pushdown fields: a3, LENGTH(last_name) for SUM, and LENGTH(first_name) for SUM
         var evalPushdown = as(agg.child(), Eval.class);
@@ -1694,14 +1723,23 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Attribute firstNamePushDownAttr = assertLengthPushdown(firstNamePushdownAlias.child(), "first_name");
 
         // Verify aggregates reference the pushed down fields
-        var sumForLastName = as(as(agg.aggregates().get(0), Alias.class).child(), Sum.class);
+        var sumForLastNameAlias = as(agg.aggregates().get(0), Alias.class);
+        var sumForLastName = as(sumForLastNameAlias.child(), Sum.class);
         assertThat(as(sumForLastName.field(), ReferenceAttribute.class).id(), equalTo(lastNamePushdownAlias.id()));
-        var sumForAvg = as(as(agg.aggregates().get(1), Alias.class).child(), Sum.class);
-        assertThat(as(sumForAvg.field(), ReferenceAttribute.class).id(), equalTo(a3Alias.id()));
-        var countForAvg = as(as(agg.aggregates().get(2), Alias.class).child(), Count.class);
+        // Checks that the SUM(LENGTH(last_name)) in the final EVAL is the aggregate result here
+        assertThat(evalSumLastName.id(), equalTo(sumForLastNameAlias.id()));
+
+        var countForAvgAlias = as(agg.aggregates().get(1), Alias.class);
+        var countForAvg = as(countForAvgAlias.child(), Count.class);
         assertThat(as(countForAvg.field(), ReferenceAttribute.class).id(), equalTo(a3Alias.id()));
-        var sumForFirstName = as(as(agg.aggregates().get(3), Alias.class).child(), Sum.class);
+        // Checks that the COUNT(LENGTH(last_name)) in the final EVAL is the aggregate result here
+        assertThat(evalCountLastName.id(), equalTo(countForAvgAlias.id()));
+
+        var sumForFirstNameAlias = as(agg.aggregates().get(2), Alias.class);
+        var sumForFirstName = as(sumForFirstNameAlias.child(), Sum.class);
         assertThat(as(sumForFirstName.field(), ReferenceAttribute.class).id(), equalTo(firstNamePushdownAlias.id()));
+        // Checks that the SUM(LENGTH(first_name)) in the final EVAL is the aggregate result here
+        assertThat(evalSumFirstName.id(), equalTo(sumForFirstNameAlias.id()));
 
         // Filter[LENGTH(last_name) > 1]
         var filter = as(evalPushdown.child(), Filter.class);
@@ -1711,6 +1749,14 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var relation = as(filter.child(), EsRelation.class);
         assertThat(relation.output(), hasItem(lastNamePushDownAttr));
         assertThat(relation.output(), hasItem(firstNamePushDownAttr));
+        assertThat(relation.output().stream().filter(a -> {
+            if (a instanceof FieldAttribute fa) {
+                if (fa.field() instanceof FunctionEsField fef) {
+                    return fef.functionConfig().function() == BlockLoaderFunctionConfig.Function.LENGTH;
+                }
+            }
+            return false;
+        }).toList(), hasSize(2));
     }
 
     public void testLengthInStatsTwice() {
@@ -1870,7 +1916,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("integer", Set.of("test1"), "long", Set.of("test2"))
         );
 
-        EsIndex test = new EsIndex(
+        EsIndex test = EsIndexGenerator.esIndex(
             "test*",
             Map.of("integer_long_field", unionTypeField),
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD)

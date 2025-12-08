@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDi
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -83,7 +84,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             "_tsid",
             new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,

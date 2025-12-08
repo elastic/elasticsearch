@@ -1,0 +1,5 @@
+pr: 138265
+summary: Fix `index.mapping.pattern_text.disable_templating` not registered issue
+area: Mapping
+type: bug
+issues: []

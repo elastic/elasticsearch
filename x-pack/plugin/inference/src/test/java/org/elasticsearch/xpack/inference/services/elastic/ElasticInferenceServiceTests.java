@@ -86,6 +86,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -491,7 +492,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 thrownException.getMessage(),
                 is(
                     "Inference entity [model_id] does not support task type [chat_completion] "
-                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank]. "
+                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank, completion]. "
                         + "The task type for the inference entity is chat_completion, "
                         + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
@@ -1132,7 +1133,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
             var model = new ElasticInferenceServiceCompletionModel(
                 "id",
-                TaskType.COMPLETION,
+                TaskType.CHAT_COMPLETION,
                 "elastic",
                 new ElasticInferenceServiceCompletionServiceSettings("model_id"),
                 EmptyTaskSettings.INSTANCE,
@@ -1162,12 +1163,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
-        return new ElasticInferenceService(
+        var service = new ElasticInferenceService(
             factory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceSettings(Settings.EMPTY),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            createNoopApplierFactory()
         );
+        service.init();
+        return service;
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
@@ -1175,11 +1179,14 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
-        return new ElasticInferenceService(
+        var service = new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            createNoopApplierFactory()
         );
+        service.init();
+        return service;
     }
 }

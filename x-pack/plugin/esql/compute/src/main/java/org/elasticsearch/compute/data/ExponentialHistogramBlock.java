@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 /**
  * A block that holds {@link ExponentialHistogram} values.
@@ -91,6 +92,20 @@ public sealed interface ExponentialHistogramBlock extends Block permits Constant
                 case ExponentialHistogramArrayBlock b -> a.equalsAfterTypeCheck(b);
             };
         };
+    }
+
+    /**
+     * Builder for {@link ExponentialHistogramBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.ExponentialHistogramBuilder permits ExponentialHistogramBlockBuilder {
+
+        /**
+         * Copy the values in {@code block} from the given positon into this builder.
+         */
+        Builder copyFrom(ExponentialHistogramBlock block, int position);
+
+        @Override
+        ExponentialHistogramBlock build();
     }
 
     /**

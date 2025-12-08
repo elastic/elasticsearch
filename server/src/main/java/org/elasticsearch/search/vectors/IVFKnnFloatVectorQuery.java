@@ -35,7 +35,19 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
         super(field, visitRatio, k, numCands, filter);
         this.query = query;
+
+        // FIXME:
+//        PreconditioningProvider preconditioningProvider = PreconditioningProvider.read();
     }
+
+    public float[] getQuery() {
+        return query;
+    }
+
+    // FIXME:
+//    public float[] getPreconditionedQuery() {
+//        return
+//    }
 
     @Override
     public String toString(String field) {

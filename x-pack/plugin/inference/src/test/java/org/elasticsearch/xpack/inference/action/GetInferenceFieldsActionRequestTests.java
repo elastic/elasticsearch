@@ -90,7 +90,13 @@ public class GetInferenceFieldsActionRequestTests extends AbstractBWCWireSeriali
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
                 instance.getQuery(),
-                randomValueOtherThan(instance.getIndicesOptions(), GetInferenceFieldsActionRequestTests::randomIndicesOptions)
+                randomValueOtherThan(instance.getIndicesOptions(), () -> {
+                    IndicesOptions newOptions = randomIndicesOptions();
+                    while (instance.getIndicesOptions() == IndicesOptions.DEFAULT && newOptions == null) {
+                        newOptions = randomIndicesOptions();
+                    }
+                    return newOptions;
+                })
             );
             default -> throw new AssertionError("Invalid value");
         };

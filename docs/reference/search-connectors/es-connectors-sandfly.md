@@ -10,7 +10,7 @@ mapped_pages:
 The *Elastic Sandfly Security connector* is a [connector](/reference/search-connectors/index.md) for [Sandfly Security](https://www.sandflysecurity.com).
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sandfly.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sandfly) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available.

@@ -1272,7 +1272,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // calculated from the ids of the underlying segments of an index commit
                 final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 final IndexShard shard = indexService.getShard(request.shardId().id());
-                final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
+                final Engine.SearcherSupplier searcherSupplier = shard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
                 if (contextId.sameSearcherIdsAs(searcherSupplier.getSearcherId()) == false) {
                     searcherSupplier.close();
                     throw e;
@@ -1296,7 +1296,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
-        return createAndPutReaderContext(request, indexService, shard, shard.acquireSearcherSupplier(), keepAliveInMillis);
+        return createAndPutReaderContext(
+            request,
+            indexService,
+            shard,
+            shard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary()),
+            keepAliveInMillis
+        );
     }
 
     final ReaderContext createAndPutReaderContext(
@@ -1448,7 +1454,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
-        final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
+        final Engine.SearcherSupplier reader = indexShard.acquireExternalSearcherSupplier(request.getSplitShardCountSummary());
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), reader.getSearcherId());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             // Use ResultsType.QUERY so that the created search context can execute queries correctly.

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
@@ -97,7 +98,9 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         );
         plannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-basic.json", enrichResolution));
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
-        var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
+        var timeSeriesIndex = IndexResolution.valid(
+            EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES))
+        );
         timeSeriesAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
@@ -117,8 +120,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
         var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
 
         return new Analyzer(
             testAnalyzerContext(

@@ -192,7 +192,7 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is built with the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/google_cloud_storage.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/google_cloud_storage) (branch *main*, compatible with Elastic *9.0*).
 
 
 

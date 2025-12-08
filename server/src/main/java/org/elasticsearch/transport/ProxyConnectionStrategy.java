@@ -107,7 +107,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
-        assert config instanceof ProxyLinkedProjectConfig : "expected config to be of type " + ProxyConnectionStrategy.class;
+        assert config instanceof ProxyLinkedProjectConfig : "expected config to be of type " + ProxyLinkedProjectConfig.class;
         final var proxyConfig = (ProxyLinkedProjectConfig) config;
         return proxyConfig.maxNumConnections() != maxNumConnections
             || configuredAddress.equals(proxyConfig.proxyAddress()) == false
@@ -117,6 +117,14 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     @Override
     protected ConnectionStrategy strategyType() {
         return ConnectionStrategy.PROXY;
+    }
+
+    @Override
+    protected void addStrategySpecificConnectionErrorMetricAttributes(Map<String, Object> attributesMap) {
+        attributesMap.put("endpoint", configuredAddress);
+        if (configuredServerName != null) {
+            attributesMap.put("server_name", configuredServerName);
+        }
     }
 
     @Override

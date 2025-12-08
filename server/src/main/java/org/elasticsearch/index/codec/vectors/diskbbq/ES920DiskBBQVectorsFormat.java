@@ -54,7 +54,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     // offsets contained in cen_ivf, [vector ordinals, actually just docIds](long varint), quantized
     // vectors (OSQ bit)
     public static final String CLUSTER_EXTENSION = "clivf";
-    static final String IVF_META_EXTENSION = "mivf";
+    public static final String IVF_META_EXTENSION = "mivf";
 
     public static final int VERSION_START = 0;
     public static final int VERSION_DIRECT_IO = 1;

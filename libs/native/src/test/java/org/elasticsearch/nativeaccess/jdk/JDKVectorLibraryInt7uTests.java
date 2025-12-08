@@ -17,6 +17,7 @@ import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
 public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
@@ -71,6 +72,11 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
                 assertEquals(expected, dotProduct7u(heapSeg1, heapSeg2, dims));
                 assertEquals(expected, dotProduct7u(nativeSeg1, heapSeg2, dims));
                 assertEquals(expected, dotProduct7u(heapSeg1, nativeSeg2, dims));
+
+                // trivial bulk with a single vector
+                float[] bulkScore = new float[1];
+                dotProduct7uBulk(nativeSeg1, nativeSeg2, dims, 1, MemorySegment.ofArray(bulkScore));
+                assertEquals(expected, bulkScore[0], 0f);
             }
 
             // square distance
@@ -83,6 +89,32 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
                 assertEquals(expected, squareDistance7u(nativeSeg1, heapSeg2, dims));
                 assertEquals(expected, squareDistance7u(heapSeg1, nativeSeg2, dims));
             }
+        }
+    }
+
+    public void testInt7uBulk() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var values = new byte[numVecs][dims];
+        var segment = arena.allocate((long) dims * numVecs);
+        for (int i = 0; i < numVecs; i++) {
+            randomBytesBetween(values[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(MemorySegment.ofArray(values[i]), 0L, segment, (long) i * dims, dims);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        dotProductBulkScalar(values[queryOrd], values, expectedScores);
+
+        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, dims);
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        dotProduct7uBulk(segment, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+
+        if (supportsHeapSegments()) {
+            float[] bulkScores = new float[numVecs];
+            dotProduct7uBulk(segment, nativeQuerySeg, dims, numVecs, MemorySegment.ofArray(bulkScores));
+            assertArrayEquals(expectedScores, bulkScores, 0f);
         }
     }
 
@@ -107,6 +139,26 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
         var e6 = expectThrows(IOOBE, () -> squareDistance7u(segment.asSlice(0L, size), segment.asSlice(size, size), -1));
         assertThat(e6.getMessage(), containsString("out of bounds for length"));
+    }
+
+    public void testBulkIllegalDims() {
+        assumeTrue(notSupportedMsg(), supported());
+        var segA = arena.allocate((long) size * 3);
+        var segB = arena.allocate((long) size * 3);
+        var segS = arena.allocate((long) size * Float.BYTES);
+
+        var e1 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, size, 4, segS));
+        assertThat(e1.getMessage(), containsString("out of bounds for length"));
+
+        var e2 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, size, -1, segS));
+        assertThat(e2.getMessage(), containsString("out of bounds for length"));
+
+        var e3 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, -1, 3, segS));
+        assertThat(e3.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmall = arena.allocate((long) 3 * Float.BYTES - 1);
+        var e4 = expectThrows(IOOBE, () -> dotProduct7uBulk(segA, segB, size, 3, tooSmall));
+        assertThat(e4.getMessage(), containsString("out of bounds for length"));
     }
 
     int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
@@ -137,6 +189,20 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         }
     }
 
+    void dotProduct7uBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
+        try {
+            getVectorDistance().dotProductHandle7uBulk().invokeExact(a, b, dims, count, result);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     /** Computes the dot product of the given vectors a and b. */
     static int dotProductScalar(byte[] a, byte[] b) {
         int res = 0;
@@ -156,4 +222,18 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         }
         return squareSum;
     }
+
+    static void dotProductBulkScalar(byte[] query, byte[][] data, float[] scores) {
+        for (int i = 0; i < data.length; i++) {
+            scores[i] = dotProductScalar(query, data[i]);
+        }
+    }
+
+    static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
+        assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
+        for (int i = 0; i < expectedScores.length; i++) {
+            assertEquals(expectedScores[i], expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, i * Float.BYTES), 0f);
+        }
+    }
+
 }

@@ -1976,21 +1976,40 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             }
             VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-            String expectedString = "ES813Int8FlatVectorFormat(name=ES813Int8FlatVectorFormat, innerFormat="
-                + "ES814ScalarQuantizedVectorsFormat(name=ES814ScalarQuantizedVectorsFormat,"
-                + " confidenceInterval="
-                + (setConfidenceInterval ? Float.toString(confidenceInterval) : (quantizedFlatFormat.equals("int4_flat") ? "0.0" : null))
-                + ", bits="
-                + (quantizedFlatFormat.equals("int4_flat") ? 4 : 7)
-                + ", compressed="
-                + quantizedFlatFormat.equals("int4_flat")
-                + ", flatVectorScorer=ESFlatVectorsScorer("
-                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
-                + ", factory="
-                + (factory != null ? factory : "null")
-                + "), "
-                + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))";
-            assertEquals(expectedString, knnVectorsFormat.toString());
+            String expectedString = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
+                ? "ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat,"
+                    + " confidenceInterval="
+                    + (setConfidenceInterval
+                        ? Float.toString(confidenceInterval)
+                        : (quantizedFlatFormat.equals("int4_flat") ? "0.0" : null))
+                    + ", bits="
+                    + (quantizedFlatFormat.equals("int4_flat") ? 4 : 7)
+                    + ", compressed="
+                    + quantizedFlatFormat.equals("int4_flat")
+                    + ", flatVectorScorer=ESQuantizedFlatVectorsScorer("
+                    + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                    + ", factory="
+                    + (factory != null ? factory : "null")
+                    + "), "
+                    + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                    + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))"
+                : "ES813Int8FlatVectorFormat(name=ES813Int8FlatVectorFormat, innerFormat="
+                    + "ES814ScalarQuantizedVectorsFormat(name=ES814ScalarQuantizedVectorsFormat,"
+                    + " confidenceInterval="
+                    + (setConfidenceInterval
+                        ? Float.toString(confidenceInterval)
+                        : (quantizedFlatFormat.equals("int4_flat") ? "0.0" : null))
+                    + ", bits="
+                    + (quantizedFlatFormat.equals("int4_flat") ? 4 : 7)
+                    + ", compressed="
+                    + quantizedFlatFormat.equals("int4_flat")
+                    + ", flatVectorScorer=ESFlatVectorsScorer("
+                    + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
+                    + ", factory="
+                    + (factory != null ? factory : "null")
+                    + "), "
+                    + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))";
+            assertThat(knnVectorsFormat, hasToString(expectedString));
         }
     }
 
@@ -2027,21 +2046,36 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
         VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
-            + m
-            + ", beamWidth="
-            + efConstruction
-            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
-            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
-            + (setConfidenceInterval ? confidenceInterval : null)
-            + ", bits=7, compressed=false, "
-            + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
-            + "factory="
-            + (factory != null ? factory : "null")
-            + "), "
-            + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + "))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+        String expectedString = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
+            ? "ES93HnswScalarQuantizedVectorsFormat(name=ES93HnswScalarQuantizedVectorsFormat, maxConn="
+                + m
+                + ", beamWidth="
+                + efConstruction
+                + ", confidenceInterval="
+                + (setConfidenceInterval ? confidenceInterval : null)
+                + ", bits=7, compressed=false, "
+                + "flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
+                + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
+                + "factory="
+                + (factory != null ? factory : "null")
+                + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))"
+            : "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
+                + m
+                + ", beamWidth="
+                + efConstruction
+                + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
+                + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
+                + (setConfidenceInterval ? confidenceInterval : null)
+                + ", bits=7, compressed=false, "
+                + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer("
+                + "nonQuantizedDelegate=DefaultFlatVectorScorer()), "
+                + "factory="
+                + (factory != null ? factory : "null")
+                + "), "
+                + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
+                + "))";
+        assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
     public void testKnnBBQHNSWVectorsFormat() throws IOException {
@@ -2170,21 +2204,34 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
         VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
-        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
-            + m
-            + ", beamWidth="
-            + efConstruction
-            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
-            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
-            + (setConfidenceInterval ? confidenceInterval : 0.0f)
-            + ", bits=4, compressed=true, "
-            + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), "
-            + "factory="
-            + (factory != null ? factory : "null")
-            + "), "
-            + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
-            + "))";
-        assertEquals(expectedString, knnVectorsFormat.toString());
+        String expectedString = ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled()
+            ? "ES93HnswScalarQuantizedVectorsFormat(name=ES93HnswScalarQuantizedVectorsFormat, maxConn="
+                + m
+                + ", beamWidth="
+                + efConstruction
+                + ", confidenceInterval="
+                + (setConfidenceInterval ? confidenceInterval : 0.0f)
+                + ", bits=4, compressed=true, flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
+                + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), factory="
+                + (factory != null ? factory : "null")
+                + "), flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat"
+                + ", format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=DefaultFlatVectorScorer())))"
+            : "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
+                + m
+                + ", beamWidth="
+                + efConstruction
+                + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
+                + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
+                + (setConfidenceInterval ? confidenceInterval : 0.0f)
+                + ", bits=4, compressed=true, "
+                + "flatVectorScorer=ESFlatVectorsScorer(delegate=ScalarQuantizedVectorScorer("
+                + "nonQuantizedDelegate=DefaultFlatVectorScorer()), "
+                + "factory="
+                + (factory != null ? factory : "null")
+                + "), "
+                + "rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
+                + "))";
+        assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
     public void testInvalidVectorDimensions() {

@@ -20,8 +20,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "Comma-separated list of indices or data streams to analyze the disk usage"
+              "type": "list",
+              "description": "Comma-separated list of data streams, indices, and aliases used to limit the request. It\u2019s recommended to execute this API with a single index (or the latest backing index of a data stream) as the API consumes resources significantly."
             }
           }
         }

@@ -26,6 +26,7 @@ import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
@@ -83,6 +84,8 @@ public class S3HttpHandler implements HttpHandler {
      * Requests using these HTTP methods never have a request body (this is checked in the handler).
      */
     private static final Set<String> METHODS_HAVING_NO_REQUEST_BODY = Set.of("GET", "HEAD", "DELETE");
+
+    private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
@@ -188,13 +191,15 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isCompleteMultipartUploadRequest()) {
                 final byte[] responseBody;
-                boolean preconditionFailed = false;
+                final RestStatus responseCode;
                 synchronized (uploads) {
                     final var upload = getUpload(request.getQueryParamOnce("uploadId"));
                     if (upload == null) {
                         if (Randomness.get().nextBoolean()) {
+                            responseCode = RestStatus.NOT_FOUND;
                             responseBody = null;
                         } else {
+                            responseCode = RestStatus.OK;
                             responseBody = """
                                 <?xml version="1.0" encoding="UTF-8"?>
                                 <Error>
@@ -206,17 +211,8 @@ public class S3HttpHandler implements HttpHandler {
                         }
                     } else {
                         final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-
-                        if (isProtectOverwrite(exchange)) {
-                            var previousValue = blobs.putIfAbsent(request.path(), blobContents);
-                            if (previousValue != null) {
-                                preconditionFailed = true;
-                            }
-                        } else {
-                            blobs.put(request.path(), blobContents);
-                        }
-
-                        if (preconditionFailed == false) {
+                        responseCode = updateBlobContents(exchange, request.path(), blobContents);
+                        if (responseCode == RestStatus.OK) {
                             responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                                 + "<CompleteMultipartUploadResult>\n"
                                 + "<Bucket>"
@@ -226,20 +222,20 @@ public class S3HttpHandler implements HttpHandler {
                                 + request.path()
                                 + "</Key>\n"
                                 + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                            removeUpload(upload.getUploadId());
                         } else {
                             responseBody = null;
                         }
+                        if (responseCode != RestStatus.PRECONDITION_FAILED) {
+                            removeUpload(upload.getUploadId());
+                        }
                     }
                 }
-                if (preconditionFailed) {
-                    exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                } else if (responseBody == null) {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-                } else {
+                if (responseCode == RestStatus.OK) {
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
                     exchange.getResponseBody().write(responseBody);
+                } else {
+                    exchange.sendResponseHeaders(responseCode.getStatus(), -1);
                 }
             } else if (request.isAbortMultipartUploadRequest()) {
                 final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
@@ -268,22 +264,12 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    boolean preconditionFailed = false;
-                    if (isProtectOverwrite(exchange)) {
-                        var previousValue = blobs.putIfAbsent(request.path(), blob.v2());
-                        if (previousValue != null) {
-                            preconditionFailed = true;
-                        }
-                    } else {
-                        blobs.put(request.path(), blob.v2());
-                    }
+                    final var updateResponseCode = updateBlobContents(exchange, request.path(), blob.v2());
 
-                    if (preconditionFailed) {
-                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                    } else {
+                    if (updateResponseCode == RestStatus.OK) {
                         exchange.getResponseHeaders().add("ETag", blob.v1());
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     }
+                    exchange.sendResponseHeaders(updateResponseCode.getStatus(), -1);
                 }
 
             } else if (request.isListObjectsRequest()) {
@@ -336,6 +322,9 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
+
+                exchange.getResponseHeaders().add("ETag", getEtagFromContents(blob));
+
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -411,6 +400,35 @@ public class S3HttpHandler implements HttpHandler {
             logger.error("exception in request " + request, e);
             throw e;
         }
+    }
+
+    /**
+     * Update the blob contents if and only if the preconditions in the request are satisfied.
+     *
+     * @return {@link RestStatus#OK} if the blob contents were updated, or else a different status code to indicate the error: possibly
+     *         {@link RestStatus#CONFLICT} or {@link RestStatus#PRECONDITION_FAILED} if the object exists and the precondition requires it
+     *         not to.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
+     */
+    private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
+        if (isProtectOverwrite(exchange)) {
+            return blobs.putIfAbsent(path, newContents) == null
+                ? RestStatus.OK
+                : ESTestCase.randomFrom(RestStatus.PRECONDITION_FAILED, RestStatus.CONFLICT);
+        }
+
+        blobs.put(path, newContents);
+        return RestStatus.OK;
+    }
+
+    /**
+     * Etags are opaque identifiers for the contents of an object.
+     *
+     * @see <a href="https://en.wikipedia.org/wiki/HTTP_ETag">HTTP ETag on Wikipedia</a>.
+     */
+    public static String getEtagFromContents(BytesReference blobContents) {
+        return '"' + SHA_256_ETAG_PREFIX + MessageDigests.toHexString(MessageDigests.digest(blobContents, MessageDigests.sha256())) + '"';
     }
 
     public Map<String, BytesReference> blobs() {
@@ -490,7 +508,7 @@ public class S3HttpHandler implements HttpHandler {
                     );
                 }
             }
-            return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
+            return Tuple.tuple(getEtagFromContents(bytesReference), bytesReference);
         } catch (Exception e) {
             logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);

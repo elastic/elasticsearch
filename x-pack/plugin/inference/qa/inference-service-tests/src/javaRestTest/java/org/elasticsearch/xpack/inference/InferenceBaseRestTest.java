@@ -60,15 +60,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @Before
     public void setMlModelRepository() throws IOException {
-        logger.info("setting ML model repository to: {}", mlModelServer.getUrl());
-        var request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(Strings.format("""
-            {
-              "persistent": {
-                "xpack.ml.model_repository": "%s"
-              }
-            }""", mlModelServer.getUrl()));
-        assertOK(client().performRequest(request));
+        assertOK(mlModelServer.setMlModelRepository(adminClient()));
     }
 
     @Override
@@ -533,7 +525,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         }
     }
 
-    static void assertStatusOkOrCreated(Response response) throws IOException {
+    public static void assertStatusOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
         // Once EntityUtils.toString(entity) is called the entity cannot be reused.
         // Avoid that call with check here.

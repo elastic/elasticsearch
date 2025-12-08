@@ -1484,6 +1484,54 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlParam(EsqlBaseParser.PromqlParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlParam(EsqlBaseParser.PromqlParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlQueryPart(EsqlBaseParser.PromqlQueryPartContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlQueryPart(EsqlBaseParser.PromqlQueryPartContext ctx) { }
 
   /**
    * {@inheritDoc}

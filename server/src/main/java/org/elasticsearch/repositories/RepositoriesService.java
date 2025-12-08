@@ -200,33 +200,38 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @throws IllegalArgumentException if the repository name is not empty and the repository doesn't exist
      */
     private void validateDefaultRepository(String repositoryName) {
-        // Allow empty string to clear the setting
         if (Strings.isEmpty(repositoryName)) {
             logger.info("Default repository cleared");
             return;
         }
-
-        Repository repository = repositoryOrNull(ProjectId.DEFAULT, repositoryName);
-        if (repository == null) {
-            // If not in DEFAULT, check all other projects
-            boolean found = repositories.values().stream().anyMatch(projectRepos -> projectRepos.containsKey(repositoryName));
-            if (found == false) {
-                // Check internal repositories
-                found = internalRepositories.values().stream().anyMatch(projectRepos -> projectRepos.containsKey(repositoryName));
-            }
-
-            if (found == false) {
-                throw new IllegalArgumentException(
-                    "Repository ["
-                        + repositoryName
-                        + "] is not registered. "
-                        + "Cannot set as default repository. Please register the repository first using PUT /_snapshot/"
-                        + repositoryName
-                );
-            }
+        if (isRepositoryRegistered(repositoryName) == false) {
+            throw new IllegalArgumentException(
+                "Repository ["
+                    + repositoryName
+                    + "] is not registered. "
+                    + "Cannot set as default repository. Please register the repository prior to setting as default using PUT /_snapshot/"
+                    + repositoryName
+            );
         }
-
         logger.info("Default repository set to [{}]", repositoryName);
+    }
+
+    /**
+     * Checks if a repository is registered in the default project, any other project, or internal repositories.
+     *
+     * @param repositoryName the repository name to check
+     * @return true if the repository is registered, false otherwise
+     */
+    private boolean isRepositoryRegistered(String repositoryName) {
+        if (repositoryOrNull(ProjectId.DEFAULT, repositoryName) != null) {
+            return true;
+        }
+        boolean found = repositories.values().stream().anyMatch(projectRepos -> projectRepos.containsKey(repositoryName));
+        if (found) {
+            return true;
+        }
+        found = internalRepositories.values().stream().anyMatch(projectRepos -> projectRepos.containsKey(repositoryName));
+        return found;
     }
 
     /**

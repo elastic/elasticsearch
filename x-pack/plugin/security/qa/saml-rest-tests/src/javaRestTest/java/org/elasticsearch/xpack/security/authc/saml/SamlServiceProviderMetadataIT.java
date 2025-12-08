@@ -29,8 +29,8 @@ public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
      * Within this class we explicitly need the metadata not to be enabled at the start of each test
      */
     @Override
-    public void initMetadata() {
-        makeAllMetadataUnavailable();
+    protected void enableMetadataBeforeTestIfNeeded() {
+        // do not enable metadata
     }
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {

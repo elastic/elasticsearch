@@ -30,6 +30,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
+
 /**
  * Shard level fetch base request. Holds all the info needed to execute a fetch.
  * Used with search scroll as the original request doesn't hold indices.
@@ -71,8 +73,10 @@ public class ShardFetchRequest extends AbstractTransportRequest {
         } else {
             lastEmittedDoc = null;
         }
-        coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
-        coordinatingTaskId = in.readLong();
+        if (in.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+            coordinatingTaskId = in.readLong();
+        }
     }
 
     @Override
@@ -89,8 +93,10 @@ public class ShardFetchRequest extends AbstractTransportRequest {
             out.writeByte((byte) 2);
             Lucene.writeScoreDoc(out, lastEmittedDoc);
         }
-        out.writeOptionalWriteable(coordinatingNode);
-        out.writeLong(coordinatingTaskId);
+        if (out.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+            out.writeOptionalWriteable(coordinatingNode);
+            out.writeLong(coordinatingTaskId);
+        }
     }
 
     public ShardSearchContextId contextId() {

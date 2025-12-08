@@ -69,6 +69,8 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
+
 /**
  * An encapsulation of {@link SearchService} operations exposed through
  * transport.
@@ -543,7 +545,9 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
-            if (request instanceof ShardFetchSearchRequest fetchSearchReq && fetchSearchReq.getCoordinatingNode() != null) {
+            if (channel.getVersion().supports(CHUNKED_FETCH_PHASE) &&
+                request instanceof ShardFetchSearchRequest fetchSearchReq &&
+                fetchSearchReq.getCoordinatingNode() != null) {
 
                 // CHUNKED PATH
                 final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {
@@ -566,7 +570,6 @@ public class SearchTransportService {
                     }
                 };
 
-                // Execute with chunked writer
                 searchService.executeFetchPhase(request, (SearchShardTask) task, writer, new ChannelActionListener<>(channel));
             } else {
                 // Normal path

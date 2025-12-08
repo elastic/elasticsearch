@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -79,6 +80,8 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
      */
 
     public static final ActionType<Response> TYPE = new ActionType<>("internal:data/read/search/fetch/coordination");
+
+    public static final TransportVersion CHUNKED_FETCH_PHASE = TransportVersion.fromName("chunked_fetch_phase");
 
     private final TransportService transportService;
     private final ActiveFetchPhaseTasks activeFetchPhaseTasks;

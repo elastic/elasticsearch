@@ -229,7 +229,9 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes > 0) {
-            circuitBreaker.addWithoutBreaking(-totalBreakerBytes);
+            if(circuitBreaker.getUsed() >= totalBreakerBytes) {
+                circuitBreaker.addWithoutBreaking(-totalBreakerBytes);
+            }
             if (logger.isTraceEnabled()) {
                 logger.trace("Released {} breaker bytes for shard [{}]", totalBreakerBytes, shardIndex);
             }

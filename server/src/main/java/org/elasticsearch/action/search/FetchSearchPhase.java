@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
+
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
  * Then it reaches out to all relevant shards to fetch the topN hits.
@@ -267,7 +269,7 @@ class FetchSearchPhase extends SearchPhase {
             aggregatedDfs
         );
 
-        if (shouldUseChunking(entry)) {
+        if (connection.getTransportVersion().supports(CHUNKED_FETCH_PHASE) && shouldUseChunking(entry)) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 
@@ -285,7 +287,7 @@ class FetchSearchPhase extends SearchPhase {
     }
 
     private boolean shouldUseChunking(List<Integer> docIds) {
-        return docIds != null && docIds.size() > 10; // TODO set it properly
+        return docIds != null && docIds.size() > 128; // TODO set it properly
     }
 
     private void moveToNextPhase(

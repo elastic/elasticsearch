@@ -10,18 +10,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,7 +30,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
+public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestCase {
 
     static String BULK_ITEM_TEMPLATE =
         """
@@ -68,22 +62,6 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
               }
             }
         }""";
-
-    private static final String USER = "admin-user";
-    private static final String PASS = "x-pack-test-password";
-
-    @ClassRule
-    public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS);
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
 
     public void testIndexing() throws Exception {
         for (Map.Entry<Object, Object> entry : System.getProperties().entrySet()) {
@@ -129,16 +107,6 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
             search(dataStreamName);
             query(dataStreamName);
         }
-    }
-
-    private void upgradeNode(int n) throws IOException {
-        closeClients();
-        var upgradeVersion = System.getProperty("tests.new_cluster_version") != null
-            ? Version.fromString(System.getProperty("tests.new_cluster_version"))
-            : Version.CURRENT;
-        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
-        cluster.upgradeNodeToVersion(n, upgradeVersion);
-        initClient();
     }
 
     static void assertDataStream(String dataStreamName, String templateId) throws IOException {
@@ -308,7 +276,9 @@ public class LogsdbIndexingRollingUpgradeIT extends ESRestTestCase {
             return;
         }
 
-        var version = Version.fromString(System.getProperty("tests.old_cluster_version"));
+        var version = System.getProperty("tests.old_cluster_version") != null
+            ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+            : Version.CURRENT;
         if (version.onOrAfter(Version.fromString("9.0.0"))) {
             return;
         }

@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
@@ -28,8 +27,7 @@ import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStr
  * <p>The {@link ProxyLinkedProjectConfigBuilder} and {@link SniffLinkedProjectConfigBuilder} classes can be used to build concrete
  * implementations of {@link LinkedProjectConfig}.</p>
  *
- * <p>The {@link RemoteClusterSettings#toConfig(String, Settings)} and
- * {@link RemoteClusterSettings#toConfig(ProjectId, ProjectId, String, Settings)} methods
+ * <p>The {@link RemoteClusterSettings#toConfig(ProjectId, ProjectId, String, Settings)} method
  * can be used to read {@link RemoteClusterSettings} to build a concrete {@link LinkedProjectConfig} from {@link Settings}.</p>
  */
 public sealed interface LinkedProjectConfig {
@@ -59,8 +57,6 @@ public sealed interface LinkedProjectConfig {
 
     String proxyAddress();
 
-    boolean isConnectionEnabled();
-
     RemoteConnectionStrategy buildRemoteConnectionStrategy(TransportService transportService, RemoteConnectionManager connectionManager);
 
     /**
@@ -85,11 +81,6 @@ public sealed interface LinkedProjectConfig {
         @Override
         public ConnectionStrategy connectionStrategy() {
             return ConnectionStrategy.PROXY;
-        }
-
-        @Override
-        public boolean isConnectionEnabled() {
-            return Strings.isEmpty(proxyAddress) == false;
         }
 
         @Override
@@ -124,11 +115,6 @@ public sealed interface LinkedProjectConfig {
         @Override
         public ConnectionStrategy connectionStrategy() {
             return ConnectionStrategy.SNIFF;
-        }
-
-        @Override
-        public boolean isConnectionEnabled() {
-            return seedNodes.isEmpty() == false;
         }
 
         @Override
@@ -263,6 +249,9 @@ public sealed interface LinkedProjectConfig {
 
         @Override
         public ProxyLinkedProjectConfig build() {
+            if (proxyAddress.isEmpty()) {
+                throw new IllegalStateException("proxyAddress wasn't configured");
+            }
             return new ProxyLinkedProjectConfig(
                 originProjectId,
                 linkedProjectId,
@@ -311,6 +300,9 @@ public sealed interface LinkedProjectConfig {
 
         @Override
         public SniffLinkedProjectConfig build() {
+            if (seedNodes.isEmpty()) {
+                throw new IllegalStateException("seedNodes wasn't configured");
+            }
             return new SniffLinkedProjectConfig(
                 originProjectId,
                 linkedProjectId,

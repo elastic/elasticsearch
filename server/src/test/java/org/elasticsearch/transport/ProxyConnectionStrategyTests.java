@@ -60,9 +60,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = RemoteClusterSettings.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
-    private final Settings settings = Settings.builder().put(modeKey, "proxy").build();
+    private final String proxyAddressKey = ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias)
+        .getKey();
+    private final Settings settings = Settings.builder().put(modeKey, "proxy").put(proxyAddressKey, "localhost:8080").build();
     private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
-        RemoteClusterSettings.toConfig("cluster", settings),
+        RemoteClusterSettings.toConfig(clusterAlias, settings),
         TransportSettings.DEFAULT_PROFILE
     );
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());

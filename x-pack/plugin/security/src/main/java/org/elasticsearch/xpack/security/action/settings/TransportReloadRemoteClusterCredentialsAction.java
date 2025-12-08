@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.security.Security;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -114,11 +115,16 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         }
         logger.info("project [{}] rebuilding [{}] connections after credentials update", projectId, totalConnectionsToRebuild);
         try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(ActionResponse.Empty.INSTANCE))) {
+            final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
             for (var clusterAlias : result.addedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, staticSettings, newSettings), connectionRefs);
+                if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings)) {
+                    maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, mergedSettings), connectionRefs);
+                }
             }
             for (var clusterAlias : result.removedClusterAliases()) {
-                maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, staticSettings, newSettings), connectionRefs);
+                if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings)) {
+                    maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, mergedSettings), connectionRefs);
+                }
             }
         }
     }
@@ -167,8 +173,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
     }
 
     @FixForMultiProject(description = "Supply the linked project ID when building the LinkedProjectConfig object.")
-    private LinkedProjectConfig toConfig(ProjectId projectId, String clusterAlias, Settings staticSettings, Settings newSettings) {
-        final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
+    private LinkedProjectConfig toConfig(ProjectId projectId, String clusterAlias, Settings mergedSettings) {
         return RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
     }
 

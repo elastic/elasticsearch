@@ -20,7 +20,6 @@ import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProject
 import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfigBuilder;
 import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
 import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfigBuilder;
-import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.REMOTE_SOCKET_CONNECTIONS;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.SERVER_NAME;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS;
@@ -30,7 +29,6 @@ import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CLUSTER_S
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_MAX_PENDING_CONNECTION_LISTENERS;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY;
-import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -143,23 +141,25 @@ public class LinkedProjectConfigTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new ProxyLinkedProjectConfigBuilder("alias").maxPendingConnectionListeners(-randomNonNegativeInt())
         );
+        // Check that build() requires the proxyAddress to be set for the Proxy strategy.
+        assertThrows(IllegalStateException.class, () -> new ProxyLinkedProjectConfigBuilder("alias").build());
+        // Check that build() requires the seedNodes to be set for the Sniff strategy.
+        assertThrows(IllegalStateException.class, () -> new SniffLinkedProjectConfigBuilder("alias").build());
     }
 
     public void testSniffDefaultsMatchSettingsDefaults() {
         final var alias = "foo";
-        final var config = new SniffLinkedProjectConfigBuilder(alias).build();
+        final var config = new SniffLinkedProjectConfigBuilder(alias).seedNodes(List.of("localhost:8080")).build();
         assertLinkedProjectConfigDefaultsMatchSettingsDefaults(config, alias);
         assertThat(config.nodePredicate(), equalTo(RemoteClusterSettings.SniffConnectionStrategySettings.getNodePredicate(EMPTY)));
-        assertThat(config.seedNodes(), equalTo(getDefault(REMOTE_CLUSTER_SEEDS, alias)));
         assertThat(config.proxyAddress(), equalTo(getDefault(REMOTE_CLUSTERS_PROXY, alias)));
         assertThat(config.maxNumConnections(), equalTo(getDefault(REMOTE_NODE_CONNECTIONS, alias)));
     }
 
     public void testProxyDefaultsMatchSettingsDefaults() {
         final var alias = "foo";
-        final var config = new ProxyLinkedProjectConfigBuilder(alias).build();
+        final var config = new ProxyLinkedProjectConfigBuilder(alias).proxyAddress("localhost:8080").build();
         assertLinkedProjectConfigDefaultsMatchSettingsDefaults(config, alias);
-        assertThat(config.proxyAddress(), equalTo(getDefault(PROXY_ADDRESS, alias)));
         assertThat(config.maxNumConnections(), equalTo(getDefault(REMOTE_SOCKET_CONNECTIONS, alias)));
         assertThat(config.serverName(), equalTo(getDefault(SERVER_NAME, alias)));
     }

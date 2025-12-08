@@ -200,10 +200,7 @@ public class RemoteClusterSettings {
             Settings settings,
             ProxyLinkedProjectConfigBuilder builder
         ) {
-            final var proxyAddress = PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-            if (proxyAddress != null && proxyAddress.isEmpty() == false) {
-                builder.proxyAddress(proxyAddress);
-            }
+            builder.proxyAddress(PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings));
             final var serverName = SERVER_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings);
             if (serverName != null && serverName.isEmpty() == false) {
                 builder.serverName(serverName);
@@ -293,10 +290,7 @@ public class RemoteClusterSettings {
             SniffLinkedProjectConfigBuilder builder
         ) {
             builder.nodePredicate(getNodePredicate(settings));
-            final var seedNodes = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-            if (seedNodes != null && seedNodes.isEmpty() == false) {
-                builder.seedNodes(seedNodes);
-            }
+            builder.seedNodes(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings));
             final var proxyAddress = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
             if (proxyAddress != null && proxyAddress.isEmpty() == false) {
                 builder.proxyAddress(proxyAddress);

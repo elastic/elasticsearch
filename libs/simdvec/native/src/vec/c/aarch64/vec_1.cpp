@@ -203,7 +203,6 @@ EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims,
     dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
 }
 
-
 EXPORT void vec_dot7u_bulk_offsets(
     const int8_t* a,
     const int8_t* b,
@@ -252,6 +251,41 @@ EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
         res += dist * dist;
     }
     return res;
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void sqr7u_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    size_t blk = dims & ~15;
+    size_t c = 0;
+
+    // Tail-handling: remaining 0..3 vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_sqr7u(a0, b, dims);
+    }
+}
+
+EXPORT void vec_sqr7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    sqr7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqr7u_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    sqr7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
 }
 
 // --- single precision floats

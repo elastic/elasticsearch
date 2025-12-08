@@ -364,9 +364,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/138128
-- class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/138206
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/95_sort_mixed_numeric_types/Simple sort}
   issue: https://github.com/elastic/elasticsearch/issues/138297
@@ -485,18 +482,36 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/139066
-- class: org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests
-  method: testBulk
-  issue: https://github.com/elastic/elasticsearch/issues/139079
-- class: org.elasticsearch.TransportVersionTests
-  method: testVersionComparison
-  issue: https://github.com/elastic/elasticsearch/issues/139122
 - class: org.elasticsearch.upgrades.IndexSortUpgradeIT
   method: testIndexSortForNumericTypes {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/139127
 - class: org.elasticsearch.upgrades.IndexSortUpgradeIT
   method: testIndexSortForNumericTypes {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/139128
+- class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
+  method: testConcurrentStatusFetchWhileTaskCloses
+  issue: https://github.com/elastic/elasticsearch/issues/138543
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/130_knn_query_nested_search/nested kNN search pre-filtered on alias with filter on top level fields}
+  issue: https://github.com/elastic/elasticsearch/issues/139131
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139152
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingStandardSource
+  issue: https://github.com/elastic/elasticsearch/issues/139153
+- class: org.elasticsearch.xpack.core.security.authc.AuthenticationTests
+  method: testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/139167
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=eql/10_basic/Sequence checking correct join key ordering.}
+  issue: https://github.com/elastic/elasticsearch/issues/139173
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139195
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+  issue: https://github.com/elastic/elasticsearch/issues/139196
 
 # Examples:
 #

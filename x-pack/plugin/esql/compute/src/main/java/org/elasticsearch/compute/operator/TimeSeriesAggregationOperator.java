@@ -370,7 +370,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public long rangeEndInMillis(int groupId) {
-                return timeResolution.roundDownToMillis(timeBucket.nextRoundingValue(timestamps.getLong(groupId)));
+                return timeBucket.nextRoundingValue(timeResolution.roundDownToMillis(timestamps.getLong(groupId)));
             }
 
             @Override

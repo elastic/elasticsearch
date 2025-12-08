@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -127,10 +126,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         TransportVersion version = TransportVersionUtils.randomVersion(random());
-        if (version.before(TransportVersions.V_8_9_X) && searchRequest.source() != null) {
-            // Versions before 8_500_999 don't support queries
-            searchRequest.source().subSearches(new ArrayList<>());
-        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());

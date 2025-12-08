@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 /**
  * Settings for inference features such as completion and rerank.
  */
-public record InferenceSettings(boolean completionEnabled, int completionMaxSize, boolean rerankEnabled, int rerankMaxSize) {
+public record InferenceSettings(boolean completionEnabled, int completionRowLimit, boolean rerankEnabled, int rerankRowLimit) {
 
     public static final Setting<Boolean> COMPLETION_ENABLED_SETTING = Setting.boolSetting(
         "esql.command.completion.enabled",

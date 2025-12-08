@@ -545,9 +545,9 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
-            if (channel.getVersion().supports(CHUNKED_FETCH_PHASE) &&
-                request instanceof ShardFetchSearchRequest fetchSearchReq &&
-                fetchSearchReq.getCoordinatingNode() != null) {
+            if (channel.getVersion().supports(CHUNKED_FETCH_PHASE)
+                && request instanceof ShardFetchSearchRequest fetchSearchReq
+                && fetchSearchReq.getCoordinatingNode() != null) {
 
                 // CHUNKED PATH
                 final FetchPhaseResponseChunk.Writer writer = new FetchPhaseResponseChunk.Writer() {

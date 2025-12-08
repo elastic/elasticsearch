@@ -180,7 +180,9 @@ public class InternalUsers {
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
                         ".fleet-actions-results",
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
-                        ".fleet-fileds*"
+                        ".fleet-fileds*",
+                        // System data stream for kibana workflows logs
+                        ".workflows-execution-data-stream-logs"
                     )
                     .privileges(
                         filterNonNull(

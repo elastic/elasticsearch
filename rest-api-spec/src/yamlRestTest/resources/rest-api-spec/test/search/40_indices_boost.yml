@@ -155,7 +155,8 @@ setup:
 ---
 "Remote expressions not supported in indices boost":
   - requires:
-      features: ["search.indices_boost_remote_index_fix"]
+      cluster_features: ["search.indices_boost_remote_index_fix"]
+      reason: "indices_boost remote index fix must be present"
   - do:
       catch: /Cross-cluster calls are not supported in this context but remote indices were requested:/
       search:

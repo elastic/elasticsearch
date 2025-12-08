@@ -113,23 +113,20 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             assertOk(response);
             assertResultConcreteIndices(response, "index-1");// excludes pattern from pattern
         }
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*,-*]"),
-            () -> run(syncEsqlQueryRequest("FROM index-*,-* METADATA _index")) // exclude all resolves to empty
-        );
+        try (var response = run(syncEsqlQueryRequest("FROM index-*,-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);// exclude all resolves to empty
+        }
     }
 
-    public void testDoesNotResolveEmptyPattern() {
+    public void testResolveEmptyPattern() {
         assertAcked(client().admin().indices().prepareCreate("data"));
         indexRandom(true, "data", 1);
 
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*]"),
-            () -> run(syncEsqlQueryRequest("FROM index-* METADATA _index"))
-        );
-
+        try (var response = run(syncEsqlQueryRequest("FROM index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
         try (var response = run(syncEsqlQueryRequest("FROM data,index-* METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, "data");

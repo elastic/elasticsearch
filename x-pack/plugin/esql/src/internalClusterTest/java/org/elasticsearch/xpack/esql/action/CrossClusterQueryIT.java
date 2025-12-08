@@ -235,10 +235,6 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testSearchesAgainstNonMatchingIndices() throws Exception {
-        testSearchesAgainstNonMatchingIndices(true);
-    }
-
-    protected void testSearchesAgainstNonMatchingIndices(boolean exceptionWithSkipUnavailableFalse) throws Exception {
         int numClusters = 3;
         Map<String, Object> testClusterInfo = setupClusters(numClusters);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -265,11 +261,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         {
             String q = "FROM logs*,cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            if (exceptionWithSkipUnavailableFalse) {
-                setSkipUnavailable(REMOTE_CLUSTER_1, false);
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-                setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            }
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
             try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -413,11 +407,9 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             String remote2IndexName = randomFrom(remote2Index, IDX_ALIAS, FILTERED_IDX_ALIAS);
             String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndexName, REMOTE_CLUSTER_2, remote2IndexName);
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            if (exceptionWithSkipUnavailableFalse) {
-                setSkipUnavailable(REMOTE_CLUSTER_1, false);
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-                setSkipUnavailable(REMOTE_CLUSTER_1, true);
-            }
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+            setSkipUnavailable(REMOTE_CLUSTER_1, true);
             try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();

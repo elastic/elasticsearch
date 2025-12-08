@@ -109,6 +109,7 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
+            false,
             minimumVersion,
             false,
             false,
@@ -152,6 +153,7 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
             indexPattern,
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -185,6 +187,7 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -199,6 +202,7 @@ public class IndexResolver {
     private void doResolveIndices(
         FieldCapabilitiesRequest request,
         String indexPattern,
+        boolean allowEmpty,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
@@ -229,7 +233,9 @@ public class IndexResolver {
                 indexPattern
             );
 
-            l.onResponse(new Versioned<>(mergedMappings(indexPattern, info, originalIndexExtractor), info.minTransportVersion()));
+            l.onResponse(
+                new Versioned<>(mergedMappings(indexPattern, allowEmpty, info, originalIndexExtractor), info.minTransportVersion())
+            );
         }));
     }
 
@@ -280,13 +286,14 @@ public class IndexResolver {
     // public for testing only
     public static IndexResolution mergedMappings(
         String indexPattern,
+        boolean allowEmpty,
         FieldsInfo fieldsInfo,
         OriginalIndexExtractor originalIndexExtractor
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {
-            return IndexResolution.notFound(indexPattern);
+            return allowEmpty ? IndexResolution.empty(indexPattern) : IndexResolution.notFound(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index

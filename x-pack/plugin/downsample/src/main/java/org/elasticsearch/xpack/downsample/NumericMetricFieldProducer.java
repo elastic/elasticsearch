@@ -95,7 +95,8 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
     }
 
     /**
-     * {@link NumericMetricFieldProducer} implementation for sampling the last value of a numeric metric field
+     * {@link NumericMetricFieldProducer} implementation for sampling the last value of a numeric metric field.
+     * Important note: This class assumes that field values are collected and sorted by descending order by time.
      */
     static final class LastValue extends NumericMetricFieldProducer {
 

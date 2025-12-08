@@ -20,8 +20,9 @@ import static org.elasticsearch.xpack.downsample.NumericMetricFieldProducer.MAX_
 import static org.elasticsearch.xpack.downsample.NumericMetricFieldProducer.MIN_NO_VALUE;
 
 /**
- * A producer that can be used for downsampling ONLY a sub-metric of an aggregate metric double field. This is mainly used
- * when downsampling already downsampled indices.
+ * A producer that can be used for downsampling aggregate metric double fields whether is a metric or a label. We need a separate producer
+ * for each a sub-metric of an aggregate metric double, this means to downsample an aggregate metric double we will need 4.
+ * This is mainly used when downsampling already downsampled indices.
  */
 abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFieldProducer<SortedNumericDoubleValues> {
 
@@ -89,6 +90,9 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
         }
     }
 
+    /**
+     * Important note: This class assumes that field values are collected and sorted by descending order by time
+     */
     static final class LastValue extends AggregateMetricDoubleFieldProducer {
 
         private final boolean supportsMultiValue;

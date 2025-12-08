@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHi
 import java.io.IOException;
 
 /**
- * Class that downsamples an exponential histogram metric field depending on the sampling method.
+ * A producer that can be used for downsampling ONLY an exponential histogram field whether it's a metric or a label.
  */
 abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleFieldProducer<ExponentialHistogramValuesReader> {
 
@@ -92,6 +92,7 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
 
     /**
      * Downsamples an exponential histogram by preserving the last value.
+     * Important note: This class assumes that field values are collected and sorted by descending order by time
      */
     static class LastValueProducer extends ExponentialHistogramFieldProducer {
         private ExponentialHistogram lastValue = null;

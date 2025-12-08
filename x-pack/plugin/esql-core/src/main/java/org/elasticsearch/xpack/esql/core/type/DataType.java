@@ -41,10 +41,8 @@ import static java.util.stream.Collectors.toMap;
  * interact with in some way. This includes fully representable types (e.g.
  * {@link DataType#LONG}, numeric types which we promote (e.g. {@link DataType#SHORT})
  * or fold into other types (e.g. {@link DataType#DATE_PERIOD}) early in the
- * processing pipeline, types for internal use
- * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
- * doesn't support, but require special handling anyway (e.g.
- * {@link DataType#OBJECT})
+ * processing pipeline, and types which the language doesn't support, but require
+ * special handling anyway (e.g. {@link DataType#OBJECT})
  *
  * <h2>Process for adding a new data type</h2>
  * We assume that the data type is already supported in ES indices, but not in
@@ -359,12 +357,6 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
-    /**
-     * Fields with this type are the partial result of running a non-time-series aggregation
-     * inside alongside time-series aggregations. These fields are not parsable from the
-     * mapping and should be hidden from users.
-     */
-    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).supportedOnAllNodes()),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
@@ -665,7 +657,6 @@ public enum DataType implements Writeable {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
-            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 

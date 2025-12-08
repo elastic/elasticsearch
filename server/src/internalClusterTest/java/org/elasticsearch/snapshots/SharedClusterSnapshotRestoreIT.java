@@ -143,7 +143,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        final String[] indicesToSnapshot = { "test-idx-*", "-test-idx-3" };
+        final String[] indicesToSnapshot;
+        final boolean exclusionWithoutWildcard = randomBoolean();
+        if (exclusionWithoutWildcard) {
+            indicesToSnapshot = new String[] { "test-idx-1", "test-idx-2", "test-idx-3", "-test-idx-3" };
+        } else {
+            indicesToSnapshot = new String[] { "test-idx-*", "-test-idx-3" };
+        }
 
         logger.info("--> capturing history UUIDs");
         final Map<ShardId, String> historyUUIDs = new HashMap<>();
@@ -243,7 +249,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .getSetting("test-idx-1", MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey())
         );
 
-        for (ShardStats shardStats : indicesAdmin().prepareStats(indicesToSnapshot).clear().get().getShards()) {
+        final String[] indicesToStats;
+        if (exclusionWithoutWildcard) {
+            indicesToStats = new String[] { "test-idx-1", "test-idx-3", "-test-idx-3" };
+        } else {
+            indicesToStats = indicesToSnapshot;
+        }
+        for (ShardStats shardStats : indicesAdmin().prepareStats(indicesToStats).clear().get().getShards()) {
             String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
             ShardId shardId = shardStats.getShardRouting().shardId();
             assertThat(shardStats.getShardRouting() + " doesn't have a history uuid", historyUUID, notNullValue());

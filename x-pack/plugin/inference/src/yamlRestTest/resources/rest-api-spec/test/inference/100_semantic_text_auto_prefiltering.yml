@@ -790,3 +790,38 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.dense_field_1: "violins" }
+
+---
+"Test filter term is used as prefilter to a must semantic query":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "semantic": {
+                      "field": "dense_field_1",
+                      "query": "violins"
+                    }
+                  }
+                ],
+                "filter": [
+                  {
+                    "term": {
+                      "keyword_field_1": {
+                        "value": "label_1"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.dense_field_1: "violins" }
+  - match: { hits.hits.1._source.dense_field_1: "pianos" }

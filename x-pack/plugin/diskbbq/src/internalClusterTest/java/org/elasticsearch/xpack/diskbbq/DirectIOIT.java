@@ -1,13 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.xpack.diskbbq;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -20,6 +18,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -28,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -39,6 +39,7 @@ import java.util.OptionalLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,6 +62,11 @@ public class DirectIOIT extends ESIntegTestCase {
         }
     }
 
+    @Before
+    public void resetLicensing() {
+        enableLicensing();
+    }
+
     static DirectIODirectory open(Path path) throws IOException {
         return new DirectIODirectory(FSDirectory.open(path)) {
             @Override
@@ -74,7 +80,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw").map(s -> new Object[] { s }).toList();
+        return Stream.of("bbq_disk").map(s -> new Object[] { s }).toList();
     }
 
     public DirectIOIT(String type) {
@@ -83,7 +89,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(InternalSettingsPlugin.class);
+        return List.of(InternalSettingsPlugin.class, LocalStateDiskBBQ.class);
     }
 
     private String indexVectors(boolean directIO) {

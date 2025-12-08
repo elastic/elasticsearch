@@ -98,6 +98,12 @@ import static org.elasticsearch.core.Strings.format;
 
 public class SharedBlobCacheWarmingService {
 
+    public static double calculateWarmingRatio(long nowMillis, long timestampMillis, long boostWindowMillis, int searchPower) {
+        final long delta = Math.max(timestampMillis - (nowMillis - boostWindowMillis), 0);
+        final double ratio = ((double) delta / boostWindowMillis) * searchPower;
+        return Math.min(ratio, 100) / 100;
+    }
+
     public enum Type {
         INDEXING_EARLY,
         INDEXING,

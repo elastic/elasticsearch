@@ -423,7 +423,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
-        final int size = randomIntBetween(0, 102);
+        final int size = randomIntBetween(1, 102);
         // Set maxChunkSize to be less than dims * size
         try (Directory dir = new MMapDirectory(createTempDir("testBulk"))) {
             String fileName = "testBulk-" + dims;

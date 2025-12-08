@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -66,9 +65,9 @@ import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 import org.elasticsearch.xpack.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
-import org.elasticsearch.xpack.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -289,7 +288,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                         @Override
                         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not " + "support scripts");
+                            throw new UnsupportedOperationException("The [" + CONTENT_TYPE + "] field does not support scripts");
                         }
 
                         @Override
@@ -355,7 +354,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             DoublesBlockLoader minimaLoader = new DoublesBlockLoader(valuesMinSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader maximaLoader = new DoublesBlockLoader(valuesMaxSubFieldName(name()), NumericUtils::sortableLongToDouble);
             DoublesBlockLoader sumsLoader = new DoublesBlockLoader(valuesSumSubFieldName(name()), NumericUtils::sortableLongToDouble);
-            LongsBlockLoader valueCountsLoader = new LongsBlockLoader(valuesCountSubFieldName(name()));
+            // we store the counts as integers for better compression, but the block requires doubles. So we simply cast the value
+            DoublesBlockLoader valueCountsLoader = new DoublesBlockLoader(valuesCountSubFieldName(name()), longVal -> (double) longVal);
             DoublesBlockLoader zeroThresholdsLoader = new DoublesBlockLoader(
                 zeroThresholdSubFieldName(name()),
                 NumericUtils::sortableLongToDouble

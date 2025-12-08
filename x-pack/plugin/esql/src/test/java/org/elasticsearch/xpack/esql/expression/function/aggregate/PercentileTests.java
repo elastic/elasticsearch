@@ -107,7 +107,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
         }
     }
 
-    private static Double getExpectedPercentileForExponentialHistograms(List<ExponentialHistogram> values, double percentile) {
+    public static Double getExpectedPercentileForExponentialHistograms(List<ExponentialHistogram> values, double percentile) {
         ExponentialHistogram merged = ExponentialHistogram.merge(
             MAX_BUCKET_COUNT,
             ExponentialHistogramCircuitBreaker.noop(),

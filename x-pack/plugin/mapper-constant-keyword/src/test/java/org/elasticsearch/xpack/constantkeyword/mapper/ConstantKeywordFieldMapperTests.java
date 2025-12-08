@@ -354,4 +354,9 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
     }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
 }

@@ -61,6 +61,8 @@ import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -436,7 +438,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FieldType resolveFieldType(final boolean forceDocValuesSkipper, final String fullFieldName) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            if (forceDocValuesSkipper || shouldUseHostnameSkipper(fullFieldName) || shouldUseTimeSeriesSkipper()) {
+            if (forceDocValuesSkipper
+                || shouldUseHostnameSkipper(fullFieldName)
+                || shouldUseTimeSeriesSkipper()
+                || shouldUseStandardSkipper()) {
                 fieldtype = new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
@@ -467,6 +472,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && IndexMode.LOGSDB.equals(indexSettings.getMode())
                 && HOST_NAME.equals(fullFieldName)
                 && indexSortConfigByHostName(indexSettings.getIndexSortConfig());
+        }
+
+        private boolean shouldUseStandardSkipper() {
+            return hasDocValues.get()
+                && indexed.get() == false
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
+                && indexSettings.useDocValuesSkipper();
         }
 
         private static boolean indexSortConfigByHostName(final IndexSortConfig indexSortConfig) {
@@ -732,10 +744,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (cfg == null) {
                     return new BytesRefsFromOrdsBlockLoader(name());
                 }
-                if (cfg.function() == BlockLoaderFunctionConfig.Function.LENGTH) {
-                    return new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
-                }
-                throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                return switch (cfg.function()) {
+                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
+                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name());
+                    case MV_MIN -> new MvMinBytesRefsFromOrdsBlockLoader(name());
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                };
+
             }
             if (blContext.blockLoaderFunctionConfig() != null) {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
@@ -765,7 +780,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
-                return config.function() == BlockLoaderFunctionConfig.Function.LENGTH;
+                return switch (config.function()) {
+                    case LENGTH, MV_MAX, MV_MIN -> true;
+                    default -> false;
+                };
             }
             return false;
         }

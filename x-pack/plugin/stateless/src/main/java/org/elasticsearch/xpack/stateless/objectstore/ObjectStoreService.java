@@ -36,6 +36,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -62,6 +63,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -92,6 +94,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1010,18 +1013,29 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
                     });
                 } else {
-                    var referencedBlobs = groupReferencedFilesByBlob(latestBcc.lastCompoundCommit());
-
-                    // Read/Warm header(s) of every referenced blob and compute BlobFileRanges
-                    readBlobsAndComputeBlobFileRanges(
+                    readReferencedCompoundCommits(
+                        latestBcc.lastCompoundCommit(),
+                        bccHeaderReadExecutor,
                         (referencedBlob, maxBlobOffset) -> referencedBlob.termAndGeneration()
                             .equals(latestBcc.primaryTermAndGeneration()) == false
                                 ? readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset)
                                 : latestBcc.compoundCommits().iterator(),
-                        referencedBlobs,
-                        useReplicatedRanges,
-                        bccHeaderReadExecutor,
-                        l.map(blobFileRanges -> new IndexingShardState(latestBcc, otherBlobs, Map.copyOf(blobFileRanges)))
+                        l.map(referencedCompoundCommitsByBlob -> {
+                            Map<String, BlobFileRanges> blobFileRanges = new HashMap<>();
+                            for (var referencedCompoundCommitsList : referencedCompoundCommitsByBlob.values()) {
+                                for (var referencedCompoundCommit : referencedCompoundCommitsList) {
+                                    blobFileRanges.putAll(
+                                        computeBlobFileRanges(
+                                            useReplicatedRanges,
+                                            referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
+                                            referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                            referencedCompoundCommit.referencedInternalFiles()
+                                        )
+                                    );
+                                }
+                            }
+                            return new IndexingShardState(latestBcc, otherBlobs, blobFileRanges);
+                        })
                     );
                 }
             })
@@ -1133,31 +1147,81 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         return referencedFilesByBlob;
     }
 
-    private static void readBlobsAndComputeBlobFileRanges(
-        BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
-        Map<BlobFile, ReferencedFilesAndMaxBlobOffset> referencedBlobs,
-        boolean useReplicatedRanges,
+    /**
+     * Starting from the passed-in {@param compoundCommit}, this finds all the referenced BCC blobs, then all the CCs in those
+     * BCCs. It returns all the referenced internal files in these referenced CCs, grouped by the containing BCC blob file.
+     */
+    public static void readReferencedCompoundCommits(
+        StatelessCompoundCommit compoundCommit,
         Executor bccHeaderReadExecutor,
-        ActionListener<Map<String, BlobFileRanges>> listener
+        BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
+        ActionListener<Map<BlobFile, List<StatelessCompoundCommitReferenceWithInternalFiles>>> listener
     ) {
-        // Map of commit files names and their corresponding BlobFileRanges
-        final Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-
-        try (var listeners = new RefCountingListener(listener.map(unused -> blobFileRanges))) {
-            // Read/warm header(s) of every referenced blob
-            for (var referencedBlob : referencedBlobs.entrySet()) {
+        var referencedCompoundCommitsByBlob = ConcurrentCollections.<
+            BlobFile,
+            List<StatelessCompoundCommitReferenceWithInternalFiles>>newConcurrentMap();
+        var referencedFilesByBlob = groupReferencedFilesByBlob(compoundCommit);
+        try (var listeners = new RefCountingListener(listener.map(unused -> referencedCompoundCommitsByBlob))) {
+            for (var referencedFilesForBlob : referencedFilesByBlob.entrySet()) {
+                var referencedBlob = referencedFilesForBlob.getKey();
+                var referencedFiles = referencedFilesForBlob.getValue().files();
                 bccHeaderReadExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                    var blobFile = referencedBlob.getKey();
-                    var referencedFilesAndMaxBlobOffset = referencedBlob.getValue();
-                    var bccCommitsIterator = getCompoundCommitsIteratorForBlobFile.apply(
-                        blobFile,
-                        referencedFilesAndMaxBlobOffset.maxBlobOffset()
+                    var commitsIterator = getCompoundCommitsIteratorForBlobFile.apply(
+                        referencedBlob,
+                        referencedFilesForBlob.getValue().maxBlobOffset()
                     );
-                    blobFileRanges.putAll(
-                        computeBlobFileRanges(bccCommitsIterator, referencedFilesAndMaxBlobOffset.files(), useReplicatedRanges)
-                    );
+                    long offsetInBlob = 0L;
+                    // only used for asserts
+                    Set<String> referencedInternalFiles = Assertions.ENABLED ? new HashSet<>(referencedFiles.size()) : null;
+                    while (commitsIterator.hasNext()) {
+                        var referencedCompoundCommit = commitsIterator.next();
+                        assert offsetInBlob == BlobCacheUtils.toPageAlignedSize(offsetInBlob);
+                        var commitInternalFiles = Sets.intersection(referencedCompoundCommit.internalFiles(), referencedFiles);
+                        if (commitInternalFiles.isEmpty() == false) {
+                            referencedCompoundCommitsByBlob.computeIfAbsent(referencedBlob, (ignored) -> new ArrayList<>())
+                                .add(
+                                    new StatelessCompoundCommitReferenceWithInternalFiles(
+                                        new StatelessCompoundCommitReference(referencedCompoundCommit, referencedBlob, offsetInBlob),
+                                        commitInternalFiles
+                                    )
+                                );
+                        }
+                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(referencedCompoundCommit.sizeInBytes());
+                        if (Assertions.ENABLED) {
+                            assert Sets.intersection(referencedInternalFiles, commitInternalFiles).isEmpty()
+                                : "some commits contain the same internal file names between them";
+                            referencedInternalFiles.addAll(commitInternalFiles);
+                        }
+                    }
+                    assert Assertions.ENABLED == false || referencedInternalFiles.equals(referencedFiles)
+                        : "could not find some internal file names";
                 }));
             }
+        }
+    }
+
+    public record StatelessCompoundCommitReference(
+        StatelessCompoundCommit compoundCommit,
+        // the blob that contains the stateless compound commit
+        BlobFile bccBlobFile,
+        // the offset in the blob where the header for the stateless compound commit sits
+        long headerOffsetInTheBccBlobFile
+    ) {
+        public StatelessCompoundCommitReference {
+            assert compoundCommit.primaryTerm() == bccBlobFile.primaryTerm() : "the CC term is different from the holder BCC's term";
+            assert compoundCommit.generation() >= bccBlobFile.generation()
+                : "the CC generation is smaller than the holder BCC's generation";
+        }
+    }
+
+    public record StatelessCompoundCommitReferenceWithInternalFiles(
+        StatelessCompoundCommitReference statelessCompoundCommitReference,
+        // this is a subset of all the internal files contained in the CC that are actually referenced
+        Set<String> referencedInternalFiles
+    ) {
+        public StatelessCompoundCommitReferenceWithInternalFiles {
+            assert statelessCompoundCommitReference.compoundCommit.internalFiles().containsAll(referencedInternalFiles)
+                : "referenced compound commit does not contain all the referenced internal files";
         }
     }
 

@@ -297,9 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testNullsOrderWithMissingOrderSupportQueryingNewNode
   issue: https://github.com/elastic/elasticsearch/issues/132249
-- class: org.elasticsearch.common.logging.JULBridgeTests
-  method: testThrowable
-  issue: https://github.com/elastic/elasticsearch/issues/132280
 - class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
   method: testManyDistinctOverFields
   issue: https://github.com/elastic/elasticsearch/issues/132308
@@ -543,6 +540,9 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/46_downsample/Sort from multiple indices one with aggregate metric double}
+  issue: https://github.com/elastic/elasticsearch/issues/139125
 
 # Examples:
 #

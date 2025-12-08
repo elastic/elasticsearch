@@ -63,15 +63,10 @@ public class RestCountAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, countRequest.indicesOptions());
-        if (crossProjectModeDecider.crossProjectEnabled()) {
-            countRequest.setProjectRouting(request.param("project_routing"));
-
-            // MP TODO: check with Pawan about these additional if checks - needed here?
-            if (countRequest.allowsCrossProject() && countRequest.pointInTimeBuilder() == null) {
-                indicesOptions = IndicesOptions.builder(indicesOptions)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build();
-            }
+        if (crossProjectModeDecider.crossProjectEnabled() && countRequest.allowsCrossProject()) {
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
         }
         countRequest.indicesOptions(indicesOptions);
 

@@ -289,12 +289,7 @@ public class RestActions {
                         queryBuilder = parseTopLevelQuery(parser);
                     } else if (PROJECT_ROUTING.match(currentName, parser.getDeprecationHandler()) && searchRequest != null) {
                         parser.nextToken();
-                        /*
-                         * If project_routing was specified as a query parameter too, setProjectRouting() will throw
-                         * an error to prevent setting twice or overwriting previously set value.
-                         */
                         searchRequest.setProjectRouting(parser.text());
-                        // MP TODO: probably need to catch IllegalArgExc here and give a nice error message
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }

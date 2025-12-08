@@ -64,15 +64,12 @@ public class RestCountAction extends AbstractCatAction {
         SearchRequest countRequest = new SearchRequest(indices);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
-        if (crossProjectModeDecider.crossProjectEnabled()) {
-            countRequest.setProjectRouting(request.param("project_routing"));
+        if (crossProjectModeDecider.crossProjectEnabled() && countRequest.allowsCrossProject()) {
             // MP TODO: check with Pawan about these additional if checks - needed here?
-            if (countRequest.allowsCrossProject() && countRequest.pointInTimeBuilder() == null) {
-                IndicesOptions indicesOptions = IndicesOptions.builder()
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build();
-                countRequest.indicesOptions(indicesOptions);
-            }
+            IndicesOptions indicesOptions = IndicesOptions.builder()
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+            countRequest.indicesOptions(indicesOptions);
         }
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {

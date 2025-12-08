@@ -47,7 +47,6 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.client.internal.Client;
@@ -96,6 +95,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -360,20 +360,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         // works before resharding
         refresh(indexName);
 
-        long initialSearchExpected = totalNumberOfDocumentsInIndex;
-        var initialSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals(initialSearchExpected, documentCount);
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(1, response.getTotalShards());
-                assertEquals(initialSearchExpected, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, initialSearchAssertion, useEsql);
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
 
         ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
         client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
@@ -417,20 +404,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         }
 
         // We can still perform search on the source shard and see all previous writes due to the pre-reshard refresh.
-        long cloneSearchExpected = totalNumberOfDocumentsInIndex;
-        var cloneSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals(cloneSearchExpected, documentCount);
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(1, response.getTotalShards());
-                assertEquals(cloneSearchExpected, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, cloneSearchAssertion, useEsql);
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
 
         // TODO write more data here.
         // Writes to source shard at this point will not be copied to the target
@@ -451,20 +425,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.HANDOFF)
         );
 
-        long handoffSearchExpected = totalNumberOfDocumentsInIndex;
-        var handoffSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals(handoffSearchExpected, documentCount);
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(1, response.getTotalShards());
-                assertEquals(handoffSearchExpected, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, handoffSearchAssertion, useEsql);
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(1));
 
         // we can still index between handoff and split but refresh is blocked
         final int handoffIndexedDocuments = randomIntBetween(10, 20);
@@ -484,39 +445,19 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         });
         refreshThread.start();
 
-        final long handoffNewDocsTotalDocuments = totalNumberOfDocumentsInIndex - handoffIndexedDocuments;
-        // We may see some of the documents written, e.g., because refresh proceeds on the source shard
-        var handoffNewDocsSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                logger.info("ESQL: documentCount during split = {}", documentCount);
-                assertThat(
-                    "ESQL: unexpected document count during split",
-                    documentCount,
-                    is(
-                        both(greaterThanOrEqualTo(handoffNewDocsTotalDocuments)).and(
-                            lessThanOrEqualTo(handoffNewDocsTotalDocuments + handoffIndexedDocuments)
-                        )
-                    )
-                );
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(1, response.getTotalShards());
-                final long documentCount = response.getHits().getTotalHits().value();
-                assertThat(
-                    "unexpected document count during split",
-                    documentCount,
-                    is(
-                        both(greaterThanOrEqualTo(handoffNewDocsTotalDocuments)).and(
-                            lessThanOrEqualTo(handoffNewDocsTotalDocuments + handoffIndexedDocuments)
-                        )
-                    )
-                );
-            }
-        };
-        assertSearch(searchCoordinator, indexName, handoffNewDocsSearchAssertion, useEsql);
+        // We may see some of the documents written, e.g., because refresh proceeds on the source shard.
+        // Shard count returned by search should still be 1 (only source shard)
+        assertDocAndShardCount(
+            searchCoordinator,
+            indexName,
+            useEsql,
+            is(
+                both(greaterThanOrEqualTo(totalNumberOfDocumentsInIndex - handoffIndexedDocuments)).and(
+                    lessThanOrEqualTo(totalNumberOfDocumentsInIndex)
+                )
+            ),
+            equalTo(1)
+        );
 
         // unblock SPLIT transition
         stateTransitionBlock.await();
@@ -533,21 +474,9 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
         // refresh that was blocked earlier should now complete
         refreshThread.join(SAFE_AWAIT_TIMEOUT.millis());
-        // and we should see the documents indexed during handoff now
-        long postSplitTotdalDocs = totalNumberOfDocumentsInIndex;
-        var postSplitTotalDocsAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals("Unexpected document count during split", postSplitTotdalDocs, documentCount);
-            }
 
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(2, response.getTotalShards());
-                assertEquals("Unexpected document count during split", postSplitTotdalDocs, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, postSplitTotalDocsAssertion, useEsql);
+        // and we should see the documents indexed during handoff now
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
 
         // Transition of target shards to DONE state is blocked, all targets are in SPLIT state.
         // Refresh includes target shards, search includes target shards.
@@ -559,21 +488,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
         assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
 
-        long splitTotalDocuments = totalNumberOfDocumentsInIndex;
-
-        var splitSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals("ESQL: wrong number of documents at SPLIT", splitTotalDocuments, documentCount);
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(multiple, response.getTotalShards());
-                assertEquals("wrong number of documents at SPLIT", splitTotalDocuments, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, splitSearchAssertion, useEsql);
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
 
         final int splitIndexedDocuments = randomIntBetween(10, 20);
         indexDocs(indexName, splitIndexedDocuments);
@@ -581,20 +496,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
         // The source shard has not yet deleted unowned documents but will filter them once targets have passed SPLIT
-        long splitNewDocsTotalDocuments = totalNumberOfDocumentsInIndex;
-        var splitNewDocsSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals(splitNewDocsTotalDocuments, documentCount);
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(multiple, response.getTotalShards());
-                assertEquals(splitNewDocsTotalDocuments, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, splitNewDocsSearchAssertion, useEsql);
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
 
         // unblock DONE transition
         stateTransitionBlock.await();
@@ -623,20 +525,7 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         assertEquals(multiple, doneRefresh.getSuccessfulShards());
 
         // all unowned documents should be deleted now so we should get the exact count
-        long doneExpected = totalNumberOfDocumentsInIndex;
-        var doneSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals(doneExpected, documentCount);
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(multiple, response.getTotalShards());
-                assertEquals(doneExpected, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, doneSearchAssertion, useEsql);
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
 
         // indexing new data and searching for it works
         final int doneIndexedDocuments = randomIntBetween(10, 20);
@@ -645,44 +534,35 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
 
         client(searchCoordinator).admin().indices().prepareRefresh(indexName).get();
 
-        long doneNewDocsExpected = totalNumberOfDocumentsInIndex;
-        var doneNewDocsSearchAssertion = new SearchAssertion() {
-            @Override
-            public void assertEsql(long documentCount) {
-                assertEquals(doneNewDocsExpected, documentCount);
-            }
-
-            @Override
-            public void assertSearch(SearchResponse response) {
-                assertEquals(multiple, response.getTotalShards());
-                assertEquals(doneNewDocsExpected, response.getHits().getTotalHits().value());
-            }
-        };
-        assertSearch(searchCoordinator, indexName, doneNewDocsSearchAssertion, useEsql);
+        assertDocAndShardCount(searchCoordinator, indexName, useEsql, equalTo(totalNumberOfDocumentsInIndex), equalTo(multiple));
 
         waitForReshardCompletion(indexName);
     }
 
-    private interface SearchAssertion {
-        void assertEsql(long documentCount);
-
-        void assertSearch(SearchResponse response);
-    }
-
-    private void assertSearch(String searchNode, String indexName, SearchAssertion assertion, boolean useEsql) {
+    private void assertDocAndShardCount(
+        String searchNode,
+        String indexName,
+        boolean useEsql,
+        Matcher<Long> docCountMatcher,
+        Matcher<Integer> shardCountMatcher
+    ) {
         if (useEsql) {
-            assertion.assertEsql(countDocsWithEsql(searchNode, indexName));
+            final var query = "FROM $index | STATS COUNT(*)".replace("$index", indexName);
+            final var request = new EsqlQueryRequest().allowPartialResults(false).query(query);
+
+            try (var response = client(searchNode).execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
+                final var docCount = (long) response.column(0).next();
+                final var shardCount = response.getExecutionInfo().getCluster("").getTotalShards();
+                assertThat("unexpected document count in ESQL response", docCount, docCountMatcher);
+                assertThat("unexpected shard count in ESQL response", shardCount, shardCountMatcher);
+            }
         } else {
-            assertResponse(prepareSearchAll(searchNode, indexName), assertion::assertSearch);
-        }
-    }
-
-    private long countDocsWithEsql(String searchNode, String indexName) {
-        var query = "FROM $index | STATS COUNT(*)".replace("$index", indexName);
-        var request = new EsqlQueryRequest().allowPartialResults(false).query(query);
-
-        try (var response = client(searchNode).execute(EsqlQueryAction.INSTANCE, request).actionGet()) {
-            return (long) response.column(0).next();
+            assertResponse(prepareSearchAll(searchNode, indexName), response -> {
+                final var docCount = response.getHits().getTotalHits().value();
+                final var shardCount = response.getTotalShards();
+                assertThat("unexpected document count in search response", docCount, docCountMatcher);
+                assertThat("unexpected shard count in search response", shardCount, shardCountMatcher);
+            });
         }
     }
 

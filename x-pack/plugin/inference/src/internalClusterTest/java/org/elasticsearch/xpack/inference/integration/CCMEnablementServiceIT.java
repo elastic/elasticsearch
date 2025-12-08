@@ -63,29 +63,45 @@ public class CCMEnablementServiceIT extends ESSingleNodeTestCase {
     }
 
     public void testSetEnabled() {
-        assertEnablementState(false);
+        assertCCMDisabled();
 
-        setEnablementState(true);
-        assertEnablementState(true);
+        enabledCCM();
+        assertCCMEnabled();
     }
 
     public void testIsEnabled() {
-        assertEnablementState(false);
+        assertCCMDisabled();
 
-        setEnablementState(true);
-        assertEnablementState(true);
+        enabledCCM();
+        assertCCMEnabled();
 
-        setEnablementState(false);
-        assertEnablementState(false);
+        disabledCCM();
+        assertCCMDisabled();
     }
 
-    private void setEnablementState(boolean enabled) {
+    private void enabledCCM() {
+        setCCMState(true);
+    }
+
+    private void disabledCCM() {
+        setCCMState(false);
+    }
+
+    private void setCCMState(boolean enabled) {
         var listener = new TestPlainActionFuture<AcknowledgedResponse>();
         ccmEnablementService.setEnabled(ProjectId.DEFAULT, enabled, listener);
         assertThat(listener.actionGet(TimeValue.THIRTY_SECONDS), is(AcknowledgedResponse.TRUE));
     }
 
-    private void assertEnablementState(boolean expectedEnabled) {
+    private void assertCCMEnabled() {
+        assertCCMState(true);
+    }
+
+    private void assertCCMDisabled() {
+        assertCCMState(false);
+    }
+
+    private void assertCCMState(boolean expectedEnabled) {
         assertThat(expectedEnabled, is(ccmEnablementService.isEnabled(ProjectId.DEFAULT)));
     }
 }

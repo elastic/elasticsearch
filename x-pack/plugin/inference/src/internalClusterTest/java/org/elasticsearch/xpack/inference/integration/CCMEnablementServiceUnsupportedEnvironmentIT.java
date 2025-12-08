@@ -58,17 +58,17 @@ public class CCMEnablementServiceUnsupportedEnvironmentIT extends ESSingleNodeTe
     }
 
     public void testSetEnabledReturnsFailure_WhenEnvironmentIsNotSupported() {
-        assertCCMEnablementState(false);
+        assertCCMDisabled(false);
 
         var listener = new TestPlainActionFuture<AcknowledgedResponse>();
         ccmEnablementService.setEnabled(ProjectId.DEFAULT, true, listener);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.THIRTY_SECONDS));
         assertThat(exception, is(CCM_FORBIDDEN_EXCEPTION));
-        assertCCMEnablementState(false);
+        assertCCMDisabled(false);
     }
 
-    private void assertCCMEnablementState(boolean expectedEnabled) {
+    private void assertCCMDisabled(boolean expectedEnabled) {
         assertThat(expectedEnabled, is(ccmEnablementService.isEnabled(ProjectId.DEFAULT)));
     }
 }

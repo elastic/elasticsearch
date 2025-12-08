@@ -24,6 +24,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SC
  * OTLP exponential histograms will be left unchanged and just formatted into the XContent that the field type expects.
  * OTLP explicit bucket histograms will be converted to exponential histograms at maximum scale,
  * with the bucket centers corresponding to the centroids which are computed by {@link TDigestConverter}.
+ * For the details see {@link #buildExponentialHistogram(HistogramDataPoint, XContentBuilder, BucketBuffer)}.
  */
 public class ExponentialHistogramConverter {
 

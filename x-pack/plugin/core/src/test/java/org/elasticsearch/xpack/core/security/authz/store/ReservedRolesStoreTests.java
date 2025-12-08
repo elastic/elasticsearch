@@ -439,6 +439,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(kibanaRole.cluster().check("cluster:admin/script/get", request, authentication));
 
         // Inference
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/delete", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/ccm/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/get", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
@@ -983,7 +985,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
             );
         });
 
-        // Elastic Defend internal index for response actions results
+        // Kibana Security Solution EDR workflows team
+        // - indexes in support of Elastic Defend Scripts library
+        Arrays.asList(".endpoint-script-file-meta-default", ".endpoint-script-file-data-default").forEach((index) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+        });
+
+        // Kibana Security Solution EDR workflows team
+        // - Index for response actions results
         Arrays.asList(".logs-endpoint.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
@@ -1732,6 +1755,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-google_scc.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.securityhub_findings_full_posture-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-aws_securityhub.finding-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.inspector-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-aws.config-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-amazon_security_lake.findings-" + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -1775,6 +1799,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-m365_defender.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_endpoint.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_cloud.assessment-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-prisma_cloud.misconfiguration-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-prisma_cloud.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-sentinel_one.application_risk-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -1977,7 +2003,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera) that `kibana_system`
+        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES) that `kibana_system`
         // has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
@@ -1989,7 +2015,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-island_browser.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.classification-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.issue-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 

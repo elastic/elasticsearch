@@ -28,7 +28,7 @@ public class ElasticInferenceServiceSettings {
     @Deprecated
     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
 
-    static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
+    public static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
         "xpack.inference.elastic.url",
         Setting.Property.NodeScope
     );
@@ -37,8 +37,17 @@ public class ElasticInferenceServiceSettings {
      * This setting is for testing only. It controls whether authorization is only performed once at bootup. If set to true, an
      * authorization request will be made repeatedly on an interval.
      */
-    static final Setting<Boolean> PERIODIC_AUTHORIZATION_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> PERIODIC_AUTHORIZATION_ENABLED = Setting.boolSetting(
         "xpack.inference.elastic.periodic_authorization_enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * This setting is for testing only. It controls whether authorization is performed at all.
+     */
+    public static final Setting<Boolean> AUTHORIZATION_ENABLED = Setting.boolSetting(
+        "xpack.inference.elastic.authorization.enabled",
         true,
         Setting.Property.NodeScope
     );
@@ -89,6 +98,7 @@ public class ElasticInferenceServiceSettings {
     private volatile TimeValue authRequestInterval;
     private volatile TimeValue maxAuthorizationRequestJitter;
     private final TimeValue connectionTtl;
+    private final boolean isAuthorizationEnabled;
 
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
@@ -97,6 +107,7 @@ public class ElasticInferenceServiceSettings {
         authRequestInterval = AUTHORIZATION_REQUEST_INTERVAL.get(settings);
         maxAuthorizationRequestJitter = MAX_AUTHORIZATION_REQUEST_JITTER.get(settings);
         connectionTtl = CONNECTION_TTL_SETTING.get(settings);
+        isAuthorizationEnabled = AUTHORIZATION_ENABLED.get(settings);
     }
 
     /**
@@ -132,6 +143,10 @@ public class ElasticInferenceServiceSettings {
         return connectionTtl;
     }
 
+    public boolean isAuthorizationEnabled() {
+        return isAuthorizationEnabled;
+    }
+
     public static List<Setting<?>> getSettingsDefinitions() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.add(EIS_GATEWAY_URL);
@@ -142,6 +157,7 @@ public class ElasticInferenceServiceSettings {
         settings.add(AUTHORIZATION_REQUEST_INTERVAL);
         settings.add(MAX_AUTHORIZATION_REQUEST_JITTER);
         settings.add(CONNECTION_TTL_SETTING);
+        settings.add(AUTHORIZATION_ENABLED);
         return settings;
     }
 

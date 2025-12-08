@@ -366,6 +366,7 @@ public class PushQueriesIT extends ESRestTestCase {
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             equalTo(found ? List.of(List.of(value)) : List.of())
@@ -515,7 +516,7 @@ public class PushQueriesIT extends ESRestTestCase {
             }""";
     }
 
-    private static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
+    static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
 
     private static String checkOperatorProfile(Map<String, Object> o, Matcher<String> query) {
         String name = (String) o.get("operator");

@@ -39,6 +39,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.put_data_stream_mappings:
@@ -78,6 +79,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings.properties.name.type: "keyword" }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }
 
@@ -141,6 +143,7 @@
   - match: { data_streams.0.name: my-component-only-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.put_data_stream_mappings:
@@ -202,6 +205,7 @@
   - match: { data_streams.0.effective_mappings: null }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.get_mapping:
@@ -269,6 +273,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.put_index_template:
@@ -297,6 +302,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.rollover:
@@ -320,5 +326,277 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: { } }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: standard }
+  - set: { data_streams.0.indices.0.index_name: oldIndexName }
+  - set: { data_streams.0.indices.1.index_name: newIndexName }
+
+---
+"Test change data stream from standard to time_series with no routing_path":
+  # This test makes sure that if we change the index mode of a data stream from standard to time_series without a
+  # configured routing_path, the get data stream and get data stream mappings APIs do not blow up before or after
+  # rollover.
+  - do:
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ test-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+
+  - do:
+      indices.create_data_stream:
+        name: test-data-stream-1
+
+  - do:
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ test-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              mode: time_series
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      cluster.health:
+        index: "test-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
+
+  - do:
+      indices.get_data_stream:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
+
+  - do:
+      indices.rollover:
+        alias: "test-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "test-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
+  - match: { data_streams.0.effective_mappings.properties.field1.type: "keyword" }
+
+  - do:
+      indices.get_data_stream:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - match: { data_streams.0.mappings: { } }
+  - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
+  - set: { data_streams.0.indices.0.index_name: oldIndexName }
+  - set: { data_streams.0.indices.1.index_name: newIndexName }
+
+---
+"Test change data stream from time_series to standard with no routing_path":
+  # This test makes sure that if we change the index mode of a data stream from time_series without a configured
+  # routing_path to standard, the get data stream and get data stream mappings APIs do not blow up before or after
+  # rollover.
+  - do:
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              mode: time_series
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
+
+  - do:
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ my-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
+
+  - do:
+      indices.rollover:
+        alias: "my-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "my-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
+  - match: { data_streams.0.effective_mappings.properties.field1.type: "keyword" }
+
+  - do:
+      indices.get_data_stream:
+        name: my-data-stream-1
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.mappings: { } }
+  - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: standard }
+  - set: { data_streams.0.indices.0.index_name: oldIndexName }
+  - set: { data_streams.0.indices.1.index_name: newIndexName }
+
+---
+"Test change data stream from standard to time_series with routing_path":
+  # This test makes sure that if we change the index mode of a data stream from standard to time_series with a
+  # configured routing_path, the get data stream and get data stream mappings APIs do not blow up before or after
+  # rollover.
+  - do:
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ test-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+
+  - do:
+      indices.create_data_stream:
+        name: test-data-stream-1
+
+  - do:
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ test-data-stream-* ]
+          data_stream: { }
+          template:
+            settings:
+              number_of_replicas: 0
+              routing_path: field1
+              mode: time_series
+            mappings:
+              properties:
+                field1:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      cluster.health:
+        index: "test-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
+
+  - do:
+      indices.get_data_stream:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - match: { data_streams.0.mappings: {} }
+  - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
+
+  - do:
+      indices.rollover:
+        alias: "test-data-stream-1"
+
+  - do:
+      cluster.health:
+        index: "test-data-stream-1"
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
+  - match: { data_streams.0.effective_mappings.properties.field1.type: "keyword" }
+
+  - do:
+      indices.get_data_stream:
+        name: test-data-stream-1
+  - match: { data_streams.0.name: test-data-stream-1 }
+  - match: { data_streams.0.mappings: { } }
+  - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }

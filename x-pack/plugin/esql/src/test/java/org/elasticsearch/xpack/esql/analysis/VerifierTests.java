@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -92,7 +93,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class VerifierTests extends ESTestCase {
 
-    private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
     private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
@@ -102,7 +102,7 @@ public class VerifierTests extends ESTestCase {
     {
         // Load Time Series mappings for these tests
         Map<String, EsField> mappingK8s = EsqlTestUtils.loadMapping("k8s-mappings.json");
-        EsIndex k8sIndex = new EsIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
+        EsIndex k8sIndex = EsIndexGenerator.esIndex("k8s", mappingK8s, Map.of("k8s", IndexMode.TIME_SERIES));
         IndexResolution getIndexResult = IndexResolution.valid(k8sIndex);
         k8s = new Analyzer(
             testAnalyzerContext(
@@ -150,7 +150,7 @@ public class VerifierTests extends ESTestCase {
         // Also add an unsupported/multityped field under the names `int` and `double` so we can use `LOOKUP int_number_names ...` and
         // `LOOKUP double_number_names` without renaming the fields first.
         IndexResolution indexWithUnsupportedAndMultiTypedField = IndexResolution.valid(
-            new EsIndex(
+            EsIndexGenerator.esIndex(
                 "test*",
                 Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
             )
@@ -409,7 +409,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
+            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
+                + " exponential_histogram or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -837,7 +838,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
+            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
+                + " exponential_histogram or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
@@ -1152,7 +1154,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [min(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double,"
+                    + " exponential_histogram or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1161,7 +1164,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram"
+                    + " or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1169,7 +1173,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
+                "1:19: argument of [count(network.bytes_out)] must be"
+                    + " [any type except counter types, dense_vector or exponential_histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -1333,28 +1338,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTimeseriesAggregate() {
-        assertThat(
-            error("TS test  | STATS rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used with the TS command "
-                    + "and inside another aggregate function"
-            )
-        );
-        assertThat(
-            error("TS test  | STATS avg_over_time(network.connections)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [avg_over_time(network.connections)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
-        assertThat(
-            error("TS test  | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo(
-                "1:47: time-series aggregate function [rate(network.bytes_in)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
-
         assertThat(error("TS test  | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
             1:22: nested aggregations [avg(rate(network.bytes_in))] \
             not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
@@ -1367,13 +1350,6 @@ public class VerifierTests extends ESTestCase {
             line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
             inside over-time aggregation function [rate(network.bytes_in)]"""));
 
-        assertThat(
-            error("TS test  | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
-            equalTo(
-                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used "
-                    + "with the TS command and inside another aggregate function"
-            )
-        );
         assertThat(
             error("TS test  | STATS COUNT(*)", tsdb),
             equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
@@ -2588,17 +2564,17 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsNullArgs() throws Exception {
-        checkFullTextFunctionNullArgs("match(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match(title, null)", "second");
+        checkFullTextFunctionAcceptsNullField("match(null, \"test\")");
         checkFullTextFunctionNullArgs("qstr(null)", "");
         checkFullTextFunctionNullArgs("kql(null)", "");
-        checkFullTextFunctionNullArgs("match_phrase(null, \"query\")", "first");
         checkFullTextFunctionNullArgs("match_phrase(title, null)", "second");
-        checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
+        checkFullTextFunctionAcceptsNullField("match_phrase(null, \"test\")");
         checkFullTextFunctionNullArgs("knn(vector, null)", "second");
+        checkFullTextFunctionAcceptsNullField("knn(null, [0, 1, 2])");
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            checkFullTextFunctionNullArgs("multi_match(\"query\", null)", "second");
+            checkFullTextFunctionAcceptsNullField("multi_match(\"test\", null)");
         }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
@@ -2611,6 +2587,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
         );
+    }
+
+    private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
+        fullTextAnalyzer.analyze(EsqlParser.INSTANCE.parseQuery("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {
@@ -2634,9 +2614,7 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testDecayFunctionNullArgs() {
-        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
-
+    public void testDecayArgs() {
         // First arg cannot be null
         assertEquals(
             "2:23: first argument of [decay(null, origin, scale, "
@@ -2664,6 +2642,49 @@ public class VerifierTests extends ESTestCase {
             error(
                 "row value = 10, origin = 10\n"
                     + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Offset value type
+        assertEquals(
+            "2:23: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:118: offset option has invalid type, expected [time_duration], found [keyword]",
+            error(
+                "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
+                    + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        assertEquals(
+            "1:110: offset option has invalid type, expected [numeric], found [keyword]",
+            error(
+                "row value =  TO_CARTESIANPOINT(\"POINT(10 0)\"), origin = TO_CARTESIANPOINT(\"POINT(0 0)\")"
+                    + "| eval decay_result = decay(value, origin, 10.0, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Type option value
+        assertEquals(
+            "2:23: Invalid option [type] in "
+                + "[decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})], allowed types [[KEYWORD]]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})"
+            )
+        );
+
+        assertEquals(
+            "2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]",
+            error(
+                "row value = 10, origin = 10, scale = 1\n"
+                    + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})"
             )
         );
     }
@@ -3272,40 +3293,45 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testChunkFunctionInvalidInputs() {
-        if (EsqlCapabilities.Cap.CHUNK_FUNCTION.isEnabled()) {
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": null, \"chunk_size\": 20})",
-                    fullTextAnalyzer,
-                    ParsingException.class
-                ),
-                equalTo("1:39: Invalid named parameter [\"num_chunks\":null], NULL is not supported")
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"num_chunks\": 3, \"chunk_size\": null})",
-                    fullTextAnalyzer,
-                    ParsingException.class
-                ),
-                equalTo("1:39: Invalid named parameter [\"chunk_size\":null], NULL is not supported")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":\"foo\"})", fullTextAnalyzer),
-                equalTo("1:27: Invalid option [num_chunks] in [CHUNK(body, {\"num_chunks\":\"foo\"})], cannot cast [foo] to [integer]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":\"foo\"})", fullTextAnalyzer),
-                equalTo("1:27: Invalid option [chunk_size] in [CHUNK(body, {\"chunk_size\":\"foo\"})], cannot cast [foo] to [integer]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"num_chunks\":-1})", fullTextAnalyzer),
-                equalTo("1:27: [num_chunks] cannot be negative, found [-1]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"chunk_size\":-1})", fullTextAnalyzer),
-                equalTo("1:27: [chunk_size] cannot be negative, found [-1]")
-            );
-        }
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: invalid chunking_settings, found [null]")
+        );
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: Invalid chunkingStrategy invalid")
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 5})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
+                    + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
+        );
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
@@ -3317,7 +3343,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
     }
 
     private String error(String query) {
@@ -3328,7 +3354,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, defaultAnalyzer, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Object... params) {
+    public static String error(String query, Analyzer analyzer, Object... params) {
         return error(query, analyzer, VerificationException.class, params);
     }
 
@@ -3336,7 +3362,7 @@ public class VerifierTests extends ESTestCase {
         return error(query, transportVersion, VerificationException.class, params);
     }
 
-    private String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
+    public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
         List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
@@ -3352,7 +3378,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, new QueryParams(parameters)))
         );
         assertThat(e, instanceOf(exception));
 

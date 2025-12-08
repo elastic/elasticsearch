@@ -349,6 +349,14 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
-        return List.of();
+        return List.of(
+            // TODO this should surely be able to support pruning
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

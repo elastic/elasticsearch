@@ -1,0 +1,5 @@
+pr: 138876
+summary: "Use doc values skipper for @timestamp in synthetic `_id` postings #138568"
+area: TSDB
+type: enhancement
+issues: []

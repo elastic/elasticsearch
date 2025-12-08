@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -24,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.inference.InferenceService;
@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.getModelSettingsForIndicesReferencingInferenceEndpoints;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.canMergeModelSettings;
@@ -74,6 +75,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private final InferenceServiceRegistry serviceRegistry;
     private volatile boolean skipValidationAndStart;
     private final ProjectResolver projectResolver;
+    private final FeatureService featureService;
 
     @Inject
     public TransportPutInferenceModelAction(
@@ -86,7 +88,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         InferenceServiceRegistry serviceRegistry,
         Settings settings,
         ProjectResolver projectResolver,
-        Client client
+        FeatureService featureService
     ) {
         super(
             PutInferenceModelAction.NAME,
@@ -105,6 +107,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
         this.projectResolver = projectResolver;
+        this.featureService = featureService;
     }
 
     @Override
@@ -114,7 +117,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<PutInferenceModelAction.Response> listener
     ) throws Exception {
-        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
+        if (modelRegistry.containsPreconfiguredInferenceEndpointId(request.getInferenceEntityId())) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",
@@ -127,6 +130,18 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
         var requestAsMap = requestToMap(request);
         var resolvedTaskType = ServiceUtils.resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
+        if (resolvedTaskType == TaskType.EMBEDDING && featureService.clusterHasFeature(state, EMBEDDING_TASK_TYPE) == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "task_type ["
+                        + TaskType.EMBEDDING
+                        + "] is not supported by all nodes in the cluster; "
+                        + "please complete upgrades before creating an endpoint with this task_type",
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
 
         String serviceName = (String) requestAsMap.remove(ModelConfigurations.SERVICE);
         if (serviceName == null) {

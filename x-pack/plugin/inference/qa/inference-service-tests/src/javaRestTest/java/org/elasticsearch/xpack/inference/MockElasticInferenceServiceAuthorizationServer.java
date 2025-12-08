@@ -17,44 +17,16 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisAuthorizationResponseWithMultipleEndpoints;
 
 public class MockElasticInferenceServiceAuthorizationServer implements TestRule {
 
     private static final Logger logger = LogManager.getLogger(MockElasticInferenceServiceAuthorizationServer.class);
     private final MockWebServer webServer = new MockWebServer();
 
-    public static MockElasticInferenceServiceAuthorizationServer enabledWithRainbowSprinklesAndElser() {
-        var server = new MockElasticInferenceServiceAuthorizationServer();
-
-        server.enqueueAuthorizeAllModelsResponse();
-        return server;
-    }
-
     public void enqueueAuthorizeAllModelsResponse() {
-        String responseJson = """
-            {
-                "models": [
-                    {
-                      "model_name": "rainbow-sprinkles",
-                      "task_types": ["chat"]
-                    },
-                    {
-                      "model_name": "elser_model_2",
-                      "task_types": ["embed/text/sparse"]
-                    },
-                    {
-                      "model_name": "jina-embeddings-v3",
-                      "task_types": ["embed/text/dense"]
-                    },
-                  {
-                      "model_name": "elastic-rerank-v1",
-                      "task_types": ["rerank/text/text-similarity"]
-                    }
-                ]
-            }
-            """;
-
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        var authResponseBody = getEisAuthorizationResponseWithMultipleEndpoints("ignored").responseJson();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authResponseBody));
     }
 
     public String getUrl() {

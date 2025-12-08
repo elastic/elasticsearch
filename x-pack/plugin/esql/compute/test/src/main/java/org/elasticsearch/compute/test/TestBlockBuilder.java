@@ -329,7 +329,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
 
         @Override
         public TestBlockBuilder appendObject(Object object) {
-            builder.appendBytesRef(new BytesRef(((Integer) object).toString()));
+            builder.appendBytesRef(new BytesRef(object.toString()));
             return this;
         }
 

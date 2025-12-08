@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -68,6 +71,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
@@ -76,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -188,12 +196,15 @@ public class AnalyzerTests extends ESTestCase {
     );
 
     public void testIndexResolution() {
-        EsIndex idx = new EsIndex("idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            limit.child()
+        );
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -205,17 +216,20 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testIndexWithClusterResolution() {
-        EsIndex idx = new EsIndex("cluster:idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("cluster:idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
+        assertEquals(
+            new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, Map.of(), Map.of(), idx.indexNameWithModes(), NO_FIELDS),
+            limit.child()
+        );
     }
 
     public void testAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        EsIndex idx = EsIndexGenerator.esIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
@@ -271,7 +285,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowAttributeResolution() {
-        EsIndex idx = new EsIndex("idx", Map.of());
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
@@ -1658,7 +1672,8 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
         final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
-            + "or dense_vector or geo_point or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
+            + "or dense_vector or exponential_histogram or geo_point "
+            + "or geo_shape or geohash or geohex or geotile or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -2043,17 +2058,19 @@ public class AnalyzerTests extends ESTestCase {
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
             Found 6 problems
-            line 2:12: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+            line 2:12: argument of [avg(x)] must be [aggregate_metric_double,\
+             exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:47: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
-            line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
+            line 2:96: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
              found value [x] type [unsigned_long]
-            line 2:115: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+            line 2:115: argument of [sum(x)] must be [aggregate_metric_double,\
+             exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]""");
 
         verifyUnsupported("""
@@ -2061,14 +2078,17 @@ public class AnalyzerTests extends ESTestCase {
             | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
             """, """
             Found 5 problems
-            line 2:10: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+            line 2:10: argument of [avg(x)] must be [aggregate_metric_double,\
+             exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:18: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:18: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:59: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
-            line 2:78: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+            line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
+             found value [x] type [version]
+            line 2:78: argument of [sum(x)] must be [aggregate_metric_double,\
+             exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [version]""");
     }
 
@@ -3175,7 +3195,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -3200,7 +3221,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3227,7 +3249,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3252,7 +3275,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3277,7 +3301,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -3303,7 +3328,8 @@ public class AnalyzerTests extends ESTestCase {
                     ),
                     List.of()
                 )
-            )
+            ),
+            IndexResolver.DO_NOT_GROUP
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -3325,7 +3351,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3334,7 +3361,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3356,7 +3384,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3368,7 +3397,8 @@ public class AnalyzerTests extends ESTestCase {
         {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true)
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
@@ -3820,7 +3850,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, IndexResolver.DO_NOT_GROUP);
         var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -4290,6 +4320,67 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(getAttributeByName(esRelation.output(), "description"), not(equalTo(completion.targetField())));
     }
 
+    public void testFoldableCompletionTransformedToEval() {
+        // Test that a foldable Completion plan (with literal prompt) is transformed to Eval with CompletionFunction
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION "Translate this text in French" WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("completion"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
+    }
+
+    public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
+        // Test that a foldable Completion plan with custom target field is transformed correctly
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION translation = "Translate this text" WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("translation"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        assertThat(completionFunction.prompt(), equalTo(string("Translate this text")));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+    }
+
+    public void testFoldableCompletionWithFoldableExpressionTransformedToEval() {
+        // Test that a foldable Completion plan with a foldable expression (not just a literal) is transformed correctly
+        // Using CONCAT with all literal arguments to ensure it's foldable during analysis
+        LogicalPlan plan = analyze("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate", " ", "this text") WITH { "inference_id" : "completion-inference-id" }
+            """, "mapping-books.json");
+
+        Eval eval = as(as(plan, Limit.class).child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+
+        Alias alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("completion"));
+        assertThat(alias.child(), instanceOf(CompletionFunction.class));
+
+        CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
+        // The prompt should be a Concat expression that is foldable (all arguments are literals)
+        assertThat(completionFunction.prompt(), instanceOf(Concat.class));
+        assertThat(completionFunction.prompt().foldable(), equalTo(true));
+        assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+    }
+
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
         var plan = analyze("""
             FROM test
@@ -4637,6 +4728,8 @@ public class AnalyzerTests extends ESTestCase {
             "k8s*",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of(),
             Set.of()
         );
         var analyzer = new Analyzer(
@@ -5561,6 +5654,36 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("sample_data", subqueryIndex.indexPattern());
     }
 
+    public void testPruneEmptySubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("""
+            FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
+            | WHERE match(client_ip,"127.0.0.1")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match matchFunction = as(filter.condition(), Match.class);
+        ReferenceAttribute clientIP = as(matchFunction.field(), ReferenceAttribute.class);
+        assertEquals("client_ip", clientIP.name());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(15, output.size());
+        // the subquery with remote:missingIndex is pruned, validate PruneEmptyUnionAllBranch
+        assertEquals(2, unionAll.children().size());
+        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
+        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+        subqueryLimit = as(unionAll.children().get(1), Limit.class);
+        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
     public void testLookupJoinOnFieldNotAnywhereElse() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
@@ -5596,6 +5719,64 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation rightRelation = as(lookupJoin.right(), EsRelation.class);
         assertEquals("languages_lookup", rightRelation.indexPattern());
         assertEquals(IndexMode.LOOKUP, rightRelation.indexMode());
+    }
+
+    public void testLikeParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var anonymous_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like ?"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant(null, "Anna*")))
+            );
+            var limit = as(anonymous_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            WildcardLike like = as(filter.condition(), WildcardLike.class);
+            assertEquals("Anna*", like.pattern().pattern());
+        }
+    }
+
+    public void testLikeListParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var positional_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name like (?1, ?2)"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant(null, "Anna*"), paramAsConstant(null, "Chris*")))
+            );
+            var limit = as(positional_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var likelist = as(filter.condition(), WildcardLikeList.class);
+            var patternlist = as(likelist.pattern(), WildcardPatternList.class);
+            assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
+        }
+    }
+
+    public void testRLikeParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var named_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name rlike ?pattern"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
+            );
+            var limit = as(named_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            RLike rlike = as(filter.condition(), RLike.class);
+            assertEquals("Anna*", rlike.pattern().pattern());
+        }
+    }
+
+    public void testRLikeListParameters() {
+        if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
+            var named_plan = analyze(
+                String.format(Locale.ROOT, "from test | where first_name rlike (?p1, ?p2)"),
+                "mapping-basic.json",
+                new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
+            );
+            var limit = as(named_plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            RLikeList rlikelist = as(filter.condition(), RLikeList.class);
+            RLikePatternList patternlist = as(rlikelist.pattern(), RLikePatternList.class);
+            assertEquals("(\"Anna*\", \"Chris*\")", patternlist.pattern());
+        }
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

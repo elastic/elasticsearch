@@ -159,6 +159,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
     private static final TestDataset DISTANCES = new TestDataset("distances");
     private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
+    private static final TestDataset K8S_DATENANOS = new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv")
+        .withSetting("k8s-settings.json");
     private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
         "k8s-downsampled",
         "k8s-downsampled-mappings.json",
@@ -172,6 +174,12 @@ public class CsvTestsDataLoader {
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
+    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
+        "exp_histo_sample",
+        "exp_histo_sample-mappings.json",
+        "exp_histo_sample.csv"
+    ).withSetting("exp_histo_sample-settings.json");
+    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -228,6 +236,7 @@ public class CsvTestsDataLoader {
         Map.entry(DATE_NANOS.indexName, DATE_NANOS),
         Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
         Map.entry(K8S.indexName, K8S),
+        Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
         Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
@@ -239,7 +248,9 @@ public class CsvTestsDataLoader {
         Map.entry(COLORS.indexName, COLORS),
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
-        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP)
+        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
+        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
+        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -251,6 +262,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
     private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
+    private static final EnrichConfig CITY_LOCATIONS_ENRICH = new EnrichConfig("city_locations", "enrich-policy-city_locations.json");
     private static final EnrichConfig COLORS_ENRICH = new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of(
@@ -273,6 +285,7 @@ public class CsvTestsDataLoader {
         CITY_NAMES_ENRICH,
         CITY_BOUNDARIES_ENRICH,
         CITY_AIRPORTS_ENRICH,
+        CITY_LOCATIONS_ENRICH,
         COLORS_ENRICH
     );
     public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
@@ -331,7 +344,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -354,7 +367,9 @@ public class CsvTestsDataLoader {
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
-        boolean requiresTimeSeries
+        boolean requiresTimeSeries,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -362,7 +377,9 @@ public class CsvTestsDataLoader {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
-                && (requiresTimeSeries == false || isTimeSeries(dataset))) {
+                && (requiresTimeSeries == false || isTimeSeries(dataset))
+                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
+                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -386,6 +403,48 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
+    private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("exponential_histogram")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("tdigest")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
@@ -398,7 +457,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false);
     }
 
     public static void loadDataSetIntoEs(
@@ -406,7 +465,9 @@ public class CsvTestsDataLoader {
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
-        boolean timeSeriesOnly
+        boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported
     ) throws IOException {
         loadDataSetIntoEs(
             client,
@@ -414,6 +475,8 @@ public class CsvTestsDataLoader {
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -426,13 +489,22 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
+        boolean exponentialHistogramFieldSupported,
+        boolean tDigestFieldSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
         logger.info("Loading test datasets");
-        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, timeSeriesOnly)) {
+        for (var dataset : availableDatasetsForEs(
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            timeSeriesOnly,
+            exponentialHistogramFieldSupported,
+            tDigestFieldSupported
+        )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

@@ -300,10 +300,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var replicated = in.readBoolean();
         var system = in.readBoolean();
         var allowCustomRouting = in.readBoolean();
-        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
-        var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-            ? in.readOptionalWriteable(DataStreamLifecycle::new)
-            : null;
+        var indexMode = in.readOptionalEnum(IndexMode.class);
+        var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
         // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
         var failureStoreEnabled = in.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
@@ -511,13 +509,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                  * mapping, we make sure to correct the index mode and index routing path here.
                  */
                 IndexMetadata oldIndexMetadata = indexService.getMetadata();
-                Settings.Builder settingsBuilder = Settings.builder().put(oldIndexMetadata.getSettings());
-                settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
 
+                Settings oldIndexSettings = oldIndexMetadata.getSettings();
                 String indexRoutingPathSettingName = IndexMetadata.INDEX_ROUTING_PATH.getKey();
-                settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
-                IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
-                mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
+                if (Objects.equals(
+                    templateSettings.get(indexRoutingPathSettingName),
+                    oldIndexSettings.get(indexRoutingPathSettingName)
+                ) == false) {
+                    /*
+                     * If the routing_path has changed, we need to make sure to update it so that validation does not fail when we merge
+                     * mappings.
+                     */
+                    Settings.Builder settingsBuilder = Settings.builder().put(oldIndexSettings);
+                    settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
+                    settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
+                    IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
+                    mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
+                }
             }
             CompressedXContent mergedMapping = mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
@@ -1472,12 +1480,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(replicated);
         out.writeBoolean(system);
         out.writeBoolean(allowCustomRouting);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeOptionalEnum(indexMode);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(lifecycle);
-        }
+        out.writeOptionalEnum(indexMode);
+        out.writeOptionalWriteable(lifecycle);
         if (out.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071

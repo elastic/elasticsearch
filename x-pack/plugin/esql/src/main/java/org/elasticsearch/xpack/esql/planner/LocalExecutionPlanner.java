@@ -380,15 +380,15 @@ public class LocalExecutionPlanner {
         if (physicalOperationProviders instanceof EsPhysicalOperationProviders == false) {
             throw new EsqlIllegalArgumentException("EsStatsQuery should only occur against a Lucene backend");
         }
-        if (statsQuery.stats().size() > 1) {
-            throw new EsqlIllegalArgumentException("EsStatsQuery currently supports only one field statistic");
-        }
-
         // for now only one stat is supported
-        EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
+        EsStatsQueryExec.Stat stat = statsQuery.stat();
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
-        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, stat.filter(statsQuery.query()), statsQuery.limit());
+        var queryFunction = switch (stat) {
+            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplier(basic.filter(statsQuery.query()));
+            case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
+        };
+        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, queryFunction, stat.tagTypes(), statsQuery.limit());
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());
@@ -485,12 +485,12 @@ public class LocalExecutionPlanner {
                 case VERSION -> TopNEncoder.VERSION;
                 case DOC_DATA_TYPE -> new DocVectorEncoder(context.shardContexts);
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
-                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
+                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM ->
+                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TSID_DATA_TYPE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+                case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {

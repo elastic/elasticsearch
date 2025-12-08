@@ -1413,6 +1413,54 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         return preview.stream().map(p -> (String) p.get("by_week")).toList();
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPreviewAsIndexRequest() throws Exception {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth(
+            "POST",
+            getTransformEndpoint() + "_preview?as_index_request",
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        createPreviewRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "user.id": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  },
+                  "by_day": {
+                    "date_histogram": {
+                      "fixed_interval": "1d",
+                      "field": "timestamp"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "user.avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME));
+
+        var previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        var preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        preview.forEach(p -> {
+            assertNotNull(XContentMapValues.extractValue("_id", p));
+            assertNotNull(XContentMapValues.extractValue("_source.by_day", p));
+            assertNotNull(XContentMapValues.extractValue("_source.user.id", p));
+            assertNotNull(XContentMapValues.extractValue("_source.user.avg_rating", p));
+        });
+    }
+
     public void testPivotWithMaxOnDateField() throws Exception {
         String transformId = "simple_date_histogram_pivot_with_max_time";
         String transformIndex = "pivot_reviews_via_date_histogram_with_max_time";

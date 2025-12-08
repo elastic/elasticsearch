@@ -570,7 +570,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1").add(
             new ObjectMapper.Builder("child_size_2").add(
                 new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
+                    new KeywordFieldMapper.Builder("multi_field_size_4", defaultIndexSettings())
                 )
                     .addMultiField(
                         new TextFieldMapper.Builder(
@@ -580,7 +580,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                             createDefaultIndexAnalyzers(),
                             false,
                             true
-                        ).addMultiField(new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current(), true))
+                        ).addMultiField(new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", defaultIndexSettings(), true))
                     )
             )
         );
@@ -621,8 +621,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(
-            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
-        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
+            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
@@ -630,8 +630,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testFlattenSubobjectsFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
-            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
-        ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
+            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
+        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
@@ -687,19 +687,19 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
 
         var rootBuilder = new RootObjectMapper.Builder("_doc");
-        rootBuilder.add(new KeywordFieldMapper.Builder("keyword", IndexVersion.current()));
+        rootBuilder.add(new KeywordFieldMapper.Builder("keyword", defaultIndexSettings()));
 
         var child = new ObjectMapper.Builder("child");
-        child.add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()));
-        child.add(new KeywordFieldMapper.Builder("keyword.with.dot", IndexVersion.current()));
+        child.add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()));
+        child.add(new KeywordFieldMapper.Builder("keyword.with.dot", defaultIndexSettings()));
         var secondLevelChild = new ObjectMapper.Builder("child2");
-        secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", IndexVersion.current()));
+        secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", defaultIndexSettings()));
         child.add(secondLevelChild);
         rootBuilder.add(child);
 
         var childWithDot = new ObjectMapper.Builder("childwith.dot");
-        childWithDot.add(new KeywordFieldMapper.Builder("keyword3", IndexVersion.current()));
-        childWithDot.add(new KeywordFieldMapper.Builder("keyword4.with.dot", IndexVersion.current()));
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword3", defaultIndexSettings()));
+        childWithDot.add(new KeywordFieldMapper.Builder("keyword4.with.dot", defaultIndexSettings()));
         rootBuilder.add(childWithDot);
 
         RootObjectMapper root = rootBuilder.build(rootContext);

@@ -18,6 +18,8 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -51,12 +53,17 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_START = 1;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private static final DirectIOCapableFlatVectorsFormat rawVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+    );
+    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
     private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
-        rawVectorFormat.getName(),
-        rawVectorFormat
+        float32VectorFormat.getName(),
+        float32VectorFormat,
+        bfloat16VectorFormat.getName(),
+        bfloat16VectorFormat
     );
 
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
@@ -205,19 +212,21 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
+    private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
     }
 
     public ESNextDiskBBQVectorsFormat(QuantEncoding quantEncoding, int vectorPerCluster, int centroidsPerParentCluster) {
-        this(quantEncoding, vectorPerCluster, centroidsPerParentCluster, false);
+        this(quantEncoding, vectorPerCluster, centroidsPerParentCluster, DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
     public ESNextDiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
         int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
         boolean useDirectIO
     ) {
         super(NAME);
@@ -244,6 +253,11 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = quantEncoding;
+        this.rawVectorFormat = switch (elementType) {
+            case FLOAT -> float32VectorFormat;
+            case BFLOAT16 -> bfloat16VectorFormat;
+            default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
+        };
         this.useDirectIO = useDirectIO;
     }
 

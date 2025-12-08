@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -163,9 +164,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
         try {
             final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
-                var request = EsqlQueryRequest.syncEsqlQueryRequest();
-                request.query("from test_breaker | stats count_distinct(foo) by bar");
-                request.pragmas(randomPragmas());
+                var request = syncEsqlQueryRequest("from test_breaker | stats count_distinct(foo) by bar").pragmas(randomPragmas());
                 try (var ignored = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES)) {
 
                 }

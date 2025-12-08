@@ -88,7 +88,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("languages")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
         // Right
         var project = as(inlineJoin.right(), Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "languages")));
@@ -100,16 +100,16 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
     }
 
     /*
-     * TopN[[Order[emp_no{f}#8,DESC,FIRST]],1000[INTEGER]]
-     * \_Filter[emp_no{f}#8 > 1000[INTEGER]]
-     *   \_InlineJoin[LEFT,[emp_no{f}#8],[emp_no{f}#8],[emp_no{r}#8]]
-     *     |_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     *     \_Project[[avg{r}#5, emp_no{f}#8]]
-     *       \_Eval[[$$SUM$avg$0{r$}#19 / $$COUNT$avg$1{r$}#20 AS avg#5]]
-     *         \_Aggregate[[emp_no{f}#8],[SUM(salary{f}#13,true[BOOLEAN]) AS $$SUM$avg$0#19, COUNT(salary{f}#13,true[BOOLEAN]) AS $$COUNT$
-     *              avg$1#20, emp_no{f}#8]]
-     *           \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
-     *                  languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     * TopN[[Order[emp_no{f}#9,DESC,FIRST]],1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{r}#9]]
+     *   |_Filter[emp_no{f}#9 > 1000[INTEGER]]
+     *   | \_EsRelation[employees][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *   \_Project[[avg{r}#6, emp_no{f}#9]]
+     *     \_Eval[[$$SUM$avg$0{r$}#20 / $$COUNT$avg$1{r$}#21 AS avg#6]]
+     *       \_Aggregate[[emp_no{f}#9],[SUM(salary{f}#14,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg$0#20,
+     *              COUNT(salary{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg$1#21, emp_no{f}#9]]
+     *         \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
+     *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
      */
     public void testInlineStatsAfterSort() {
         var query = """
@@ -131,18 +131,20 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(Expressions.name(order.child()), equalTo("emp_no"));
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
 
-        var filter = as(topN.child(), Filter.class);
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
+
+        // Left side of the join
+        var filter = as(inlineJoin.left(), Filter.class);
         var filterCondition = as(filter.condition(), GreaterThan.class);
         assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
         assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1000));
+        var relation = as(filter.child(), EsRelation.class);
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
-        var inlineJoin = as(filter.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
-        // Left
-        var relation = as(inlineJoin.left(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
-        // Right
+        // Right side of the join
         var project = as(inlineJoin.right(), Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no")));
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
         var agg = as(eval.child(), Aggregate.class);
@@ -151,22 +153,22 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
     }
 
     /*
-     * TopN[[Order[emp_no{f}#18,DESC,FIRST]],1000[INTEGER]]
-     * \_Filter[emp_no{f}#18 > 1000[INTEGER]]
-     *   \_InlineJoin[LEFT,[emp_no{f}#18],[emp_no{f}#18],[emp_no{r}#18]]
-     *     |_EsqlProject[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
-     *          languages{r}#29, last_name{f}#22 AS lName#12, long_noidx{f}#28, salary{f}#23, msg{r}#5, salaryK{r}#9]]
-     *     | \_Eval[[salary{f}#23 / 1000[INTEGER] AS salaryK#9]]
-     *     |   \_Dissect[first_name{f}#19,Parser[pattern=%{msg}, appendSeparator=,
-     *              parser=org.elasticsearch.dissect.DissectParser@2aa687d7],[msg{r}#5]]
-     *     |     \_Sample[0.1[DOUBLE]]
-     *     |       \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
-     *     \_Project[[avg{r}#15, emp_no{f}#18]]
-     *       \_Eval[[$$SUM$avg$0{r$}#30 / $$COUNT$avg$1{r$}#31 AS avg#15]]
-     *         \_Aggregate[[emp_no{f}#18],[SUM(salary{f}#23,true[BOOLEAN]) AS $$SUM$avg$0#30, COUNT(salary{f}#23,true[BOOLEAN]) AS
-     *               $$COUNT$avg$1#31, emp_no{f}#18]]
-     *           \_StubRelation[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
-     *                  anguages{r}#29, lName{r}#12, long_noidx{f}#28, salary{f}#23, msg{r}#5, salaryK{r}#9]]
+     * TopN[[Order[emp_no{f}#17,DESC,FIRST]],1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[emp_no{f}#17],[emp_no{r}#17]]
+     *   |_EsqlProject[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *          languages{f}#20, last_name{f}#21 AS lName#11, long_noidx{f}#27, salary{f}#22, msg{r}#4, salaryK{r}#8]]
+     *   | \_Eval[[salary{f}#22 / 1000[INTEGER] AS salaryK#8]]
+     *   |   \_Dissect[first_name{f}#18,Parser[pattern=%{msg}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@3f4941c9],
+     *              [msg{r}#4]]
+     *   |     \_Filter[emp_no{f}#17 > 1000[INTEGER]]
+     *   |       \_Sample[0.1[DOUBLE]]
+     *   |         \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *   \_Project[[avg{r}#14, emp_no{f}#17]]
+     *     \_Eval[[$$SUM$avg$0{r$}#28 / $$COUNT$avg$1{r$}#29 AS avg#14]]
+     *       \_Aggregate[[emp_no{f}#17],[SUM(salary{f}#22,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg$0#28,
+     *              COUNT(salary{f}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg$1#29, emp_no{f}#17]]
+     *         \_StubRelation[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *              languages{f}#20, lName{r}#11, long_noidx{f}#27, salary{f}#22, msg{r}#4, salaryK{r}#8]]
      */
     public void testInlineStatsAfterSortAndSortAgnostic() {
         var query = """
@@ -193,52 +195,50 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(field.name(), equalTo("emp_no"));
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
 
-        var filter = as(topN.child(), Filter.class);
-        var filterCondition = as(filter.condition(), GreaterThan.class);
-        assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
-        assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1000));
-
-        var inlineJoin = as(filter.child(), InlineJoin.class);
+        var inlineJoin = as(topN.child(), InlineJoin.class);
         assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
-        // Left
-        var esqlProject = as(inlineJoin.left(), EsqlProject.class);
 
+        // Left side of the join
+        var esqlProject = as(inlineJoin.left(), EsqlProject.class);
         var eval = as(esqlProject.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("salaryK")));
-
         var dissect = as(eval.child(), Dissect.class);
         assertThat(dissect.parser().pattern(), is("%{msg}"));
         assertThat(Expressions.name(dissect.input()), is("first_name"));
-
-        var sample = as(dissect.child(), Sample.class);
+        var filter = as(dissect.child(), Filter.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
+        assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1000));
+        var sample = as(filter.child(), Sample.class);
         assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.1));
-
         var esRelation = as(sample.child(), EsRelation.class);
+        assertThat(esRelation.concreteQualifiedIndices(), is(Set.of("employees")));
 
-        // Right
+        // Right side of the join
         var project = as(inlineJoin.right(), Project.class);
-        eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
-        var agg = as(eval.child(), Aggregate.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no")));
+        var rightEval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(rightEval.fields()), is(List.of("avg")));
+        var agg = as(rightEval.child(), Aggregate.class);
         assertMap(Expressions.names(agg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "emp_no")));
         var stub = as(agg.child(), StubRelation.class);
     }
 
     /*
-     * TopN[[Order[salary{f}#18,ASC,LAST]],1000[INTEGER]]
-     * \_Filter[emp_no{f}#13 > 1000[INTEGER]]
-     *   \_InlineJoin[LEFT,[emp_no{f}#13],[emp_no{f}#13],[emp_no{r}#13]]
-     *     |_InlineJoin[LEFT,[languages{f}#16],[languages{f}#16],[languages{r}#16]]
-     *     | |_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
-     *     | \_Aggregate[[languages{f}#16],[MIN(salary{f}#18,true[BOOLEAN]) AS min#5, languages{f}#16]]
-     *     |   \_StubRelation[[_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_date{f}#20, job{f}#21, job.raw{f}#22,
-     *              languages{f}#16, last_name{f}#17, long_noidx{f}#23, salary{f}#18]]
-     *     \_Project[[avg{r}#10, emp_no{f}#13]]
-     *       \_Eval[[$$SUM$avg$0{r$}#24 / $$COUNT$avg$1{r$}#25 AS avg#10]]
-     *         \_Aggregate[[emp_no{f}#13],[SUM(salary{f}#18,true[BOOLEAN]) AS $$SUM$avg$0#24, COUNT(salary{f}#18,true[BOOLEAN]) AS
-     *               $$COUNT$avg$1#25, emp_no{f}#13]]
-     *           \_StubRelation[[_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_date{f}#20, job{f}#21, job.raw{f}#22,
-     *                  ast_name{f}#17, long_noidx{f}#23, salary{f}#18, min{r}#5, languages{f}#16]]
+     * TopN[[Order[salary{f}#19,ASC,LAST]],1000[INTEGER],false]
+     * \_InlineJoin[LEFT,[emp_no{f}#14],[emp_no{r}#14]]
+     *   |_Filter[emp_no{f}#14 > 1000[INTEGER]]
+     *   | \_InlineJoin[LEFT,[languages{f}#17],[languages{r}#17]]
+     *   |   |_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *   |   \_Aggregate[[languages{f}#17],[MIN(salary{f}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS min#6, languages{f}#17]]
+     *   |     \_StubRelation[[_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, gender{f}#16, hire_date{f}#21, job{f}#22, job.raw{f}#23,
+     *              languages{f}#17, last_name{f}#18, long_noidx{f}#24, salary{f}#19]]
+     *   \_Project[[avg{r}#11, emp_no{f}#14]]
+     *     \_Eval[[$$SUM$avg$0{r$}#25 / $$COUNT$avg$1{r$}#26 AS avg#11]]
+     *       \_Aggregate[[emp_no{f}#14],[SUM(salary{f}#19,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg$0#25,
+     *              COUNT(salary{f}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$avg$1#26, emp_no{f}#14]]
+     *         \_StubRelation[[_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, gender{f}#16, hire_date{f}#21, job{f}#22, job.raw{f}#23,
+     *              last_name{f}#18, long_noidx{f}#24, salary{f}#19, min{r}#6, languages{f}#17]]
      */
     public void testInlineStatsAfterSortDoubled() {
         var query = """
@@ -263,34 +263,39 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(field.name(), equalTo("salary"));
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
 
-        var filter = as(topN.child(), Filter.class);
+        var outerJoin = as(topN.child(), InlineJoin.class);
+        assertThat(Expressions.names(outerJoin.config().rightFields()), is(List.of("emp_no")));
+
+        // Outer join's left side
+        var filter = as(outerJoin.left(), Filter.class);
         var filterCondition = as(filter.condition(), GreaterThan.class);
         assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
         assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1000));
 
-        var inlineJoin = as(filter.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
-        // outer left
-        var inlineJoinLeft = as(inlineJoin.left(), InlineJoin.class);
-        // inner left
-        var relation = as(inlineJoinLeft.left(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
-        // inner right
-        var agg = as(inlineJoinLeft.right(), Aggregate.class);
-        var groupings = agg.groupings();
-        assertThat(groupings.size(), is(1));
-        var fieldAttribute = as(groupings.get(0), FieldAttribute.class);
-        assertThat(fieldAttribute.name(), is("languages"));
-        var aggs = agg.aggregates();
-        assertThat(aggs.get(0).toString(), startsWith("MIN(salary) AS min"));
-        var stub = as(agg.child(), StubRelation.class);
-        // outer right
-        var project = as(inlineJoin.right(), Project.class);
+        var innerJoin = as(filter.child(), InlineJoin.class);
+        assertThat(Expressions.names(innerJoin.config().rightFields()), is(List.of("languages")));
+
+        // Inner join's left side
+        var relation = as(innerJoin.left(), EsRelation.class);
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
+
+        // Inner join's right side
+        var innerAgg = as(innerJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(innerAgg.groupings()), is(List.of("languages")));
+        assertThat(innerAgg.aggregates(), hasSize(2));
+        var innerAggFunction = as(innerAgg.aggregates().get(0), Alias.class);
+        assertThat(innerAggFunction.name(), is("min"));
+        assertThat(innerAggFunction.child().nodeName(), is("Min"));
+        assertThat(innerAgg.child(), instanceOf(StubRelation.class));
+
+        // Outer join's right side
+        var project = as(outerJoin.right(), Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no")));
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
-        agg = as(eval.child(), Aggregate.class);
-        assertMap(Expressions.names(agg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "emp_no")));
-        stub = as(agg.child(), StubRelation.class);
+        var outerAgg = as(eval.child(), Aggregate.class);
+        assertMap(Expressions.names(outerAgg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "emp_no")));
+        assertThat(outerAgg.child(), instanceOf(StubRelation.class));
     }
 
     /*
@@ -357,7 +362,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var innerEval = as(leftFilter.child(), Eval.class);
         assertThat(Expressions.names(innerEval.fields()), is(List.of("s1")));
         var relation = as(innerEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -446,7 +451,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var innerEval = as(leftFilter.child(), Eval.class);
         assertThat(Expressions.names(innerEval.fields()), is(List.of("s1", "s2")));
         var relation = as(innerEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -514,7 +519,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var innerEval = as(leftFilter.child(), Eval.class);
         assertThat(Expressions.names(innerEval.fields()), is(List.of("s1")));
         var relation = as(innerEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -569,7 +574,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$salary$temp_name$")));
         var relation = as(leftEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -630,7 +635,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$salary$temp_name$")));
         var relation = as(leftEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -696,7 +701,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
             contains(is("s1"), startsWith("$$salary$temp_name$"), startsWith("$$s1$temp_name$"))
         );
         var relation = as(leftEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -755,7 +760,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$emp_no$temp_name$")));
         var relation = as(leftEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var rightProject = as(inlineJoin.right(), Project.class);
@@ -819,7 +824,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var leftEval = as(leftAgg.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), is(List.of("s1")));
         var relation = as(leftEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var rightAgg = as(inlineJoin.right(), Aggregate.class);
@@ -875,7 +880,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(leftAggFunction.name(), is("salary"));
         assertThat(leftAggFunction.child().nodeName(), is("Max"));
         var relation = as(leftAgg.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var rightAgg = as(inlineJoin.right(), Aggregate.class);
@@ -936,7 +941,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var eval = as(leftAgg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("s1")));
         var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var rightAgg = as(inlineJoin.right(), Aggregate.class);
@@ -1007,7 +1012,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         var innerEval = as(enrich.child(), Eval.class);
         assertThat(Expressions.names(innerEval.fields()), contains(is("id"), startsWith("$$language_name$temp_name$")));
         var relation = as(innerEval.child(), EsRelation.class);
-        assertThat(relation.concreteIndices(), is(Set.of("employees")));
+        assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 
         // Right side of the join
         var agg = as(inlineJoin.right(), Aggregate.class);
@@ -1062,10 +1067,10 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(Expressions.name(order.child()), is("abbrev"));
 
         var leftRelation = as(topN.child(), EsRelation.class);
-        assertThat(leftRelation.concreteIndices(), is(Set.of("airports")));
+        assertThat(leftRelation.concreteQualifiedIndices(), is(Set.of("airports")));
 
         var rightRelation = as(join.right(), EsRelation.class);
-        assertThat(rightRelation.concreteIndices(), is(Set.of("languages_lookup")));
+        assertThat(rightRelation.concreteQualifiedIndices(), is(Set.of("languages_lookup")));
     }
 
     public void testFailureWhenSortAndSortBreakerBeforeInlineStats() {

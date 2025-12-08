@@ -66,10 +66,8 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -78,7 +76,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -98,9 +95,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
@@ -120,7 +115,8 @@ public class EsqlSession {
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
     private final String sessionId;
-    private final AnalyzerSettings clusterSettings;
+    private final TransportVersion localClusterMinimumVersion;
+    private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
@@ -145,7 +141,8 @@ public class EsqlSession {
 
     public EsqlSession(
         String sessionId,
-        AnalyzerSettings clusterSettings,
+        TransportVersion localClusterMinimumVersion,
+        AnalyzerSettings analyzerSettings,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
@@ -157,7 +154,8 @@ public class EsqlSession {
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
-        this.clusterSettings = clusterSettings;
+        this.localClusterMinimumVersion = localClusterMinimumVersion;
+        this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
@@ -182,11 +180,16 @@ public class EsqlSession {
     /**
      * Execute an ESQL request.
      */
-    public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
+    public void execute(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        ActionListener<Versioned<Result>> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        EsqlStatement statement = parse(request.query(), request.params());
+        EsqlStatement statement = parse(request);
         Configuration configuration = new Configuration(
             request.timeZone() == null
                 ? statement.setting(QuerySettings.TIME_ZONE)
@@ -196,15 +199,16 @@ public class EsqlSession {
             null,
             clusterName,
             request.pragmas(),
-            clusterSettings.resultTruncationMaxSize(),
-            clusterSettings.resultTruncationDefaultSize(),
+            analyzerSettings.resultTruncationMaxSize(),
+            analyzerSettings.resultTruncationDefaultSize(),
             request.query(),
             request.profile(),
             request.tables(),
             System.nanoTime(),
             request.allowPartialResults(),
-            clusterSettings.timeseriesResultTruncationMaxSize(),
-            clusterSettings.timeseriesResultTruncationDefaultSize()
+            analyzerSettings.timeseriesResultTruncationMaxSize(),
+            analyzerSettings.timeseriesResultTruncationDefaultSize(),
+            projectRouting(request, statement)
         );
         FoldContext foldContext = configuration.newFoldContext();
 
@@ -254,10 +258,23 @@ public class EsqlSession {
                                 l
                             )
                         )
+                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
                         .addListener(listener);
                 }
             }
         );
+    }
+
+    private String projectRouting(EsqlQueryRequest request, EsqlStatement statement) {
+        String projectRouting = statement.setting(QuerySettings.PROJECT_ROUTING);
+        if (projectRouting == null) {
+            projectRouting = request.projectRouting();
+        }
+
+        if (projectRouting != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+            throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
+        }
+        return projectRouting;
     }
 
     /**
@@ -371,23 +388,15 @@ public class EsqlSession {
                 subPlansResults.add(resultWrapper);
 
                 // replace the original logical plan with the backing result
-                LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
-                    InlineJoin.class,
-                    // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
-                    // and equals would have ignored name IDs anyway
-                    ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
-                );
-                // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
-                newLogicalPlan.setOptimized();
-                LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
+                LogicalPlan newMainPlan = newMainPlan(optimizedPlan, subPlans, resultWrapper);
 
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newLogicalPlan, subPlansResults);
+                var newSubPlan = firstSubPlan(newMainPlan, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
-                    LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
-                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request, physicalPlanOptimizer);
+                    LOGGER.debug("Executing final plan:\n{}", newMainPlan);
+                    var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer);
                     runner.run(
                         newPhysicalPlan,
                         configuration,
@@ -402,7 +411,7 @@ public class EsqlSession {
                 } else {// continue executing the subplans
                     executeSubPlan(
                         completionInfoAccumulator,
-                        newLogicalPlan,
+                        newMainPlan,
                         newSubPlan,
                         configuration,
                         foldContext,
@@ -425,6 +434,21 @@ public class EsqlSession {
         }));
     }
 
+    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
+        LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
+            InlineJoin.class,
+            // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
+            // and equals would have ignored name IDs anyway
+            ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
+        );
+        // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+        newLogicalPlan.setOptimized();
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
+        }
+        return newLogicalPlan;
+    }
+
     private LocalRelation resultToPlan(Source planSource, Result result) {
         List<Page> pages = result.pages();
         checkPagesBelowSize(
@@ -445,14 +469,13 @@ public class EsqlSession {
         }
     }
 
-    private EsqlStatement parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createQuery(query, params, planTelemetry);
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
-            LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
-        }
-        QuerySettings.validate(parsed, SettingsValidationContext.from(remoteClusterService));
-        return parsed;
+    private EsqlStatement parse(EsqlQueryRequest request) {
+        return EsqlParser.INSTANCE.parse(
+            request.query(),
+            request.params(),
+            SettingsValidationContext.from(remoteClusterService),
+            planTelemetry
+        );
     }
 
     /**
@@ -523,7 +546,11 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false);
+        // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
+        // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
+        // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
+            .withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -548,19 +575,63 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
-            .andThenApply(r -> {
-                if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
-                    && executionInfo.isCrossClusterSearch()
-                    && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
-                    LOGGER.debug("No more clusters to search, ending analysis stage");
-                    throw new NoClustersToSearchException();
+        SubscribableListener.<PreAnalysisResult>newForked(
+            l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
+        ).andThenApply(r -> {
+            if (r.indexResolution.isEmpty() == false // Rule out ROW case with no FROM clauses
+                && executionInfo.isCrossClusterSearch()
+                && executionInfo.getRunningClusterAliases().findAny().isEmpty()) {
+                LOGGER.debug("No more clusters to search, ending analysis stage");
+                throw new NoClustersToSearchException();
+            }
+            // Check if a subquery need to be pruned. If some but not all the subqueries has invalid index resolution,
+            // try to prune it by setting IndexResolution to EMPTY_SUBQUERY. Analyzer.PruneEmptyUnionAllBranch will
+            // take care of removing the subquery during analysis.
+            // If all subqueries have invalid index resolution, we should fail in Analyzer's verifier.
+            if (r.indexResolution.isEmpty() == false // it is not a row
+                && r.indexResolution.size() > 1 // there is a subquery
+                && executionInfo.isCrossClusterSearch()) {
+                Collection<IndexResolution> indexResolutions = r.indexResolution.values();
+                boolean hasInvalid = indexResolutions.stream().anyMatch(ir -> ir.isValid() == false);
+                boolean hasValid = indexResolutions.stream().anyMatch(IndexResolution::isValid);
+                // Only if there is partial invalid index resolutions in subqueries
+                if (hasInvalid && hasValid) {
+                    // iterate the index resolution and replace it with EMPTY_SUBQUERY if the index resolution is invalid
+                    r.indexResolution.forEach((indexPattern, indexResolution) -> {
+                        if (indexResolution.isValid() == false) {
+                            LOGGER.debug("Index pattern [{}] does not match valid indices, pruning the subquery", indexPattern);
+                            r.withIndices(indexPattern, IndexResolution.EMPTY_SUBQUERY);
+                        }
+                    });
+                    // check if there is a cluster that does not have any valid index resolution, if so mark it as skipped
+                    executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
+                        boolean clusterHasValidIndex = r.indexResolution.values()
+                            .stream()
+                            .anyMatch(ir -> ir.isValid() && ir.get().originalIndices().get(clusterAlias) != null);
+                        if (clusterHasValidIndex == false) {
+                            String errorMsg = "no valid indices found in any subquery {}";
+                            LOGGER.debug(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias));
+                            EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
+                                executionInfo,
+                                clusterAlias,
+                                EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                                new VerificationException(errorMsg, EsqlCCSUtils.inClusterName(clusterAlias))
+                            );
+                        }
+                    });
                 }
-                return r;
-            })
+            }
+            return r;
+        })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<PreAnalysisResult>andThen((l, r) -> {
-                enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
+                // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
+                enrichPolicyResolver.resolvePolicies(
+                    preAnalysis.enriches(),
+                    executionInfo,
+                    r.minimumTransportVersion(),
+                    l.map(r::withEnrichResolution)
+                );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
@@ -597,14 +668,16 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        indexResolver.resolveAsMergedMapping(
+        // No need to update the minimum transport version in the PreAnalysisResult,
+        // it should already have been determined during the main index resolution.
+        indexResolver.resolveIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
-            null,
-            false,
-            // Disable aggregate_metric_double and dense_vector until we get version checks in planning
-            false,
-            false,
+            // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
+            // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
+            // The main index resolution should already have taken the version of the coordinating cluster into account and this should
+            // be reflected in result.minimumTransportVersion().
+            result.minimumTransportVersion(),
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
     }
@@ -661,6 +734,7 @@ public class EsqlSession {
                         + "] mode"
                 );
             }
+
             return result.addLookupIndexResolution(index, lookupIndexResolution);
         }
 
@@ -753,8 +827,15 @@ public class EsqlSession {
         var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
-            EsIndex newIndex = new EsIndex(index, lookupIndexResolution.get().mapping(), Map.of(indexName, IndexMode.LOOKUP));
-            return IndexResolution.valid(newIndex, newIndex.concreteIndices(), lookupIndexResolution.failures());
+            EsIndex newIndex = new EsIndex(
+                index,
+                lookupIndexResolution.get().mapping(),
+                Map.of(indexName, IndexMode.LOOKUP),
+                Map.of(),
+                Map.of(),
+                Set.of()
+            );
+            return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }
         // validate remotes to be able to handle multiple indices in LOOKUP JOIN
         validateRemoteVersions(executionInfo);
@@ -793,25 +874,49 @@ public class EsqlSession {
      */
     private void preAnalyzeMainIndices(
         PreAnalyzer.PreAnalysis preAnalysis,
+        Configuration configuration,
         EsqlExecutionInfo executionInfo,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        EsqlCCSUtils.initCrossClusterState(
-            indicesExpressionGrouper,
-            verifier.licenseState(),
-            preAnalysis.indexes().keySet(),
-            executionInfo
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
         );
-        // The main index pattern dictates on which nodes the query can be executed,
-        // so we use the minimum transport version from this field caps request.
-        forAll(
-            preAnalysis.indexes().entrySet().iterator(),
-            result,
-            (entry, r, l) -> preAnalyzeMainIndices(entry.getKey(), entry.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
-            listener
-        );
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            EsqlCCSUtils.initCrossClusterState(
+                indicesExpressionGrouper,
+                verifier.licenseState(),
+                preAnalysis.indexes().keySet(),
+                executionInfo
+            );
+            // The main index pattern dictates on which nodes the query can be executed,
+            // so we use the minimum transport version from this field caps request.
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (e, r, l) -> preAnalyzeMainIndices(e.getKey(), e.getValue(), preAnalysis, executionInfo, r, requestFilter, l),
+                listener
+            );
+        } else {
+            forAll(
+                preAnalysis.indexes().entrySet().iterator(),
+                result,
+                (e, r, l) -> preAnalyzeFlatMainIndices(
+                    e.getKey(),
+                    e.getValue(),
+                    configuration.projectRouting(),
+                    preAnalysis,
+                    executionInfo,
+                    r,
+                    requestFilter,
+                    l
+                ),
+                listener
+            );
+        }
     }
 
     private void preAnalyzeMainIndices(
@@ -823,31 +928,28 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            ThreadPool.Names.SYSTEM_READ
-        );
         if (executionInfo.clusterAliases().isEmpty()) {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            indexResolver.resolveAsMergedMappingAndRetrieveMinimumVersion(
+            indexResolver.resolveIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
-                // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                switch (indexMode) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                },
+                createQueryFilter(indexMode, requestFilter),
                 indexMode == IndexMode.TIME_SERIES,
+                // TODO: In case of subqueries, the different main index resolutions don't know about each other's minimum version.
+                // This is bad because `FROM (FROM remote1:*) (FROM remote2:*)` can have different minimum versions
+                // while resolving each subquery's main index pattern. We'll determine the correct overall minimum transport version
+                // in the end because we keep updating the PreAnalysisResult after each resolution; but the EsIndex objects may be
+                // inconsistent with this version:
+                // The main index pattern from a subquery that we resolve first may have a higher min version in the field caps response
+                // than an index pattern that we resolve later.
+                // Thus, the EsIndex for `FROM remote1:*` may contain data types that aren't supported on the overall minimum version
+                // if we only find out that the overall version is actually lower when resolving `FROM remote2:*`.
+                result.minimumTransportVersion(),
                 preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
                 preAnalysis.useDenseVectorWhenNotSupported(),
+                indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     l.onResponse(
@@ -857,6 +959,47 @@ public class EsqlSession {
                 })
             );
         }
+    }
+
+    private void preAnalyzeFlatMainIndices(
+        IndexPattern indexPattern,
+        IndexMode indexMode,
+        String projectRouting,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        indexResolver.resolveFlatWorldIndicesVersioned(
+            indexPattern.indexPattern(),
+            projectRouting,
+            result.fieldNames,
+            createQueryFilter(indexMode, requestFilter),
+            indexMode == IndexMode.TIME_SERIES,
+            // TODO: Same problem with subqueries as preAnalyzeMainIndices, see above.
+            result.minimumTransportVersion(),
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                l.onResponse(
+                    result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
+                );
+            })
+        );
+    }
+
+    private static QueryBuilder createQueryFilter(IndexMode indexMode, QueryBuilder requestFilter) {
+        // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+        return switch (indexMode) {
+            case IndexMode.TIME_SERIES -> {
+                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                yield requestFilter != null ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter) : indexModeFilter;
+            }
+            default -> requestFilter;
+        };
     }
 
     private void analyzeWithRetry(
@@ -914,19 +1057,7 @@ public class EsqlSession {
         PhysicalPlanOptimizer physicalPlanOptimizer
     ) {
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer);
-        physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
-            QueryBuilder filter = request.filter();
-            if (filter != null) {
-                var fragmentFilter = f.esFilter();
-                // TODO: have an ESFilter and push down to EsQueryExec / EsSource
-                // This is an ugly hack to push the filter parameter to Lucene
-                // TODO: filter integration testing
-                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
-                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
-                f = f.withFilter(filter);
-            }
-            return f;
-        });
+        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
         return EstimatesRowSize.estimateRowSize(0, physicalPlan);
     }
 

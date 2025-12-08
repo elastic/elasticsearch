@@ -135,7 +135,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
         // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        denseVectorElementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         useSearchInferenceId = randomBoolean();
     }
 
@@ -277,7 +280,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Query innerQuery = assertOuterBooleanQuery(query);
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
-            case FLOAT -> KnnFloatVectorQuery.class;
+            case FLOAT, BFLOAT16 -> KnnFloatVectorQuery.class;
             case BYTE, BIT -> KnnByteVectorQuery.class;
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));

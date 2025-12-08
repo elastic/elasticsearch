@@ -1,6 +1,0 @@
-pr: 136467
-summary: "ESQL: Fix double release in inline stats when `LocalRelation` is reused"
-area: ES|QL
-type: bug
-issues:
-  - 135679

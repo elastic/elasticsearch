@@ -35,16 +35,21 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
@@ -58,7 +63,9 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -94,13 +101,14 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
+import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
 
     /**
      * Context of each shard we're operating against. Note these objects are shared across multiple operators as
-     * {@link org.elasticsearch.core.RefCounted}.
+     * {@link RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
@@ -194,7 +202,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         // Apply any block loader function if present
-        MappedFieldType.BlockLoaderFunctionConfig functionConfig = null;
+        BlockLoaderFunctionConfig functionConfig = null;
         if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
@@ -236,14 +244,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
-            var builder = new KeywordFieldMapper.Builder(name, context.ctx.indexVersionCreated());
+            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
             builder.docValues(false);
             builder.indexed(false);
             return new KeywordFieldMapper.KeywordFieldType(
                 name,
-                UNMAPPED_FIELD_TYPE,
-                Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER,
+                IndexType.terms(false, false),
+                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Lucene.KEYWORD_ANALYZER,
                 builder,
                 context.ctx.isSourceSynthetic()
@@ -390,13 +397,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     /**
      * Build a {@link SourceOperator.SourceOperatorFactory} that counts documents in the search index.
      */
-    public LuceneCountOperator.Factory countSource(LocalExecutionPlannerContext context, QueryBuilder queryBuilder, Expression limit) {
+    public LuceneCountOperator.Factory countSource(
+        LocalExecutionPlannerContext context,
+        Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+        List<ElementType> tagTypes,
+        Expression limit
+    ) {
         return new LuceneCountOperator.Factory(
             shardContexts,
-            querySupplier(queryBuilder),
+            queryFunction,
             context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
             context.queryPragmas().taskConcurrency(),
-            List.of(),
+            tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
         );
     }
@@ -411,6 +423,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
+            ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
@@ -422,7 +435,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final int index;
 
         /**
-         * In production, this will be a {@link org.elasticsearch.search.internal.SearchContext}, but we don't want to drag that huge
+         * In production, this will be a {@link SearchContext}, but we don't want to drag that huge
          * dependency here.
          */
         private final Releasable releasable;
@@ -462,6 +475,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public SourceLoader newSourceLoader(Set<String> sourcePaths) {
             var filter = sourcePaths != null ? new SourceFilter(sourcePaths.toArray(new String[0]), null) : null;
+            // Apply vector exclusion logic similar to ShardGetService
+            var fetchSourceContext = filter != null ? FetchSourceContext.of(true, null, filter.getIncludes(), filter.getExcludes()) : null;
+            var result = maybeExcludeVectorFields(ctx.getMappingLookup(), ctx.getIndexSettings(), fetchSourceContext, null);
+            var vectorFilter = result.v2();
+            if (vectorFilter != null) {
+                filter = vectorFilter;
+            }
             return ctx.newSourceLoader(filter, false);
         }
 
@@ -488,7 +508,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             String name,
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             if (asUnsupportedSource) {
                 return BlockLoader.CONSTANT_NULLS;
@@ -535,8 +555,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 }
 
                 @Override
-                public MappedFieldType.BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
                     return blockLoaderFunctionConfig;
+                }
+
+                @Override
+                public MappingLookup mappingLookup() {
+                    return ctx.getMappingLookup();
                 }
             });
             if (loader == null) {

@@ -353,9 +353,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true
@@ -404,9 +403,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate = new KeywordFieldMapper.KeywordFieldType(
             "child",
-            mock(FieldType.class),
-            mock(NamedAnalyzer.class),
-            mock(NamedAnalyzer.class),
+            IndexType.terms(true, true),
+            new TextSearchInfo(mock(FieldType.class), null, mock(NamedAnalyzer.class), mock(NamedAnalyzer.class)),
             mock(NamedAnalyzer.class),
             builder,
             true

@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -52,7 +52,7 @@ class AvgAggregator extends SumAggregator {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
+    protected LeafBucketCollector getLeafCollector(DoubleValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

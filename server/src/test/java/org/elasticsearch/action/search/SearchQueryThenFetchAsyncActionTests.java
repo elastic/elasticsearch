@@ -214,7 +214,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY,
                 null,
                 false,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {
@@ -411,7 +412,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY,
                 null,
                 false,
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {

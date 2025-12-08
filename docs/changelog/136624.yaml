@@ -1,0 +1,5 @@
+pr: 136624
+summary: Added OpenShift AI text_embedding, completion, chat_completion and rerank support to the Inference Plugin
+area: Machine Learning
+type: enhancement
+issues: []

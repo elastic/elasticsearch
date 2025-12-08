@@ -52,6 +52,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -70,7 +71,6 @@ public class QueryPlanningBenchmark {
     }
 
     private PlanTelemetry telemetry;
-    private EsqlParser defaultParser;
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
     private Configuration config;
@@ -91,7 +91,8 @@ public class QueryPlanningBenchmark {
             System.nanoTime(),
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY)
+            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
+            null
         );
 
         var fields = 10_000;
@@ -101,7 +102,7 @@ public class QueryPlanningBenchmark {
             mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
 
@@ -109,7 +110,6 @@ public class QueryPlanningBenchmark {
         TransportVersion minimumVersion = TransportVersion.current();
 
         telemetry = new PlanTelemetry(functionRegistry);
-        defaultParser = new EsqlParser();
         manyFieldsAnalyzer = new Analyzer(
             new AnalyzerContext(
                 config,
@@ -126,7 +126,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.createStatement(query, new QueryParams(), telemetry);
+        var parsed = parser.parseQuery(query, new QueryParams(), telemetry);
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;
@@ -134,6 +134,6 @@ public class QueryPlanningBenchmark {
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(defaultParser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+        blackhole.consume(plan(EsqlParser.INSTANCE, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
     }
 }

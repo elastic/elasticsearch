@@ -25,6 +25,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -678,7 +679,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "foo", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "foo", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
         DirectoryReader reader = DirectoryReader.open(w);
@@ -722,7 +723,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberFieldType fieldType = new NumberFieldType("field", type);
         IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
             .build(null, null);
-        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
+        SortField sortField = fielddata.indexSort(IndexVersion.current(), null, MultiValueMode.MIN, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
         writerConfig.setIndexSort(new Sort(sortField));
@@ -732,7 +733,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "field", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "field", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
 
@@ -766,6 +767,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 assertEquals(searcher.count(query), searcher.count(fallbackQuery));
             }
         }
+
+        var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
+        var leafComparator = comparator.getLeafComparator(reader.getContext().leaves().get(0));
+        assertNotNull(leafComparator.competitiveIterator());
 
         reader.close();
         w.close();
@@ -935,16 +940,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.INTEGER,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -953,27 +951,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "field",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
+            defaultIndexSettings()
         ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testFetchHalfFloatFromSource() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.HALF_FLOAT,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

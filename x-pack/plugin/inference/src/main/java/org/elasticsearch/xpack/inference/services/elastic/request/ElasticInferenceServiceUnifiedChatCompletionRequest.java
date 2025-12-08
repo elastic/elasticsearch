@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
@@ -34,9 +35,10 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
         UnifiedChatInput unifiedChatInput,
         ElasticInferenceServiceCompletionModel model,
         TraceContext traceContext,
-        ElasticInferenceServiceRequestMetadata requestMetadata
+        ElasticInferenceServiceRequestMetadata requestMetadata,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(requestMetadata);
+        super(requestMetadata, authApplier);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);
@@ -82,6 +84,6 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
 
     @Override
     public boolean isStreaming() {
-        return true;
+        return unifiedChatInput.stream();
     }
 }

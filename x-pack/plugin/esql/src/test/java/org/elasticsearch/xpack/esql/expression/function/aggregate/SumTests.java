@@ -38,7 +38,8 @@ public class SumTests extends AbstractAggregationTestCase {
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE)
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
             // Longs currently throw on overflow.
             // Restore after https://github.com/elastic/elasticsearch/issues/110437
             // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),

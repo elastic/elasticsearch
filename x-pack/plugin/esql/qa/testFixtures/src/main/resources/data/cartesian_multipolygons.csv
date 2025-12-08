@@ -19,3 +19,4 @@ id:l, name:keyword,            shape:cartesian_shape
 17,   Bottom right point,      "POINT(2.5 0.5)"
 18,   Top right point,         "POINT(2.5 2.5)"
 19,   Top left point,          "POINT(0.5 2.5)"
+20,   Missing point,

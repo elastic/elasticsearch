@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
@@ -125,11 +126,12 @@ public class Querier {
         if (log.isTraceEnabled()) {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
-
+        boolean cps = cfg.crossProject() && query.isAggsOnly() && query.aggs().useImplicitGroupBy();
         SearchRequest search = prepareRequest(
             sourceBuilder,
             cfg,
             query.shouldIncludeFrozen(),
+            cps,
             Strings.commaDelimitedListToStringArray(index)
         );
 
@@ -143,16 +145,23 @@ public class Querier {
             if (query.aggs().useImplicitGroupBy()) {
                 client.search(search, new ImplicitGroupActionListener(listener, client, cfg, output, query, search));
             } else {
-                searchWithPointInTime(search, new CompositeActionListener(listener, client, cfg, output, query, search));
+                searchWithPointInTime(search, cfg, new CompositeActionListener(listener, client, cfg, output, query, search));
             }
         } else {
-            searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
+            searchWithPointInTime(search, cfg, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }
     }
 
-    private void searchWithPointInTime(SearchRequest search, ActionListener<SearchResponse> listener) {
-        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(search.indicesOptions())
+    private void searchWithPointInTime(SearchRequest search, SqlConfiguration cfg, ActionListener<SearchResponse> listener) {
+        IndicesOptions options = search.indicesOptions();
+        if (cfg.crossProject()) {
+            options = IndicesOptions.builder(options).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
+        }
+        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(options)
             .keepAlive(cfg.pageTimeout());
+        if (cfg.crossProject() && cfg.projectRouting() != null) {
+            openPitRequest.projectRouting(cfg.projectRouting());
+        }
 
         client.execute(
             TransportOpenPointInTimeAction.TYPE,
@@ -196,7 +205,23 @@ public class Querier {
         }
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, SqlConfiguration cfg, boolean includeFrozen, String... indices) {
+    /**
+     *
+     * @param source
+     * @param cfg
+     * @param includeFrozen
+     * @param cps add CPS options to the request (indices options, project routing).
+     *            If PIT is in use, CPS options are set on the PIT open request instead, so pass false here.
+     * @param indices
+     * @return
+     */
+    public static SearchRequest prepareRequest(
+        SearchSourceBuilder source,
+        SqlConfiguration cfg,
+        boolean includeFrozen,
+        boolean cps,
+        String... indices
+    ) {
         source.timeout(cfg.requestTimeout());
 
         SearchRequest searchRequest = new SearchRequest();
@@ -205,6 +230,16 @@ public class Querier {
             searchRequest.indicesOptions(
                 includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
             );
+        }
+        if (cps) {
+            searchRequest.indicesOptions(
+                IndicesOptions.builder(searchRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+            if (cfg.projectRouting() != null) {
+                searchRequest.setProjectRouting(cfg.projectRouting());
+            }
         }
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(cfg.allowPartialSearchResults());

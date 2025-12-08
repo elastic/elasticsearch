@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -139,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -208,11 +210,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveTable(),
+            new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(),
+            new TimeSeriesGroupByAll()
         ),
         new Batch<>(
             "Resolution",
@@ -301,6 +305,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.source(),
                 esIndex.name(),
                 plan.indexMode(),
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
@@ -516,6 +522,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
+                case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
         }
@@ -1104,6 +1111,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
+        private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            LogicalPlan promqlPlan = promql.promqlPlan();
+            Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
+            // resolve the nested plan
+            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
+                // but also any unresolved expressions
+                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
+        }
+
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             return maybeResolveAttribute(ua, childrenOutput, log);
         }
@@ -1241,7 +1257,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
-            for (var ne : drop.removals()) {
+            for (NamedExpression ne : drop.removals()) {
                 List<? extends NamedExpression> resolved;
 
                 if (ne instanceof UnresolvedNamePattern np) {
@@ -1465,8 +1481,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
-                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
+            return plan.transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context))
+                .transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
         }
 
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
@@ -1491,6 +1507,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     + plan.taskType()
                     + "] are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (plan.isFoldable()) {
+                // Transform foldable InferencePlan to Eval with function call
+                return transformToEval(plan, inferenceId);
+            }
+
+            return plan;
+        }
+
+        /**
+         * Transforms a foldable InferencePlan to an Eval with the appropriate function call.
+         */
+        private LogicalPlan transformToEval(InferencePlan<?> plan, String inferenceId) {
+            Expression inferenceIdLiteral = Literal.keyword(plan.inferenceId().source(), inferenceId);
+            Source source = plan.source();
+            LogicalPlan child = plan.child();
+
+            if (plan instanceof Completion completion) {
+                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
+                return new Eval(source, child, List.of(alias));
             }
 
             return plan;
@@ -1942,13 +1980,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    return new EsRelation(
-                        esr.source(),
-                        esr.indexPattern(),
-                        esr.indexMode(),
-                        esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing)
-                    );
+                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                 }
                 return esr;
             });
@@ -2752,7 +2784,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Update the attributes referencing the updated UnionAll output
+         * Update the attributes referencing the updated UnionAll output.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -2763,6 +2795,45 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
             });
+        }
+    }
+
+    /**
+     * Prune branches of a UnionAll that resolve to empty subqueries.
+     * For example, given the following plan, the index resolution of 'remote:missingIndex' is EMPTY_SUBQUERY:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[remote:missingIndex]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     * The branch with EMPTY_SUBQUERY index resolution is pruned in the plan after the rule is applied:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     */
+    private static class PruneEmptyUnionAllBranch extends ParameterizedAnalyzerRule<UnionAll, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
+            Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
+            // check if any child is an UnresolvedRelation that resolves to an empty subquery
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            for (LogicalPlan child : unionAll.children()) {
+                // check for UnresolvedRelation in the child plan tree
+                Holder<Boolean> isEmptySubquery = new Holder<>(Boolean.FALSE);
+                child.forEachUp(UnresolvedRelation.class, ur -> {
+                    IndexResolution resolution = indexResolutions.get(ur.indexPattern());
+                    if (resolution == IndexResolution.EMPTY_SUBQUERY) {
+                        isEmptySubquery.set(Boolean.TRUE);
+                    }
+                });
+                if (isEmptySubquery.get() == false) {
+                    newChildren.add(child);
+                }
+            }
+            return newChildren.size() == unionAll.children().size() ? unionAll : unionAll.replaceChildren(newChildren);
         }
     }
 }

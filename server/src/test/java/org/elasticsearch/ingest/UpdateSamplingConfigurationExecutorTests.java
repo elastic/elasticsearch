@@ -83,7 +83,7 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
         SamplingConfiguration defaultConfig = new SamplingConfiguration(
             0.5d,
             50,
-            ByteSizeValue.ofMb(10),
+            ByteSizeValue.ofKb(100),
             TimeValue.timeValueHours(1),
             null
         );
@@ -106,7 +106,7 @@ public class UpdateSamplingConfigurationExecutorTests extends ESTestCase {
 
         // Try to add the 101st configuration - this should fail
         String newIndexName = "new-index-101";
-        SamplingConfiguration newConfig = new SamplingConfiguration(0.8d, 80, ByteSizeValue.ofMb(20), TimeValue.timeValueHours(2), null);
+        SamplingConfiguration newConfig = new SamplingConfiguration(0.8d, 80, ByteSizeValue.ofKb(100), TimeValue.timeValueHours(2), null);
 
         SamplingService.UpdateSamplingConfigurationTask task = new SamplingService.UpdateSamplingConfigurationTask(
             ProjectId.DEFAULT,

@@ -40,7 +40,11 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceDoubleEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceDoubleEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -52,7 +56,11 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceDoubleLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceDoubleLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -170,7 +178,10 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (DoubleBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+                try (
+                    DoubleBlock.Builder result = driverContext.blockFactory() //
+                        .newDoubleBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (DoubleBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -207,7 +218,10 @@ abstract sealed class CoalesceDoubleEvaluator implements EvalOperator.Expression
         @Override
         protected DoubleBlock perPosition(Page page, DoubleBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+            try (
+                DoubleBlock.Builder result = driverContext.blockFactory() //
+                    .newDoubleBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);

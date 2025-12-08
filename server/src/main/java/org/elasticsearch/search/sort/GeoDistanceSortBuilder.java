@@ -22,7 +22,6 @@ import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.LatLonPointIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -164,14 +162,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit = DistanceUnit.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
-                throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
-                );
-            }
-
-        }
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
         validation = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
@@ -185,10 +175,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalNamedWriteable(null);
-            out.writeOptionalString(null);
-        }
         out.writeOptionalWriteable(nestedSort);
         validation.writeTo(out);
         out.writeBoolean(ignoreUnmapped);

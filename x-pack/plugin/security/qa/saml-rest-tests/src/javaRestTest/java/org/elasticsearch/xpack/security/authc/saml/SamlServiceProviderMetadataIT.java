@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
+
+    /**
+     * Withing this class we explicitly need the metadata not to be enabled at the start of each test
+     */
+    @Before
+    @Override
+    public void initMetadata() {
+        makeAllMetadataUnavailable();
+    }
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
         // initially, metadata in unavailable for all realms

@@ -22,6 +22,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -189,6 +190,14 @@ public class SamlRestTestCase extends ESRestTestCase {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
         caPath = PathUtils.get(resource.toURI());
+    }
+
+    /**
+     * Make metadata available by default before each test
+     */
+    @Before
+    public void initMetadata() {
+        makeMetadataAvailable(1, 2, 3);
     }
 
     @Override

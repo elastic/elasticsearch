@@ -13,7 +13,8 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 
 import java.io.IOException;
@@ -111,11 +112,13 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         OPTIMIZED_MERGE_ENABLE_DEFAULT = getOptimizedMergeEnabledDefault();
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean getOptimizedMergeEnabledDefault() {
-        return Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(
+            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()),
+            LenientBooleans.UsageCategory.SYSTEM_PROPERTY,
+            OPTIMIZED_MERGE_ENABLED_NAME,
+            DeprecationCategory.PARSING
+        );
     }
 
     /**
@@ -136,6 +139,10 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     final boolean enableOptimizedMerge;
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
+
+    public static ES819TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock) {
+        return useLargeNumericBlock ? new ES819TSDBDocValuesFormat(NUMERIC_LARGE_BLOCK_SHIFT) : new ES819TSDBDocValuesFormat();
+    }
 
     public ES819TSDBDocValuesFormat() {
         this(NUMERIC_BLOCK_SHIFT);

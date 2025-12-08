@@ -16,6 +16,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
@@ -118,6 +119,91 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         }
     }
 
+    public void testInt7uBulkWithOffsets() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var offsets = new int[numVecs];
+        var vectors = new byte[numVecs][dims];
+        var vectorsSegment = arena.allocate((long) dims * numVecs);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            offsets[i] = randomInt(numVecs - 1);
+            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
+            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        dotProductBulkWithOffsetsScalar(vectors[queryOrd], vectors, offsets, expectedScores);
+
+        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+
+        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims, offsetsSegment, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testInt7uBulkWithOffsetsAndPitch() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var offsets = new int[numVecs];
+        var vectors = new byte[numVecs][dims];
+
+        // Mimics extra data at the end
+        var pitch = dims * Byte.BYTES + Float.BYTES;
+        var vectorsSegment = arena.allocate((long) numVecs * pitch);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            offsets[i] = randomInt(numVecs - 1);
+            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
+            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * pitch, dims);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        dotProductBulkWithOffsetsScalar(vectors[queryOrd], vectors, offsets, expectedScores);
+
+        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * pitch, pitch);
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+
+        dotProduct7uBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, pitch, offsetsSegment, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testInt7uBulkWithOffsetsHeapSegments() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("Requires support for heap MemorySegments", supportsHeapSegments());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var offsets = new int[numVecs];
+        var values = new byte[numVecs][dims];
+        var segment = arena.allocate((long) dims * numVecs);
+        for (int i = 0; i < numVecs; i++) {
+            offsets[i] = randomInt(numVecs - 1);
+            randomBytesBetween(values[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(MemorySegment.ofArray(values[i]), 0L, segment, (long) i * dims, dims);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        dotProductBulkWithOffsetsScalar(values[queryOrd], values, offsets, expectedScores);
+
+        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, dims);
+
+        float[] bulkScores = new float[numVecs];
+        dotProduct7uBulkWithOffsets(
+            segment,
+            nativeQuerySeg,
+            dims,
+            dims,
+            MemorySegment.ofArray(offsets),
+            numVecs,
+            MemorySegment.ofArray(bulkScores)
+        );
+        assertArrayEquals(expectedScores, bulkScores, 0f);
+    }
+
     public void testIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3);
@@ -203,6 +289,28 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         }
     }
 
+    void dotProduct7uBulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int dims,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment result
+    ) {
+        try {
+            getVectorDistance().dotProductHandle7uBulkWithOffsets().invokeExact(a, b, dims, pitch, offsets, count, result);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     /** Computes the dot product of the given vectors a and b. */
     static int dotProductScalar(byte[] a, byte[] b) {
         int res = 0;
@@ -229,11 +337,16 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         }
     }
 
+    static void dotProductBulkWithOffsetsScalar(byte[] query, byte[][] data, int[] offsets, float[] scores) {
+        for (int i = 0; i < data.length; i++) {
+            scores[i] = dotProductScalar(query, data[offsets[i]]);
+        }
+    }
+
     static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
         assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
         for (int i = 0; i < expectedScores.length; i++) {
             assertEquals(expectedScores[i], expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, i * Float.BYTES), 0f);
         }
     }
-
 }

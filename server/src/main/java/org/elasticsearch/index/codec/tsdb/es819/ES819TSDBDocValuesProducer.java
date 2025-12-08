@@ -617,7 +617,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             byte[] bytes = new byte[bufferSize];
 
             while (remainingCount > 0) {
-                long blockId = findAndUpdateBlockByScanning(nextDoc);
+                long blockId = remainingCount == count ? firstBlockId : findAndUpdateBlockByScanning(nextDoc);
                 int numDocsInBlock = (int) (limitDocNumForBlock - startDocNumForBlock);
                 int idxFirstDocInBlock = (int) (nextDoc - startDocNumForBlock);
                 int countInBlock = Math.min(numDocsInBlock - idxFirstDocInBlock, remainingCount);

@@ -16,6 +16,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_COUNTS_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_INDICES_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.MAX_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.MIN_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.NEGATIVE_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.POSITIVE_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.SCALE_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.SUM_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_COUNT_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD;
 
 /**
  * Utility class to convert OpenTelemetry histogram data points into exponential histograms
@@ -37,26 +48,26 @@ public class ExponentialHistogramConverter {
         builder.startObject();
         builder.field("scale", dataPoint.getScale());
         if (dataPoint.getZeroCount() > 0) {
-            builder.startObject("zero").field("count", dataPoint.getZeroCount());
+            builder.startObject(ZERO_FIELD).field(ZERO_COUNT_FIELD, dataPoint.getZeroCount());
             if (dataPoint.getZeroThreshold() != 0) {
-                builder.field("threshold", dataPoint.getZeroThreshold());
+                builder.field(ZERO_THRESHOLD_FIELD, dataPoint.getZeroThreshold());
             }
             builder.endObject();
         }
         if (dataPoint.hasNegative()) {
-            writeExponentialBuckets(builder, "negative", dataPoint.getNegative());
+            writeExponentialBuckets(builder, NEGATIVE_FIELD, dataPoint.getNegative());
         }
         if (dataPoint.hasPositive()) {
-            writeExponentialBuckets(builder, "positive", dataPoint.getPositive());
+            writeExponentialBuckets(builder, POSITIVE_FIELD, dataPoint.getPositive());
         }
         if (dataPoint.hasSum()) {
-            builder.field("sum", dataPoint.getSum());
+            builder.field(SUM_FIELD, dataPoint.getSum());
         }
         if (dataPoint.hasMin()) {
-            builder.field("min", dataPoint.getMin());
+            builder.field(MIN_FIELD, dataPoint.getMin());
         }
         if (dataPoint.hasMax()) {
-            builder.field("max", dataPoint.getMax());
+            builder.field(MAX_FIELD, dataPoint.getMax());
         }
         builder.endObject();
     }
@@ -64,7 +75,7 @@ public class ExponentialHistogramConverter {
     private static void writeExponentialBuckets(XContentBuilder builder, String fieldName, ExponentialHistogramDataPoint.Buckets buckets)
         throws IOException {
         builder.startObject(fieldName);
-        builder.startArray("indices");
+        builder.startArray(BUCKET_INDICES_FIELD);
         for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
             long count = buckets.getBucketCounts(i);
             if (count != 0) {
@@ -72,7 +83,7 @@ public class ExponentialHistogramConverter {
             }
         }
         builder.endArray();
-        builder.startArray("counts");
+        builder.startArray(BUCKET_COUNTS_FIELD);
         for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
             long count = buckets.getBucketCounts(i);
             if (count != 0) {
@@ -92,7 +103,8 @@ public class ExponentialHistogramConverter {
      * <br>
      * In addition, we preserve the min/max if provided. To make sure that the min/max are actually part of a bucket, we do the following:
      * <ul>
-     *   <li>If the min is smaller than the centroid of the first bucket with data, we add a separate single-value bucket for it</li>
+     *   <li>If the min is smaller than the centroid of the first bucket with data, we add a separate single-value bucket for it
+     *   and reduce the count of the original first bucket by one (removing it, if it becomes empty)</li>
      *   <li>If the min is larger than the centroid of the first bucket with data, we clamp the centroid to the min</li>
      * </ul>
      * And we do the same thing for max with the last populated bucket.
@@ -103,7 +115,7 @@ public class ExponentialHistogramConverter {
      */
     public static void buildExponentialHistogram(HistogramDataPoint dataPoint, XContentBuilder builder, BucketBuffer bucketsScratch)
         throws IOException {
-        builder.startObject().field("scale", MAX_SCALE);
+        builder.startObject().field(SCALE_FIELD, MAX_SCALE);
 
         // TODO: When start supporting cumulative buckets, we can't do the synthetic min/max bucket trick anymore.
         // Then we probably need to just drop min/max, which aren't really useful for cumulative histograms anyway
@@ -156,21 +168,24 @@ public class ExponentialHistogramConverter {
             }
             bucketsScratch.writeBuckets(builder);
             if (dataPoint.hasSum()) {
-                builder.field("sum", dataPoint.getSum());
+                builder.field(SUM_FIELD, dataPoint.getSum());
             }
             if (dataPoint.hasMin()) {
-                builder.field("min", dataPoint.getMin());
+                builder.field(MIN_FIELD, dataPoint.getMin());
             }
             if (dataPoint.hasMax()) {
-                builder.field("max", dataPoint.getMax());
+                builder.field(MAX_FIELD, dataPoint.getMax());
             }
         }
         builder.endObject();
     }
 
     private static class IndexWithCountList {
-        private long[] indices = new long[32];
-        private long[] counts = new long[32];
+
+        private static final int INITIAL_CAPACITY = 32;
+
+        private long[] indices = new long[INITIAL_CAPACITY];
+        private long[] counts = new long[INITIAL_CAPACITY];
         private int size = 0;
 
         public void add(long index, long count) {
@@ -256,17 +271,17 @@ public class ExponentialHistogramConverter {
 
         private void writeBuckets(XContentBuilder builder) throws IOException {
             if (zeroCount > 0) {
-                builder.startObject("zero").field("count", zeroCount).endObject();
+                builder.startObject(ZERO_FIELD).field(ZERO_COUNT_FIELD, zeroCount).endObject();
             }
             if (negativeBuckets.size() > 0) {
                 // write in inverse order to get lowest to highest index
-                builder.startObject("negative");
-                builder.startArray("indices");
+                builder.startObject(NEGATIVE_FIELD);
+                builder.startArray(BUCKET_INDICES_FIELD);
                 for (int i = negativeBuckets.size() - 1; i >= 0; i--) {
                     builder.value(negativeBuckets.getIndex(i));
                 }
                 builder.endArray();
-                builder.startArray("counts");
+                builder.startArray(BUCKET_COUNTS_FIELD);
                 for (int i = negativeBuckets.size() - 1; i >= 0; i--) {
                     builder.value(negativeBuckets.getCount(i));
                 }
@@ -274,13 +289,13 @@ public class ExponentialHistogramConverter {
                 builder.endObject();
             }
             if (positiveBuckets.size() > 0) {
-                builder.startObject("positive");
-                builder.startArray("indices");
+                builder.startObject(POSITIVE_FIELD);
+                builder.startArray(BUCKET_INDICES_FIELD);
                 for (int i = 0; i < positiveBuckets.size(); i++) {
                     builder.value(positiveBuckets.getIndex(i));
                 }
                 builder.endArray();
-                builder.startArray("counts");
+                builder.startArray(BUCKET_COUNTS_FIELD);
                 for (int i = 0; i < positiveBuckets.size(); i++) {
                     builder.value(positiveBuckets.getCount(i));
                 }

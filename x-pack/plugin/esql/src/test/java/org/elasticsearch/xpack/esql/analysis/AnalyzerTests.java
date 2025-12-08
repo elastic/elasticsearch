@@ -5613,6 +5613,11 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testPruneEmptySubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
         LogicalPlan plan = analyze("""
             FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
             | WHERE match(client_ip,"127.0.0.1")
@@ -5628,13 +5633,11 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(15, output.size());
         // the subquery with remote:missingIndex is pruned, validate PruneEmptyUnionAllBranch
         assertEquals(2, unionAll.children().size());
-        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
-        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        EsqlProject subqueryProject = as(unionAll.children().get(0), EsqlProject.class);
         Eval subqueryEval = as(subqueryProject.child(), Eval.class);
         EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
-        subqueryLimit = as(unionAll.children().get(1), Limit.class);
-        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryProject = as(unionAll.children().get(1), EsqlProject.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
         Subquery subquery = as(subqueryEval.child(), Subquery.class);
         subqueryIndex = as(subquery.child(), EsRelation.class);

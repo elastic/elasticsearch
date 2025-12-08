@@ -508,8 +508,7 @@ emp_no:long | first_name:keyword | last_name:keyword | cnt:long | gender:keyword
 ;
 
 subqueryInFromWithInlineStatsInMainQuery
-required_capability: fork_v9
-required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_without_implicit_limit
 
 FROM sample_data, sample_data_str,
            (FROM sample_data_ts_nanos

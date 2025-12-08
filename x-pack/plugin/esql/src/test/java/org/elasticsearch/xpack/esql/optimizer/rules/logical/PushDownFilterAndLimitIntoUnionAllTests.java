@@ -50,7 +50,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
 
     @Before
     public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
     }
 
     /*

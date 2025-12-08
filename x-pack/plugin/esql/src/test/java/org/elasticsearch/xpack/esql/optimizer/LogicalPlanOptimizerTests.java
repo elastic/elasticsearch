@@ -9602,7 +9602,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Unbounded SORT inside subquery is not supported yet.
      */
     public void testUnboundedSortInSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command with implicit LIMIT removed",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
             FROM test, (FROM languages
                                  | WHERE language_code > 0

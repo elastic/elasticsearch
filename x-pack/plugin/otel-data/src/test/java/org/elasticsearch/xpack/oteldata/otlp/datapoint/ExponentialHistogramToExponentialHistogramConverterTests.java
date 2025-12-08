@@ -36,7 +36,7 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
         String name,
         ExponentialHistogramDataPoint.Builder builder,
         String expectedJson
-    ) throws IOException {
+    ) {
         this.dataPoint = builder.build();
         this.expectedJson = expectedJson;
     }

@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.security.Security;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**

@@ -209,7 +209,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
-import org.elasticsearch.search.crossproject.CrossProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
@@ -712,7 +711,8 @@ class NodeConstruction {
         modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
 
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
-        TaskManager taskManager = new TaskManager(
+        TaskManager taskManager = serviceProvider.newTaskManager(
+            pluginsService,
             settings,
             threadPool,
             Stream.concat(
@@ -823,7 +823,8 @@ class NodeConstruction {
                 clusterService.getClusterSettings(),
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
-                rerouteService
+                rerouteService,
+                telemetryProvider.getMeterRegistry()
             )::onNewInfo
         );
 
@@ -1015,7 +1016,7 @@ class NodeConstruction {
 
         final var projectRoutingResolver = pluginsService.loadSingletonServiceProvider(
             ProjectRoutingResolver.class,
-            CrossProjectRoutingResolver::new
+            () -> ProjectRoutingResolver.NOOP
         );
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(

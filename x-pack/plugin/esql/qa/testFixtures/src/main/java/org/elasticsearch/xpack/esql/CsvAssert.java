@@ -236,7 +236,7 @@ public final class CsvAssert {
 
                     var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
                     var transformedActual = valueTransformer.apply(expectedType, actualValue);
-                    if (Objects.equals(transformedExpected, transformedActual) == false) {
+                    if (equals(transformedExpected, transformedActual) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
@@ -272,6 +272,24 @@ public final class CsvAssert {
                 actualValues,
                 valueTransformer
             );
+        }
+    }
+
+    private static boolean equals(Object expected, Object actual) {
+        if (expected instanceof List<?> expectedList && actual instanceof List<?> actualList) {
+            if (expectedList.size() != actualList.size()) {
+                return false;
+            }
+            for (int i = 0; i < expectedList.size(); i++) {
+                if (equals(expectedList.get(i), actualList.get(i)) == false) {
+                    return false;
+                }
+            }
+            return true;
+        } else if (expected instanceof CsvTestUtils.Range expectedRange) {
+            return expectedRange.includes(actual);
+        } else {
+            return Objects.equals(expected, actual);
         }
     }
 

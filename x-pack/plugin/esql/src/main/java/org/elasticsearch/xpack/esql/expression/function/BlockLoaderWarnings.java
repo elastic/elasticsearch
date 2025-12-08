@@ -39,4 +39,9 @@ public class BlockLoaderWarnings implements org.elasticsearch.index.mapper.block
         }
         delegate.registerException(exceptionClass, message);
     }
+
+    @Override
+    public String toString() {
+        return "warnings for " + source;
+    }
 }

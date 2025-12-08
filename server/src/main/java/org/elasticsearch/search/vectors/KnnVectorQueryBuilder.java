@@ -275,34 +275,16 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
-            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-            } else {
-                in.readBoolean();
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-                in.readBoolean(); // used for byteQueryVector, which was always null
-            }
+            this.queryVector = VectorData.fromFloats(in.readFloatArray());
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            this.filterQueries.addAll(readQueries(in));
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.filterQueries.addAll(readQueries(in));
+        this.vectorSimilarity = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
             this.queryVectorBuilder = null;
         }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
-        } else {
-            this.rescoreVectorBuilder = null;
-        }
-
+        this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
         this.queryVectorSupplier = null;
     }
 
@@ -357,6 +339,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
+    public KnnVectorQueryBuilder setFilterQueries(List<QueryBuilder> filterQueries) {
+        Objects.requireNonNull(filterQueries);
+        this.filterQueries.clear();
+        this.filterQueries.addAll(filterQueries);
+        return this;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (queryVectorSupplier != null) {
@@ -387,21 +376,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
-            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeFloatArray(queryVector.asFloatVector());
-            } else {
-                out.writeBoolean(true);
-                out.writeFloatArray(queryVector.asFloatVector());
-                out.writeBoolean(false); // used for byteQueryVector, which was always null
-            }
+            out.writeFloatArray(queryVector.asFloatVector());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            writeQueries(out, filterQueries);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        writeQueries(out, filterQueries);
+        out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
             throw new IllegalArgumentException(
                 format(
@@ -414,9 +392,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalWriteable(rescoreVectorBuilder);
-        }
+        out.writeOptionalWriteable(rescoreVectorBuilder);
     }
 
     @Override
@@ -690,6 +666,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_0_0;
+        return TransportVersion.minimumCompatible();
     }
 }

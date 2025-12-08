@@ -16,6 +16,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -349,12 +351,21 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             }}""");
     }
 
-    public void testDoChunkedInferAlwaysFails() throws IOException {
+    public void testChunkedInferFails() throws IOException {
         try (var service = createService()) {
-            service.doChunkedInfer(mock(), mock(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, assertNoSuccessListener(e -> {
-                assertThat(e, isA(UnsupportedOperationException.class));
-                assertThat(e.getMessage(), equalTo("The deepseek service only supports unified completion"));
-            }));
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(mock(), null, List.of(new ChunkInferenceInput("a")), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
+        }
+    }
+
+    public void testChunkedInferFails_noInputs() throws IOException {
+        try (var service = createService()) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(mock(), null, List.of(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            var exception = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception.getMessage(), is("deepseek service does not support chunked inference"));
         }
     }
 

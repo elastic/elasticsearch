@@ -131,6 +131,14 @@ public final class MergePositionsOperator implements Operator {
         return page;
     }
 
+    /**
+     * Get the selected positions block (may be a range block or dictionary ordinals).
+     * Exposed for testing to verify optimization behavior.
+     */
+    public IntBlock getSelectedPositions() {
+        return selectedPositions;
+    }
+
     @Override
     public void close() {
         Releasables.close(Releasables.wrap(builders), selectedPositions, () -> {

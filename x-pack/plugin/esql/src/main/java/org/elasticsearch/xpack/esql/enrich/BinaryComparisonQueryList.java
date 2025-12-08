@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.function.IntFunction;
+import java.util.function.BiFunction;
 
 /**
  * A {@link QueryList} that generates a query for a binary comparison.
@@ -42,7 +42,7 @@ import java.util.function.IntFunction;
  */
 public class BinaryComparisonQueryList extends QueryList {
     private final EsqlBinaryComparison binaryComparison;
-    private final IntFunction<Object> blockValueReader;
+    private final BiFunction<Block, Integer, Object> blockValueReader;
     private final SearchExecutionContext searchExecutionContext;
     private final LucenePushdownPredicates lucenePushdownPredicates;
 
@@ -50,6 +50,7 @@ public class BinaryComparisonQueryList extends QueryList {
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
         Block leftHandSideBlock,
+        int channelOffset,
         EsqlBinaryComparison binaryComparison,
         ClusterService clusterService,
         AliasFilter aliasFilter,
@@ -59,7 +60,7 @@ public class BinaryComparisonQueryList extends QueryList {
             field,
             searchExecutionContext,
             aliasFilter,
-            leftHandSideBlock,
+            channelOffset,
             new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value")
         );
         // swap left and right if the field is on the right
@@ -68,7 +69,7 @@ public class BinaryComparisonQueryList extends QueryList {
         // and later in doGetQuery we will replace left_expr with the value from the leftHandSideBlock
         // We do that because binaryComparison expects the field to be on the left and the literal on the right to be translatable
         this.binaryComparison = (EsqlBinaryComparison) binaryComparison.swapLeftAndRight();
-        this.blockValueReader = QueryList.createBlockValueReader(leftHandSideBlock);
+        this.blockValueReader = QueryList.createBlockValueReaderForType(leftHandSideBlock.elementType());
         this.searchExecutionContext = searchExecutionContext;
         lucenePushdownPredicates = LucenePushdownPredicates.from(
             SearchContextStats.from(List.of(searchExecutionContext)),
@@ -82,8 +83,8 @@ public class BinaryComparisonQueryList extends QueryList {
     }
 
     @Override
-    public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
-        Object value = blockValueReader.apply(firstValueIndex);
+    public Query doGetQuery(int position, int firstValueIndex, int valueCount, Block inputBlock) {
+        Object value = blockValueReader.apply(inputBlock, firstValueIndex);
         // create a new comparison with the value from the block as a literal
         EsqlBinaryComparison comparison = binaryComparison.getFunctionType()
             .buildNewInstance(

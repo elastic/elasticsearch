@@ -38,6 +38,7 @@ import java.io.UncheckedIOException;
 public final class EnrichQuerySourceOperator extends SourceOperator {
     private final BlockFactory blockFactory;
     private final LookupEnrichQueryGenerator queryList;
+    private final Page inputPage;
     private int queryPosition = -1;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
@@ -53,6 +54,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         BlockFactory blockFactory,
         int maxPageSize,
         LookupEnrichQueryGenerator queryList,
+        Page inputPage,
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
         Warnings warnings
@@ -60,6 +62,13 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;
+        this.inputPage = inputPage;
+        // Increment reference count on all blocks in inputPage to keep them alive
+        // This is needed because inputPage might be a new optimized page that shares blocks with the original,
+        // or it might be the original page. In either case, we need to ensure blocks stay alive while the operator runs.
+        for (int i = 0; i < inputPage.getBlockCount(); i++) {
+            inputPage.getBlock(i).incRef();
+        }
         this.shardContexts = shardContexts;
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
@@ -68,17 +77,25 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.warnings = warnings;
     }
 
+    /**
+     * Get the input page (may be optimized, e.g., using dictionary block instead of ordinal block).
+     * Exposed for testing to verify optimization behavior.
+     */
+    public Page getInputPage() {
+        return inputPage;
+    }
+
     @Override
     public void finish() {}
 
     @Override
     public boolean isFinished() {
-        return queryPosition >= queryList.getPositionCount();
+        return queryPosition >= queryList.getPositionCount(inputPage);
     }
 
     @Override
     public Page getOutput() {
-        int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount() - queryPosition);
+        int estimatedSize = Math.min(maxPageSize, queryList.getPositionCount(inputPage) - queryPosition);
         IntVector.Builder positionsBuilder = null;
         IntVector.Builder docsBuilder = null;
         IntVector.Builder segmentsBuilder = null;
@@ -165,7 +182,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private Query nextQuery() {
         ++queryPosition;
         while (isFinished() == false) {
-            Query query = queryList.getQuery(queryPosition);
+            Query query = queryList.getQuery(queryPosition, inputPage);
             if (query != null) {
                 return query;
             }
@@ -196,6 +213,10 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
 
     @Override
     public void close() {
+        // Release reference counts on inputPage blocks that we incremented in the constructor
+        for (int i = 0; i < inputPage.getBlockCount(); i++) {
+            inputPage.getBlock(i).decRef();
+        }
         this.shardContext.decRef();
     }
 }

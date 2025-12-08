@@ -24,36 +24,26 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
-import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
-import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -74,22 +64,27 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupMergeDropExec;
+import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /**
@@ -134,7 +129,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected final TransportService transportService;
     IndexNameExpressionResolver indexNameExpressionResolver;
     protected final Executor executor;
-    private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
     private final ProjectResolver projectResolver;
@@ -147,6 +141,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * figure out what to do with a {@link List} of resulting pages.
      */
     private final boolean mergePages;
+    private final LookupExecutionMapper executionMapper;
 
     AbstractLookupService(
         String actionName,
@@ -168,11 +163,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
-        this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
         this.projectResolver = projectResolver;
+        this.executionMapper = new LookupExecutionMapper(blockFactory, bigArrays, localBreakerSettings, mergePages);
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -198,7 +193,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         T request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
-        Block inputBlock,
         Warnings warnings
     );
 
@@ -216,14 +210,20 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
         AliasFilter aliasFilter,
-        Block block,
-        @Nullable DataType inputDataType
+        int channelOffset,
+        DataType inputDataType
     ) {
         return switch (inputDataType) {
-            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, (BytesRefBlock) block);
-            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
-            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
-            case null, default -> QueryList.rawTermQueryList(field, searchExecutionContext, aliasFilter, block);
+            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
+            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
+            case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, searchExecutionContext, aliasFilter, channelOffset);
+            default -> QueryList.rawTermQueryList(
+                field,
+                searchExecutionContext,
+                aliasFilter,
+                channelOffset,
+                PlannerUtils.toElementType(inputDataType)
+            );
         };
     }
 
@@ -273,140 +273,30 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
-        for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
-            Block inputBlock = request.inputPage.getBlock(j);
-            if (inputBlock.areAllValuesNull()) {
-                List<Page> nullResponse = mergePages
-                    ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
-                    : List.of();
-                listener.onResponse(nullResponse);
-                return;
-            }
-        }
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-            var projectState = projectResolver.getProjectState(clusterService.state());
-            AliasFilter aliasFilter = indicesService.buildAliasFilter(
-                projectState,
-                request.shardId.getIndex().getName(),
-                indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
-            );
 
+            // Create shard context once - used by both physical and execution planning
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
             releasables.add(shardContext.release);
-            final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
-                blockFactory.breaker(),
-                localBreakerSettings.overReservedBytes(),
-                localBreakerSettings.maxOverReservedBytes()
-            );
-            releasables.add(localBreaker);
-            final DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
-            final ElementType[] mergingTypes = new ElementType[request.extractFields.size()];
-            for (int i = 0; i < request.extractFields.size(); i++) {
-                mergingTypes[i] = PlannerUtils.toElementType(request.extractFields.get(i).dataType());
-            }
-            final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
-            final Operator finishPages;
-            final OrdinalBytesRefBlock ordinalsBytesRefBlock;
-            Block inputBlock = request.inputPage.getBlock(0);
-            if (mergePages  // TODO fix this optimization for Lookup.
-                && inputBlock instanceof BytesRefBlock bytesRefBlock
-                && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
 
-                inputBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
-                var selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
-                finishPages = new MergePositionsOperator(1, mergingChannels, mergingTypes, selectedPositions, driverContext.blockFactory());
-            } else {
-                if (mergePages) {
-                    try (var selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock()) {
-                        finishPages = new MergePositionsOperator(
-                            1,
-                            mergingChannels,
-                            mergingTypes,
-                            selectedPositions,
-                            driverContext.blockFactory()
-                        );
-                    }
-                } else {
-                    finishPages = dropDocBlockOperator(request.extractFields);
+            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request, shardContext);
+
+            for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
+                Block inputBlock = request.inputPage.getBlock(j);
+                if (inputBlock.areAllValuesNull()) {
+                    List<Page> nullResponse = mergePages
+                        ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+                        : List.of();
+                    listener.onResponse(nullResponse);
+                    return;
                 }
             }
-            releasables.add(finishPages);
-            var warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
-                request.source.source().getLineNumber(),
-                request.source.source().getColumnNumber(),
-                request.source.text()
-            );
-            LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, inputBlock, warnings);
-            var queryOperator = new EnrichQuerySourceOperator(
-                driverContext.blockFactory(),
-                EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
-                queryList,
-                new IndexedByShardIdFromSingleton<>(shardContext.context),
-                0,
-                warnings
-            );
-            releasables.add(queryOperator);
 
-            List<Operator> operators = new ArrayList<>();
-            if (request.extractFields.isEmpty() == false) {
-                var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
-                releasables.add(extractFieldsOperator);
-                operators.add(extractFieldsOperator);
-            }
-            operators.add(finishPages);
+            LookupQueryPlan lookupQueryPlan = executionMapper.map(request, physicalPlan, shardContext, releasables);
 
-            /*
-             * Collect all result Pages in a synchronizedList mostly out of paranoia. We'll
-             * be collecting these results in the Driver thread and reading them in its
-             * completion listener which absolutely happens-after the insertions. So,
-             * technically, we don't need synchronization here. But we're doing it anyway
-             * because the list will never grow mega large.
-             */
-            List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-            OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), collectedPages::add);
-            releasables.add(outputOperator);
-            Driver driver = new Driver(
-                "enrich-lookup:" + request.sessionId,
-                "enrich",
-                clusterService.getClusterName().value(),
-                clusterService.getNodeName(),
-                System.currentTimeMillis(),
-                System.nanoTime(),
-                driverContext,
-                request::toString,
-                queryOperator,
-                operators,
-                outputOperator,
-                Driver.DEFAULT_STATUS_INTERVAL,
-                Releasables.wrap(shardContext.release, localBreaker)
-            );
-            task.addListener(() -> {
-                String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
-                driver.cancel(reason);
-            });
-            var threadContext = transportService.getThreadPool().getThreadContext();
-            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    List<Page> out = collectedPages;
-                    if (mergePages && out.isEmpty()) {
-                        out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
-                    }
-                    listener.onResponse(out);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(collectedPages.iterator(), p -> () -> {
-                        p.allowPassingToDifferentDriver();
-                        p.releaseBlocks();
-                    })));
-                    listener.onFailure(e);
-                }
-            });
+            startDriver(request, task, listener, lookupQueryPlan);
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);
@@ -417,63 +307,127 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
     }
 
-    private static Operator extractFieldsOperator(
-        EsPhysicalOperationProviders.ShardContext shardContext,
-        DriverContext driverContext,
-        List<NamedExpression> extractFields
-    ) {
-        List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
-        for (NamedExpression extractField : extractFields) {
-            String fieldName = extractField instanceof FieldAttribute fa ? fa.fieldName().string()
-                // Cases for Alias and ReferenceAttribute: only required for ENRICH (Alias in case of ENRICH ... WITH x = field)
-                // (LOOKUP JOIN uses FieldAttributes)
-                : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
-                : extractField.name();
-            BlockLoader loader = shardContext.blockLoader(
-                fieldName,
-                extractField.dataType() == DataType.UNSUPPORTED,
-                MappedFieldType.FieldExtractPreference.NONE,
-                null
-            );
-            fields.add(
-                new ValuesSourceReaderOperator.FieldInfo(
-                    extractField.name(),
-                    PlannerUtils.toElementType(extractField.dataType()),
-                    false,
-                    shardIdx -> {
-                        if (shardIdx != 0) {
-                            throw new IllegalStateException("only one shard");
-                        }
-                        return loader;
-                    }
-                )
-            );
-        }
-        return new ValuesSourceReaderOperator(
-            driverContext.blockFactory(),
-            Long.MAX_VALUE,
-            fields,
-            new IndexedByShardIdFromSingleton<>(
-                new ValuesSourceReaderOperator.ShardContext(
-                    shardContext.searcher().getIndexReader(),
-                    shardContext::newSourceLoader,
-                    EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY)
-                )
-            ),
-            0
+    /**
+     * Creates a PhysicalPlan tree representing the lookup operation structure.
+     * This plan can be cached and reused across multiple calls with different input data.
+     * Also precomputes mergingTypes, mergingChannels, and extractFieldInfos
+     * which don't depend on driver context or input page.
+     */
+    private PhysicalPlan createLookupPhysicalPlan(T request, LookupShardContext shardContext) throws IOException {
+        var projectState = projectResolver.getProjectState(clusterService.state());
+        AliasFilter aliasFilter = indicesService.buildAliasFilter(
+            projectState,
+            request.shardId.getIndex().getName(),
+            indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
         );
+        // Create output attributes: doc block
+        FieldAttribute docAttribute = new FieldAttribute(
+            request.source,
+            null,
+            null,
+            EsQueryExec.DOC_ID_FIELD.getName(),
+            EsQueryExec.DOC_ID_FIELD
+        );
+        List<Attribute> sourceOutput = List.of(docAttribute);
+
+        // Create QueryList during physical plan creation - it will receive Block at runtime via getQuery()
+        var warnings = Warnings.createWarnings(
+            DriverContext.WarningsMode.COLLECT,
+            request.source.source().getLineNumber(),
+            request.source.source().getColumnNumber(),
+            request.source.text()
+        );
+        // Create QueryList now - it doesn't need the Block until getQuery() is called
+        LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext(), aliasFilter, warnings);
+
+        ParameterizedQueryExec source = new ParameterizedQueryExec(request.source, sourceOutput, queryList);
+
+        PhysicalPlan plan = source;
+
+        final ElementType[] mergingTypes = new ElementType[request.extractFields.size()];
+        for (int i = 0; i < request.extractFields.size(); i++) {
+            mergingTypes[i] = PlannerUtils.toElementType(request.extractFields.get(i).dataType());
+        }
+        final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
+
+        // Add FieldExtractExec if we have extract fields
+        if (request.extractFields.isEmpty() == false) {
+            List<Attribute> extractAttributes = new ArrayList<>();
+            for (NamedExpression extractField : request.extractFields) {
+                if (extractField instanceof Alias alias) {
+                    // Extract the underlying attribute from the alias's child
+                    NamedExpression child = (NamedExpression) alias.child();
+                    extractAttributes.add(child.toAttribute());
+                } else {
+                    extractAttributes.add(extractField.toAttribute());
+                }
+            }
+            plan = new FieldExtractExec(request.source, plan, extractAttributes, MappedFieldType.FieldExtractPreference.NONE);
+        }
+
+        // Add LookupMergeDropExec for merge/drop operations (with precomputed merging types and channels)
+        // Note: mergePages decision is made dynamically when creating the operator, not here
+        // because it depends on the block structure of each individual page
+        // a different decision can be made for different pages
+        plan = new LookupMergeDropExec(request.source, plan, request.extractFields, mergingTypes, mergingChannels);
+
+        plan = new OutputExec(request.source, plan, null);
+
+        return plan;
     }
 
-    /**
-     * Drop just the first block, keeping the remaining.
-     */
-    private Operator dropDocBlockOperator(List<NamedExpression> extractFields) {
-        int end = extractFields.size() + 1;
-        List<Integer> projection = new ArrayList<>(end);
-        for (int i = 1; i <= end; i++) {
-            projection.add(i);
-        }
-        return new ProjectOperator(projection);
+    record LookupQueryPlan(
+        LookupShardContext shardContext,
+        LocalCircuitBreaker localBreaker,
+        DriverContext driverContext,
+        EnrichQuerySourceOperator queryOperator,
+        List<Operator> operators,
+        List<Page> collectedPages,
+        OutputOperator outputOperator
+    ) {}
+
+    private void startDriver(T request, CancellableTask task, ActionListener<List<Page>> listener, LookupQueryPlan lookupQueryPlan) {
+        Driver driver = new Driver(
+            "enrich-lookup:" + request.sessionId,
+            "enrich",
+            clusterService.getClusterName().value(),
+            clusterService.getNodeName(),
+            System.currentTimeMillis(),
+            System.nanoTime(),
+            lookupQueryPlan.driverContext(),
+            request::toString,
+            lookupQueryPlan.queryOperator(),
+            lookupQueryPlan.operators(),
+            lookupQueryPlan.outputOperator(),
+            Driver.DEFAULT_STATUS_INTERVAL,
+            Releasables.wrap(lookupQueryPlan.shardContext().release, lookupQueryPlan.localBreaker())
+        );
+        task.addListener(() -> {
+            String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
+            driver.cancel(reason);
+        });
+        var threadContext = transportService.getThreadPool().getThreadContext();
+        Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void unused) {
+                List<Page> out = lookupQueryPlan.collectedPages();
+                if (mergePages && out.isEmpty()) {
+                    out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
+                }
+                listener.onResponse(out);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Releasables.closeExpectNoException(
+                    Releasables.wrap(() -> Iterators.map(lookupQueryPlan.collectedPages().iterator(), p -> () -> {
+                        p.allowPassingToDifferentDriver();
+                        p.releaseBlocks();
+                    }))
+                );
+                listener.onFailure(e);
+            }
+        });
     }
 
     private Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {

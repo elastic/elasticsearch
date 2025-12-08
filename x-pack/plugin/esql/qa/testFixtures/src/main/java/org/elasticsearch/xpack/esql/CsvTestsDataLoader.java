@@ -650,7 +650,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
+    public static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
         logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
         URL policyMapping = getResource("/" + policyFileName);
         String entity = readTextFile(policyMapping);
@@ -736,7 +736,7 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
+    public static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
 
         ArrayList<String> failures = new ArrayList<>();

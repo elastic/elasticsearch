@@ -192,30 +192,30 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             // if it is its corresponding page is the corresponding number in inputPage
             Block block = null;
             DataType dataType = null;
+            int channelOffset = -1;
             for (int i = 0; i < matchFields.size(); i++) {
                 if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
+                    channelOffset = i;
                     block = inputPage.getBlock(i);
                     dataType = matchFields.get(i).type();
                     break;
                 }
             }
             MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
-            if (block != null && rightFieldType != null && dataType != null) {
+            if (block != null && rightFieldType != null && dataType != null && channelOffset != -1) {
                 // special handle Equals operator
                 // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
                 // so here we reuse the existing logic from field based join to build a termQueryList for Equals
                 if (binaryComparison instanceof Equals) {
-                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType).onlySingleValues(
-                        warnings,
-                        "LOOKUP JOIN encountered multi-value"
-                    );
-                    queryLists.add(termQueryForEquals);
+                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, channelOffset, dataType);
+                    queryLists.add(termQueryForEquals.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
                 } else {
                     queryLists.add(
                         new BinaryComparisonQueryList(
                             rightFieldType,
                             context,
                             block,
+                            channelOffset,
                             binaryComparison,
                             clusterService,
                             aliasFilter,
@@ -269,10 +269,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * @return The query at the given position, or null if any of the match fields are null.
      */
     @Override
-    public Query getQuery(int position) {
+    public Query getQuery(int position, Page inputPage) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (QueryList queryList : queryLists) {
-            Query q = queryList.getQuery(position);
+        for (int i = 0; i < queryLists.size(); i++) {
+            QueryList queryList = queryLists.get(i);
+            // Each QueryList already has its channelOffset stored, so it will extract the correct Block from the Page
+            Query q = queryList.getQuery(position, inputPage);
             if (q == null) {
                 // if any of the matchFields are null, it means there is no match for this position
                 // A AND NULL is always NULL, so we can skip this position
@@ -294,15 +296,17 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * @throws IllegalArgumentException if the query lists have different position counts.
      */
     @Override
-    public int getPositionCount() {
-        int positionCount = queryLists.get(0).getPositionCount();
-        for (QueryList queryList : queryLists) {
-            if (queryList.getPositionCount() != positionCount) {
+    public int getPositionCount(Page inputPage) {
+        // Each QueryList already has its channelOffset stored, so it will extract the correct Block from the Page
+        int positionCount = queryLists.get(0).getPositionCount(inputPage);
+        for (int i = 1; i < queryLists.size(); i++) {
+            QueryList queryList = queryLists.get(i);
+            if (queryList.getPositionCount(inputPage) != positionCount) {
                 throw new IllegalArgumentException(
                     "All QueryLists must have the same position count, expected: "
                         + positionCount
                         + ", but got: "
-                        + queryList.getPositionCount()
+                        + queryList.getPositionCount(inputPage)
                 );
             }
         }

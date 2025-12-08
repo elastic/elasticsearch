@@ -7,6 +7,9 @@ stack: preview 9.2.0
 The `RERANK` command uses an inference model to compute a new relevance score
 for an initial set of documents, directly within your ES|QL queries.
 
+:::::{important}
+**RERANK processes each row through an inference model, which impacts performance and costs.**
+
 ::::{tab-set}
 
 :::{tab-item} 9.3.0+
@@ -49,6 +52,7 @@ FROM books
 :::
 
 ::::
+:::::
 
 **Syntax**
 

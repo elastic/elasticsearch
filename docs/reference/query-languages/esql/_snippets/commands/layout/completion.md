@@ -6,7 +6,7 @@ stack: preview 9.1.0
 
 The `COMPLETION` command allows you to send prompts and context to a Large Language Model (LLM) directly within your ES|QL queries, to perform text generation tasks.
 
-:::{important}
+:::::{important}
 **Every row processed by the COMPLETION command generates a separate API call to the LLM endpoint.**
 
 ::::{tab-set}
@@ -49,7 +49,7 @@ Best practices:
 :::
 
 ::::
-:::
+:::::
 
 **Syntax**
 

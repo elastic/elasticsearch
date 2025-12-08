@@ -236,7 +236,6 @@ public class RestActionsTests extends ESTestCase {
         );
     }
 
-    // MP TODO: set up this test correctly - placeholder for now
     public void testParseWithProjectRouting() throws IOException {
         QueryBuilder query = new MatchQueryBuilder("foo", "bar");
         String requestBody1 = """
@@ -247,20 +246,22 @@ public class RestActionsTests extends ESTestCase {
             """;
         String requestBody2 = """
             {
-              "project_routing": "_alias:_origin",
+              "project_routing": "_csp:aws AND (_region:us* OR _region:eu-west-1)",
               "query": _QUERY_
             }
             """;
 
-        String requestBody = requestBody2.replaceFirst("_QUERY_", query.toString());
-        System.err.println("requestBody: " + requestBody);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
-            ParsingException e = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
-            assertEquals(e.getMessage(), "request does not support [project_routing]");
+        {
+            String requestBody = randomFrom(requestBody1, requestBody2).replaceFirst("_QUERY_", query.toString());
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
+                // if no SearchRequest passed in, an error should be thrown that project_routing is not supported for that endpoint
+                ParsingException e = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser));
+                assertEquals(e.getMessage(), "request does not support [project_routing]");
+            }
         }
-
         {
             SearchRequest searchRequest = new SearchRequest("index");
+            String requestBody = requestBody1.replaceFirst("_QUERY_", query.toString());
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
                 assertNull(searchRequest.getProjectRouting());
                 QueryBuilder actual = RestActions.getQueryContent(parser, searchRequest);
@@ -268,17 +269,14 @@ public class RestActionsTests extends ESTestCase {
                 assertEquals(searchRequest.getProjectRouting(), "_alias:_origin");
             }
         }
-
         {
-            SearchRequest searchRequest = new SearchRequest("index");
-            searchRequest.setProjectRouting("_csp:aws");
+            String requestBody = requestBody2.replaceFirst("_QUERY_", query.toString());
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, requestBody)) {
-                assertNotNull(searchRequest.getProjectRouting());
-                ParsingException e = expectThrows(ParsingException.class, () -> RestActions.getQueryContent(parser, searchRequest));
-                assertEquals(e.getMessage(), "Failed to parse");
-                assertNotNull(e.getCause());
-                // MP TODO: we need a better error message than this
-                assertEquals(e.getCause().getMessage(), "project_routing is already set to [_csp:aws]");
+                SearchRequest searchRequest = new SearchRequest("index");
+                assertNull(searchRequest.getProjectRouting());
+                QueryBuilder actual = RestActions.getQueryContent(parser, searchRequest);
+                assertEquals(query, actual);
+                assertEquals(searchRequest.getProjectRouting(), "_csp:aws AND (_region:us* OR _region:eu-west-1)");
             }
         }
     }

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.inference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
  * Settings for inference features such as completion and rerank.
  */
@@ -44,6 +46,10 @@ public record InferenceSettings(boolean completionEnabled, int completionRowLimi
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static List<Setting<?>> getSettings() {
+        return List.of(COMPLETION_ENABLED_SETTING, COMPLETION_ROW_LIMIT_SETTING, RERANK_ENABLED_SETTING, RERANK_ROW_LIMIT_SETTING);
+    }
 
     public InferenceSettings(Settings settings) {
         this(

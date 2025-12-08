@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -568,7 +569,7 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class), Settings.EMPTY),
+        new InferenceService(mock(Client.class), createMockClusterService()),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS,
         new CrossProjectModeDecider(Settings.EMPTY)
@@ -577,6 +578,15 @@ public final class EsqlTestUtils {
     private static ClusterService createMockClusterService() {
         var service = mock(ClusterService.class);
         doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        doReturn(Settings.EMPTY).when(service).getSettings();
+
+        // Create ClusterSettings with the required inference settings
+        var clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new java.util.HashSet<>(org.elasticsearch.xpack.esql.inference.InferenceSettings.getSettings())
+        );
+        doReturn(clusterSettings).when(service).getClusterSettings();
+
         return service;
     }
 

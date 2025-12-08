@@ -171,7 +171,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceService(client, clusterService.getSettings()),
+            new InferenceService(client, clusterService),
             blockFactoryProvider,
             new PlannerSettings(clusterService),
             new CrossProjectModeDecider(clusterService.getSettings())

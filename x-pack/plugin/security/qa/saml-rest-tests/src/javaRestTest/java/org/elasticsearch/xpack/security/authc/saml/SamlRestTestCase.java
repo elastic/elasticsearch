@@ -193,10 +193,14 @@ public class SamlRestTestCase extends ESRestTestCase {
     }
 
     /**
-     * Make metadata available by default before each test
+     * Make metadata available by default before each test, but make this behaviour controllable by subclasses.
      */
     @Before
     public void initMetadata() {
+        enableMetadataBeforeTestIfNeeded();
+    }
+
+    protected void enableMetadataBeforeTestIfNeeded() {
         makeMetadataAvailable(1, 2, 3);
     }
 

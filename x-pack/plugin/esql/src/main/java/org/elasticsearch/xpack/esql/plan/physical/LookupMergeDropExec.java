@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Physical plan node representing the merge/drop step of a lookup operation.
@@ -84,14 +84,7 @@ public class LookupMergeDropExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        List<Attribute> childOutput = child().output();
-        if (extractFields.isEmpty()) {
-            return childOutput;
-        }
-        List<Attribute> output = new ArrayList<>(childOutput.size() + extractFields.size());
-        output.addAll(childOutput);
-        output.addAll(extractFields.stream().map(NamedExpression::toAttribute).toList());
-        return output;
+        return Stream.concat(child().output().stream(), extractFields.stream().map(NamedExpression::toAttribute)).toList();
     }
 
     @Override

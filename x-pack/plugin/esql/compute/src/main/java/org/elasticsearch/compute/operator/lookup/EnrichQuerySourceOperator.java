@@ -63,12 +63,6 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;
         this.inputPage = inputPage;
-        // Increment reference count on all blocks in inputPage to keep them alive
-        // This is needed because inputPage might be a new optimized page that shares blocks with the original,
-        // or it might be the original page. In either case, we need to ensure blocks stay alive while the operator runs.
-        for (int i = 0; i < inputPage.getBlockCount(); i++) {
-            inputPage.getBlock(i).incRef();
-        }
         this.shardContexts = shardContexts;
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
@@ -213,10 +207,6 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
 
     @Override
     public void close() {
-        // Release reference counts on inputPage blocks that we incremented in the constructor
-        for (int i = 0; i < inputPage.getBlockCount(); i++) {
-            inputPage.getBlock(i).decRef();
-        }
         this.shardContext.decRef();
     }
 }

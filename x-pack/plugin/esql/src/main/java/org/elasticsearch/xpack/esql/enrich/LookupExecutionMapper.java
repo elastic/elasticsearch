@@ -79,12 +79,14 @@ public class LookupExecutionMapper {
      * Implements Releasable to manage ownership of selectedPositions when it's not from dictionary.
      */
     private static final class BlockOptimization implements Releasable {
-        private final Page optimizedPage;
+        private final Page optimizedPage; // the optimized page, could be same as original page if not optimized
+        private final Page originalPage;  // The original page
         private IntBlock selectedPositions;  // null if no merge, otherwise the selectedPositions block for MergePositionsOperator
         private final boolean selectedPositionsFromDictionary;  // true if selectedPositions comes from ordinals/dictionary
 
-        BlockOptimization(Page optimizedPage, IntBlock selectedPositions, boolean selectedPositionsFromDictionary) {
+        BlockOptimization(Page optimizedPage, Page originalPage, IntBlock selectedPositions, boolean selectedPositionsFromDictionary) {
             this.optimizedPage = optimizedPage;
+            this.originalPage = originalPage;
             this.selectedPositions = selectedPositions;
             this.selectedPositionsFromDictionary = selectedPositionsFromDictionary;
         }
@@ -113,9 +115,13 @@ public class LookupExecutionMapper {
 
         @Override
         public void close() {
-            // Close if we own it. Safe to call even if releaseSelectedPositions() was already called,
-            // as setting selectedPositions to null prevents double-close.
             releaseSelectedPositions();
+            // If an optimized page was created (optimizedPage != originalPage), release the original page since it's not being used
+            // The optimized page's blocks have their own refs (incremented by createPageWithOptimizedBlock)
+            // and will be managed by the operator that receives the optimized page
+            if (optimizedPage != originalPage) {
+                originalPage.releaseBlocks();
+            }
         }
     }
 
@@ -164,21 +170,16 @@ public class LookupExecutionMapper {
             );
 
             // Extract source (first), sink (last), and intermediate operators
-            if (operators.isEmpty()) {
-                throw new IllegalStateException("No operators planned");
-            }
-            SourceOperator sourceOperator = (SourceOperator) operators.get(0);
-            SinkOperator sinkOperator = operators.size() > 1 ? (SinkOperator) operators.get(operators.size() - 1) : null;
-            List<Operator> intermediateOperators = operators.size() > 2 ? operators.subList(1, operators.size() - 1) : List.of();
+            OperatorExtraction extraction = extractOperators(operators);
 
             return new AbstractLookupService.LookupQueryPlan(
                 shardContext,
                 localBreaker,
                 driverContext,
-                (EnrichQuerySourceOperator) sourceOperator,
-                intermediateOperators,
+                (EnrichQuerySourceOperator) extraction.sourceOperator(),
+                extraction.intermediateOperators(),
                 collectedPages,
-                (OutputOperator) sinkOperator
+                (OutputOperator) extraction.sinkOperator()
             );
         }
     }
@@ -196,22 +197,20 @@ public class LookupExecutionMapper {
         IntBlock selectedPositions = null;
         boolean selectedPositionsFromDictionary = false;
 
-        if (mergePages  // TODO fix this optimization for Lookup.
-            && inputBlock instanceof BytesRefBlock bytesRefBlock
-            && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
-
-            optimizedBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
-            selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
-            selectedPositionsFromDictionary = true;
-        } else {
-            if (mergePages) {
+        if (mergePages) {
+            if (inputBlock instanceof BytesRefBlock bytesRefBlock && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+                // TODO fix this optimization for Lookup.
+                optimizedBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
+                selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
+                selectedPositionsFromDictionary = true;
+            } else {
                 selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock();
             }
         }
 
         Page optimizedPage = (optimizedBlock != inputBlock) ? createPageWithOptimizedBlock(inputPage, 0, optimizedBlock) : inputPage;
 
-        return new BlockOptimization(optimizedPage, selectedPositions, selectedPositionsFromDictionary);
+        return new BlockOptimization(optimizedPage, inputPage, selectedPositions, selectedPositionsFromDictionary);
     }
 
     /**
@@ -260,13 +259,11 @@ public class LookupExecutionMapper {
     }
 
     private void mapOutputExec(List<Operator> operators, List<Page> collectedPages, List<Releasable> releasables) {
-        OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), collectedPages::add);
-        releasables.add(outputOperator);
-
-        if (operators == null || operators.isEmpty()) {
-            throw new IllegalStateException("Operators cannot be null or empty");
+        if (operators.isEmpty()) {
+            throw new IllegalStateException("Operators cannot be empty - OutputExec must have at least a source operator");
         }
-        operators.add(outputOperator);
+        OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), collectedPages::add);
+        addOperator(outputOperator, releasables, operators);
     }
 
     private void mapLookupMergeDropExec(
@@ -276,9 +273,28 @@ public class LookupExecutionMapper {
         BlockOptimization optimization,
         List<Releasable> releasables
     ) {
-        // Use pre-computed optimization result to create finish operator
-        Operator finishOperator = createFinishOperator(lookupMergeDropExec, driverContext, optimization, releasables);
-        operators.add(finishOperator);
+        Operator finishOperator;
+        if (mergePages) {
+            // Use pre-computed selectedPositions from optimization
+            IntBlock selectedPositions = optimization.selectedPositions();
+            if (selectedPositions != null && lookupMergeDropExec.mergingChannels().length > 0) {
+                finishOperator = new MergePositionsOperator(
+                    1,
+                    lookupMergeDropExec.mergingChannels(),
+                    lookupMergeDropExec.mergingTypes(),
+                    selectedPositions,
+                    driverContext.blockFactory()
+                );
+                // MergePositionsOperator calls mustIncRef() on selectedPositions, taking ownership
+                // Release our reference to selectedPositions if we own it
+                optimization.releaseSelectedPositions();
+                addOperator(finishOperator, releasables, operators);
+                return;
+            }
+        }
+        // No merge: just drop doc block
+        finishOperator = dropDocBlockOperator(lookupMergeDropExec.extractFields());
+        addOperator(finishOperator, releasables, operators);
     }
 
     private void mapFieldExtractExec(
@@ -292,9 +308,7 @@ public class LookupExecutionMapper {
         EsPhysicalOperationProviders.ShardContext esShardContext = shardContext.context();
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(fieldExtractExec.attributesToExtract().size());
         for (NamedExpression extractField : fieldExtractExec.attributesToExtract()) {
-            String fieldName = extractField instanceof FieldAttribute fa ? fa.fieldName().string()
-                : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
-                : extractField.name();
+            String fieldName = extractFieldName(extractField);
             BlockLoader loader = esShardContext.blockLoader(
                 fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
@@ -328,8 +342,7 @@ public class LookupExecutionMapper {
             ),
             0
         );
-        releasables.add(operator);
-        operators.add(operator);
+        addOperator(operator, releasables, operators);
     }
 
     private void mapParameterizedQueryExec(
@@ -353,54 +366,66 @@ public class LookupExecutionMapper {
             0,
             warnings
         );
-        releasables.add(sourceOperator);
+        addOperator(sourceOperator, releasables, operators);
+    }
 
-        // Add source operator: [source]
-        operators.add(sourceOperator);
+    /**
+     * Adds an operator to both the releasables list and operators list.
+     */
+    private void addOperator(Operator operator, List<Releasable> releasables, List<Operator> operators) {
+        releasables.add(operator);
+        operators.add(operator);
+    }
+
+    /**
+     * Extracts field name from a NamedExpression, handling FieldAttribute and Alias cases.
+     */
+    private String extractFieldName(NamedExpression extractField) {
+        return extractField instanceof FieldAttribute fa ? fa.fieldName().string()
+            : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
+            : extractField.name();
+    }
+
+    /**
+     * Result of extracting source, sink, and intermediate operators from the operators list.
+     */
+    private record OperatorExtraction(SourceOperator sourceOperator, SinkOperator sinkOperator, List<Operator> intermediateOperators) {}
+
+    /**
+     * Extracts source (first), sink (last), and intermediate operators from the operators list.
+     */
+    private OperatorExtraction extractOperators(List<Operator> operators) {
+        if (operators.isEmpty()) {
+            throw new IllegalStateException("No operators planned");
+        }
+        int size = operators.size();
+        SourceOperator sourceOperator = (SourceOperator) operators.get(0);
+        if (size < 2) {
+            throw new IllegalStateException("Expected at least source and sink operators, but got only " + size);
+        }
+        SinkOperator sinkOperator = (SinkOperator) operators.get(size - 1);
+        List<Operator> intermediateOperators = size > 2 ? operators.subList(1, size - 1) : List.of();
+        return new OperatorExtraction(sourceOperator, sinkOperator, intermediateOperators);
     }
 
     /**
      * Creates a new Page with the optimized block replacing the block at the specified channelOffset.
+     * Increments reference counts on blocks reused from the original page to ensure they stay alive
+     * beyond the original page's lifetime. This is necessary because the optimized page shares blocks
+     * with the original page.
      */
     private Page createPageWithOptimizedBlock(Page originalPage, int channelOffset, Block optimizedBlock) {
         Block[] blocks = new Block[originalPage.getBlockCount()];
         for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = (i == channelOffset) ? optimizedBlock : originalPage.getBlock(i);
-        }
-        return new Page(blocks);
-    }
-
-    /**
-     * Creates the finish operator (MergePositionsOperator or dropDocBlockOperator) using pre-computed optimization.
-     */
-    private Operator createFinishOperator(
-        LookupMergeDropExec lookupMergeDropExec,
-        DriverContext driverContext,
-        BlockOptimization optimization,
-        List<Releasable> releasables
-    ) {
-        if (mergePages) {
-            // Use pre-computed selectedPositions from optimization
-            IntBlock selectedPositions = optimization.selectedPositions();
-            if (selectedPositions != null && lookupMergeDropExec.mergingChannels().length > 0) {
-                Operator finishOperator = new MergePositionsOperator(
-                    1,
-                    lookupMergeDropExec.mergingChannels(),
-                    lookupMergeDropExec.mergingTypes(),
-                    selectedPositions,
-                    driverContext.blockFactory()
-                );
-                // MergePositionsOperator calls mustIncRef() on selectedPositions, taking ownership
-                // Release our reference to selectedPositions if we own it
-                optimization.releaseSelectedPositions();
-                releasables.add(finishOperator);
-                return finishOperator;
+            if (i == channelOffset) {
+                blocks[i] = optimizedBlock;
+            } else {
+                Block originalBlock = originalPage.getBlock(i);
+                originalBlock.incRef();
+                blocks[i] = originalBlock;
             }
         }
-        // No merge: just drop doc block
-        Operator finishOperator = dropDocBlockOperator(lookupMergeDropExec.extractFields());
-        releasables.add(finishOperator);
-        return finishOperator;
+        return new Page(blocks);
     }
 
     /**

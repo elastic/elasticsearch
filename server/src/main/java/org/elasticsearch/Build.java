@@ -231,18 +231,9 @@ public record Build(
             version = versionMatcher.group(1);
             qualifier = versionMatcher.group(2);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            minWireVersion = in.readString();
-            minIndexVersion = in.readString();
-            displayString = in.readString();
-        } else {
-            // the version is qualified, so we may need to strip off -SNAPSHOT or -alpha, etc. Here we simply find the first dash
-            int dashNdx = version.indexOf('-');
-            var versionConstant = Version.fromString(dashNdx == -1 ? version : version.substring(0, dashNdx));
-            minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
-            minIndexVersion = minimumCompatString(IndexVersion.getMinimumCompatibleIndexVersion(versionConstant.id()));
-            displayString = defaultDisplayString(type, hash, date, qualifiedVersionString(version, qualifier, snapshot));
-        }
+        minWireVersion = in.readString();
+        minIndexVersion = in.readString();
+        displayString = in.readString();
         return new Build(flavor, type, hash, date, version, qualifier, snapshot, minWireVersion, minIndexVersion, displayString);
     }
 
@@ -259,11 +250,9 @@ public record Build(
             out.writeBoolean(build.isSnapshot());
             out.writeString(build.qualifiedVersion());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeString(build.minWireCompatVersion());
-            out.writeString(build.minIndexCompatVersion());
-            out.writeString(build.displayString());
-        }
+        out.writeString(build.minWireCompatVersion());
+        out.writeString(build.minIndexCompatVersion());
+        out.writeString(build.displayString());
     }
 
     /**

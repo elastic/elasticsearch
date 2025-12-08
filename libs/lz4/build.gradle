@@ -9,7 +9,7 @@
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api 'at.yawk.lz4:lz4-java:1.8.1'
+  api 'at.yawk.lz4:lz4-java:1.10.1'
   api project(':libs:core')
 
   testImplementation(project(":test:framework")) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -35,9 +36,8 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerC
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
 
-    public static final FeatureFlag RERANK_SEMANTIC_TEXT_CHUNKS = new FeatureFlag(
-        "rerank_semantic_text_chunks"
-    );
+    public static final FeatureFlag RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG = new FeatureFlag("rerank_semantic_text_chunks");
+    public static final NodeFeature RERANK_SEMANTIC_TEXT_CHUNKS = new NodeFeature("rerank_semantic_text_chunks");
 
     private final ChunkScorerConfig chunkScorerConfig;
     private final ChunkingSettings chunkingSettings;
@@ -65,7 +65,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
 
                     List<ScoredChunk> scoredChunks;
 
-                    if (RERANK_SEMANTIC_TEXT_CHUNKS.isEnabled() && isSemanticTextField) {
+                    if (RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG.isEnabled() && isSemanticTextField) {
                         SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
                         SemanticTextFieldMapper.SemanticTextFieldType fieldType = semanticTextFieldMapper.fieldType();
 
@@ -114,7 +114,8 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     ) {
         SemanticChunkScorer scorer = new SemanticChunkScorer(searchContext);
         try {
-            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
+            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(),
+                size);
             if (scoredChunks.isEmpty()) {
                 scoredChunks = chunkAndScoreBm25(hit.field(field).getValue().toString(), size);
             }

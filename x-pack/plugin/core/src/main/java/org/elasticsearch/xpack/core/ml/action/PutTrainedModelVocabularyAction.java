@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -84,11 +83,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             this.vocabulary = in.readStringCollectionAsList();
             this.merges = in.readStringCollectionAsList();
             this.scores = in.readCollectionAsList(StreamInput::readDouble);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                this.allowOverwriting = in.readBoolean();
-            } else {
-                this.allowOverwriting = false;
-            }
+            this.allowOverwriting = in.readBoolean();
         }
 
         @Override
@@ -128,9 +123,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             out.writeStringCollection(vocabulary);
             out.writeStringCollection(merges);
             out.writeCollection(scores, StreamOutput::writeDouble);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                out.writeBoolean(allowOverwriting);
-            }
+            out.writeBoolean(allowOverwriting);
         }
 
         public String getModelId() {

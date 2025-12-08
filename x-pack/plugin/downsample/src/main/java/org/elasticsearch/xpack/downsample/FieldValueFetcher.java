@@ -25,11 +25,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utility class used for fetching field values by reading field data.
  * For fields whose type is multivalued the 'name' matches the parent field
- * name (normally used for indexing data), while the actual subfield
+ * name (normally used for indexing data), while the actual multiField
  * name is accessible by means of {@link MappedFieldType#name()}.
  */
 class FieldValueFetcher {
@@ -37,7 +38,7 @@ class FieldValueFetcher {
     protected final String name;
     protected final MappedFieldType fieldType;
     protected final IndexFieldData<?> fieldData;
-    protected final AbstractDownsampleFieldProducer fieldProducer;
+    protected final AbstractDownsampleFieldProducer<?> fieldProducer;
 
     protected FieldValueFetcher(
         String name,
@@ -70,11 +71,11 @@ class FieldValueFetcher {
         return exponentialHistogramFieldData.getHistogramValues();
     }
 
-    public AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer<?> fieldProducer() {
         return fieldProducer;
     }
 
-    private AbstractDownsampleFieldProducer createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
+    private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         assert "aggregate_metric_double".equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
         if (fieldType.getMetricType() != null) {
@@ -99,11 +100,17 @@ class FieldValueFetcher {
     /**
      * Retrieve field value fetchers for a list of fields.
      */
-    static List<FieldValueFetcher> create(SearchExecutionContext context, String[] fields, DownsampleConfig.SamplingMethod samplingMethod) {
+    static List<FieldValueFetcher> create(
+        SearchExecutionContext context,
+        String[] fields,
+        Map<String, String> multiFieldSources,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
-            MappedFieldType fieldType = context.getFieldType(field);
-            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+            String sourceField = multiFieldSources.getOrDefault(field, field);
+            MappedFieldType fieldType = context.getFieldType(sourceField);
+            assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
                 fetchers.addAll(AggregateSubMetricFieldValueFetcher.create(context, aggMetricFieldType, samplingMethod));
@@ -116,10 +123,7 @@ class FieldValueFetcher {
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    final String fieldName = context.isMultiField(field)
-                        ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
-                        : fieldType.name();
-                    fetchers.add(new FieldValueFetcher(fieldName, fieldType, fieldData, samplingMethod));
+                    fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, samplingMethod));
                 }
             }
         }

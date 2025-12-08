@@ -78,8 +78,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,
         examples = {
-            @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0"),
-            @Example(file = "chunk", tag = "chunk-with-chunking-settings", applies_to = "stack: preview 9.3.0") }
+            @Example(file = "chunk", tag = "chunk-example", applies_to = "stack: preview 9.3.0") }
     )
     public Chunk(
         Source source,

@@ -4,6 +4,5 @@
 Use `CHUNK` to split a text field into smaller chunks.
 
 ```esql
-FROM books
-| EVAL chunks = CHUNK(description)
+ROW result = CHUNK("It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief.", {"strategy": "word", "max_chunk_size": 10, "overlap": 1})
 ```

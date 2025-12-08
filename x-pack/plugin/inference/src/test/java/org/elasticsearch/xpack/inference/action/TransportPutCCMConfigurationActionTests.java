@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -37,15 +38,18 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.elasticsearch.xpack.inference.InferenceFeatures.INFERENCE_CCM_ENABLEMENT_SERVICE;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction.FAILED_VALIDATION_MESSAGE;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_FORBIDDEN_EXCEPTION;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature.CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -70,6 +74,7 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
     private HttpClientManager clientManager;
     private HttpRequestSender.Factory senderFactory;
     private CCMService ccmService;
+    private FeatureService featureService;
     private TransportPutCCMConfigurationAction action;
 
     @Before
@@ -93,6 +98,8 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
         settings = mock(ElasticInferenceServiceSettings.class);
         when(settings.getElasticInferenceServiceUrl()).thenReturn(webServerUrl);
 
+        featureService = mock(FeatureService.class);
+
         action = new TransportPutCCMConfigurationAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -102,7 +109,8 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
             mock(ProjectResolver.class),
             ccmFeature,
             senderFactory.createSender(),
-            settings
+            settings,
+            featureService
         );
     }
 
@@ -131,6 +139,7 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
 
     public void testSuccessfulValidation() {
         when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
+        when(featureService.clusterHasFeature(any(), eq(INFERENCE_CCM_ENABLEMENT_SERVICE))).thenReturn(true);
 
         var rainbowSprinklesResponseBody = getEisRainbowSprinklesAuthorizationResponse("url").responseJson();
         webServer.enqueue(new MockResponse().setResponseCode(RestStatus.OK.getStatus()).setBody(rainbowSprinklesResponseBody));
@@ -149,6 +158,7 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
 
     public void testValidationFailure401() {
         when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
+        when(featureService.clusterHasFeature(any(), eq(INFERENCE_CCM_ENABLEMENT_SERVICE))).thenReturn(true);
         webServer.enqueue(new MockResponse().setResponseCode(RestStatus.UNAUTHORIZED.getStatus()).setBody(ERROR_RESPONSE));
 
         var listener = new TestPlainActionFuture<CCMEnabledActionResponse>();
@@ -163,5 +173,16 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString(FAILED_VALIDATION_MESSAGE));
         assertThat(exception.status(), is(RestStatus.UNAUTHORIZED));
         verify(ccmService, never()).storeConfiguration(any(), any());
+    }
+
+    public void testEnablementService_NotSupported() {
+        when(ccmFeature.isCcmSupportedEnvironment()).thenReturn(true);
+        when(featureService.clusterHasFeature(any(), eq(INFERENCE_CCM_ENABLEMENT_SERVICE))).thenReturn(false);
+
+        var listener = new TestPlainActionFuture<CCMEnabledActionResponse>();
+        action.masterOperation(null, null, ClusterState.EMPTY_STATE, listener);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.THIRTY_SECONDS));
+
+        assertThat(exception, is(CCM_UNSUPPORTED_UNTIL_UPGRADED_EXCEPTION));
     }
 }

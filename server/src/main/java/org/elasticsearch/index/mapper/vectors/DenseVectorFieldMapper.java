@@ -3244,7 +3244,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat, IndexSettings indexSettings) {
         final KnnVectorsFormat format;
         if (indexOptions == null) {
-            format = fieldType().element.elementType() == ElementType.BIT ? new ES93HnswVectorsFormat(ElementType.BIT) : defaultFormat;
+            format = fieldType().element.elementType() == ElementType.BIT ? new ES815HnswBitVectorsFormat() : defaultFormat;
         } else {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
             KnnVectorsFormat extraKnnFormat = null;

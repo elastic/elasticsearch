@@ -509,6 +509,12 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=eql/10_basic/Sequence checking correct join key ordering.}
   issue: https://github.com/elastic/elasticsearch/issues/139173
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139195
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
+  issue: https://github.com/elastic/elasticsearch/issues/139196
 
 # Examples:
 #

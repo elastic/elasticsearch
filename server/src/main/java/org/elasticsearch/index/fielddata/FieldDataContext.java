@@ -38,7 +38,7 @@ public record FieldDataContext(
      * <p>
      * Used for validating index sorts, eager global ordinal loading, etc
      *
-     * @param indexName
+     * @param indexName the name of the current index
      * @param reason    the reason that runtime fields are not supported
      */
     public static FieldDataContext noRuntimeFields(String indexName, String reason) {

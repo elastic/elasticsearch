@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -186,7 +187,7 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
     }
 
     private static String nonDefaultTimezone(String s) {
-        return s == null || s == "Z" ? null : s;
+        return s == null || s.equals(DateUtils.UTC.getId()) ? null : s;
     }
 
     /** Returns {@code null} if no single range query could be extracted. */

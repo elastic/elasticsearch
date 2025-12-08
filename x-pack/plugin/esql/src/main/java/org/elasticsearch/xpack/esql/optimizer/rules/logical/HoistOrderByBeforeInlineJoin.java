@@ -12,17 +12,13 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +50,7 @@ public final class HoistOrderByBeforeInlineJoin extends OptimizerRules.Optimizer
                 orderByHolder.set(orderBy);
                 breakEarly.set(true);
             } else {
-                breakEarly.set(isSortBreaker(node));
+                breakEarly.set(node instanceof SortPreserving == false);
             }
         });
 
@@ -120,21 +116,5 @@ public final class HoistOrderByBeforeInlineJoin extends OptimizerRules.Optimizer
             }
             return lp;
         });
-    }
-
-    /**
-     * Returns `true` if the {@code plan}'s position cannot be swapped with a SORT, `false` otherwise.
-     */
-    private static boolean isSortBreaker(LogicalPlan plan) {
-        return switch (plan) {
-            case Aggregate a -> true; // reducing node (SORT should be dropped by the `PruneRedundantOrderBy` rule)
-            case Fork f -> true;
-            case InlineJoin i -> false; // Note: this and the Join case need to keep their relative order!
-            case Join j -> true; // LOOKUP JOIN, which can be generative, is surrogate'd with a "plain" Join node
-            case MvExpand m -> true; // generative node, can destabilize the order
-            case Limit l -> true;
-            case TopN t -> true;
-            default -> false;
-        };
     }
 }

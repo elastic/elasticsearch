@@ -56,6 +56,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 
 /**
@@ -677,14 +678,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
-    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
-        "index.mapping.use_doc_values_skipper",
-        true,
-        Property.IndexScope,
-        Property.Final
-    );
-
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
         "index.mapping.use_synthetic_id",
@@ -761,6 +754,21 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
+        IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
+        if (MODE.get(s) == IndexMode.TIME_SERIES) {
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+                return "true";
+            }
+            return "false";
+        }
+        if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+            return "true";
+        }
+        return "false";
+    }, Property.IndexScope, Property.Final);
+
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
         settings -> {
@@ -836,6 +844,19 @@ public final class IndexSettings {
             }
             var indexMode = IndexSettings.MODE.get(settings);
             return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE = Setting.boolSetting(
+        "index.use_time_series_doc_values_format_large_block_size",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            var indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode == IndexMode.TIME_SERIES);
         },
         Property.IndexScope,
         Property.Final
@@ -1012,6 +1033,7 @@ public final class IndexSettings {
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile long mappingNestedFieldsLimit;
+    private volatile long mappingNestedParentsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
@@ -1027,6 +1049,7 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipper;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
+    private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
     private final boolean useEs812PostingsFormat;
 
     /**
@@ -1196,6 +1219,7 @@ public final class IndexSettings {
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        mappingNestedParentsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
@@ -1220,6 +1244,7 @@ public final class IndexSettings {
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
+        useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
@@ -1336,6 +1361,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING, this::setMappingNestedParentsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
@@ -1873,6 +1899,14 @@ public final class IndexSettings {
         this.mappingNestedFieldsLimit = value;
     }
 
+    public long getMappingNestedParentsLimit() {
+        return mappingNestedParentsLimit;
+    }
+
+    private void setMappingNestedParentsLimit(long value) {
+        this.mappingNestedParentsLimit = value;
+    }
+
     public long getMappingNestedDocsLimit() {
         return mappingNestedDocsLimit;
     }
@@ -1988,6 +2022,13 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesDocValuesFormat() {
         return useTimeSeriesDocValuesFormat;
+    }
+
+    /**
+     * @return Whether the time series doc value format with large numeric block size should be used.
+     */
+    public boolean isUseTimeSeriesDocValuesFormatLargeBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeBlockSize;
     }
 
     /**

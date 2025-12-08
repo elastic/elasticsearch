@@ -184,7 +184,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                     originalQuery.rescoreVectorBuilder(),
                     originalQuery.getVectorSimilarity()
                 );
-                rewritten.queryName(originalQuery.queryName()).boost(originalQuery.boost());
+                rewritten.queryName(originalQuery.queryName()).boost(originalQuery.boost()).setFilterQueries(originalQuery.filterQueries());
             } else {
                 throw new IllegalArgumentException(
                     "expected a result of type ["

@@ -21,10 +21,7 @@ public class FieldCapabilitiesIT extends HttpSmokeTestCase {
     public void testProjectRoutingInNonCrossProjectEnv() {
         // With project_routing as query param in non-CPS env
         {
-            Request request = new Request("POST", "_field_caps?fields=*");
-            request.setJsonEntity("""
-                { "project_routing": "_alias:_origin" }
-                """);
+            Request request = new Request("POST", "_field_caps?fields=*&project_routing=_alias:_origin");
             ResponseException error = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
             assertThat(error.getMessage(), containsString("request [_field_caps] contains unrecognized parameter: [project_routing]"));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));

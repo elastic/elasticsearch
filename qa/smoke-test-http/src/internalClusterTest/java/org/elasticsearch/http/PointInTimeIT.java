@@ -48,11 +48,7 @@ public class PointInTimeIT extends HttpSmokeTestCase {
     public void testProjectRoutingInNonCrossProjectEnv() {
         // With project_routing as query param in non-CPS env
         {
-            Request request = new Request("POST", "_pit");
-            request.setJsonEntity("""
-                { "project_routing": "_alias:_origin" }
-                """);
-
+            Request request = new Request("POST", "_pit?project_routing=_alias:_origin");
             request.addParameter("keep_alive", "1m");
             ResponseException error = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
             assertThat(error.getMessage(), containsString("request [_pit] contains unrecognized parameter: [project_routing]"));

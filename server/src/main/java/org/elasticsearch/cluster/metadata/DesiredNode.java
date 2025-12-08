@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,7 +40,6 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
 
-    public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
     private static final TransportVersion REMOVE_DESIRED_NODE_VERSION = TransportVersion.fromName("remove_desired_node_version");
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
@@ -153,13 +151,8 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var settings = Settings.readSettingsFromStream(in);
         final Processors processors;
         final ProcessorsRange processorsRange;
-        if (in.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            processors = in.readOptionalWriteable(Processors::readFrom);
-            processorsRange = in.readOptionalWriteable(ProcessorsRange::readFrom);
-        } else {
-            processors = Processors.readFrom(in);
-            processorsRange = null;
-        }
+        processors = in.readOptionalWriteable(Processors::readFrom);
+        processorsRange = in.readOptionalWriteable(ProcessorsRange::readFrom);
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
         if (in.getTransportVersion().supports(REMOVE_DESIRED_NODE_VERSION) == false) {
@@ -171,14 +164,8 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         settings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION)) {
-            out.writeOptionalWriteable(processors);
-            out.writeOptionalWriteable(processorsRange);
-        } else {
-            assert processorsRange == null;
-            assert processors != null;
-            processors.writeTo(out);
-        }
+        out.writeOptionalWriteable(processors);
+        out.writeOptionalWriteable(processorsRange);
         memory.writeTo(out);
         storage.writeTo(out);
         if (out.getTransportVersion().supports(REMOVE_DESIRED_NODE_VERSION) == false) {

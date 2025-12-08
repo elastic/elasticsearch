@@ -279,13 +279,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
         this.modelType = in.readOptionalEnum(TrainedModelType.class);
         this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
-            fullDefinition = in.readOptionalBoolean();
-        } else {
-            modelPackageConfig = null;
-            fullDefinition = null;
-        }
+        modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
+        fullDefinition = in.readOptionalBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             platformArchitecture = in.readOptionalString();
         } else {
@@ -468,10 +463,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeOptionalEnum(modelType);
         out.writeOptionalNamedWriteable(location);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalWriteable(modelPackageConfig);
-            out.writeOptionalBoolean(fullDefinition);
-        }
+        out.writeOptionalWriteable(modelPackageConfig);
+        out.writeOptionalBoolean(fullDefinition);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeOptionalString(platformArchitecture);

@@ -332,6 +332,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             ccsMinimizeRoundTripsFalseSupportCheck(queryRewriteContext, inferenceInfo, originalQuery.getName());
             postInferenceCoordinatorNodeValidate(inferenceInfo);
 
+            // TODO: Get query vector from inference results map when not intercepting and an inference ID override is set
             QueryBuilder rewritten = this;
             int inferenceFieldCount = inferenceInfo.inferenceFieldCount();
             var newInferenceResultsMap = inferenceInfo.inferenceResultsMap();

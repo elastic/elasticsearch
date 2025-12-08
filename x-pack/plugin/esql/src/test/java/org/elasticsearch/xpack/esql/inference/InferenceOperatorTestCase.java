@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -42,6 +42,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends AsyncOperatorTestCase {
     protected ThreadPool threadPool;
@@ -141,7 +142,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
         };
 
-        return new InferenceService(mockClient, Settings.EMPTY);
+        return new InferenceService(mockClient, mock(ClusterService.class));
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

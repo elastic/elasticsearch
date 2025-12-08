@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -146,7 +147,8 @@ public class SplitTargetService {
             indexShard,
             split,
             IndexReshardingState.Split.TargetShardState.SPLIT,
-            new ActionListener<>() {
+            // this is likely to be called on the transport thread, so offload to generic thread pool
+            new ThreadedActionListener<>(clusterService.threadPool().generic(), new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse actionResponse) {
                     logger.info("notifying of split completion for target shard {}", indexShard.shardId());
@@ -159,7 +161,7 @@ public class SplitTargetService {
                     stateError(indexShard, split, IndexReshardingState.Split.TargetShardState.SPLIT, e);
                     reshardIndexService.notifySplitFailure(indexShard.shardId(), e);
                 }
-            }
+            })
         );
         changeState.run();
     }
@@ -169,6 +171,7 @@ public class SplitTargetService {
             @Override
             public void onResponse(Void unused) {
                 logger.info("Successfully moved split target shard {} to DONE", indexShard.shardId());
+                reshardIndexService.stopTrackingSplit(indexShard.shardId());
             }
 
             @Override

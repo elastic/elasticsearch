@@ -235,6 +235,16 @@ public class ReshardIndexService {
         splitCompletionTracker.notifyFailure(shardId, e);
     }
 
+    /**
+     * Called to stop tracking split completion for a shard and release resources.
+     * Call this when the target shard has moved to DONE or beyond, at which point there
+     * is no need to register listeners waiting for split completion.
+     * @param shardId the shard that has moved past the tracking stage
+     */
+    void stopTrackingSplit(ShardId shardId) {
+        splitCompletionTracker.stopTrackingShard(shardId);
+    }
+
     public void transitionSourceState(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener) {
         transitionSourceStateQueue.submitTask(
             "transition-split-source-shard-state [" + shardId + "]",
@@ -850,6 +860,16 @@ public class ReshardIndexService {
             getOrCreateShardTracker(shardId).notifyFailure(e);
         }
 
+        /**
+         * Stop tracking listeners for the given shard and remove any stored state.
+         * This should be called when the target shard has moved to DONE state to reclaim memory.
+         * @param shardId
+         */
+        public void stopTrackingShard(ShardId shardId) {
+            final var listener = shardListeners.remove(shardId);
+            assert listener == null || listener.hasListeners() == false : "removing shard tracker with registered listeners";
+        }
+
         private ShardSplitCompletionTracker getOrCreateShardTracker(ShardId shardId) {
             return shardListeners.computeIfAbsent(shardId, k -> new ShardSplitCompletionTracker());
         }
@@ -902,6 +922,14 @@ public class ReshardIndexService {
             } else {
                 listeners.add(listener);
             }
+        }
+
+        /**
+         * Check if there are any listeners currently registered
+         * @return true if there are any listeners registered
+         */
+        public boolean hasListeners() {
+            return listeners.isEmpty() == false;
         }
 
         private void notify(@Nullable Exception e) {

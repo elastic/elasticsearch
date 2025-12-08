@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFace
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -193,9 +194,14 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
-        float[] scores = new float[rankedDocs.size()];
-        for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
-            scores[rankedDoc.index()] = rankedDoc.relevanceScore();
+        List<RankedDocsResults.RankedDoc> sortedRankedDocs =
+            rankedDocs.stream()
+                .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
+                .toList();
+
+        float[] scores = new float[sortedRankedDocs.size()];
+        for (int i = 0; i < sortedRankedDocs.size(); i++) {
+            scores[i] = sortedRankedDocs.get(i).relevanceScore();
         }
         return scores;
     }

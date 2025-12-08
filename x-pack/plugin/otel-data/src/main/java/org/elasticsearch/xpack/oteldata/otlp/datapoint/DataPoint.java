@@ -208,10 +208,10 @@ public interface DataPoint {
             } else {
                 builder.startObject();
                 builder.startArray("counts");
-                HistogramConverter.counts(dataPoint, builder::value);
+                TDigestConverter.counts(dataPoint, builder::value);
                 builder.endArray();
                 builder.startArray("values");
-                HistogramConverter.centroidValues(dataPoint, builder::value);
+                TDigestConverter.centroidValues(dataPoint, builder::value);
                 builder.endArray();
                 builder.endObject();
             }
@@ -274,10 +274,10 @@ public interface DataPoint {
             } else {
                 builder.startObject();
                 builder.startArray("counts");
-                HistogramConverter.counts(dataPoint, builder::value);
+                TDigestConverter.counts(dataPoint, builder::value);
                 builder.endArray();
                 builder.startArray("values");
-                HistogramConverter.centroidValues(dataPoint, builder::value);
+                TDigestConverter.centroidValues(dataPoint, builder::value);
                 builder.endArray();
                 builder.endObject();
             }

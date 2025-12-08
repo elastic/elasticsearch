@@ -235,7 +235,7 @@ public abstract class PositionToXContent {
                     return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
                 }
             };
-            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT, PARTIAL_AGG ->
+            case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT ->
                 throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }

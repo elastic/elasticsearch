@@ -920,7 +920,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
             case OBJECT, SOURCE, DOC_DATA_TYPE, TSID_DATA_TYPE,
                 // Internal only
-                UNSUPPORTED, PARTIAL_AGG,
+                UNSUPPORTED,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO(b/133393): Once we remove the feature-flag of the exp-histo field type (!= ES|QL type),

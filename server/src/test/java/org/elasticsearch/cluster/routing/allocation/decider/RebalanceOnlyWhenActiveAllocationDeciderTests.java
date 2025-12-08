@@ -65,7 +65,7 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
     public void testAllowRebalanceForMultipleIndicesAcrossMultipleProjects() {
         final List<ShardRouting> shards = new ArrayList<>();
 
-        final List<String> nodeIds = randomList(3, 10, () -> randomAlphaOfLengthBetween(3, 8));
+        final List<String> nodeIds = randomList(3, 10, randomUniqueOnline(() -> randomAlphaOfLengthBetween(3, 8)));
         final GlobalRoutingTable.Builder routingTable = GlobalRoutingTable.builder();
         final Metadata.Builder metadata = Metadata.builder();
 

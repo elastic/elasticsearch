@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
@@ -160,6 +161,7 @@ public final class SamlRealm extends Realm implements Releasable {
     public static final String TOKEN_METADATA_NAMEID_SP_QUALIFIER = "saml_nameid_sp_qual";
     public static final String TOKEN_METADATA_NAMEID_SP_PROVIDED_ID = "saml_nameid_sp_id";
     public static final String TOKEN_METADATA_SESSION = "saml_session";
+    public static final String TOKEN_METADATA_IN_RESPONSE_TO = "saml_in_response_to";
     public static final String TOKEN_METADATA_REALM = "saml_realm";
     // Although we only use this for IDP metadata loading, the SSLServer only loads configurations where "ssl." is a top-level element
     // in the realm group configuration, so it has to have this name.
@@ -588,7 +590,7 @@ public final class SamlRealm extends Realm implements Releasable {
             return;
         }
 
-        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
+        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session(), attributes.inResponseTo());
         ActionListener<AuthenticationResult<User>> wrappedListener = baseListener.delegateFailureAndWrap((l, auth) -> {
             if (auth.isAuthenticated()) {
                 // Add the SAML token details as metadata on the authentication
@@ -634,7 +636,7 @@ public final class SamlRealm extends Realm implements Releasable {
         }));
     }
 
-    public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {
+    public Map<String, Object> createTokenMetadata(@Nullable SamlNameId nameId, String session, @Nullable String inResponseTo) {
         final Map<String, Object> tokenMeta = new HashMap<>();
         if (nameId != null) {
             tokenMeta.put(TOKEN_METADATA_NAMEID_VALUE, nameId.value);
@@ -650,6 +652,9 @@ public final class SamlRealm extends Realm implements Releasable {
             tokenMeta.put(TOKEN_METADATA_NAMEID_SP_PROVIDED_ID, null);
         }
         tokenMeta.put(TOKEN_METADATA_SESSION, session);
+        if (inResponseTo != null) {
+            tokenMeta.put(TOKEN_METADATA_IN_RESPONSE_TO, inResponseTo);
+        }
         tokenMeta.put(TOKEN_METADATA_REALM, name());
         return tokenMeta;
     }

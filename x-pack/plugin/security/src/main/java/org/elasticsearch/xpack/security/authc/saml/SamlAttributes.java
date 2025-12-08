@@ -24,11 +24,18 @@ public class SamlAttributes {
 
     private final SamlNameId name;
     private final String session;
+    private final String inResponseTo;
     private final List<SamlAttribute> attributes;
 
-    SamlAttributes(SamlNameId name, String session, List<SamlAttribute> attributes) {
+    SamlAttributes(
+        SamlNameId name,
+        String session,
+        String inResponseTo,
+        List<SamlAttribute> attributes
+    ) {
         this.name = name;
         this.session = session;
+        this.inResponseTo = inResponseTo;
         this.attributes = attributes;
     }
 
@@ -66,9 +73,22 @@ public class SamlAttributes {
         return session;
     }
 
+    String inResponseTo() {
+        return inResponseTo;
+    }
+
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(" + name + ")[" + session + "]{" + attributes + "}";
+        return getClass().getSimpleName()
+            + "("
+            + name
+            + ")["
+            + session
+            + "]["
+            + inResponseTo
+            + "]{"
+            + attributes
+            + "}";
     }
 
     static class SamlAttribute {

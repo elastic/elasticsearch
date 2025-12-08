@@ -85,8 +85,16 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
 
             test.filter(testFilter -> {
                 for (TestCase testClassCase : tests) {
+                    if (testClassCase.getName() == null) {
+                        test.getLogger().warn("Skipping test class with null name in smart retry filter");
+                        continue;
+                    }
                     List<TestCase> children = testClassCase.getChildren();
                     for (TestCase child : children) {
+                        if (child.getName() == null) {
+                            test.getLogger().warn("Skipping test method with null name in class {}", testClassCase.getName());
+                            continue;
+                        }
                         testFilter.includeTest(testClassCase.getName(), child.getName());
                     }
                 }

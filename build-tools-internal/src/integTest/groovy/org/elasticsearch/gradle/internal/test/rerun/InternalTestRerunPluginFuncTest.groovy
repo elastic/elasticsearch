@@ -198,6 +198,70 @@ public class SubProject2RandomizedTestClazz2 extends RandomizedTest {
         output.contains(testReference) == false
     }
 
+    def "handles malformed failed-test-history gracefully"() {
+        given:
+        simpleTestSetup()
+        file(".failed-test-history.json") << "{ invalid json"
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").buildAndFail()
+
+        then:
+        result.output.contains("Failed to parse .failed-test-history.json")
+    }
+
+    def "rejects oversized failed-test-history file"() {
+        given:
+        simpleTestSetup()
+        // Create file > 10MB
+        def largeContent = '{"workUnits":[' + ('{"name":"test","tests":[]},'.multiply(500000)) + '{}]}'
+        file(".failed-test-history.json") << largeContent
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").buildAndFail()
+
+        then:
+        result.output.contains("Failed test history file too large")
+    }
+
+    def "skips tests with null names in history"() {
+        given:
+        simpleTestSetup()
+        file(".failed-test-history.json") << '''
+{
+  "workUnits": [{
+    "name": ":subproject1:test",
+    "outcome": "failed",
+    "tests": [{
+      "name": null,
+      "children": []
+    }]
+  }]
+}'''
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        // Task runs but skips null-named test
+        result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("Skipping test class with null name")
+    }
+
+    def "handles empty workUnits array"() {
+        given:
+        simpleTestSetup()
+        file(".failed-test-history.json") << '{"workUnits":[]}'
+
+        when:
+        def result = gradleRunner("test", "--warning-mode", "all").build()
+
+        then:
+        // Should skip all tests since no failures recorded
+        result.task(":subproject1:test").outcome == TaskOutcome.SKIPPED
+        result.task(":subproject2:test").outcome == TaskOutcome.SKIPPED
+    }
+
     void simpleTestSetup() {
         buildFile << """
         allprojects {

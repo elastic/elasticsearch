@@ -77,6 +77,9 @@ if "%SMART_RETRIES%"=="true" (
                   curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq "." > .failed-test-history.json 2>nul
 
                   if exist .failed-test-history.json (
+                    REM Set restrictive file permissions (owner only)
+                    icacls .failed-test-history.json /inheritance:r /grant:r "%USERNAME%:(R,W)" >nul 2>&1
+
                     REM Count filtered tests for visibility
                     for /f "delims=" %%i in ('jq -r ".workUnits | length" .failed-test-history.json 2^>nul') do set FILTERED_WORK_UNITS=%%i
                     if not defined FILTERED_WORK_UNITS set FILTERED_WORK_UNITS=0

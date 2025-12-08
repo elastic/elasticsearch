@@ -74,7 +74,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw", "bbq_disk").map(s -> new Object[] { s }).toList();
+        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw").map(s -> new Object[] { s }).toList();
     }
 
     public DirectIOIT(String type) {

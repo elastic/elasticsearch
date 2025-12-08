@@ -27,6 +27,11 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     private final Authentication authentication;
     private final String inResponseTo;
 
+    // Constructor used in Serverless
+    public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
+        this(authentication, tokenString, refreshToken, expiresIn, /* inResponseTo= */ null);
+    }
+
     public SamlAuthenticateResponse(
         Authentication authentication,
         String tokenString,

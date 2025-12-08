@@ -443,7 +443,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 recoveryCommit.nodeEphemeralId(),
                 recoveryCommit.translogRecoveryStartFile(),
                 recoveryCommit.sizeInBytes(),
-                BlobFileRanges.computeBlobFileRanges(List.of(recoveryCommit).iterator(), files, randomBoolean())
+                BlobFileRanges.computeBlobFileRanges(randomBoolean(), recoveryCommit, 0L, files)
             );
 
             assertThat(directory.getRecoveryCommitMetadataNodeEphemeralId().isPresent(), is(true));

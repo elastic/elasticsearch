@@ -39,7 +39,11 @@ public class TransportVersionTests extends ESTestCase {
             TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
-        TransportVersion newer = TransportVersionUtils.randomVersionBetween(random(), older, TransportVersion.current());
+        TransportVersion newer = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getNextVersion(older),
+            TransportVersion.current()
+        );
         assertThat(older.before(newer), is(true));
         assertThat(older.before(older), is(false));
         assertThat(newer.before(older), is(false));
@@ -195,7 +199,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+            if (tv.onOrAfter(TransportVersion.fromId(8_84_10_00)) && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv
@@ -423,7 +427,7 @@ public class TransportVersionTests extends ESTestCase {
             "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
                 + "and generateTransportVersion gradle task",
             TransportVersions.DEFINED_VERSIONS.getLast().id(),
-            equalTo(8_797_0_05)
+            equalTo(8_772_0_06)
         );
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.BeforeClass;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;

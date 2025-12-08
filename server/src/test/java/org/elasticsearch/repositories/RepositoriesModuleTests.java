@@ -55,7 +55,6 @@ public class RepositoriesModuleTests extends ESTestCase {
         transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
-        // ClusterSettings is a final class, so we need to create a real instance instead of mocking
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         recoverySettings = mock(RecoverySettings.class);

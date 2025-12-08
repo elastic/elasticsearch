@@ -113,7 +113,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     /**
      * Setting that specifies the default repository to use for snapshot and restore operations when no repository is explicitly
-     * specified. If not set, snapshot and restore operations will require an explicit repository name.
+     * specified. If not set, some snapshot and restore operations may require an explicit repository name.
      */
     public static final Setting<String> DEFAULT_REPOSITORY_SETTING = Setting.simpleString(
         "repositories.default_repository",
@@ -192,7 +192,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /**
-     * Validates that the default repository exists and is registered.
+     * Validates that the default repository is registered.
      * This validator is called when the default repository setting is updated.
      * Empty strings are allowed to clear the default repository setting.
      *

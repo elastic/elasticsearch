@@ -111,6 +111,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
@@ -119,6 +120,7 @@ import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolut
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
@@ -150,7 +152,6 @@ import static org.mockito.Mockito.when;
 public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     private User user;
-    private User userDashIndices;
     private User userNoIndices;
     private CompositeRolesStore rolesStore;
     private ProjectMetadata projectMetadata;
@@ -158,6 +159,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private Map<String, RoleDescriptor> roleMap;
     private String todaySuffix;
     private String tomorrowSuffix;
+    private String[] userAuthorizedIndices;
     private CrossProjectModeDecider crossProjectModeDecider;
 
     @Before
@@ -262,7 +264,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
 
         user = new User("user", "role");
-        userDashIndices = new User("dash", "dash");
         userNoIndices = new User("test", "test");
         final var projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -284,7 +285,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 rds -> {}
             )
         );
-        String[] authorizedIndices = new String[] {
+        userAuthorizedIndices = new String[] {
             "bar",
             "bar-closed",
             "foofoobar",
@@ -298,23 +299,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             ".hidden-closed",
             "date-hidden-" + todaySuffix,
             "date-hidden-" + tomorrowSuffix };
-        String[] dashIndices = new String[] { "-index10", "-index11", "-index20", "-index21" };
         roleMap = new HashMap<>();
         roleMap.put(
             "role",
             new RoleDescriptor(
                 "role",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() },
-                null
-            )
-        );
-        roleMap.put(
-            "dash",
-            new RoleDescriptor(
-                "dash",
-                null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(dashIndices).privileges("all").build() },
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(userAuthorizedIndices).privileges("all").build() },
                 null
             )
         );
@@ -731,131 +722,196 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return request;
     }
 
-    public void testExplicitDashIndices() {
-        SearchRequest request = new SearchRequest("-index10", "-index20");
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, TransportSearchAction.TYPE.name()))
-            .getLocal();
-        String[] expectedIndices = new String[] { "-index10", "-index20" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(request.indices().length, equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
+    public void testExclusionByItself() {
+        {
+            // By itself, resolves to empty when allow_no_indices=true
+            var request = new SearchRequest(randomIndexExclusion(userAuthorizedIndices));
+            List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+            assertThat(indices, contains(NO_INDEX_PLACEHOLDER));
+            assertThat(request.indices(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
+            ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+            assertThat(actual, is(notNullValue()));
+            assertThat(actual.expressions(), empty());
+        }
+        {
+            // By itself, throws IndexNotFoundException when allow_no_indices=false
+            var request = new SearchRequest(randomIndexExclusion(userAuthorizedIndices));
+            request.indicesOptions(
+                IndicesOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS)
+                    .wildcardOptions(
+                        IndicesOptions.WildcardOptions.builder(SearchRequest.DEFAULT_INDICES_OPTIONS.wildcardOptions())
+                            .allowEmptyExpressions(false)
+                    )
+                    .build()
+            );
+            var e = expectThrows(
+                IndexNotFoundException.class,
+                () -> resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
+            );
+        }
+    }
+
+    public void testExclusionDoesNotAffectFollowingExpressions() {
+        final var userAvailableIndices = getUserAvailableIndices();
+        final String indexExclusion = randomIndexExclusion(userAvailableIndices);
+        final boolean expandToClosedIndices = randomBoolean();
+        final boolean expandToHiddenIndices = randomBoolean();
+
+        {
+            // Exclusion does not affect anything after it
+            var request = new SearchRequest(indexExclusion, "*");
+            request.indicesOptions(IndicesOptions.fromOptions(false, false, true, expandToClosedIndices, expandToHiddenIndices));
+            final var expectedIndices = Arrays.stream(userAvailableIndices)
+                .filter(name -> expandToClosedIndices || name.contains("closed") == false)
+                .filter(name -> expandToHiddenIndices || name.startsWith(".") == false && name.contains("hidden") == false)
+                .toArray(String[]::new);
+
+            List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+            assertThat(indices, containsInAnyOrder(expectedIndices));
+            assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+            ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+            assertThat(actual, is(notNullValue()));
+
+            assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Set.of(expectedIndices), SUCCESS)));
+        }
+
+        {
+            // Exclusion excludes from prior wildcard but still included by the later wildcard
+            var request = new SearchRequest("*", indexExclusion, "*");
+            request.indicesOptions(IndicesOptions.fromOptions(false, false, true, expandToClosedIndices, expandToHiddenIndices));
+            final var expectedIndices = Arrays.stream(userAvailableIndices)
+                .filter(name -> expandToClosedIndices || name.contains("closed") == false)
+                .filter(name -> expandToHiddenIndices || name.startsWith(".") == false && name.contains("hidden") == false)
+                .toArray(String[]::new);
+
+            List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+            assertThat(Set.copyOf(indices), containsInAnyOrder(expectedIndices));
+            assertThat(Set.copyOf(List.of(request.indices())), containsInAnyOrder(expectedIndices));
+            ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+            assertThat(actual, is(notNullValue()));
+
+            assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Arrays.stream(expectedIndices).filter(name -> {
+                if (indexExclusion.endsWith("*")) {
+                    return Regex.simpleMatch(indexExclusion.substring(1), name) == false;
+                } else {
+                    return name.equals(indexExclusion.substring(1)) == false;
+                }
+            }).collect(Collectors.toSet()), SUCCESS), resolvedIndexExpression("*", Set.of(expectedIndices), SUCCESS)));
+        }
+    }
+
+    public void testExclusionWithoutPriorWildcards() {
+        final var userAvailableIndices = getUserAvailableIndices();
+        // Exclusion does not need prior wildcard expression
+        final List<String> includedIndices = randomSubsetOf(between(1, userAvailableIndices.length), userAvailableIndices);
+        final String excludedIndex = randomFrom(includedIndices);
+        final var indexExclusion = "-" + excludedIndex + (randomBoolean() ? "*" : "");
+        final var expressions = new String[includedIndices.size() + 1];
+        for (int i = 0; i < includedIndices.size(); i++) {
+            expressions[i] = includedIndices.get(i);
+        }
+        expressions[includedIndices.size()] = indexExclusion;
+
+        final String[] expectedIndices = includedIndices.stream().filter(name -> {
+            if (indexExclusion.endsWith("*")) {
+                return Regex.simpleMatch(excludedIndex + "*", name) == false;
+            } else {
+                return name.equals(excludedIndex) == false;
+            }
+        }).toArray(String[]::new);
+
+        var request = new SearchRequest(expressions);
+        final boolean allowNoIndices = randomBoolean();
+        request.indicesOptions(IndicesOptions.fromOptions(false, allowNoIndices, true, true, true));
+
+        if (expectedIndices.length == 0) {
+            if (allowNoIndices) {
+                List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+                assertThat(indices, contains(NO_INDEX_PLACEHOLDER));
+                assertThat(request.indices(), arrayContaining(NO_INDICES_OR_ALIASES_ARRAY));
+                ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+                assertThat(actual, is(notNullValue()));
+                assertThat(actual.expressions(), empty());
+            } else {
+                expectThrows(
+                    IndexNotFoundException.class,
+                    () -> resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
+                );
+            }
+        } else {
+            List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+            assertThat(indices, containsInAnyOrder(expectedIndices));
+            assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+            ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
+            assertThat(actual, is(notNullValue()));
+            assertThat(
+                actual.expressions(),
+                contains(
+                    Arrays.stream(expectedIndices)
+                        .map(name -> resolvedIndexExpression(name, Set.of(name), SUCCESS))
+                        .toArray(ResolvedIndexExpression[]::new)
+                )
+            );
+        }
+    }
+
+    public void testExclusionWithPriorWildcards() {
+        final var userAvailableIndices = getUserAvailableIndices();
+        // Exclusion for prior wildcards
+        final List<String> includedPatterns = randomSubsetOf(between(1, 5), "foo*", "bar*", "hidden*", ".*", "date-*");
+        final String excludedIndex = "foofoo";
+        final String indexExclusion = "-" + excludedIndex + (randomBoolean() ? "*" : "");
+        final var expressions = new String[includedPatterns.size() + 1];
+        for (int i = 0; i < includedPatterns.size(); i++) {
+            expressions[i] = includedPatterns.get(i);
+        }
+        expressions[includedPatterns.size()] = indexExclusion;
+
+        final var expectedResolvedIndexExpressions = new ResolvedIndexExpressions(includedPatterns.stream().map(pattern -> {
+            Set<String> matchedIndices = Arrays.stream(userAvailableIndices)
+                .filter(name -> Regex.simpleMatch(pattern, name))
+                .filter(name -> {
+                    if (indexExclusion.endsWith("*")) {
+                        return Regex.simpleMatch(excludedIndex + "*", name) == false;
+                    } else {
+                        return name.equals(excludedIndex) == false;
+                    }
+                })
+                .collect(Collectors.toSet());
+            assert matchedIndices.isEmpty() == false;
+            return resolvedIndexExpression(pattern, matchedIndices, SUCCESS);
+        }).toList());
+
+        final String[] expectedIndices = expectedResolvedIndexExpressions.getLocalIndicesList().toArray(String[]::new);
+
+        final var request = new SearchRequest(expressions);
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true));
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name())).getLocal();
+        assertThat(indices, containsInAnyOrder(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
         ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
         assertThat(actual, is(notNullValue()));
-        assertThat(
-            actual.expressions(),
-            contains(
-                resolvedIndexExpression("-index10", Set.of("-index10"), SUCCESS),
-                resolvedIndexExpression("-index20", Set.of("-index20"), SUCCESS)
-            )
-        );
+        assertThat(actual.expressions(), equalTo(expectedResolvedIndexExpressions.expressions()));
     }
 
-    public void testWildcardDashIndices() {
-        String original = randomBoolean() ? "-index*" : "*";
-        SearchRequest request = new SearchRequest(original, "--index20");
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, TransportSearchAction.TYPE.name()))
-            .getLocal();
-        String[] expectedIndices = new String[] { "-index10", "-index11", "-index21" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(request.indices().length, equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(actual.expressions(), contains(resolvedIndexExpression(original, Set.of("-index10", "-index11", "-index21"), SUCCESS)));
+    private String[] getUserAvailableIndices() {
+        return Arrays.stream(userAuthorizedIndices).filter(name -> name.equals("missing") == false).toArray(String[]::new);
     }
 
-    public void testExplicitMixedWildcardDashIndices() {
-        SearchRequest request = new SearchRequest("-index21", "-does_not_exist", "-index1*", "--index11");
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, TransportSearchAction.TYPE.name()))
-            .getLocal();
-        String[] expectedIndices = new String[] { "-index10", "-index21", "-does_not_exist" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(request.indices().length, equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(
-            actual.expressions(),
-            contains(
-                resolvedIndexExpression("-index21", Set.of("-index21"), SUCCESS),
-                resolvedIndexExpression("-does_not_exist", Set.of("-does_not_exist"), CONCRETE_RESOURCE_UNAUTHORIZED),
-                resolvedIndexExpression("-index1*", Set.of("-index10"), SUCCESS)
-            )
-        );
+    private static String randomIndexExclusion(String[] authorizedIndices) {
+        if (randomBoolean()) {
+            return "-" + randomFrom(authorizedIndices) + (randomBoolean() ? "*" : "");
+        } else {
+            return "-" + randomAlphaOfLengthBetween(0, 5) + (randomBoolean() ? "*" : "");
+        }
     }
 
-    public void testDashIndicesNoExpandWildcard() {
-        SearchRequest request = new SearchRequest("-index1*", "--index11");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), false, false));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, TransportSearchAction.TYPE.name()))
-            .getLocal();
-        String[] expectedIndices = new String[] { "-index1*", "--index11" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(request.indices().length, equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(
-            actual.expressions(),
-            contains(
-                resolvedIndexExpression("-index1*", Set.of("-index1*"), CONCRETE_RESOURCE_UNAUTHORIZED),
-                resolvedIndexExpression("--index11", Set.of("--index11"), CONCRETE_RESOURCE_UNAUTHORIZED)
-            )
-        );
-    }
-
-    public void testDashIndicesMinus() {
-        SearchRequest request = new SearchRequest("-index10", "-index11", "--index11", "-index20");
-        boolean expandToOpenIndices = randomBoolean();
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), expandToOpenIndices, randomBoolean()));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, TransportSearchAction.TYPE.name()))
-            .getLocal();
-        String[] expectedIndices = new String[] { "-index10", "-index11", "--index11", "-index20" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(request.indices().length, equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(
-            actual.expressions(),
-            contains(
-                resolvedIndexExpression("-index10", Set.of("-index10"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE),
-                resolvedIndexExpression("-index11", Set.of("-index11"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE),
-                resolvedIndexExpression("--index11", Set.of("--index11"), CONCRETE_RESOURCE_UNAUTHORIZED),
-                resolvedIndexExpression("-index20", Set.of("-index20"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE)
-            )
-        );
-    }
-
-    public void testDashIndicesPlus() {
+    public void testPlusIndices() {
         SearchRequest request = new SearchRequest("+bar");
         request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
         expectThrows(
             IndexNotFoundException.class,
-            () -> resolveIndices(request, buildAuthorizedIndices(userDashIndices, TransportSearchAction.TYPE.name()))
-        );
-    }
-
-    public void testDashNotExistingIndex() {
-        SearchRequest request = new SearchRequest("-does_not_exist");
-        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
-        List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, TransportSearchAction.TYPE.name()))
-            .getLocal();
-        String[] expectedIndices = new String[] { "-does_not_exist" };
-        assertThat(indices, hasSize(expectedIndices.length));
-        assertThat(request.indices().length, equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
-        ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
-        assertThat(actual, is(notNullValue()));
-        assertThat(
-            actual.expressions(),
-            contains(resolvedIndexExpression("-does_not_exist", Set.of("-does_not_exist"), CONCRETE_RESOURCE_UNAUTHORIZED))
+            () -> resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
         );
     }
 
@@ -1015,23 +1071,18 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // no wildcard expand and no ignore unavailable
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), false, false));
         ResolvedIndices indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
-        String[] replacedIndices = new String[] { "*", "-foofoo*" };
+        String[] replacedIndices = new String[] { "*" };
         assertThat(indices.getLocal(), containsInAnyOrder(replacedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
         ResolvedIndexExpressions actual = request.getResolvedIndexExpressions();
         assertThat(actual, is(notNullValue()));
-        assertThat(
-            actual.expressions(),
-            contains(
-                resolvedIndexExpression("*", Set.of("*"), CONCRETE_RESOURCE_UNAUTHORIZED),
-                resolvedIndexExpression("-foofoo*", Set.of("-foofoo*"), CONCRETE_RESOURCE_UNAUTHORIZED)
-            )
-        );
+        assertThat(actual.expressions(), contains(resolvedIndexExpression("*", Set.of("*"), CONCRETE_RESOURCE_UNAUTHORIZED)));
         // no wildcard expand but ignore unavailable
         request = new SearchRequest("*", "-foofoo*");
         request.indicesOptions(IndicesOptions.fromOptions(true, true, false, false));
         indices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
         assertNoIndices(request, indices);
+
         SearchRequest disallowNoIndicesRequest = new SearchRequest("*", "-foofoo*");
         disallowNoIndicesRequest.indicesOptions(IndicesOptions.fromOptions(true, false, false, false));
         IndexNotFoundException e = expectThrows(

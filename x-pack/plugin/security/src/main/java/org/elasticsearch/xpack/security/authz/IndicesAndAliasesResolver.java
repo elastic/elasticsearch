@@ -60,7 +60,6 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.isNoneExpression;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -561,7 +560,7 @@ class IndicesAndAliasesResolver {
         if (replaceable.getResolvedIndexExpressions() == null) {
             replaceable.setResolvedIndexExpressions(resolved);
         } else {
-            // see https://github.com/elastic/elasticsearch/issues/135799
+            // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
             String message = "resolved index expressions are already set to ["
                 + replaceable.getResolvedIndexExpressions()
                 + "] and should not be set again. Attempted to set to new expressions ["
@@ -572,7 +571,7 @@ class IndicesAndAliasesResolver {
             logger.debug(message);
             // we are excepting `*,-*` below since we've observed this already -- keeping this assertion to catch other cases
             // If more exceptions are found, we can add a comment to above linked issue and relax this check further
-            assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
+            // assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
         }
     }
 

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
@@ -71,11 +72,14 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -133,16 +137,14 @@ import static org.hamcrest.Matchers.startsWith;
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
-    private static EsqlParser parser;
     private static Analyzer analyzer;
     private static Analyzer allTypesAnalyzer;
+    private static Analyzer tsAnalyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
 
     @BeforeClass
     public static void init() {
-        parser = new EsqlParser();
-
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
@@ -165,6 +167,26 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 indexResolutions(testAll),
+                emptyPolicyResolution(),
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        var tsMapping = loadMapping("k8s-mappings.json");
+        var tsIndex = EsIndexGenerator.esIndex("k8s", tsMapping, Map.of("k8s", IndexMode.TIME_SERIES));
+        var tsDownsampledMapping = loadMapping("k8s-downsampled-mappings.json");
+        var tsDownsampledIndex = EsIndexGenerator.esIndex(
+            "k8s-downsampled",
+            tsDownsampledMapping,
+            Map.of("k8s-downsampled", IndexMode.TIME_SERIES)
+        );
+
+        tsAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(tsIndex, tsDownsampledIndex),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
             ),
@@ -560,7 +582,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
@@ -1246,6 +1268,204 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testAggregateMetricDouble() {
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = "FROM k8s-downsampled | STATS m = min(network.eth0.tx)";
+
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(plan, Limit.class);
+        // Aggregate[[],[MIN($$min(network.eth>$MIN$0{r$}#30,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#5]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(0));
+        assertThat(aggregate.aggregates(), hasSize(1));
+        // Eval[[$$network.eth0.tx$AMD_MIN$1432505394{f$}#31 AS $$min(network.eth>$MIN$0#30]]
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var fieldAttr = as(alias.child(), FieldAttribute.class);
+        assertThat(fieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
+        var field = as(fieldAttr.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        assertThat(blockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_MIN));
+
+        // EsRelation[k8s-downsampled][@timestamp{f}#6, client.ip{f}#10, cluster{f}#7, eve..]
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertTrue(esRelation.output().contains(fieldAttr));
+    }
+
+    public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            from k8s-downsampled
+            | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+
+        // Project[[s{r}#5, a{r}#8]]
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s", "a"));
+        // Eval[[s{r}#5 / $$SUM$a$1{r$}#34 AS a#8]]
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("a"));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var division = as(alias.child(), Div.class);
+        assertTrue(Expressions.names(division.arguments()).contains("s"));
+
+        // Limit[1000[INTEGER],false,false]
+        var limit = as(eval.child(), Limit.class);
+        // Aggregate[[],[SUM($$sum(network.eth>$SUM$0{r$}#35,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS s#5,
+        // SUM($$avg(network.eth>$SUM$1{r$}#36,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a$1#34]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(0));
+        assertThat(aggregate.aggregates(), hasSize(2));
+        as(Alias.unwrap(aggregate.aggregates().get(0)), Sum.class);
+        as(Alias.unwrap(aggregate.aggregates().get(1)), Sum.class);
+
+        // Eval[[$$network.eth0.tx$AMD_SUM$365493977{f$}#37 AS $$sum(network.eth>$SUM$0#35,
+        // $$network.eth0.tx$AMD_COUNT$1570201087{f$}#38 AS $$avg(network.eth>$SUM$1#36]]
+        var eval2 = as(aggregate.child(), Eval.class);
+        assertThat(eval2.fields(), hasSize(2));
+
+        var alias2_1 = as(eval2.fields().get(0), Alias.class);
+        var fieldAttr1 = as(alias2_1.child(), FieldAttribute.class);
+        assertThat(fieldAttr1.fieldName().string(), equalTo("network.eth0.tx"));
+        var field1 = as(fieldAttr1.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig1 = as(field1.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        assertThat(blockLoaderFunctionConfig1.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_SUM));
+
+        var alias2_2 = as(eval2.fields().get(1), Alias.class);
+        var fieldAttr2 = as(alias2_2.child(), FieldAttribute.class);
+        assertThat(fieldAttr2.fieldName().string(), equalTo("network.eth0.tx"));
+        var field2 = as(fieldAttr2.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig2 = as(field2.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        assertThat(blockLoaderFunctionConfig2.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_COUNT));
+
+        // EsRelation[k8s-downsampled][@timestamp{f}#9, client.ip{f}#13, cluster{f}#10, ev..]
+        var esRelation = as(eval2.child(), EsRelation.class);
+        assertTrue(esRelation.output().contains(fieldAttr1));
+        assertTrue(esRelation.output().contains(fieldAttr2));
+    }
+
+    public void testAggregateMetricDoubleTSCommand() {
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            TS k8s-downsampled |
+            STATS m = max(max_over_time(network.eth0.tx)),
+                  c = count(count_over_time(network.eth0.tx)),
+                  a = avg(avg_over_time(network.eth0.tx))
+            BY pod, time_bucket = BUCKET(@timestamp,5minute)
+            """;
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+
+        // Project[[m{r}#9, c{r}#12, a{r}#15, pod{r}#19, time_bucket{r}#6]]
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("m", "c", "a", "pod", "time_bucket"));
+        // Eval[[UNPACKDIMENSION(grouppod_$1{r}#49) AS pod#19,
+        // $$SUM$a$0{r$}#41 / $$COUNT$a$1{r$}#42 AS a#15]]
+        var eval1 = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval1.fields()), contains("pod", "a"));
+        // Limit[1000000[INTEGER],false,false]
+        var limit = as(eval1.child(), Limit.class);
+        // Aggregate[[packpod_$1{r}#48, time_bucket{r}#6],
+        // [MAX(MAXOVERTIME_$1{r}#44,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#9,
+        // COUNT(COUNTOVERTIME_$1{r}#45,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#12,
+        // SUM(AVGOVERTIME_$1{r}#46,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$a$0#41,
+        // COUNT(AVGOVERTIME_$1{r}#46,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$a$1#42,
+        // packpod_$1{r}#48 AS grouppod_$1#49,
+        // time_bucket{r}#6 AS time_bucket#6]]
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(2));
+        assertThat(aggregate.aggregates(), hasSize(6));
+        // Eval[[$$SUM$AVGOVERTIME_$1$0{r$}#50 / COUNTOVERTIME_$1{r}#45 AS AVGOVERTIME_$1#46,
+        // PACKDIMENSION(pod{r}#47) AS packpod_$1#48]]
+        var eval2 = as(aggregate.child(), Eval.class);
+        // TimeSeriesAggregate[[_tsid{m}#43, time_bucket{r}#6],
+        // [MAX($$max_over_time(n>$MAX$0{r$}#52,true[BOOLEAN],PT0S[TIME_DURATION]) AS MAXOVERTIME_$1#44,
+        // SUM($$count_over_time>$SUM$1{r$}#53,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS COUNTOVERTIME_$1#45,
+        // SUM($$avg_over_time(n>$SUM$2{r$}#54,true[BOOLEAN],PT0S[TIME_DURATION],lossy[KEYWORD]) AS $$SUM$AVGOVERTIME_$1$0#50,
+        // VALUES(pod{f}#19,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#47,
+        // time_bucket{r}#6],
+        // BUCKET(@timestamp{f}#17,PT5M[TIME_DURATION])]
+        var timeSeries = as(eval2.child(), TimeSeriesAggregate.class);
+
+        // Eval[[BUCKET(@timestamp{f}#17,PT5M[TIME_DURATION]) AS time_bucket#6,
+        // $$network.eth0.tx$AMD_MAX$476613723{f$}#55 AS $$max_over_time(n>$MAX$0#52,
+        // $$network.eth0.tx$AMD_COUNT$1887347767{f$}#56 AS $$count_over_time>$SUM$1#53,
+        // $$network.eth0.tx$AMD_SUM$735682543{f$}#57 AS $$avg_over_time(n>$SUM$2#54]]
+        var eval3 = as(timeSeries.child(), Eval.class);
+        assertThat(eval3.fields(), hasSize(4));
+        var maxfieldAttr = as(as(eval3.fields().get(1), Alias.class).child(), FieldAttribute.class);
+        var countfieldAttr = as(as(eval3.fields().get(2), Alias.class).child(), FieldAttribute.class);
+        var sumfieldAttr = as(as(eval3.fields().get(3), Alias.class).child(), FieldAttribute.class);
+        assertThat(maxfieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
+        assertThat(countfieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
+        assertThat(sumfieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
+        var maxField = as(maxfieldAttr.field(), FunctionEsField.class);
+        var countField = as(countfieldAttr.field(), FunctionEsField.class);
+        var sumField = as(sumfieldAttr.field(), FunctionEsField.class);
+        var maxBlockLoaderFunctionConfig = as(maxField.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        var countBlockLoaderFunctionConfig = as(countField.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        var sumBlockLoaderFunctionConfig = as(sumField.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        assertThat(maxBlockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_MAX));
+        assertThat(countBlockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_COUNT));
+        assertThat(sumBlockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_SUM));
+
+        // EsRelation[k8s-downsampled][@timestamp{f}#17, client.ip{f}#21, cluster{f}#18, e..]
+        var esRelation = as(eval3.child(), EsRelation.class);
+        assertTrue(esRelation.output().contains(maxfieldAttr));
+        assertTrue(esRelation.output().contains(countfieldAttr));
+        assertTrue(esRelation.output().contains(sumfieldAttr));
+    }
+
+    public void testAggregateMetricDoubleInlineStats() {
+        // TODO: modify below when we handle fusing and StubRelations properly
+        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        String query = """
+            FROM k8s-downsampled
+            | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
+            | SORT @timestamp, cluster, pod
+            | KEEP @timestamp, cluster, pod, network.eth0.tx, tx_max
+            | LIMIT 9
+            """;
+
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
+
+        // EsqlProject[[@timestamp{f}#15, cluster{f}#16, pod{f}#17, network.eth0.tx{f}#34, tx_max{r}#5]]
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("@timestamp", "cluster", "pod", "network.eth0.tx", "tx_max"));
+        // TopN[[Order[@timestamp{f}#15,ASC,LAST], Order[cluster{f}#16,ASC,LAST], Order[pod{f}#17,ASC,LAST]],9[INTEGER],false]
+        var topN = as(project.child(), TopN.class);
+        // InlineJoin[LEFT,[pod{f}#17],[pod{r}#17]]
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        // Aggregate[[pod{f}#17],[MAX($$MAX(network.eth>$MAX$0{r$}#39,true[BOOLEAN],PT0S[TIME_DURATION]) AS tx_max#5, pod{f}#17]]
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.aggregates(), hasSize(2));
+        as(Alias.unwrap(aggregate.aggregates().get(0)), Max.class);
+        // Eval[[$$network.eth0.tx$AMD_MAX$1489455250{f$}#40 AS $$MAX(network.eth>$MAX$0#39]]
+        var eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        var fieldAttr = as(alias.child(), FieldAttribute.class);
+        assertThat(fieldAttr.fieldName().string(), equalTo("network.eth0.tx"));
+        var field = as(fieldAttr.field(), FunctionEsField.class);
+        var blockLoaderFunctionConfig = as(field.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        assertThat(blockLoaderFunctionConfig.function(), equalTo(BlockLoaderFunctionConfig.Function.AMD_MAX));
+
+        // TODO: modify this comment when unmuting test
+        // StubRelation[[@timestamp{f}#15, ..., cluster{f}#16, ..., network.eth0.tx{f}#34, ...,
+        // pod{f}#17, ..., $$MAX(network.eth>$MAX$0{r$}#39, $$network.eth0.tx$AMD_MAX$1489455250{f$}#40]]
+        var stubRelation = as(eval.child(), StubRelation.class);
+        assertFalse(stubRelation.output().contains(fieldAttr));
+        // EsRelation[k8s-downsampled][@timestamp{f}#15, client.ip{f}#19, cluster{f}#16, e..]
+        var esRelation = as(inlineJoin.left(), EsRelation.class);
+        assertTrue(esRelation.output().contains(fieldAttr));
+    }
+
     public void testVectorFunctionsWhenFieldMissing() {
         assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
@@ -1889,7 +2109,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

@@ -17,12 +17,7 @@ import org.junit.rules.TestRule;
 
 public class S3RepositoryAnalysisStrongMpusRestIT extends AbstractS3RepositoryAnalysisRestTestCase {
 
-    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture() {
-        @Override
-        protected S3ConsistencyModel consistencyModel() {
-            return S3ConsistencyModel.STRONG_MPUS;
-        }
-    };
+    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture(S3ConsistencyModel.STRONG_MPUS);
 
     public static final ElasticsearchCluster cluster = buildCluster(s3Fixture);
 

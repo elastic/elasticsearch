@@ -98,6 +98,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.GENERIC_VECTOR_FORMAT)
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
+        .feature(FeatureFlag.RERANK_SEMANTIC_TEXT_CHUNKS)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()

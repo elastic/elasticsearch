@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,6 +34,10 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerC
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.defaultChunkingSettings;
 
 public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends RerankingRankFeaturePhaseRankShardContext {
+
+    public static final FeatureFlag RERANK_SEMANTIC_TEXT_CHUNKS = new FeatureFlag(
+        "rerank_semantic_text_chunks"
+    );
 
     private final ChunkScorerConfig chunkScorerConfig;
     private final ChunkingSettings chunkingSettings;
@@ -61,7 +65,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
 
                     List<ScoredChunk> scoredChunks;
 
-                    if (isSemanticTextField) {
+                    if (RERANK_SEMANTIC_TEXT_CHUNKS.isEnabled() && isSemanticTextField) {
                         SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
                         SemanticTextFieldMapper.SemanticTextFieldType fieldType = semanticTextFieldMapper.fieldType();
 
@@ -69,10 +73,6 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         // so we take a hard line, warning and scoring using BM25 if reranking on a semantic_text field with specified
                         // chunking_settings.
                         if (chunkScorerConfig.chunkingSettings() != null) {
-                            HeaderWarning.addWarning(
-                                "chunking_settings specified for semantic_text field will use BM25 for "
-                                    + "scoring instead of indexed embeddings"
-                            );
                             scoredChunks = chunkAndScoreBm25(docField.getValue().toString(), size);
                         } else {
                             scoredChunks = scoreSemanticTextChunks(searchContext, fieldType, hit, size);

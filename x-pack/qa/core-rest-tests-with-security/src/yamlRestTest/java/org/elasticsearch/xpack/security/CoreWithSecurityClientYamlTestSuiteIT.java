@@ -53,6 +53,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
         .feature(FeatureFlag.GENERIC_VECTOR_FORMAT)
+        .feature(FeatureFlag.RERANK_SEMANTIC_TEXT_CHUNKS)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -26,7 +26,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-@FunctionName("_for_to_long_tests")
+// ToLongSurrogateTests has a @FunctionName("to_long") annotation.
+// That test has the complete set of types supported by to_long(value) and to_long(string,base).
+// This test only covers to_long(value).
+// So we use an unregistered function name here to prevent DocsV3 from overwriting
+// the good .md generated from ToLongSurrogateTests with an incomplete .md generated from this test.
+//
+@FunctionName("_unregestered_to_long_tests")
 public class ToLongTests extends AbstractScalarFunctionTestCase {
     public ToLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

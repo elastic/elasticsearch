@@ -86,7 +86,7 @@ public class ToIntegerSurrogate extends EsqlScalarFunction implements SurrogateE
                 file = "ints",
                 tag = "to_integer_base-str2",
                 explanation = ""
-                    + "This example demonstrates parsing a string that is valid in base 36 but invalid in base 10."
+                    + "This example demonstrates parsing a string that is valid in base 27 but invalid in base 10."
                     + "Observe in the second case a warning is generated and null is returned. {applies_to}`stack: ga 9.3`"
             ) }
     )

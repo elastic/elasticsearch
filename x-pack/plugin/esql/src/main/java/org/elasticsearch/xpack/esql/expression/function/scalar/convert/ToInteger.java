@@ -56,32 +56,7 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(COUNTER_INTEGER, (source, fieldEval) -> fieldEval)
     );
 
-    @FunctionInfo(
-        returnType = "integer",
-        description = """
-            Converts an input value to an integer value.
-            If the input parameter is of a date type, its value will be interpreted as milliseconds
-            since the {wikipedia}/Unix_time[Unix epoch], converted to integer.
-            Boolean `true` will be converted to integer `1`, `false` to `0`.""",
-        examples = @Example(file = "ints", tag = "to_int-long", explanation = """
-            Note that in this example, the last value of the multi-valued field cannot be converted as an integer.
-            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
-            The header will provide information on the source of the failure:
-
-            `"Line 1:61: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded."`
-
-            A following header will contain the failure reason and the offending value:
-
-            `"org.elasticsearch.xpack.esql.core.InvalidArgumentException: [501379200000] out of [integer] range"`""")
-    )
-    public ToInteger(
-        Source source,
-        @Param(
-            name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer", "counter_integer" },
-            description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
-    ) {
+    public ToInteger(Source source, Expression field) {
         super(source, field);
     }
 

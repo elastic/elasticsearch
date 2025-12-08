@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -26,6 +27,13 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
+// ToIntegerSurrogateTests has a @FunctionName("to_integer") annotation.
+// That test has the complete set of types supported by to_integer(value) and to_integer(string,base).
+// This test only covers unary to_integer(value).
+// So we use an unregistered function name here to prevent DocsV3 from overwriting
+// the good .md generated from ToIntegerSurrogateTests with an incomplete .md generated from this test.
+//
+@FunctionName("_unregestered_to_integer_tests")
 public class ToIntegerTests extends AbstractScalarFunctionTestCase {
     public ToIntegerTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -221,6 +229,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
             Integer.MAX_VALUE,
             List.of()
         );
+
         // from doubles outside Integer's range, negative
         TestCaseSupplier.forUnaryDouble(
             suppliers,
@@ -234,6 +243,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
                 "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
+
         // from doubles outside Integer's range, positive
         TestCaseSupplier.forUnaryDouble(
             suppliers,
@@ -264,6 +274,7 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
             BigInteger.valueOf(Integer.MAX_VALUE),
             List.of()
         );
+
         // from unsigned_long outside Integer's range
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,

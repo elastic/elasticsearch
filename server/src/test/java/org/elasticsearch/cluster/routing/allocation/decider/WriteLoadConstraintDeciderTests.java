@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -44,7 +43,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
-import static org.mockito.ArgumentMatchers.any;
 
 public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
@@ -119,7 +117,9 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
      * Test the {@link WriteLoadConstraintDecider#canForceAllocateDuringReplace} implementation.
      */
     public void testWriteLoadDeciderCanForceAllocateDuringReplace() {
-        internalDeciderAllocationCheck((decider, shardRouting, node, allocation) -> decider.canForceAllocateDuringReplace(shardRouting, node, allocation));
+        internalDeciderAllocationCheck(
+            (decider, shardRouting, node, allocation) -> decider.canForceAllocateDuringReplace(shardRouting, node, allocation)
+        );
     }
 
     interface DeciderAllocation {

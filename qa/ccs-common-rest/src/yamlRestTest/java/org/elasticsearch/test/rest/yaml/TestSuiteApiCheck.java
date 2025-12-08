@@ -12,6 +12,12 @@ package org.elasticsearch.test.rest.yaml;
 /**
  * Contains the logic for which test suites should execute which tests.
  * YAML tests are split between multiple suites to avoid the test suite timing out.
+ *
+ * IMPORTANT: This is a temporary solution to reduce the number of test failures
+ * due to suite timeouts for this large test set which suffers the problem more
+ * than most. It is not a pattern that should be copied or applied elsewhere.
+ * A longer term solution would be the test runner automatically splitting the
+ * tests.
  */
 class TestSuiteApiCheck {
 

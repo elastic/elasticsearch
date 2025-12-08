@@ -20,10 +20,8 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,52 +31,10 @@ import java.util.stream.Collectors;
  */
 public class CrossProjectIndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
+    private static final char EXCLUSION_PREFIX = '-';
 
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
-    private static final String[] MATCH_ALL = new String[] { Metadata.ALL };
-    private static final String EXCLUSION = "-";
-    private static final String DATE_MATH = "<";
-
-    /**
-     * Rewrites index expressions for cross-project search requests.
-     * Handles qualified and unqualified expressions and match-all cases will also hand exclusions in the future.
-     *
-     * @param originProject the _origin project with its alias
-     * @param linkedProjects the list of linked and available projects to consider for a request
-     * @param originalIndices the array of index expressions to be rewritten to canonical CCS
-     * @return a map from original index expressions to lists of canonical index expressions
-     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
-     * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
-     */
-    // TODO remove me: only used in tests
-    public static Map<String, IndexRewriteResult> rewriteIndexExpressions(
-        ProjectRoutingInfo originProject,
-        List<ProjectRoutingInfo> linkedProjects,
-        final String[] originalIndices
-    ) {
-        final String[] indices;
-        if (originalIndices == null || originalIndices.length == 0) { // handling of match all cases besides _all and `*`
-            indices = MATCH_ALL;
-        } else {
-            indices = originalIndices;
-        }
-        assert false == IndexNameExpressionResolver.isNoneExpression(indices)
-            : "expression list is *,-* which effectively means a request that requests no indices";
-
-        final Set<String> allProjectAliases = getAllProjectAliases(originProject, linkedProjects);
-        final String originProjectAlias = originProject != null ? originProject.projectAlias() : null;
-        final Map<String, IndexRewriteResult> canonicalExpressionsMap = new LinkedHashMap<>(indices.length);
-        for (String indexExpression : indices) {
-            if (canonicalExpressionsMap.containsKey(indexExpression)) {
-                continue;
-            }
-            canonicalExpressionsMap.put(
-                indexExpression,
-                rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases, null)
-            );
-        }
-        return canonicalExpressionsMap;
-    }
+    static final String[] MATCH_ALL = new String[] { Metadata.ALL };
 
     /**
      * Rewrites an index expression for cross-project search requests.
@@ -122,7 +78,7 @@ public class CrossProjectIndexExpressionsRewriter {
         return rewrittenExpression;
     }
 
-    private static Set<String> getAllProjectAliases(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
+    static Set<String> getAllProjectAliases(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
         assert originProject != null || linkedProjects.isEmpty() == false
             : "either origin project or linked projects must be in project target set";
 
@@ -166,20 +122,31 @@ public class CrossProjectIndexExpressionsRewriter {
                 + "]";
         String requestedProjectAlias = splitResource[0];
         assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
+        boolean isExclusion = false;
+        if (requestedProjectAlias.charAt(0) == EXCLUSION_PREFIX) {
+            // TODO: Throw exception on empty alias instead of relying on exception from resolveClusterNames?
+            requestedProjectAlias = requestedProjectAlias.substring(1);
+            isExclusion = true;
+        }
+
         String indexExpression = splitResource[1];
         maybeThrowOnUnsupportedResource(indexExpression);
 
         if (originProjectAlias != null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName
-            return new IndexRewriteResult(indexExpression);
+            return new IndexRewriteResult(isExclusion ? EXCLUSION_PREFIX + indexExpression : indexExpression);
         }
 
         if (originProjectAlias == null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
+            // This applies to exclusion as well, e.g. -_origin:indexName
             throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
         }
 
         try {
+            // TODO: resolveClusterNames and the subsequent isEmpty check ensure 404 is thrown for any unmatched project.
+            // This is different from index resolution where unmatched indices can be ignored. We may want to revisit
+            // the different difference between the two in the future, see also ES-13766
             List<String> allProjectsMatchingAlias = ClusterNameExpressionResolver.resolveClusterNames(
                 allProjectAliases,
                 requestedProjectAlias
@@ -191,11 +158,14 @@ public class CrossProjectIndexExpressionsRewriter {
 
             String localExpression = null;
             final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
+            // TODO: Rewrite supports exclusion such as -project:index but it is still rejected by RemoteClusterAware#groupClusterIndices
+            // We could consider supporting it all the way through, see also ES-13767
             for (String project : allProjectsMatchingAlias) {
                 if (project.equals(originProjectAlias)) {
-                    localExpression = indexExpression;
+                    localExpression = isExclusion ? EXCLUSION_PREFIX + indexExpression : indexExpression;
                 } else {
-                    resourcesMatchingLinkedProjectAliases.add(RemoteClusterAware.buildRemoteIndexName(project, indexExpression));
+                    final String remoteIndexName = RemoteClusterAware.buildRemoteIndexName(project, indexExpression);
+                    resourcesMatchingLinkedProjectAliases.add(isExclusion ? EXCLUSION_PREFIX + remoteIndexName : remoteIndexName);
                 }
             }
 
@@ -207,10 +177,6 @@ public class CrossProjectIndexExpressionsRewriter {
     }
 
     private static void maybeThrowOnUnsupportedResource(String resource) {
-        // TODO To be handled in future PR.
-        if (resource.startsWith(EXCLUSION)) {
-            throw new IllegalArgumentException("Exclusions are not currently supported but was found in the expression [" + resource + "]");
-        }
         if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
             throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");
         }

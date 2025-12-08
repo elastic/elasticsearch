@@ -90,7 +90,6 @@ public class IndexAbstractionResolver {
 
             final String localIndexExpression = indexRewriteResult.localExpression();
             if (localIndexExpression == null) {
-                // TODO we may still need to update the `wildcardSeen` value to correctly handle exclusions
                 // (there can be an exclusion without any local index expressions)
                 // nothing to resolve locally so skip resolve abstraction call
                 resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, indexRewriteResult.remoteExpressions());
@@ -161,17 +160,22 @@ public class IndexAbstractionResolver {
                 }
             }
             if (resolvedIndices.isEmpty()) {
-                // Ignore empty result for exclusions
+                // Ignore empty result for exclusion expression
                 if (minus == false) {
                     // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
                     if (indicesOptions.allowNoIndices() == false) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
                     resolvedExpressionsBuilder.addExpressions(originalIndexExpression, new HashSet<>(), SUCCESS, remoteExpressions);
+                } else {
+                    maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 }
             } else {
                 if (minus) {
                     resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
+                    // Exclusion from local indices is done by excludeFromLocalExpressions.
+                    // No need to add itself unless it has remote expressions.
+                    maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
                 } else {
                     resolvedExpressionsBuilder.addExpressions(originalIndexExpression, resolvedIndices, SUCCESS, remoteExpressions);
                 }
@@ -181,6 +185,7 @@ public class IndexAbstractionResolver {
             resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
             if (minus) {
                 resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
+                maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
             } else {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
@@ -215,6 +220,16 @@ public class IndexAbstractionResolver {
                     );
                 }
             }
+        }
+    }
+
+    private static void maybeAddWithRemoteExpressions(
+        ResolvedIndexExpressions.Builder resolvedExpressionsBuilder,
+        String originalIndexExpression,
+        Set<String> remoteExpressions
+    ) {
+        if (false == remoteExpressions.isEmpty()) {
+            resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, remoteExpressions);
         }
     }
 

@@ -53,23 +53,10 @@ public class TransportVersions {
     }
 
     // TODO: ES-10337 we can remove all transport versions earlier than 8.18
-    public static final TransportVersion V_8_0_0 = def(8_00_00_99);
-    public static final TransportVersion V_8_2_0 = def(8_02_00_99);
-    public static final TransportVersion V_8_3_0 = def(8_03_00_99);
-    public static final TransportVersion V_8_4_0 = def(8_04_00_99);
-    public static final TransportVersion V_8_5_0 = def(8_05_00_99);
-    public static final TransportVersion V_8_6_0 = def(8_06_00_99);
-    public static final TransportVersion V_8_6_1 = def(8_06_01_99);
-    public static final TransportVersion V_8_7_0 = def(8_07_00_99);
-    public static final TransportVersion V_8_7_1 = def(8_07_01_99);
-    public static final TransportVersion V_8_8_0 = def(8_08_00_99);
-    public static final TransportVersion V_8_8_1 = def(8_08_01_99);
     /*
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_9_X = def(8_500_0_20);
-    public static final TransportVersion V_8_10_X = def(8_500_0_61);
     public static final TransportVersion V_8_11_X = def(8_512_0_01);
     public static final TransportVersion V_8_12_0 = def(8_560_0_00);
     public static final TransportVersion V_8_12_1 = def(8_560_0_01);

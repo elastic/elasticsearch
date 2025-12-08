@@ -31,15 +31,6 @@ public class SamlInResponseToIT extends SamlRestTestCase {
 
     private static final int REALM_NUMBER = 1;
 
-    @BeforeClass
-    public static void enableMetadata() {
-        // during the startup, the metadata remains unavailable to prevent caching. After cluster init, we need to make metadata available
-        // explicitly. Note that unfortunately it can't work the other way round - we can't start with metadata available and then make it
-        // unavailable, because once cached, the metadata remains available for the rest of the tests. That means that this test, despite
-        // not having anything to do with metadata testing, unfortunately must explicitly make it enabled here.
-        makeMetadataAvailable(REALM_NUMBER);
-    }
-
     public void testInResponseTo_matchingValues() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);
         String requestId = generateRandomRequestId();

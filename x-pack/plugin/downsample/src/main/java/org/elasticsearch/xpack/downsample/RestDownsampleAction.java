@@ -35,6 +35,7 @@ public class RestDownsampleAction extends BaseRestHandler {
 
     private final Set<String> CAPABILITIES = Stream.of(
         "downsample.sampling_mode.last_value",
+        "downsample.multi_field_fix",
         EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled() ? "downsampling.exponential_histograms" : null
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 

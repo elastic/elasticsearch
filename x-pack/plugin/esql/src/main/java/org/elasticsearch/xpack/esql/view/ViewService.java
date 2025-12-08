@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
@@ -45,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 public class ViewService {
     private static final Logger logger = LogManager.getLogger(ViewService.class);
@@ -161,6 +163,10 @@ public class ViewService {
             return;
         }
         final String name = request.name();
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            name,
+            (viewName, error) -> new IllegalArgumentException("invalid view name [" + name + "], " + error)
+        );
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
         if (viewMetadata.getView(name) == null) {
@@ -208,7 +214,7 @@ public class ViewService {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry);
+        EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry);
     }
 
     /**
@@ -233,7 +239,7 @@ public class ViewService {
         return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
     }
 
-    public LogicalPlan replaceViews(LogicalPlan plan, PlanTelemetry telemetry) {
+    public LogicalPlan replaceViews(LogicalPlan plan, Function<String, LogicalPlan> parser) {
         if (viewsFeatureEnabled() == false) {
             return plan;
         }
@@ -257,7 +263,7 @@ public class ViewService {
                         if (seen.size() > this.maxViewDepth) {
                             throw viewError("The maximum allowed view depth of " + this.maxViewDepth + " has been exceeded: ", seen);
                         }
-                        subqueries.add(resolve(view, telemetry));
+                        subqueries.add(resolve(view, parser));
                     } else {
                         indexes.add(name);
                     }
@@ -272,8 +278,7 @@ public class ViewService {
                         return subqueries.getFirst();
                     }
                 } else {
-                    subqueries.add(
-                        0,
+                    subqueries.addFirst(
                         new UnresolvedRelation(
                             ur.source(),
                             new IndexPattern(ur.indexPattern().source(), String.join(",", indexes)),
@@ -292,14 +297,11 @@ public class ViewService {
         }
     }
 
-    private static LogicalPlan resolve(View view, PlanTelemetry telemetry) {
+    private static LogicalPlan resolve(View view, Function<String, LogicalPlan> parser) {
         // TODO don't reparse every time. Store parsed? Or cache parsing? dunno
         // this will make super-wrong Source. the _source should be the view.
         // if there's a `filter` it applies "under" the view. that's weird. right?
-        // security to create this
-        // telemetry
-        // don't allow circular references
-        return new EsqlParser().createStatement(view.query(), new QueryParams(), telemetry);
+        return parser.apply(view.query());
     }
 
     private VerificationException viewError(String type, List<String> seen) {

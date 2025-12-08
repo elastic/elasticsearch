@@ -56,13 +56,10 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
             ActionRequestValidationException validationException = null;
             if (view == null) {
                 validationException = addValidationError("view is missing", validationException);
-                // No futher validation can be done, as the view is null
+                // No further validation can be done, as the view is null
                 return validationException;
             }
             final String name = view.name();
-            if (Strings.hasText(name) == false) {
-                validationException = addValidationError("view name is missing or empty", validationException);
-            }
             // The view name is used in a similar context to an index name and therefore has the same restrictions as an index name
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(

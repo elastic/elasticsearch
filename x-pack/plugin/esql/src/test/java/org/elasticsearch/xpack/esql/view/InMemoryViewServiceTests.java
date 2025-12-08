@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.AfterClass;
@@ -43,6 +44,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+    QueryParams queryParams = new QueryParams();
     ProjectId projectId = ProjectId.fromId("1");
 
     public void testPutGet() {
@@ -58,9 +60,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "from emp");
         addView("view2", "from view1");
         addView("view3", "from view2");
-        LogicalPlan plan = statement("from view3");
-        LogicalPlan rewritten = viewService.replaceViews(plan, telemetry);
-        assertThat(rewritten, equalTo(statement("from emp")));
+        LogicalPlan plan = query("from view3");
+        LogicalPlan rewritten = viewService.replaceViews(plan, this::parse);
+        assertThat(rewritten, equalTo(query("from emp")));
     }
 
     public void testViewDepthExceeded() {
@@ -77,12 +79,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view11", "from view10");
 
         // FROM view11 should fail
-        Exception e = expectThrows(VerificationException.class, () -> viewService.replaceViews(statement("from view11"), telemetry));
+        Exception e = expectThrows(VerificationException.class, () -> viewService.replaceViews(query("from view11"), this::parse));
         assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 10 has been exceeded"));
 
         // But FROM view10 should work
-        LogicalPlan rewritten = viewService.replaceViews(statement("from view10"), telemetry);
-        assertThat(rewritten, equalTo(statement("from emp")));
+        LogicalPlan rewritten = viewService.replaceViews(query("from view10"), this::parse);
+        assertThat(rewritten, equalTo(query("from emp")));
     }
 
     public void testModifiedViewDepth() {
@@ -96,15 +98,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             addView("view3", "from view2", customViewService);
 
             // FROM view2 should fail
-            Exception e = expectThrows(
-                VerificationException.class,
-                () -> customViewService.replaceViews(statement("from view2"), telemetry)
-            );
+            Exception e = expectThrows(VerificationException.class, () -> customViewService.replaceViews(query("from view2"), this::parse));
             assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
 
             // But FROM view1 should work
-            LogicalPlan rewritten = customViewService.replaceViews(statement("from view1"), telemetry);
-            assertThat(rewritten, equalTo(statement("from emp")));
+            LogicalPlan rewritten = customViewService.replaceViews(query("from view1"), this::parse);
+            assertThat(rewritten, equalTo(query("from emp")));
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
         }
@@ -210,4 +209,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    private LogicalPlan parse(String query) {
+        return parser.parseQuery(query, queryParams, telemetry);
+    }
 }

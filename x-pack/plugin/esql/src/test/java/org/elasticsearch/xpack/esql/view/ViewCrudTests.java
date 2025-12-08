@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.view;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -19,16 +18,12 @@ import org.junit.runners.model.Statement;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomName;
 import static org.elasticsearch.cluster.metadata.ViewTestsUtils.randomView;
 import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "to be resolved")
 public class ViewCrudTests extends AbstractViewTestCase {
 
     private TestViewsApi viewsApi;
@@ -61,8 +56,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
         String name = "my-view";
         View view = randomView(name);
 
-        AtomicReference<Exception> error = viewsApi.save(view);
-        assertThat(error.get(), nullValue());
+        viewsApi.save(view);
         assertView(viewsApi.get(name), name, view);
 
         viewsApi.delete(name);
@@ -74,8 +68,7 @@ public class ViewCrudTests extends AbstractViewTestCase {
             String name = "my-view-" + i;
             View view = randomView(name);
 
-            AtomicReference<Exception> error = viewsApi.save(view);
-            assertThat(error.get(), nullValue());
+            viewsApi.save(view);
             assertView(viewsApi.get(name), name, view);
             assertThat(viewsApi.get().size(), equalTo(1 + i));
         }
@@ -91,12 +84,10 @@ public class ViewCrudTests extends AbstractViewTestCase {
         String name = "my-view";
         View view = randomView(name);
 
-        AtomicReference<Exception> error = viewsApi.save(view);
-        assertThat(error.get(), nullValue());
+        viewsApi.save(view);
 
         view = randomView(name);
-        error = viewsApi.save(view);
-        assertThat(error.get(), nullValue());
+        viewsApi.save(view);
         assertView(viewsApi.get(name), name, view);
 
         viewsApi.delete(name);
@@ -104,28 +95,29 @@ public class ViewCrudTests extends AbstractViewTestCase {
     }
 
     public void testPutValidation() throws Exception {
-        View view = randomView(randomName());
-
         {
-            String nullOrEmptyName = randomBoolean() ? "" : null;
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView(nullOrEmptyName)));
-            assertThat(error.getMessage(), equalTo("name is missing or empty"));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView(null)));
+            assertThat(error.getMessage(), containsString("name is missing"));
+        }
+        {
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView("")));
+            assertThat(error.getMessage(), containsString("invalid view name [], must not be empty"));
         }
         {
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(new View("my-view", null)));
-            assertThat(error.getMessage(), equalTo("view query is missing or empty"));
+            assertThat(error.getMessage(), containsString("view query is missing or empty"));
         }
         {
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView("my#view")));
-            assertThat(error.getMessage(), equalTo("Invalid view name [my#view], must not contain '#'"));
+            assertThat(error.getMessage(), containsString("invalid view name [my#view], must not contain '#'"));
         }
         {
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView("..")));
-            assertThat(error.getMessage(), equalTo("Invalid view name [..], must not be '.' or '..'"));
+            assertThat(error.getMessage(), containsString("invalid view name [..], must not be '.' or '..'"));
         }
         {
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.save(randomView("myView")));
-            assertThat(error.getMessage(), equalTo("Invalid view name [myView], must be lowercase"));
+            assertThat(error.getMessage(), containsString("invalid view name [myView], must be lowercase"));
         }
         {
             View invalidView = new View("name", "FROMMM abc");
@@ -141,9 +133,12 @@ public class ViewCrudTests extends AbstractViewTestCase {
 
     public void testDeleteValidation() {
         {
-            String nullOrEmptyName = randomBoolean() ? "" : null;
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.delete(nullOrEmptyName));
-            assertThat(error.getMessage(), equalTo("name is missing or empty"));
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.delete(null));
+            assertThat(error.getMessage(), equalTo("name is missing"));
+        }
+        {
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> viewsApi.delete(""));
+            assertThat(error.getMessage(), equalTo("invalid view name [], must not be empty"));
         }
         {
             ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class, () -> viewsApi.delete("my-view"));

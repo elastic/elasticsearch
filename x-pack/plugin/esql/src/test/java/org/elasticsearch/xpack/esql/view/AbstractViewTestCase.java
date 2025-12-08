@@ -54,13 +54,15 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
             this.projectState = clusterService.state().projectState(projectId);
         }
 
-        protected AtomicReference<Exception> save(View view) throws InterruptedException {
+        protected void save(View view) throws Exception {
             assertNotNull(view.name());
             TestResponseCapture<AcknowledgedResponse> responseCapture = new TestResponseCapture<>();
             PutViewAction.Request request = new PutViewAction.Request(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, view);
             viewService.putView(projectId, request, responseCapture);
             responseCapture.latch.await();
-            return responseCapture.error;
+            if (responseCapture.error.get() != null) {
+                throw responseCapture.error.get();
+            }
         }
 
         protected void delete(String name) throws Exception {
@@ -93,7 +95,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
         /** This is just to ensure tests behave similarly to production */
         private void assertNotNull(String name) {
             if (name == null) {
-                throw new IllegalArgumentException("name is missing or empty");
+                throw new IllegalArgumentException("name is missing");
             }
         }
     }

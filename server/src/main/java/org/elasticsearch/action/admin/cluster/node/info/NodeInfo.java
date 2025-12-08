@@ -76,17 +76,9 @@ public class NodeInfo extends BaseNodeResponse {
             Version legacyVersion = Version.readVersion(in);
             version = legacyVersion.toString();
             compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                indexVersion = IndexVersion.readVersion(in);
-            } else {
-                indexVersion = IndexVersion.fromId(legacyVersion.id);
-            }
+            indexVersion = IndexVersion.readVersion(in);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
-        } else {
-            componentVersions = Map.of();
-        }
+        componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
         build = Build.readBuild(in);
         if (in.readBoolean()) {
             totalIndexingBuffer = ByteSizeValue.ofBytes(in.readLong());
@@ -248,10 +240,8 @@ public class NodeInfo extends BaseNodeResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
             compatibilityVersions.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            IndexVersion.writeVersion(indexVersion, out);
-            out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
-        }
+        IndexVersion.writeVersion(indexVersion, out);
+        out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);

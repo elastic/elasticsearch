@@ -129,14 +129,16 @@ public class CrossProjectIndexResolutionValidator {
                     originalExpression,
                     indicesOptions
                 );
-                ElasticsearchSecurityException unauthorizedException = null;
                 if (localException == null && localExpressions != ResolvedIndexExpression.LocalExpressions.NONE) {
                     // found locally, continue to next expression
                     continue;
                 }
+                ElasticsearchSecurityException unauthorizedException = null;
                 if (localException instanceof ElasticsearchSecurityException securityException) {
                     unauthorizedException = securityException;
                 }
+                assert localExpressions != ResolvedIndexExpression.LocalExpressions.NONE || false == remoteExpressions.isEmpty()
+                    : "both local expression and remote expressions are empty which should have errored earlier at index rewriting time";
                 boolean foundFlat = false;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
@@ -160,10 +162,19 @@ public class CrossProjectIndexResolutionValidator {
                 if (foundFlat) {
                     continue;
                 }
+                // Prefer reporting 403 over 404
                 if (unauthorizedException != null) {
                     return unauthorizedException;
                 }
-                return new IndexNotFoundException(originalExpression);
+                // Prefer reporting 404 on origin over linked projects
+                if (localException != null) {
+                    assert localException instanceof IndexNotFoundException
+                        : "Expected local exception to be IndexNotFoundException, but found: " + localException;
+                    return localException;
+                } else {
+                    assert false == remoteExpressions.isEmpty() : "expected remote expressions to be non-empty";
+                    return new IndexNotFoundException(remoteExpressions.iterator().next());
+                }
             }
         }
         // if we didn't throw before it means that we can proceed with the request

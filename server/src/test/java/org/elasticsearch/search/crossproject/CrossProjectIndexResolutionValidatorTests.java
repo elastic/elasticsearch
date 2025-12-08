@@ -470,6 +470,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), projectRouting, local, remote);
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {

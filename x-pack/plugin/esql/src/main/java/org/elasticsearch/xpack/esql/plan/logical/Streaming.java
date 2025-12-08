@@ -52,5 +52,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
  *  ... local TOP X [field] | WHERE side="dark" | TOP X [field]
  *  }</pre>
  *  and we have N nodes, then the first N*X rows may contain "dark" rows, and the final result is not empty in this case.
+ *  <p>
+ *      See also {@link PipelineBreaker}.
  */
 public interface Streaming {}

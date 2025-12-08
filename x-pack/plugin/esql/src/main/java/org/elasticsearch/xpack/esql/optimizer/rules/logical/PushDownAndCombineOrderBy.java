@@ -17,7 +17,7 @@ public final class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRul
         LogicalPlan child = orderBy.child();
 
         if (child instanceof OrderBy childOrder) {
-            // combine orders
+            // combine orders: drop lower OrderBy
             return new OrderBy(orderBy.source(), childOrder.child(), orderBy.order());
         } else if (child instanceof Project) {
             return PushDownUtils.pushDownPastProject(orderBy);

@@ -13,5 +13,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
  * A {@link LogicalPlan} that cannot be run only on the data nodes, resp. requires to be at least partially run on the coordinator.
  * When mapping to a physical plan, the first pipeline breaker will give rise to a {@link FragmentExec}
  * that contains the {@link LogicalPlan} that data nodes will execute.
+ * <p>
+ *     See also {@link Streaming}.
  */
 public interface PipelineBreaker {}

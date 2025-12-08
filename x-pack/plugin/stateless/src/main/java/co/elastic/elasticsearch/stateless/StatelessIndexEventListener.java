@@ -19,8 +19,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -53,6 +53,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -92,7 +94,8 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final SplitSourceService splitSourceService;
     private final ProjectResolver projectResolver;
     private final Executor bccHeaderReadExecutor;
-    private final StatelessSharedBlobCacheService cacheService;
+    private final int minSearchPower;
+    private volatile TimeValue boostWindow;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -106,7 +109,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         SplitSourceService splitSourceService,
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
-        StatelessSharedBlobCacheService cacheService
+        ClusterSettings clusterSettings
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -119,7 +122,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.splitSourceService = splitSourceService;
         this.projectResolver = projectResolver;
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
-        this.cacheService = cacheService;
+        this.minSearchPower = clusterSettings.get(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING);
+        clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
     }
 
     @Override

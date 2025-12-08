@@ -77,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
@@ -575,6 +576,39 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
             assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(rangeSize)), 0));
         }
+    }
+
+    public void testWarmingRatioCalculations() {
+        long boostWindowMillis = TimeUnit.DAYS.toMillis(7);
+        int searchPower = 100;
+
+        // verify a middle timestamp in the middle of the boost window is half warmed
+        long now = System.currentTimeMillis();
+        long deltaMs = TimeUnit.DAYS.toMillis(3) + TimeUnit.HOURS.toMillis(12); // 3.5 days
+        long middleTimestamp = now - deltaMs;
+        double warmingRatio = SharedBlobCacheWarmingService.calculateWarmingRatio(now, middleTimestamp, boostWindowMillis, searchPower);
+        assertEquals(0.5, warmingRatio, 0);
+
+        // verify a timestamp of now is fully warmed
+        now = System.currentTimeMillis();
+        deltaMs = 0;
+        middleTimestamp = now - deltaMs;
+        warmingRatio = SharedBlobCacheWarmingService.calculateWarmingRatio(now, middleTimestamp, boostWindowMillis, searchPower);
+        assertEquals(1.0, warmingRatio, 0);
+
+        // verify a timestamp at the start of the boost window is not warmed at all
+        now = System.currentTimeMillis();
+        deltaMs = TimeUnit.DAYS.toMillis(7);
+        middleTimestamp = now - deltaMs;
+        warmingRatio = SharedBlobCacheWarmingService.calculateWarmingRatio(now, middleTimestamp, boostWindowMillis, searchPower);
+        assertEquals(0, warmingRatio, 0);
+
+        // verify a timestamp before the start of the boost window is not warmed at all
+        now = System.currentTimeMillis();
+        deltaMs = TimeUnit.DAYS.toMillis(14);
+        middleTimestamp = now - deltaMs;
+        warmingRatio = SharedBlobCacheWarmingService.calculateWarmingRatio(now, middleTimestamp, boostWindowMillis, searchPower);
+        assertEquals(0, warmingRatio, 0);
     }
 
     private FakeStatelessNode createFakeNodeForMinimisingRange(long rangeSize, long stepSize) throws IOException {

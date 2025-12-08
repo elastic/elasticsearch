@@ -261,57 +261,16 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 collector.incVisitedCount(1);
             }
         } else {
-            if (acceptDocs instanceof org.elasticsearch.search.vectors.ESAcceptDocs esAcceptDocs) {
-                java.util.Set<Integer> acceptedDocs = new java.util.HashSet<>();
-                for (int doc = acceptDocsIterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = acceptDocsIterator.nextDoc()) {
-                    acceptedDocs.add(doc);
+            int doc = acceptDocsIterator.nextDoc();
+            for (int i = 0; i < scorer.maxOrd() && doc != DocIdSetIterator.NO_MORE_DOCS; i++) {
+                int vectorDoc = scorer.ordToDoc(i);
+                while (doc < vectorDoc && doc != DocIdSetIterator.NO_MORE_DOCS) {
+                    doc = acceptDocsIterator.nextDoc();
                 }
-                
-                for (int i = 0; i < scorer.maxOrd(); i++) {
-                    int doc = scorer.ordToDoc(i);
-                    if (acceptedDocs.contains(doc)) {
-                        collector.collect(i, scorer.score(i));
-                        collector.incVisitedCount(1);
-                    }
+                if (doc == vectorDoc) {
+                    collector.collect(i, scorer.score(i));
+                    collector.incVisitedCount(1);
                 }
-            } else {
-                collectWithBits(collector, acceptDocs, scorer);
-            }
-        }
-    }
-    
-    private void collectWithIterator(OrdinalTranslatedKnnCollector collector, DocIdSetIterator acceptDocsIterator, RandomVectorScorer scorer) throws IOException {
-        java.util.Set<Integer> acceptedDocs = new java.util.HashSet<>();
-        for (int doc = acceptDocsIterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = acceptDocsIterator.nextDoc()) {
-            acceptedDocs.add(doc);
-        }
-        
-        // Check each ordinal against accepted docs
-        for (int i = 0; i < scorer.maxOrd(); i++) {
-            int doc = scorer.ordToDoc(i);
-            if (acceptedDocs.contains(doc)) {
-                collector.collect(i, scorer.score(i));
-                collector.incVisitedCount(1);
-            }
-        }
-    }
-    
-    private void collectWithBitSet(OrdinalTranslatedKnnCollector collector, org.apache.lucene.util.BitSet acceptDocsBitSet, RandomVectorScorer scorer) throws IOException {
-        for (int i = 0; i < scorer.maxOrd(); i++) {
-            int doc = scorer.ordToDoc(i);
-            if (acceptDocsBitSet.get(doc)) {
-                collector.collect(i, scorer.score(i));
-                collector.incVisitedCount(1);
-            }
-        }
-    }
-    
-    private void collectWithBits(OrdinalTranslatedKnnCollector collector, AcceptDocs acceptDocs, RandomVectorScorer scorer) throws IOException {
-        Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
-        for (int i = 0; i < scorer.maxOrd(); i++) {
-            if (acceptedOrds == null || acceptedOrds.get(i)) {
-                collector.collect(i, scorer.score(i));
-                collector.incVisitedCount(1);
             }
         }
     }

@@ -247,14 +247,13 @@ public class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
                 collector.incVisitedCount(1);
             }
         } else {
-            java.util.Set<Integer> acceptedDocs = new java.util.HashSet<>();
-            for (int doc = acceptDocsIterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = acceptDocsIterator.nextDoc()) {
-                acceptedDocs.add(doc);
-            }
-            
-            for (int i = 0; i < scorer.maxOrd(); i++) {
-                int doc = scorer.ordToDoc(i);
-                if (acceptedDocs.contains(doc)) {
+            int doc = acceptDocsIterator.nextDoc();
+            for (int i = 0; i < scorer.maxOrd() && doc != DocIdSetIterator.NO_MORE_DOCS; i++) {
+                int vectorDoc = scorer.ordToDoc(i);
+                while (doc < vectorDoc && doc != DocIdSetIterator.NO_MORE_DOCS) {
+                    doc = acceptDocsIterator.nextDoc();
+                }
+                if (doc == vectorDoc) {
                     collector.collect(i, scorer.score(i));
                     collector.incVisitedCount(1);
                 }

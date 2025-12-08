@@ -874,7 +874,6 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final TransportVersion version = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -883,7 +882,7 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
+        final TransportVersion maybeOldVersion = randomTransportVersionBetween(Authentication.VERSION_CROSS_CLUSTER_ACCESS, version);
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 

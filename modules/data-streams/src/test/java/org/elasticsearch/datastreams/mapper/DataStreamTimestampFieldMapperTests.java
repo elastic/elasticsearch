@@ -250,6 +250,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
@@ -268,6 +269,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {}));
 
@@ -282,6 +284,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = withMapping(
             new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
@@ -303,6 +306,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
@@ -343,6 +347,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = withMapping(
             new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
@@ -408,7 +413,10 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_WithoutTimestampSorting() throws IOException {
-        final Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
@@ -445,6 +453,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject("timestamp");

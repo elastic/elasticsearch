@@ -44,6 +44,6 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(3));
+        assertThat(checked, equalTo(2));
     }
 }

@@ -31,6 +31,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     // Reuse HeapAttackIT methods to prepare the indices
     private static final HeapAttackIT heapAttackIT = new HeapAttackIT();
 
+    // the upper limit is defined in {@code Fork.MAX_BRANCHES}
     private static final int MAX_SUBQUERIES = 8;
 
     public void testManyKeywordFieldsInSubqueryIntermediateResults() throws IOException {
@@ -78,9 +79,6 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         );
     }
 
-    /**
-     * Test a query with many subquery branches, the upper limit allowed(8) is defined in {@code Fork.MAX_BRANCHES}
-     */
     public void testManySubqueriesWithManyKeywordFields() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         heapAttackIT.initManyBigFieldsIndex(1000, "keyword");

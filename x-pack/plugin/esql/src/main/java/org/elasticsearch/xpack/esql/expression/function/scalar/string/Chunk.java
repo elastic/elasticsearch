@@ -77,9 +77,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,
-        examples = {
-            @Example(file = "chunk", tag = "chunk-with-field", applies_to = "stack: preview 9.3.0"),
-            @Example(file = "chunk", tag = "chunk-with-chunking-settings", applies_to = "stack: preview 9.3.0") }
+        examples = { @Example(file = "chunk", tag = "chunk-example", applies_to = "stack: preview 9.3.0") }
     )
     public Chunk(
         Source source,

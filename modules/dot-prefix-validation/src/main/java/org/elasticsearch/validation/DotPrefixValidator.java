@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -35,8 +36,9 @@ import java.util.stream.Collectors;
  *
  * This class then implements the {@link #apply(Task, String, ActionRequest, ActionListener, ActionFilterChain)}
  * method which checks for indices in the request that begin with a dot, emitting a deprecation
- * warning if they do. If the request is performed by a non-external user (operator, internal product, etc.)
- * as defined by {@link #isInternalRequest()} then the deprecation is emitted. Otherwise, it is skipped.
+ * warning if they do and we are _not_ in stateless mode, or throwing an IllegalArgumentException if they do and we _are_ in stateless mode.
+ * If the request is performed by a non-external user (operator, internal product, etc.) as defined by {@link #isInternalRequest()} then the
+ * deprecation is emitted in non-stateless mode and an IllegalArgumentException is thrown in stateless mode. Otherwise, it is skipped.
  *
  * The indices for consideration are returned by the abstract {@link #getIndicesFromRequest(Object)}
  * method, which subclasses must implement.
@@ -93,11 +95,13 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
 
     private final ThreadContext threadContext;
     private final boolean isEnabled;
+    private final boolean isStateless;
     private volatile Set<Pattern> ignoredIndexPatterns;
 
     public DotPrefixValidator(ThreadContext threadContext, ClusterService clusterService) {
         this.threadContext = threadContext;
         this.isEnabled = VALIDATE_DOT_PREFIXES.get(clusterService.getSettings());
+        this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
         this.ignoredIndexPatterns = IGNORED_INDEX_PATTERNS_SETTING.get(clusterService.getSettings())
             .stream()
             .map(Pattern::compile)
@@ -140,13 +144,17 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                         if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
                             return;
                         }
-                        deprecationLogger.warn(
-                            DeprecationCategory.INDICES,
-                            "dot-prefix",
-                            "Index [{}] name begins with a dot (.), which is deprecated, "
-                                + "and will not be allowed in a future Elasticsearch version.",
-                            index
-                        );
+                        if (isStateless) {
+                            throw new IllegalArgumentException("Index [" + index + "] name beginning with a dot (.) is not allowed");
+                        } else {
+                            deprecationLogger.warn(
+                                DeprecationCategory.INDICES,
+                                "dot-prefix",
+                                "Index [{}] name begins with a dot (.), which is deprecated, "
+                                    + "and will not be allowed in a future Elasticsearch version.",
+                                index
+                            );
+                        }
                     }
                 }
             }

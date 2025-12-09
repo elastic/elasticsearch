@@ -36,7 +36,7 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
         String name,
         ExponentialHistogramDataPoint.Builder builder,
         String expectedJson
-    ) throws IOException {
+    ) {
         this.dataPoint = builder.build();
         this.expectedJson = expectedJson;
     }
@@ -61,7 +61,8 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
                 newBuilder().setZeroCount(1)
                     .setPositive(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
                     .setNegative(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L))),
-                "{\"scale\":0,\"zero\":{\"count\":1},\"negative\":{\"indices\":[0,1],\"counts\":[1,1]},\"positive\":{\"indices\":[0,1],\"counts\":[1,1]}}" },
+                "{\"scale\":0,\"zero\":{\"count\":1},"
+                    + "\"negative\":{\"indices\":[0,1],\"counts\":[1,1]},\"positive\":{\"indices\":[0,1],\"counts\":[1,1]}}" },
             new Object[] {
                 "scale=0, no zeros",
                 newBuilder().setPositive(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
@@ -72,33 +73,38 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
                 newBuilder().setZeroCount(1)
                     .setPositive(Buckets.newBuilder().setOffset(1).addAllBucketCounts(List.of(1L, 1L)))
                     .setNegative(Buckets.newBuilder().setOffset(1).addAllBucketCounts(List.of(1L, 1L))),
-                "{\"scale\":0,\"zero\":{\"count\":1},\"negative\":{\"indices\":[1,2],\"counts\":[1,1]},\"positive\":{\"indices\":[1,2],\"counts\":[1,1]}}" },
+                "{\"scale\":0,\"zero\":{\"count\":1},"
+                    + "\"negative\":{\"indices\":[1,2],\"counts\":[1,1]},\"positive\":{\"indices\":[1,2],\"counts\":[1,1]}}" },
             new Object[] {
                 "scale=0, offset=-1",
                 newBuilder().setZeroCount(1)
                     .setPositive(Buckets.newBuilder().setOffset(-1).addAllBucketCounts(List.of(1L, 1L)))
                     .setNegative(Buckets.newBuilder().setOffset(-1).addAllBucketCounts(List.of(1L, 1L))),
-                "{\"scale\":0,\"zero\":{\"count\":1},\"negative\":{\"indices\":[-1,0],\"counts\":[1,1]},\"positive\":{\"indices\":[-1,0],\"counts\":[1,1]}}" },
+                "{\"scale\":0,\"zero\":{\"count\":1},"
+                    + "\"negative\":{\"indices\":[-1,0],\"counts\":[1,1]},\"positive\":{\"indices\":[-1,0],\"counts\":[1,1]}}" },
             new Object[] {
                 "scale=0, different offsets",
                 newBuilder().setZeroCount(1)
                     .setPositive(Buckets.newBuilder().setOffset(-1).addAllBucketCounts(List.of(1L, 1L)))
                     .setNegative(Buckets.newBuilder().setOffset(1).addAllBucketCounts(List.of(1L, 1L))),
-                "{\"scale\":0,\"zero\":{\"count\":1},\"negative\":{\"indices\":[1,2],\"counts\":[1,1]},\"positive\":{\"indices\":[-1,0],\"counts\":[1,1]}}" },
+                "{\"scale\":0,\"zero\":{\"count\":1},"
+                    + "\"negative\":{\"indices\":[1,2],\"counts\":[1,1]},\"positive\":{\"indices\":[-1,0],\"counts\":[1,1]}}" },
             new Object[] {
                 "scale=-1",
                 newBuilder().setScale(-1)
                     .setZeroCount(1)
                     .setPositive(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
                     .setNegative(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L))),
-                "{\"scale\":-1,\"zero\":{\"count\":1},\"negative\":{\"indices\":[0,1],\"counts\":[1,1]},\"positive\":{\"indices\":[0,1],\"counts\":[1,1]}}" },
+                "{\"scale\":-1,\"zero\":{\"count\":1},"
+                    + "\"negative\":{\"indices\":[0,1],\"counts\":[1,1]},\"positive\":{\"indices\":[0,1],\"counts\":[1,1]}}" },
             new Object[] {
                 "scale=1",
                 newBuilder().setScale(1)
                     .setZeroCount(1)
                     .setPositive(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
                     .setNegative(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L))),
-                "{\"scale\":1,\"zero\":{\"count\":1},\"negative\":{\"indices\":[0,1],\"counts\":[1,1]},\"positive\":{\"indices\":[0,1],\"counts\":[1,1]}}" },
+                "{\"scale\":1,\"zero\":{\"count\":1},"
+                    + "\"negative\":{\"indices\":[0,1],\"counts\":[1,1]},\"positive\":{\"indices\":[0,1],\"counts\":[1,1]}}" },
             new Object[] {
                 "zero count and threshold",
                 newBuilder().setZeroCount(2).setZeroThreshold(5.5),
@@ -109,7 +115,8 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
                     .setZeroThreshold(2.2)
                     .setNegative(Buckets.newBuilder().setOffset(-2).addAllBucketCounts(List.of(0L, 4L, 0L, 5L)))
                     .setPositive(Buckets.newBuilder().setOffset(1).addAllBucketCounts(List.of(0L, 0L, 6L, 0L))),
-                "{\"scale\":0,\"zero\":{\"count\":3,\"threshold\":2.2},\"negative\":{\"indices\":[-1,1],\"counts\":[4,5]},\"positive\":{\"indices\":[3],\"counts\":[6]}}" },
+                "{\"scale\":0,\"zero\":{\"count\":3,\"threshold\":2.2},"
+                    + "\"negative\":{\"indices\":[-1,1],\"counts\":[4,5]},\"positive\":{\"indices\":[3],\"counts\":[6]}}" },
             new Object[] {
                 "omit zero bucket counts",
                 newBuilder().setNegative(Buckets.newBuilder().setOffset(-2).addAllBucketCounts(List.of(0L, 0L, 7L, 0L)))
@@ -133,7 +140,9 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
                     .setMin(-5.0)
                     .setNegative(Buckets.newBuilder().setOffset(-1).addAllBucketCounts(List.of(0L, 3L)))
                     .setPositive(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(2L))),
-                "{\"scale\":0,\"negative\":{\"indices\":[0],\"counts\":[3]},\"positive\":{\"indices\":[0],\"counts\":[2]},\"sum\":10.0,\"min\":-5.0}" },
+                "{\"scale\":0,"
+                    + "\"negative\":{\"indices\":[0],\"counts\":[3]},"
+                    + "\"positive\":{\"indices\":[0],\"counts\":[2]},\"sum\":10.0,\"min\":-5.0}" },
             new Object[] {
                 "sum, min, and max",
                 newBuilder().setSum(100.0)
@@ -141,7 +150,9 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
                     .setMax(50.0)
                     .setNegative(Buckets.newBuilder().setOffset(-2).addAllBucketCounts(List.of(0L, 4L)))
                     .setPositive(Buckets.newBuilder().setOffset(1).addAllBucketCounts(List.of(5L, 0L))),
-                "{\"scale\":0,\"negative\":{\"indices\":[-1],\"counts\":[4]},\"positive\":{\"indices\":[1],\"counts\":[5]},\"sum\":100.0,\"min\":-50.0,\"max\":50.0}" },
+                "{\"scale\":0,"
+                    + "\"negative\":{\"indices\":[-1],\"counts\":[4]},"
+                    + "\"positive\":{\"indices\":[1],\"counts\":[5]},\"sum\":100.0,\"min\":-50.0,\"max\":50.0}" },
             new Object[] {
                 "sum, min, max, zero, buckets",
                 newBuilder().setSum(200.0)
@@ -151,7 +162,9 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
                     .setZeroThreshold(1.5)
                     .setNegative(Buckets.newBuilder().setOffset(-1).addAllBucketCounts(List.of(0L, 3L, 0L)))
                     .setPositive(Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(4L, 0L, 0L))),
-                "{\"scale\":0,\"zero\":{\"count\":2,\"threshold\":1.5},\"negative\":{\"indices\":[0],\"counts\":[3]},\"positive\":{\"indices\":[0],\"counts\":[4]},\"sum\":200.0,\"min\":-100.0,\"max\":100.0}" },
+                "{\"scale\":0,\"zero\":{\"count\":2,\"threshold\":1.5},"
+                    + "\"negative\":{\"indices\":[0],\"counts\":[3]},"
+                    + "\"positive\":{\"indices\":[0],\"counts\":[4]},\"sum\":200.0,\"min\":-100.0,\"max\":100.0}" },
             new Object[] {
                 "only positive buckets",
                 newBuilder().setPositive(Buckets.newBuilder().setOffset(2).addAllBucketCounts(List.of(0L, 0L, 9L, 0L))),

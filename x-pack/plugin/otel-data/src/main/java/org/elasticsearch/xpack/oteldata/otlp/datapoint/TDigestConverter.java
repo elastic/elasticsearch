@@ -105,9 +105,7 @@ class TDigestConverter {
         for (int i = 0; i < size; i++) {
             long count = dp.getBucketCounts(i);
             if (count != 0) {
-                double value;
-                value = getCentroid(dp, i);
-                values.accept(value);
+                values.accept(getCentroid(dp, i));
             }
         }
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,16 +23,6 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
 
     NumericMetricFieldProducer(String name) {
         super(name);
-    }
-
-    public static AbstractDownsampleFieldProducer<?> createFieldProducerForGauge(
-        String name,
-        DownsampleConfig.SamplingMethod samplingMethod
-    ) {
-        return switch (samplingMethod) {
-            case AGGREGATE -> new AggregateGauge(name);
-            case LAST_VALUE -> new LastValue(name);
-        };
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
@@ -123,6 +112,9 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
         }
 
         public Double lastValue() {
+            if (isEmpty()) {
+                return null;
+            }
             return lastValue;
         }
 

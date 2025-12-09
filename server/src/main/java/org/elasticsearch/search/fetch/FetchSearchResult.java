@@ -86,6 +86,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         assert hasReferences();
         return hits;
     }
+
     public void setCircuitBreakerBytes(long bytes) {
         this.circuitBreakerBytes = bytes;
     }

@@ -700,7 +700,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = getShard(request);
 
         ActionListener<SearchPhaseResult> wrappedListener = releaseCircuitBreakerOnResponse(
-            listener, result -> result instanceof QueryFetchSearchResult qfr ? qfr.fetchResult() : null);
+            listener,
+            result -> result instanceof QueryFetchSearchResult qfr ? qfr.fetchResult() : null
+        );
 
         rewriteAndFetchShardRequest(
             shard,
@@ -1182,10 +1184,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(
-            releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
-            readerContext,
-            markAsUsed)
+        },
+            wrapFailureListener(
+                releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
+                readerContext,
+                markAsUsed
+            )
         );
     }
 
@@ -1225,11 +1229,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(
-                releaseCircuitBreakerOnResponse(listener, result -> result ),
-                readerContext,
-                markAsUsed)
-            );
+            }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result), readerContext, markAsUsed));
         }));
     }
 
@@ -1608,17 +1608,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
-        return ActionListener.wrap(
-            response -> {
-                listener.onResponse(response);
-                // Release bytes after the response handler completes
-                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
-                if (fetchResult != null) {
-                    fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
-                }
-            },
-            listener::onFailure
-        );
+        return ActionListener.wrap(response -> {
+            listener.onResponse(response);
+            // Release bytes after the response handler completes
+            FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
+            if (fetchResult != null) {
+                fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+            }
+        }, listener::onFailure);
     }
 
     private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {

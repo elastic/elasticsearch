@@ -45,11 +45,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult result = new FetchSearchResult();
         result.setCircuitBreakerBytes(5000L);
 
-        fetchSearchResultListener(
-            successCalled,
-            failureCalled,
-            breaker
-        ).onResponse(result);
+        fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
 
         assertThat(successCalled.get(), is(true));
         assertThat(failureCalled.get(), is(false));
@@ -70,16 +66,9 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult fetchResult = new FetchSearchResult();
         fetchResult.setCircuitBreakerBytes(3000L);
 
-        QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(
-            new QuerySearchResult(),
-            fetchResult
-        );
+        QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
 
-        queryFetchSearchResultListener(
-            successCalled,
-            failureCalled,
-            breaker
-        ).onResponse(queryFetchResult);
+        queryFetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(queryFetchResult);
 
         assertThat(successCalled.get(), is(true));
         assertThat(failureCalled.get(), is(false));
@@ -100,20 +89,10 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult fetchResult = new FetchSearchResult();
         fetchResult.setCircuitBreakerBytes(4000L);
 
-        QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(
-            new QuerySearchResult(),
-            fetchResult
-        );
-        ScrollQueryFetchSearchResult scrollResult = new ScrollQueryFetchSearchResult(
-            queryFetchResult,
-            null
-        );
+        QueryFetchSearchResult queryFetchResult = new QueryFetchSearchResult(new QuerySearchResult(), fetchResult);
+        ScrollQueryFetchSearchResult scrollResult = new ScrollQueryFetchSearchResult(queryFetchResult, null);
 
-        scrollQueryFetchSearchResultListener(
-            successCalled,
-            failureCalled,
-            breaker
-        ).onResponse(scrollResult);
+        scrollQueryFetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(scrollResult);
 
         assertThat(successCalled.get(), is(true));
         assertThat(failureCalled.get(), is(false));
@@ -132,11 +111,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean successCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
 
-        fetchSearchResultListener(
-            successCalled,
-            failureCalled,
-            breaker
-        ).onFailure(new RuntimeException("test failure"));
+        fetchSearchResultListener(successCalled, failureCalled, breaker).onFailure(new RuntimeException("test failure"));
 
         assertThat(successCalled.get(), is(false));
         assertThat(failureCalled.get(), is(true));
@@ -153,17 +128,12 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean successCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
 
-        querySearchResultListener(
-            successCalled,
-            failureCalled,
-            breaker
-        ).onResponse( new QuerySearchResult());
+        querySearchResultListener(successCalled, failureCalled, breaker).onResponse(new QuerySearchResult());
 
         assertThat(successCalled.get(), is(true));
         assertThat(failureCalled.get(), is(false));
         // No breaker to release, should complete normally
     }
-
 
     /**
      * Test multiple releases are safe (idempotent).
@@ -200,11 +170,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         FetchSearchResult result = new FetchSearchResult();
         result.setCircuitBreakerBytes(largeBytes);
 
-        fetchSearchResultListener(
-            successCalled,
-            failureCalled,
-            breaker
-        ).onResponse(result);
+        fetchSearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
 
         assertThat(successCalled.get(), is(true));
         assertThat(breakerUsed.get(), equalTo(0L));
@@ -236,14 +202,10 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         assertThat(breakerUsed.get(), equalTo(0L));
     }
 
-
     /**
      * Create a listener that tracks if it was called.
      */
-    private <T> ActionListener<T> trackingListener(
-        AtomicBoolean successCalled,
-        AtomicBoolean failureCalled
-    ) {
+    private <T> ActionListener<T> trackingListener(AtomicBoolean successCalled, AtomicBoolean failureCalled) {
         return new ActionListener<>() {
             @Override
             public void onResponse(T result) {
@@ -290,11 +252,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerRelease(
-            trackingListener(successCalled, failureCalled),
-            breaker,
-            qr -> null
-        );
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, qr -> null);
     }
 
     private ActionListener<FetchSearchResult> fetchSearchResultListener(
@@ -302,11 +260,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerRelease(
-            trackingListener(successCalled, failureCalled),
-            breaker,
-            Function.identity()
-        );
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, Function.identity());
     }
 
     private ActionListener<QueryFetchSearchResult> queryFetchSearchResultListener(
@@ -314,11 +268,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerRelease(
-            trackingListener(successCalled, failureCalled),
-            breaker,
-            QueryFetchSearchResult::fetchResult
-        );
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, QueryFetchSearchResult::fetchResult);
     }
 
     private ActionListener<ScrollQueryFetchSearchResult> scrollQueryFetchSearchResultListener(
@@ -326,11 +276,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerRelease(
-            trackingListener(successCalled, failureCalled),
-            breaker,
-            sr -> sr.result().fetchResult()
-        );
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, sr -> sr.result().fetchResult());
     }
 
     /**

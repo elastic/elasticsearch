@@ -77,12 +77,18 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     private void createIndex(String indexName) {
         assertAcked(
             prepareCreate(indexName).setMapping(
-                SORT_FIELD, "type=long",
-                "text", "type=text,store=true",
-                "large_text_1", "type=text,store=false",
-                "large_text_2", "type=text,store=false",
-                "large_text_3", "type=text,store=false",
-                "keyword", "type=keyword"
+                SORT_FIELD,
+                "type=long",
+                "text",
+                "type=text,store=true",
+                "large_text_1",
+                "type=text,store=false",
+                "large_text_2",
+                "type=text,store=false",
+                "large_text_3",
+                "type=text,store=false",
+                "keyword",
+                "type=keyword"
             )
         );
     }
@@ -154,8 +160,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         long breakerBeforeSearch = getRequestBreakerUsed();
 
         // Initial scroll request
-        SearchResponse searchResponse = prepareSearch(INDEX_SMALL)
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch(INDEX_SMALL).setQuery(matchAllQuery())
             .setSize(10)
             .setScroll(TimeValue.timeValueMinutes(1))
             .get();
@@ -210,10 +215,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
             }
         } finally {
             // Close PIT
-            client().execute(
-                TransportClosePointInTimeAction.TYPE,
-                new ClosePointInTimeRequest(pitResponse.getPointInTimeId())
-            ).actionGet();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitResponse.getPointInTimeId())).actionGet();
         }
 
         assertThat(
@@ -229,19 +231,15 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
     public void testSingleShardSearchReleasesCircuitBreaker() throws IOException {
         String singleShardIndex = "single_shard_idx";
         assertAcked(
-            prepareCreate(singleShardIndex)
-                .setSettings(Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0))
-                .setMapping(SORT_FIELD, "type=long", "text", "type=text")
+            prepareCreate(singleShardIndex).setSettings(
+                Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
+            ).setMapping(SORT_FIELD, "type=long", "text", "type=text")
         );
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             builders.add(
-                prepareIndex(singleShardIndex)
-                    .setId(Integer.toString(i))
-                    .setSource(SORT_FIELD, i, "text", Strings.repeat("content ", 1000))
+                prepareIndex(singleShardIndex).setId(Integer.toString(i)).setSource(SORT_FIELD, i, "text", Strings.repeat("content ", 1000))
             );
         }
         indexRandom(true, builders);
@@ -249,12 +247,9 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         long breakerBeforeSearch = getRequestBreakerUsed();
 
-        assertNoFailuresAndResponse(
-            prepareSearch(singleShardIndex).setQuery(matchAllQuery()).setSize(10),
-            response -> {
-                assertThat(response.getHits().getHits().length, equalTo(10));
-            }
-        );
+        assertNoFailuresAndResponse(prepareSearch(singleShardIndex).setQuery(matchAllQuery()).setSize(10), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(10));
+        });
 
         assertThat(
             "Circuit breaker should be released after single-shard search completes",
@@ -271,8 +266,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         expectThrows(
             Exception.class,
-            () -> prepareSearch(INDEX_SMALL)
-                .setQuery(matchAllQuery())
+            () -> prepareSearch(INDEX_SMALL).setQuery(matchAllQuery())
                 .addSort("non_existent_field", SortOrder.ASC) // This will cause an error
                 .get()
         );
@@ -291,8 +285,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
         long breakerBeforeSearch = getRequestBreakerUsed();
 
         // First page
-        SearchResponse response1 = prepareSearch(INDEX_SMALL)
-            .setQuery(matchAllQuery())
+        SearchResponse response1 = prepareSearch(INDEX_SMALL).setQuery(matchAllQuery())
             .setSize(10)
             .addSort(SORT_FIELD, SortOrder.ASC)
             .get();
@@ -302,11 +295,7 @@ public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
 
         // Second page using search_after
         assertNoFailuresAndResponse(
-            prepareSearch(INDEX_SMALL)
-                .setQuery(matchAllQuery())
-                .setSize(10)
-                .addSort(SORT_FIELD, SortOrder.ASC)
-                .searchAfter(sortValues),
+            prepareSearch(INDEX_SMALL).setQuery(matchAllQuery()).setSize(10).addSort(SORT_FIELD, SortOrder.ASC).searchAfter(sortValues),
             response2 -> {
                 assertThat(response2.getHits().getHits().length, greaterThan(0));
             }

@@ -136,7 +136,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testRowCommand() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)), new Alias(EMPTY, "b", integer(2)))),
-            statement("row a = 1, b = 2")
+            query("row a = 1, b = 2")
         );
     }
 
@@ -146,106 +146,106 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 List.of(new Alias(EMPTY, "1", integer(1)), new Alias(EMPTY, "2", integer(2)), new Alias(EMPTY, "c", integer(3)))
             ),
-            statement("row 1, 2, c = 3")
+            query("row 1, 2, c = 3")
         );
     }
 
     public void testRowCommandLong() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLong(2147483648L)))), statement("row c = 2147483648"));
+        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLong(2147483648L)))), query("row c = 2147483648"));
     }
 
     public void testRowCommandHugeInt() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLong("9223372036854775808")))),
-            statement("row c = 9223372036854775808")
+            query("row c = 9223372036854775808")
         );
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(18446744073709551616.)))),
-            statement("row c = 18446744073709551616")
+            query("row c = 18446744073709551616")
         );
     }
 
     public void testRowCommandHugeNegativeInt() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-92233720368547758080d)))),
-            statement("row c = -92233720368547758080")
+            query("row c = -92233720368547758080")
         );
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(-18446744073709551616d)))),
-            statement("row c = -18446744073709551616")
+            query("row c = -18446744073709551616")
         );
     }
 
     public void testRowCommandDouble() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(1.0)))), statement("row c = 1.0"));
+        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(1.0)))), query("row c = 1.0"));
     }
 
     public void testRowCommandMultivalueInt() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", integers(1, 2, -5)))), statement("row c = [1, 2, -5]"));
+        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", integers(1, 2, -5)))), query("row c = [1, 2, -5]"));
     }
 
     public void testRowCommandMultivalueLong() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 2147483649L, -434366649L)))),
-            statement("row c = [2147483648, 2147483649, -434366649]")
+            query("row c = [2147483648, 2147483649, -434366649]")
         );
     }
 
     public void testRowCommandMultivalueLongAndInt() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 1L)))),
-            statement("row c = [2147483648, 1]")
+            query("row c = [2147483648, 1]")
         );
     }
 
     public void testRowCommandMultivalueHugeInts() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 18446744073709551617.)))),
-            statement("row c = [18446744073709551616, 18446744073709551617]")
+            query("row c = [18446744073709551616, 18446744073709551617]")
         );
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "9223372036854775809")))),
-            statement("row c = [9223372036854775808, 9223372036854775809]")
+            query("row c = [9223372036854775808, 9223372036854775809]")
         );
     }
 
     public void testRowCommandMultivalueHugeIntAndNormalInt() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(18446744073709551616., 1.0)))),
-            statement("row c = [18446744073709551616, 1]")
+            query("row c = [18446744073709551616, 1]")
         );
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalUnsignedLongs("9223372036854775808", "1")))),
-            statement("row c = [9223372036854775808, 1]")
+            query("row c = [9223372036854775808, 1]")
         );
     }
 
     public void testRowCommandMultivalueDouble() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(1.0, 2.0, -3.4)))),
-            statement("row c = [1.0, 2.0, -3.4]")
+            query("row c = [1.0, 2.0, -3.4]")
         );
     }
 
     public void testRowCommandBoolean() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalBoolean(false)))), statement("row c = false"));
+        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalBoolean(false)))), query("row c = false"));
     }
 
     public void testRowCommandMultivalueBoolean() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalBooleans(false, true)))),
-            statement("row c = [false, true]")
+            query("row c = [false, true]")
         );
     }
 
     public void testRowCommandString() {
-        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalString("chicken")))), statement("row c = \"chicken\""));
+        assertEqualsIgnoringIds(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalString("chicken")))), query("row c = \"chicken\""));
     }
 
     public void testRowCommandMultivalueString() {
         assertEqualsIgnoringIds(
             new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalStrings("cat", "dog")))),
-            statement("row c = [\"cat\", \"dog\"]")
+            query("row c = [\"cat\", \"dog\"]")
         );
     }
 
@@ -259,14 +259,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(EMPTY, "@timestamp", Literal.keyword(EMPTY, "2022-26-08T00:00:00"))
                 )
             ),
-            statement("row a.b.c = 1, `b` = 2, `@timestamp`=\"2022-26-08T00:00:00\"")
+            query("row a.b.c = 1, `b` = 2, `@timestamp`=\"2022-26-08T00:00:00\"")
         );
     }
 
     public void testCompositeCommand() {
         assertEqualsIgnoringIds(
             new Filter(EMPTY, new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)))), TRUE),
-            statement("row a = 1 | where true")
+            query("row a = 1 | where true")
         );
     }
 
@@ -277,7 +277,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 new Filter(EMPTY, new Filter(EMPTY, new Row(EMPTY, List.of(new Alias(EMPTY, "a", integer(1)))), TRUE), FALSE),
                 TRUE
             ),
-            statement("row a = 1 | where true | where false | where true")
+            query("row a = 1 | where true | where false | where true")
         );
     }
 
@@ -494,12 +494,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectThrows(
             ParsingException.class,
             containsString("line 1:19: token recognition error at: 'I'"),
-            () -> statement("FROM foo | INLINE INLINE STATS COUNT(*)")
+            () -> query("FROM foo | INLINE INLINE STATS COUNT(*)")
         );
         expectThrows(
             ParsingException.class,
             containsString("line 1:19: token recognition error at: 'F'"),
-            () -> statement("FROM foo | INLINE FOO COUNT(*)")
+            () -> query("FROM foo | INLINE FOO COUNT(*)")
         );
     }
 
@@ -527,7 +527,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                    ( STATS COUNT(*) )
                    ( INLINE STATS COUNT(*) )
             """;
-        var plan = statement(query);
+        var plan = query(query);
         var fork = as(plan, Fork.class);
         var subPlans = fork.children();
 
@@ -966,17 +966,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void clustersAndIndices(String command, String indexString1, String indexString2) {
+        assertEqualsIgnoringIds(unresolvedRelation(indexString1 + "," + indexString2), query(command, indexString1 + ", " + indexString2));
         assertEqualsIgnoringIds(
             unresolvedRelation(indexString1 + "," + indexString2),
-            statement(command, indexString1 + ", " + indexString2)
-        );
-        assertEqualsIgnoringIds(
-            unresolvedRelation(indexString1 + "," + indexString2),
-            statement(command, indexString1 + ", \"" + indexString2 + "\"")
+            query(command, indexString1 + ", \"" + indexString2 + "\"")
         );
         assertEqualsIgnoringIds(
             unresolvedRelation(indexString1 + ", " + indexString2),
-            statement(command, "\"" + indexString1 + ", " + indexString2 + "\"")
+            query(command, "\"" + indexString1 + ", " + indexString2 + "\"")
         );
     }
 
@@ -1055,7 +1052,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testBasicLimitCommand() {
-        LogicalPlan plan = statement("from text | where true | limit 5");
+        LogicalPlan plan = query("from text | where true | limit 5");
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1067,7 +1064,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testBasicSortCommand() {
-        LogicalPlan plan = statement("from text | where true | sort a+b asc nulls first, x desc nulls last | sort y asc | sort z desc");
+        LogicalPlan plan = query("from text | where true | sort a+b asc nulls first, x desc nulls last | sort y asc | sort z desc");
         assertThat(plan, instanceOf(OrderBy.class));
         OrderBy orderBy = (OrderBy) plan;
         assertThat(orderBy.order().size(), equalTo(1));
@@ -1114,20 +1111,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testSubquery() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
-        assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain ( row a = 1 )"));
+        assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
     }
 
     public void testBlockComments() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo )";
-        LogicalPlan expected = statement(query);
+        LogicalPlan expected = query(query);
 
         int wsIndex = query.indexOf(' ');
 
         do {
             String queryWithComment = query.substring(0, wsIndex) + "/*explain ( \nfrom bar ) */" + query.substring(wsIndex + 1);
 
-            assertEqualsIgnoringIds(expected, statement(queryWithComment));
+            assertEqualsIgnoringIds(expected, query(queryWithComment));
 
             wsIndex = query.indexOf(' ', wsIndex + 1);
         } while (wsIndex >= 0);
@@ -1136,14 +1133,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testSingleLineComments() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo ) ";
-        LogicalPlan expected = statement(query);
+        LogicalPlan expected = query(query);
 
         int wsIndex = query.indexOf(' ');
 
         do {
             String queryWithComment = query.substring(0, wsIndex) + "//explain ( from bar ) \n" + query.substring(wsIndex + 1);
 
-            assertEqualsIgnoringIds(expected, statement(queryWithComment));
+            assertEqualsIgnoringIds(expected, query(queryWithComment));
 
             wsIndex = query.indexOf(' ', wsIndex + 1);
         } while (wsIndex >= 0);
@@ -1152,9 +1149,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testNewLines() {
         String[] delims = new String[] { "", "\r", "\n", "\r\n" };
         Function<String, String> queryFun = d -> d + "from " + d + " foo " + d + "| eval " + d + " x = concat(bar, \"baz\")" + d;
-        LogicalPlan reference = statement(queryFun.apply(delims[0]));
+        LogicalPlan reference = query(queryFun.apply(delims[0]));
         for (int i = 1; i < delims.length; i++) {
-            LogicalPlan candidate = statement(queryFun.apply(delims[i]));
+            LogicalPlan candidate = query(queryFun.apply(delims[i]));
             assertThat(candidate, equalToIgnoringIds(reference));
         }
     }
@@ -1180,7 +1177,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     containsString("'from'"),
                     containsString("'row'")
                 ),
-                () -> statement(queryWithUnexpectedCmd.v1())
+                () -> query(queryWithUnexpectedCmd.v1())
             );
 
         }
@@ -1204,7 +1201,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     containsString("'limit'"),
                     containsString("'where'")
                 ),
-                () -> statement(queryWithUnexpectedCmd.v1())
+                () -> query(queryWithUnexpectedCmd.v1())
             );
         }
     }
@@ -1307,7 +1304,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectThrows(
             ParsingException.class,
             containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary"),
-            () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\"")
+            () -> query("row a = \"foo bar\" | grok a \"%{_invalid_:x}\"")
         );
 
         cmd = processingCommand("grok a \"%{WORD:foo} %{WORD:foo}\"");
@@ -1465,7 +1462,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testKeepStarMvExpand() {
         try {
             String query = "from test | keep * | mv_expand a";
-            var plan = statement(query);
+            var plan = query(query);
         } catch (UnresolvedException e) {
             fail(e, "Regression: https://github.com/elastic/elasticsearch/issues/103331");
         }
@@ -1474,11 +1471,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testUsageOfProject() {
         String query = "from test | project foo, bar";
-        expectThrows(ParsingException.class, containsString("mismatched input 'project' expecting"), () -> statement(query));
+        expectThrows(ParsingException.class, containsString("mismatched input 'project' expecting"), () -> query(query));
     }
 
     public void testInputParams() {
-        LogicalPlan stm = statement(
+        LogicalPlan stm = query(
             "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?, e = ?-1, f = ?+1",
             new QueryParams(
                 List.of(
@@ -1558,7 +1555,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedParams() {
-        LogicalPlan stm = statement("row x=?name1, y = ?name1", new QueryParams(List.of(paramAsConstant("name1", 1))));
+        LogicalPlan stm = query("row x=?name1, y = ?name1", new QueryParams(List.of(paramAsConstant("name1", 1))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
         assertThat(row.fields().size(), is(2));
@@ -1613,7 +1610,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testPositionalParams() {
-        LogicalPlan stm = statement("row x=?1, y=?1", new QueryParams(List.of(paramAsConstant(null, 1))));
+        LogicalPlan stm = query("row x=?1, y=?1", new QueryParams(List.of(paramAsConstant(null, 1))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
         assertThat(row.fields().size(), is(2));
@@ -1659,7 +1656,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInWhere() {
-        LogicalPlan plan = statement("from test | where x < ? |  limit 10", new QueryParams(List.of(paramAsConstant(null, 5))));
+        LogicalPlan plan = query("from test | where x < ? |  limit 10", new QueryParams(List.of(paramAsConstant(null, 5))));
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1671,7 +1668,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?n1 |  limit 10", new QueryParams(List.of(paramAsConstant("n1", 5))));
+        plan = query("from test | where x < ?n1 |  limit 10", new QueryParams(List.of(paramAsConstant("n1", 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1683,7 +1680,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?_n1 |  limit 10", new QueryParams(List.of(paramAsConstant("_n1", 5))));
+        plan = query("from test | where x < ?_n1 |  limit 10", new QueryParams(List.of(paramAsConstant("_n1", 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1695,7 +1692,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?1 |  limit 10", new QueryParams(List.of(paramAsConstant(null, 5))));
+        plan = query("from test | where x < ?1 |  limit 10", new QueryParams(List.of(paramAsConstant(null, 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1707,7 +1704,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?__1 |  limit 10", new QueryParams(List.of(paramAsConstant("__1", 5))));
+        plan = query("from test | where x < ?__1 |  limit 10", new QueryParams(List.of(paramAsConstant("__1", 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1721,7 +1718,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInEval() {
-        LogicalPlan plan = statement(
+        LogicalPlan plan = query(
             "from test | where x < ? | eval y = ? + ? |  limit 10",
             new QueryParams(List.of(paramAsConstant(null, 5), paramAsConstant(null, -1), paramAsConstant(null, 100)))
         );
@@ -1739,7 +1736,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  limit 10",
             new QueryParams(List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100)))
         );
@@ -1757,7 +1754,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  limit 10",
             new QueryParams(List.of(paramAsConstant("_n1", 5), paramAsConstant("_n2", -1), paramAsConstant("_n3", 100)))
         );
@@ -1775,7 +1772,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  limit 10",
             new QueryParams(List.of(paramAsConstant(null, 5), paramAsConstant(null, -1)))
         );
@@ -1793,7 +1790,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  limit 10",
             new QueryParams(List.of(paramAsConstant("_1", 5), paramAsConstant("_2", -1)))
         );
@@ -1813,7 +1810,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInAggFunction() {
-        LogicalPlan plan = statement(
+        LogicalPlan plan = query(
             "from test | where x < ? | eval y = ? + ? |  stats count(?) by z",
             new QueryParams(
                 List.of(paramAsConstant(null, 5), paramAsConstant(null, -1), paramAsConstant(null, 100), paramAsConstant(null, "*"))
@@ -1833,7 +1830,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  stats count(?n4) by z",
             new QueryParams(
                 List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100), paramAsConstant("n4", "*"))
@@ -1853,7 +1850,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  stats count(?_n4) by z",
             new QueryParams(
                 List.of(paramAsConstant("_n1", 5), paramAsConstant("_n2", -1), paramAsConstant("_n3", 100), paramAsConstant("_n4", "*"))
@@ -1873,7 +1870,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  stats count(?3) by z",
             new QueryParams(List.of(paramAsConstant(null, 5), paramAsConstant(null, -1), paramAsConstant(null, "*")))
         );
@@ -1891,7 +1888,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement(
+        plan = query(
             "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  stats count(?_3) by z",
             new QueryParams(List.of(paramAsConstant("_1", 5), paramAsConstant("_2", -1), paramAsConstant("_3", "*")))
         );
@@ -1947,7 +1944,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testIntervalParam() {
-        LogicalPlan stm = statement(
+        LogicalPlan stm = query(
             "row x = ?1::datetime | eval y = ?1::datetime + ?2::date_period",
             new QueryParams(List.of(paramAsConstant("datetime", "2024-01-01"), paramAsConstant("date_period", "3 days")))
         );
@@ -1982,7 +1979,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Equals(EMPTY, attribute("f1."), attribute("f.2"))
                 )
             ),
-            statement(
+            query(
                 """
                     from test
                     | eval ?f0 = ?fn1(?f1)
@@ -2009,7 +2006,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Equals(EMPTY, attribute("f3.*.f.4."), attribute("f.5.*.f.*.6"))
                 )
             ),
-            statement(
+            query(
                 """
                     from test
                     | eval ?f0 = ?fn1(?f1.?f2)
@@ -2047,7 +2044,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 attribute("f.6*"),
                 attribute("f.6*")
             ),
-            statement(
+            query(
                 """
                     from test
                     | stats y = ?fn2(?f3) by ?f4
@@ -2081,7 +2078,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 attribute("f.*.13.f.14*"),
                 attribute("f.*.13.f.14*")
             ),
-            statement(
+            query(
                 """
                     from test
                     | stats y = ?fn2(?f7.?f8) by ?f9.?f10
@@ -2104,7 +2101,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         // keep, drop, rename, grok, dissect
-        LogicalPlan plan = statement(
+        LogicalPlan plan = query(
             """
                 from test | keep ?f1, ?f2 | drop ?f3, ?f4 | dissect ?f5 "%{bar}" | grok ?f6 "%{WORD:foo}" | rename ?f7 as ?f8 | limit 1""",
             new QueryParams(
@@ -2138,7 +2135,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Keep keep = as(drop.child(), Keep.class);
         assertEqualsIgnoringIds(keep.projections(), List.of(attribute("f.1.*"), attribute("f.2")));
 
-        plan = statement(
+        plan = query(
             """
                 from test | keep ?f1.?f2 | drop ?f3.?f4
                 | dissect ?f5.?f6 "%{bar}" | grok ?f7.?f8 "%{WORD:foo}"
@@ -2191,7 +2188,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 Map.of(),
                 List.of(new Alias(EMPTY, "f.2", attribute("f.3*")))
             ),
-            statement(
+            query(
                 "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
                 new QueryParams(List.of(paramAsIdentifier("f1", "f.1.*"), paramAsIdentifier("f2", "f.2"), paramAsIdentifier("f3", "f.3*")))
             )
@@ -2208,7 +2205,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 Map.of(),
                 List.of(new Alias(EMPTY, "f.3*.f.4.*", attribute("f.5.f.6*")))
             ),
-            statement(
+            query(
                 "from idx1 | ENRICH idx2 ON ?f1.?f2 WITH ?f3.?f4 = ?f5.?f6",
                 new QueryParams(
                     List.of(
@@ -2227,7 +2224,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamForIdentifierPattern() {
         // name patterns can appear in keep and drop
         // all patterns
-        LogicalPlan plan = statement(
+        LogicalPlan plan = query(
             "from test | keep ?f1, ?f2 | drop ?f3, ?f4",
             new QueryParams(
                 List.of(
@@ -2259,7 +2256,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         UnresolvedRelation ur = as(keep.child(), UnresolvedRelation.class);
         assertEqualsIgnoringIds(ur, relation("test"));
 
-        plan = statement(
+        plan = query(
             "from test | keep ?f1.?f2 | drop ?f3.?f4",
             new QueryParams(
                 List.of(
@@ -2286,7 +2283,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEqualsIgnoringIds(ur, relation("test"));
 
         // mixed names and patterns
-        plan = statement(
+        plan = query(
             "from test | keep ?f1.?f2 | drop ?f3.?f4",
             new QueryParams(
                 List.of(
@@ -2420,10 +2417,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     private void assertStringAsIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false && statement.startsWith("TS ")) {
-            expectThrows(ParsingException.class, containsString("mismatched input 'TS' expecting {"), () -> statement(statement));
+            expectThrows(ParsingException.class, containsString("mismatched input 'TS' expecting {"), () -> query(statement));
             return;
         }
-        LogicalPlan from = statement(statement);
+        LogicalPlan from = query(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
         UnresolvedRelation table = (UnresolvedRelation) from;
         assertThat(table.indexPattern().indexPattern(), is(string));
@@ -2434,11 +2431,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectThrows(
                 ParsingException.class,
                 containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"),
-                () -> statement(statement)
+                () -> query(statement)
             );
             return;
         }
-        var plan = statement(statement);
+        var plan = query(statement);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
         assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef(string)));
@@ -2479,7 +2476,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testEnrichOnMatchField() {
-        var plan = statement("ROW a = \"1\" | ENRICH languages_policy ON a WITH ```name``* = language_name`");
+        var plan = query("ROW a = \"1\" | ENRICH languages_policy ON a WITH ```name``* = language_name`");
         var enrich = as(plan, Enrich.class);
         var lists = enrich.enrichFields();
         assertThat(lists, hasSize(1));
@@ -2498,14 +2495,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
-            expectThrows(
-                ParsingException.class,
-                containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"),
-                () -> statement(query)
-            );
+            expectThrows(ParsingException.class, containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"), () -> query(query));
             return;
         }
-        var plan = statement(query);
+        var plan = query(query);
         var lookup = as(plan, Lookup.class);
         var tableName = as(lookup.tableName(), Literal.class);
         assertThat(tableName.fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("t")));
@@ -2519,11 +2512,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetricsWithoutStats() {
-        assertStatement("TS foo", unresolvedTSRelation("foo"));
-        assertStatement("TS foo,bar", unresolvedTSRelation("foo,bar"));
-        assertStatement("TS foo*,bar", unresolvedTSRelation("foo*,bar"));
-        assertStatement("TS foo-*,bar", unresolvedTSRelation("foo-*,bar"));
-        assertStatement("TS foo-*,bar+*", unresolvedTSRelation("foo-*,bar+*"));
+        assertQuery("TS foo", unresolvedTSRelation("foo"));
+        assertQuery("TS foo,bar", unresolvedTSRelation("foo,bar"));
+        assertQuery("TS foo*,bar", unresolvedTSRelation("foo*,bar"));
+        assertQuery("TS foo-*,bar", unresolvedTSRelation("foo-*,bar"));
+        assertQuery("TS foo-*,bar+*", unresolvedTSRelation("foo-*,bar+*"));
     }
 
     public void testMetricsIdentifiers() {
@@ -2534,12 +2527,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("ts <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
-            assertStatement(e.getKey(), unresolvedTSRelation(e.getValue()));
+            assertQuery(e.getKey(), unresolvedTSRelation(e.getValue()));
         }
     }
 
     public void testSimpleMetricsWithStats() {
-        assertStatement(
+        assertQuery(
             "TS foo | STATS load=avg(cpu) BY ts",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2552,7 +2545,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 null
             )
         );
-        assertStatement(
+        assertQuery(
             "TS foo,bar | STATS load=avg(cpu) BY ts",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2565,7 +2558,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 null
             )
         );
-        assertStatement(
+        assertQuery(
             "TS foo,bar | STATS load=avg(cpu),max(rate(requests)) BY ts",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2588,7 +2581,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 null
             )
         );
-        assertStatement(
+        assertQuery(
             "TS foo* | STATS count(errors)",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2598,7 +2591,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 null
             )
         );
-        assertStatement(
+        assertQuery(
             "TS foo* | STATS a(b)",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2608,7 +2601,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 null
             )
         );
-        assertStatement(
+        assertQuery(
             "TS foo* | STATS a(b)",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2618,7 +2611,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 null
             )
         );
-        assertStatement(
+        assertQuery(
             "TS foo* | STATS a1(b2)",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2628,7 +2621,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 null
             )
         );
-        assertStatement(
+        assertQuery(
             "TS foo*,bar* | STATS b = min(a) by c, d.e",
             new TimeSeriesAggregate(
                 EMPTY,
@@ -2680,7 +2673,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatchOperatorConstantQueryString() {
-        var plan = statement("FROM test | WHERE field:\"value\"");
+        var plan = query("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
         var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
@@ -2714,7 +2707,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatchFunctionFieldCasting() {
-        var plan = statement("FROM test | WHERE match(field::int, \"value\")");
+        var plan = query("FROM test | WHERE match(field::int, \"value\")");
         var filter = as(plan, Filter.class);
         var function = (UnresolvedFunction) filter.condition();
         var toInteger = (ToInteger) function.children().get(0);
@@ -2724,7 +2717,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatchOperatorFieldCasting() {
-        var plan = statement("FROM test | WHERE field::int : \"value\"");
+        var plan = query("FROM test | WHERE field::int : \"value\"");
         var filter = as(plan, Filter.class);
         var match = (MatchOperator) filter.condition();
         var toInteger = (ToInteger) match.field();
@@ -2778,7 +2771,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
-            statement("""
+            query("""
                 from test
                 | eval x = fn1(f1, "testString", {"option1":"string","option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]})
                 | where y == fn2("testString", {"option1":["string1","string2"],"option2":[1,2,3],"option3":2.0,"option4":true})
@@ -2813,7 +2806,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     )
                 )
             ),
-            statement("""
+            query("""
                 from test
                 | stats x = fn1(f1, f2, {"option1":"string","option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]})
                   by fn2(f3, {"option1":["string1","string2"],"option2":[1,2,3],"option3":2.0,"option4":true})
@@ -2822,7 +2815,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         // In dissect and grok as function named parameter
-        LogicalPlan plan = statement("""
+        LogicalPlan plan = query("""
             from test
             | dissect fn1(f1, f2, {"option1":"string", "option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
             | grok fn2(f3, {"option1":["string1","string2"],"option2":[1,2,3],"option3":2.0,"option4":true}) "%{WORD:foo}"
@@ -2877,7 +2870,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
-            statement(
+            query(
                 """
                     from test
                     | eval x = ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]})
@@ -2925,7 +2918,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     )
                 )
             ),
-            statement(
+            query(
                 """
                     from test
                     | stats x = ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]})
@@ -2950,7 +2943,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
 
-        LogicalPlan plan = statement(
+        LogicalPlan plan = query(
             """
                 from test
                 | dissect ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
@@ -3013,7 +3006,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     function("fn2", List.of(Literal.keyword(EMPTY, "testString"), mapExpression(expectedMap2)))
                 )
             ),
-            statement("""
+            query("""
                 from test
                 | eval x = fn1(f1, "testString", {"option":"string","Option":1,"oPtion":[2.0,3.0,4.0]})
                 | where y == fn2("testString", {"option":["string1","string2"],"Option":[1,2,3],"oPtion":2.0})
@@ -3116,7 +3109,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String cmd = command.getKey();
             String error = command.getValue();
 
-            statement(LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {})"));
+            query(LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {})"));
         }
     }
 
@@ -3261,7 +3254,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testValidFromPattern() {
         var basePattern = randomIndexPatterns();
 
-        var plan = statement("FROM " + basePattern);
+        var plan = query("FROM " + basePattern);
 
         assertThat(as(plan, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
     }
@@ -3395,7 +3388,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFork() {
-        var plan = statement("""
+        var plan = query("""
             FROM foo*
             | FORK ( WHERE a:"baz" | LIMIT 11 )
                    ( WHERE b:"bar" | SORT b )
@@ -3498,7 +3491,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | KEEP a
             """;
 
-        var plan = statement(query);
+        var plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
 
         query = """
@@ -3514,7 +3507,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | KEEP a
             """;
 
-        plan = statement(query);
+        plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 
@@ -3535,7 +3528,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
             | KEEP a
             """;
-        var plan = statement(query);
+        var plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
 
         query = """
@@ -3551,7 +3544,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( SAMPLE 0.99 )
             | KEEP a
             """;
-        plan = statement(query);
+        plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
 
         query = """
@@ -3562,7 +3555,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( LOOKUP_🐔 a on b )
             | KEEP a
             """;
-        plan = statement(query);
+        plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
     }
 
@@ -3611,7 +3604,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "sort",
             "stats" };
         for (String keyword : keywords) {
-            var plan = statement("FROM test | STATS avg(" + keyword + ")");
+            var plan = query("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);
         }
     }
@@ -3644,60 +3637,60 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankDefaultInferenceIdAndScoreAttribute() {
-        var plan = processingCommand("RERANK \"query text\" ON title");
+        var plan = processingCommand("RERANK \"statement text\" ON title");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
     }
 
     public void testRerankEmptyOptions() {
-        var plan = processingCommand("RERANK \"query text\" ON title WITH {}");
+        var plan = processingCommand("RERANK \"statement text\" ON title WITH {}");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
     }
 
     public void testRerankInferenceId() {
-        var plan = processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
+        var plan = processingCommand("RERANK \"statement text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
     }
 
     public void testRerankScoreAttribute() {
-        var plan = processingCommand("RERANK rerank_score=\"query text\" ON title");
+        var plan = processingCommand("RERANK rerank_score=\"statement text\" ON title");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
     }
 
     public void testRerankInferenceIdAnddScoreAttribute() {
-        var plan = processingCommand("RERANK rerank_score=\"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
+        var plan = processingCommand("RERANK rerank_score=\"statement text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
     }
 
     public void testRerankSingleField() {
-        var plan = processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceID\" }");
+        var plan = processingCommand("RERANK \"statement text\" ON title WITH { \"inference_id\" : \"inferenceID\" }");
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
@@ -3705,11 +3698,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testRerankMultipleFields() {
         var plan = processingCommand(
-            "RERANK \"query text\" ON title, description, authors_renamed=authors WITH { \"inference_id\" : \"inferenceID\" }"
+            "RERANK \"statement text\" ON title, description, authors_renamed=authors WITH { \"inference_id\" : \"inferenceID\" }"
         );
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(
             rerank.rerankFields(),
@@ -3726,11 +3719,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testRerankComputedFields() {
         var plan = processingCommand("""
-            RERANK "query text" ON title, short_description = SUBSTRING(description, 0, 100) WITH { "inference_id": "inferenceID" }
+            RERANK "statement text" ON title, short_description = SUBSTRING(description, 0, 100) WITH { "inference_id": "inferenceID" }
             """);
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(
             rerank.rerankFields(),
@@ -3753,29 +3746,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankWithPositionalParameters() {
-        var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
+        var queryParams = new QueryParams(List.of(paramAsConstant(null, "statement text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.createStatement("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
+            parser.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
             Rerank.class
         );
 
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
     }
 
     public void testRerankWithNamedParameters() {
-        var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
+        var queryParams = new QueryParams(
+            List.of(paramAsConstant("queryText", "statement text"), paramAsConstant("inferenceId", "reranker"))
+        );
         var rerank = as(
-            parser.createStatement(
-                "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
-                queryParams
-            ),
+            parser.parseQuery("row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }", queryParams),
             Rerank.class
         );
 
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalToIgnoringIds(List.of(alias("title", attribute("title")))));
         assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("rerank_score")));
@@ -3849,7 +3841,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(
-            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
+            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
             Completion.class
         );
 
@@ -3861,7 +3853,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(
-            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
+            parser.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
             Completion.class
         );
 
@@ -3907,7 +3899,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectThrows(
             ParsingException.class,
             startsWith("line 1:19: mismatched input '<EOF>' expecting {"),
-            () -> statement("FROM test | SAMPLE")
+            () -> query("FROM test | SAMPLE")
         );
     }
 
@@ -3916,7 +3908,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        LogicalPlan plan = statement("""
+        LogicalPlan plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
@@ -3935,7 +3927,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(fuse.child(), instanceOf(Fork.class));
 
-        plan = statement("""
+        plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
@@ -3946,7 +3938,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
         assertThat(fuse.child(), instanceOf(Fork.class));
 
-        plan = statement("""
+        plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
@@ -3958,7 +3950,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(fuse.child(), instanceOf(Fork.class));
 
-        plan = statement("""
+        plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
@@ -3974,7 +3966,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(fuse.child(), instanceOf(Fork.class));
 
-        plan = statement("""
+        plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
@@ -3993,7 +3985,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         options = fuse.options();
         assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
 
-        plan = statement("""
+        plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
@@ -4012,7 +4004,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         options = fuse.options();
         assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
 
-        plan = statement("""
+        plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | EVAL a.b = my_group
                 | FORK ( WHERE a:"baz" )
@@ -4032,7 +4024,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         options = fuse.options();
         assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
 
-        plan = statement("""
+        plan = query("""
                 FROM foo* METADATA _id, _index, _score
                 | EVAL ??p = my_group
                 | FORK ( WHERE a:"baz" )
@@ -4075,6 +4067,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(queryPrefix + " | FUSE KEY BY bar SCORE BY another_score KEY BY bar", "line 1:114: Only one KEY BY can be specified");
 
         expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score LINEAR", "line 1:111: extraneous input 'LINEAR' expecting <EOF>");
+
+        expectError(queryPrefix + " | FUSE KEY BY CONCAT(key1, key2)", "line 1:93: token recognition error at: '('");
     }
 
     public void testUnclosedParenthesis() {
@@ -4139,19 +4133,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void expectSuccessForBracketsWithinQuotes(String indexName) {
-        LogicalPlan plan = statement("from \"" + indexName + "\"");
+        LogicalPlan plan = query("from \"" + indexName + "\"");
         UnresolvedRelation from = as(plan, UnresolvedRelation.class);
         assertThat(from.indexPattern().indexPattern(), is(indexName));
 
-        plan = statement("from \"*:" + indexName + "\"");
+        plan = query("from \"*:" + indexName + "\"");
         from = as(plan, UnresolvedRelation.class);
         assertThat(from.indexPattern().indexPattern(), is("*:" + indexName));
 
-        plan = statement("from \"remote1:" + indexName + ",remote2:" + indexName + "\"");
+        plan = query("from \"remote1:" + indexName + ",remote2:" + indexName + "\"");
         from = as(plan, UnresolvedRelation.class);
         assertThat(from.indexPattern().indexPattern(), is("remote1:" + indexName + ",remote2:" + indexName));
 
-        plan = statement("from test | enrich \"" + indexName + "\"");
+        plan = query("from test | enrich \"" + indexName + "\"");
         Enrich enrich = as(plan, Enrich.class);
         assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef(indexName)));
         as(enrich.child(), UnresolvedRelation.class);
@@ -4160,12 +4154,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar"));
             expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar1 > bar2"));
         } else {
-            plan = statement("from test | lookup join \"" + indexName + "\" on bar");
+            plan = query("from test | lookup join \"" + indexName + "\" on bar");
             LookupJoin lookup = as(plan, LookupJoin.class);
             UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
             assertThat(right.indexPattern().indexPattern(), is(indexName));
             if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
-                plan = statement("from test | lookup join \"" + indexName + "\" on bar1 <= bar2");
+                plan = query("from test | lookup join \"" + indexName + "\" on bar1 <= bar2");
                 lookup = as(plan, LookupJoin.class);
                 right = as(lookup.right(), UnresolvedRelation.class);
                 assertThat(right.indexPattern().indexPattern(), is(indexName));
@@ -4200,7 +4194,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = parser.createStatement("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = parser.parseQuery("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =

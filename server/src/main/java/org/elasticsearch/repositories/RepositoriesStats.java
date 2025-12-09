@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,11 +30,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
     private final Map<String, SnapshotStats> repositorySnapshotStats;
 
     public RepositoriesStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            repositorySnapshotStats = in.readMap(SnapshotStats::readFrom);
-        } else {
-            repositorySnapshotStats = new HashMap<>();
-        }
+        repositorySnapshotStats = in.readMap(SnapshotStats::readFrom);
     }
 
     public RepositoriesStats(Map<String, SnapshotStats> repositorySnapshotStats) {
@@ -44,9 +39,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeMap(repositorySnapshotStats, StreamOutput::writeWriteable);
-        }
+        out.writeMap(repositorySnapshotStats, StreamOutput::writeWriteable);
     }
 
     @Override

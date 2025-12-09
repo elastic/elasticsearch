@@ -89,6 +89,9 @@ class FieldValueFetcher {
             if (fieldType.getMetricType() == POSITION) {
                 throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             }
+            assert fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE
+                || fieldType.getMetricType() == TimeSeriesParams.MetricType.COUNTER
+                : "only gauges and counters accepted, other metrics should have been handled earlier";
             if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE
                 && fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
                 return new NumericMetricFieldProducer.AggregateGauge(name());

@@ -1,0 +1,9 @@
+@@ -118,7 +118,7 @@
+                 "target",
+                 new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
+-                    (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null
++                    (i) -> i == 1 || i == 5 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null
+                 )
+             );
+         }).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));

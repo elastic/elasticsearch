@@ -134,6 +134,8 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.ThreadLocalMetricHolder;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -287,6 +289,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final ThreadLocalMetricHolder<StoreMetrics> metricHolder;
 
     @Override
     protected void doStart() {
@@ -414,6 +417,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
         this.slowLogFieldProvider = builder.slowLogFieldProvider;
+        this.metricHolder = new ThreadLocalMetricHolder<>(StoreMetrics::new);
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
     }
@@ -814,7 +818,8 @@ public class IndicesService extends AbstractLifecycleComponent
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics
+            mergeMetrics,
+            metricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -913,7 +918,8 @@ public class IndicesService extends AbstractLifecycleComponent
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics
+            mergeMetrics,
+            metricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);

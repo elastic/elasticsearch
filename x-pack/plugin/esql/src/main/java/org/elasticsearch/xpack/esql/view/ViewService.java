@@ -234,7 +234,7 @@ public class ViewService {
      * List all current view names.
      */
     public Set<String> list(ProjectId projectId) {
-        return viewsFeatureEnabled() ? getMetadata(projectId).viewNames() : Set.of();
+        return viewsFeatureEnabled() ? getMetadata(projectId).views().keySet() : Set.of();
     }
 
     protected boolean viewsFeatureEnabled() {

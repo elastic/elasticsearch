@@ -29,7 +29,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Encapsulates view definitions as custom metadata inside ProjectMetadata within cluster state.
@@ -40,11 +39,12 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
         new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TYPE, ViewMetadata::readFromStream),
         new NamedWriteableRegistry.Entry(NamedDiff.class, TYPE, in -> ViewMetadata.readDiffFrom(Metadata.ProjectCustom.class, TYPE, in))
     );
-    private static final TransportVersion ESQL_VIEWS = TransportVersion.fromName("esql_views");
-
-    static final ParseField VIEWS = new ParseField("views");
-
     public static final ViewMetadata EMPTY = new ViewMetadata(Collections.emptyMap());
+
+    private static final TransportVersion ESQL_VIEWS = TransportVersion.fromName("esql_views");
+    private static final ParseField VIEWS = new ParseField("views");
+
+    private final Map<String, View> views;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ViewMetadata, Void> PARSER = new ConstructingObjectParser<>(
@@ -68,8 +68,6 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
         return PARSER.parse(parser, null);
     }
 
-    private final Map<String, View> views;
-
     public static ViewMetadata readFromStream(StreamInput in) throws IOException {
         return new ViewMetadata(in.readMap(View::new));
     }
@@ -84,10 +82,6 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
 
     public Map<String, View> views() {
         return views;
-    }
-
-    public Set<String> viewNames() {
-        return views.keySet();
     }
 
     @Nullable

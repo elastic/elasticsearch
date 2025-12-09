@@ -18,6 +18,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -210,10 +211,11 @@ public class TDigestStateTests extends ESTestCase {
             }
             Set<Double> seen = new HashSet<>();
             if (digest.size() == 0) {
-                assertThat(digest.uniqueCentroids(), Matchers.empty());
+                assertThat(digest.uniqueCentroids().hasNext(), equalTo(false));
             } else {
                 Double previous = null;
-                for (Centroid centroid : digest.uniqueCentroids()) {
+                for (Iterator<Centroid> it = digest.uniqueCentroids(); it.hasNext();) {
+                    Centroid centroid = it.next();
                     assertThat(seen.contains(centroid.mean()), equalTo(false));
                     assertThat(centroid.count(), equalTo(expected.get(centroid.mean())));
                     if (previous != null) {

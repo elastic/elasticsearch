@@ -20,10 +20,8 @@ import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * Decorates {@link org.elasticsearch.tdigest.TDigest} with custom serialization. The underlying implementation for TDigest is selected
@@ -316,30 +314,63 @@ public class TDigestState implements Releasable, Accountable {
     }
 
     /**
-     * A {@link Collection} that lets you go through the centroids deduplicated and in ascending order by mean.
+     * An {@link Iterator} that lets you go through the centroids deduplicated and in ascending order by mean.
      * @return The centroids in the form of a Collection.
      */
-    public final Collection<Centroid> uniqueCentroids() {
-        if (centroids().isEmpty()) {
-            return List.of();
-        }
-        var uniqueCentroids = new ArrayList<Centroid>(centroids().size());
-        double previous = Double.NaN;
-        long weight = 0;
-        for (Centroid centroid : centroids()) {
-            if (Double.isNaN(previous)) {
-                previous = centroid.mean();
-                weight = centroid.count();
-            } else if (Double.compare(centroid.mean(), previous) == 0) {
-                weight += centroid.count();
-            } else {
-                uniqueCentroids.add(new Centroid(previous, weight));
-                previous = centroid.mean();
-                weight = centroid.count();
+    public final Iterator<Centroid> uniqueCentroids() {
+        Iterator<Centroid> centroids = centroids().iterator();
+        return new Iterator<>() {
+            double value = Double.NaN;
+            long count = 0;
+
+            @Override
+            public boolean hasNext() {
+                return centroids.hasNext() || Double.isNaN(value) == false;
             }
-        }
-        uniqueCentroids.add(new Centroid(previous, weight));
-        return uniqueCentroids;
+
+            @Override
+            public Centroid next() {
+                // Initialize state
+                if (centroids.hasNext() && Double.isNaN(value)) {
+                    setNext(centroids.next());
+                }
+                // Return the last value
+                if (centroids.hasNext() == false && Double.isNaN(value) == false) {
+                    return getLast();
+                }
+                Centroid centroid = centroids.next();
+                while (Double.compare(centroid.mean(), value) == 0) {
+                    count += centroid.count();
+                    if (centroids.hasNext() == false) {
+                        return getLast();
+                    }
+                    centroid = centroids.next();
+                }
+                return getAndSetNext(centroid);
+            }
+
+            private Centroid getLast() {
+                Centroid centroid = new Centroid(value, count);
+                value = Double.NaN;
+                return centroid;
+            }
+
+            private Centroid getAndSetNext(Centroid centroid) {
+                Centroid next = new Centroid(value, count);
+                setNext(centroid);
+                return next;
+            }
+
+            private void setNext(Centroid centroid) {
+                value = centroid.mean();
+                count = centroid.count();
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException("Default operation");
+            }
+        };
     }
 
     public final int centroidCount() {

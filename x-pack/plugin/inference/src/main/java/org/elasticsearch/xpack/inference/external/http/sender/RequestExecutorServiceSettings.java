@@ -88,7 +88,8 @@ public class RequestExecutorServiceSettings {
     }
 
     /**
-     * The purpose of this method is to avoid a this-escape if done in the constructor.
+     * The purpose of this method is to avoid a this-escape. If we do the{@link #addSettingsUpdateConsumers(ClusterService)}
+     * call in the constructor we could get a this-escape.
      */
     public void init(ClusterService clusterService) {
         addSettingsUpdateConsumers(clusterService);

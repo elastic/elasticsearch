@@ -21,6 +21,7 @@ import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -38,6 +39,7 @@ public class MetricDocumentBuilder {
     private final BufferedByteStringAccessor byteStringAccessor;
     private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
     private final MappingHints defaultMappingHints;
+    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
 
     public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
@@ -69,7 +71,7 @@ public class MetricDocumentBuilder {
             DataPoint dataPoint = dataPoints.get(i);
             builder.field(dataPoint.getMetricName());
             MappingHints mappingHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
-            dataPoint.buildMetricValue(mappingHints, builder);
+            dataPoint.buildMetricValue(mappingHints, builder, scratch);
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
                 String metricFieldPath = "metrics." + dataPoint.getMetricName();

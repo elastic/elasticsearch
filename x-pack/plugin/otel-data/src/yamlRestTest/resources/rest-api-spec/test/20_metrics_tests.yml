@@ -198,7 +198,7 @@ IP dimensions:
         index: metrics-generic.otel-default
         refresh: true
         body:
-          - create: {"dynamic_templates":{"metrics.counter_long":"counter_long","metrics.gauge_long":"gauge_long","metrics.counter_double":"counter_double","metrics.gauge_double":"gauge_double","metrics.summary":"summary","metrics.summary_minmax":"summary_minmax","metrics.histogram":"histogram"}}
+          - create: {"dynamic_templates":{"metrics.counter_long":"counter_long","metrics.gauge_long":"gauge_long","metrics.counter_double":"counter_double","metrics.gauge_double":"gauge_double","metrics.summary":"summary","metrics.summary_minmax":"summary_minmax","metrics.histogram":"histogram","metrics.exponential_histogram":"exponential_histogram"}}
           - "@timestamp": 2024-07-18T14:48:33.467654000Z
             attributes:
               foo: bar
@@ -218,6 +218,21 @@ IP dimensions:
               histogram:
                 counts: [1,2]
                 values: [42,4242]
+              exponential_histogram:
+                scale: 11
+                zero:
+                  count: 1
+                  threshold: 42
+                positive:
+                  indices: [0,1]
+                  counts: [2,3]
+                negative:
+                  indices: [4,5]
+                  counts: [6,7]
+                sum: 12.3
+                min: 0.1
+                max: 99.9
+
   - is_false: errors
   - do:
       search:
@@ -240,6 +255,7 @@ IP dimensions:
   - match: { .$idx0name.mappings.properties.metrics.properties.summary.type: 'aggregate_metric_double' }
   - match: { .$idx0name.mappings.properties.metrics.properties.summary_minmax.type: 'aggregate_metric_double' }
   - match: { .$idx0name.mappings.properties.metrics.properties.histogram.type: 'histogram' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.exponential_histogram.type: 'exponential_histogram' }
 ---
 Empty IP field:
   - do:

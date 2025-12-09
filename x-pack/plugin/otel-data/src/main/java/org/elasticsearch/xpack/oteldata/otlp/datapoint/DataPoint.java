@@ -78,9 +78,11 @@ public interface DataPoint {
      *
      * @param mappingHints hints for building the metric value
      * @param builder the XContentBuilder to write the metric value to
+     * @param scratch a reusable, temporary buffer for building exponential histograms
      * @throws IOException if an I/O error occurs while writing to the builder
      */
-    void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException;
+    void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+        throws IOException;
 
     /**
      * Returns the dynamic template name for the data point based on its type and value.
@@ -135,7 +137,8 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
             switch (dataPoint.getValueCase()) {
                 case AS_DOUBLE -> builder.value(dataPoint.getAsDouble());
                 case AS_INT -> builder.value(dataPoint.getAsInt());
@@ -202,7 +205,8 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
             switch (mappingHints.histogramMapping()) {
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
                 case TDIGEST -> buildTDigest(builder);
@@ -268,10 +272,11 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
             switch (mappingHints.histogramMapping()) {
                 // TODO: reuse scratch
-                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, new ExponentialHistogramConverter.BucketBuffer());
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, scratch);
                 case TDIGEST -> buildTDigest(builder);
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
             }
@@ -307,6 +312,12 @@ public interface DataPoint {
             if (dataPoint.getBucketCountsCount() == 1 && dataPoint.getExplicitBoundsCount() == 0) {
                 errors.add("histogram with a single bucket and no explicit bounds is not supported, ignoring " + metric.getName());
                 return false;
+            }
+            for (int i = 1; i < dataPoint.getExplicitBoundsCount(); i++) {
+                if (dataPoint.getExplicitBounds(i - 1) >= dataPoint.getExplicitBounds(i)) {
+                    errors.add("histogram bounds are not sorted or not unique, ignoring " + metric.getName());
+                    return false;
+                }
             }
             return true;
         }
@@ -348,7 +359,8 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
             // TODO: Add support for quantiles
             buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
         }

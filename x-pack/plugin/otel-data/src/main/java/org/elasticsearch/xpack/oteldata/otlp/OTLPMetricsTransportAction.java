@@ -75,7 +75,8 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
     public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
     private final Client client;
 
-    private volatile MappingHints defaultMappingHints;
+    // visible for testing
+    volatile MappingHints defaultMappingHints;
 
     @Inject
     public OTLPMetricsTransportAction(

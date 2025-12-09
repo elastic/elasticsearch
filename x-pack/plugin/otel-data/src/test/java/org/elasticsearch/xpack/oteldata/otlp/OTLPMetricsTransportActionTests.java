@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsTransportAction.MetricsResponse;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
@@ -54,6 +55,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
 
     private OTLPMetricsTransportAction action;
     private Client client;
+    private ClusterSettings clusterSettings;
 
     @Override
     public void setUp() throws Exception {
@@ -63,7 +65,7 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         // setup clusterService.getClusterSettings() to return an empty ClusterSettings
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         action = new OTLPMetricsTransportAction(
@@ -134,6 +136,21 @@ public class OTLPMetricsTransportActionTests extends ESTestCase {
     public void testBulkError() throws Exception {
         assertExceptionStatus(new IllegalArgumentException("bazinga"), RestStatus.BAD_REQUEST);
         assertExceptionStatus(new IllegalStateException("bazinga"), RestStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    public void testMappingHintsSettingsUpdate() throws Exception {
+        assertThat(action.defaultMappingHints, equalTo(MappingHints.DEFAULT_TDIGEST));
+        assertThat(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.isDynamic(), equalTo(true));
+
+        clusterSettings.applySettings(
+            Settings.builder().put(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.getKey(), "exponential_histogram").build()
+        );
+        assertThat(action.defaultMappingHints, equalTo(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM));
+
+        clusterSettings.applySettings(
+            Settings.builder().put(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE.getKey(), "histogram").build()
+        );
+        assertThat(action.defaultMappingHints, equalTo(MappingHints.DEFAULT_TDIGEST));
     }
 
     private void assertExceptionStatus(Exception exception, RestStatus restStatus) throws InvalidProtocolBufferException {

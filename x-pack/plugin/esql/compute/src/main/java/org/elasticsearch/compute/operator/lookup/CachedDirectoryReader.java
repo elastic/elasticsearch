@@ -198,7 +198,7 @@ class CachedDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public IOBooleanSupplier prepareSeekExact(BytesRef text) throws IOException {
-            return getDelegate(true).prepareSeekExact(text);
+            return getDelegate(false).prepareSeekExact(text);
         }
 
         @Override

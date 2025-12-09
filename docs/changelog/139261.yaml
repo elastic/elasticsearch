@@ -1,0 +1,5 @@
+pr: 139261
+summary: FUSE syntax fix when using options before SCORE/GROUP/KEY BY
+area: ES|QL
+type: bug
+issues: []

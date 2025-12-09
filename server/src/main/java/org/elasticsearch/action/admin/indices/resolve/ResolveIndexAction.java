@@ -642,7 +642,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
                         if (resolveCrossProject) {
-                            Exception ex = CrossProjectIndexResolutionValidator.validate(
+                            final Exception ex = CrossProjectIndexResolutionValidator.validate(
                                 originalIndicesOptions,
                                 request.getProjectRouting(),
                                 localResolvedIndexExpressions,

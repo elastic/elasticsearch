@@ -505,6 +505,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLimitCommand(EsqlBaseParser.LimitCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -884,6 +896,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1501,6 +1525,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterValueName(EsqlBaseParser.ValueNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitValueName(EsqlBaseParser.ValueNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterPromqlParam(EsqlBaseParser.PromqlParamContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1513,13 +1549,37 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx) { }
+  @Override public void enterPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx) { }
+  @Override public void exitPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlQueryContent(EsqlBaseParser.PromqlQueryContentContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlQueryContent(EsqlBaseParser.PromqlQueryContentContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1532,6 +1592,66 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitPromqlQueryPart(EsqlBaseParser.PromqlQueryPartContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlIndexPattern(EsqlBaseParser.PromqlIndexPatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlIndexPattern(EsqlBaseParser.PromqlIndexPatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlUnquotedIndexString(EsqlBaseParser.PromqlUnquotedIndexStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlUnquotedIndexString(EsqlBaseParser.PromqlUnquotedIndexStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx) { }
 
   /**
    * {@inheritDoc}

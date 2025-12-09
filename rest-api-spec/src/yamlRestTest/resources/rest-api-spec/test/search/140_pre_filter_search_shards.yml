@@ -240,8 +240,8 @@ setup:
 ---
 "prefilter on non-indexed date fields":
   - requires:
-      cluster_features: "gte_v8.1.0"
-      reason: "doc values search was added in 8.1.0"
+      cluster_features: [ "gte_v8.1.0", "mapper.skippers_on_unindexed_fields" ]
+      reason: "doc values search was added in 8.1.0; skippers allow pre-filtering"
 
   - do:
       index:

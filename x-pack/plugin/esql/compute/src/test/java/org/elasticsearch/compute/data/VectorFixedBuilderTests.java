@@ -35,6 +35,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
                 || elementType == ElementType.DOC
                 || elementType == ElementType.BYTES_REF
                 || elementType == ElementType.AGGREGATE_METRIC_DOUBLE
+                || elementType == ElementType.TDIGEST
                 || elementType == ElementType.EXPONENTIAL_HISTOGRAM) {
                 continue;
             }
@@ -119,7 +120,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, UNKNOWN ->
+            case NULL, BYTES_REF, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, UNKNOWN ->
                 throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorFixedBuilder(size);
             case DOUBLE -> blockFactory.newDoubleVectorFixedBuilder(size);
@@ -131,7 +132,8 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private void fill(Vector.Builder builder, Vector from) {
         switch (elementType) {
-            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, UNKNOWN ->
+                throw new UnsupportedOperationException();
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.FixedBuilder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));

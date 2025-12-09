@@ -586,7 +586,9 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
         S3BlobStore.configureRequestForMetrics(putRequestBuilder, s3BlobStore, Operation.PUT_OBJECT, purpose);
         final var putRequest = putRequestBuilder.build();
-        s3BlobStore.clientReference().client().putObject(putRequest, body.get());
+        try (var client = s3BlobStore.clientReference()) {
+            client.client().putObject(putRequest, body.get());
+        }
     }
 
     /**

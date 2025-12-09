@@ -267,8 +267,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             null
         );
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, preCcsRemoteClusterContext);
-
-        // TODO: Test with an empty local index inference fields map to demonstrate the detection gap
     }
 
     public void testCcsBwCSerialization() throws Exception {

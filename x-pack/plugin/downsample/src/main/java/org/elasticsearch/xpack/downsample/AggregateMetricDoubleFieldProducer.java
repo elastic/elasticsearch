@@ -126,8 +126,6 @@ abstract class AggregateMetricDoubleFieldProducer extends AbstractDownsampleFiel
                     }
                     lastValue = values;
                 }
-                // Only need to record one label value from one document, within in the same tsid-and-time-interval we only keep the first
-                // with downsampling.
                 return;
             }
         }

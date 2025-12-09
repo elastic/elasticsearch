@@ -46,7 +46,7 @@ public class MultiTypeEsField extends EsField {
     protected MultiTypeEsField(StreamInput in) throws IOException {
         this(
             ((PlanStreamInput) in).readCachedString(),
-            DataType.readFrom(in),
+            DataTypeSerializer.readFrom(in),
             in.readBoolean(),
             in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
             readTimeSeriesFieldType(in)
@@ -56,7 +56,7 @@ public class MultiTypeEsField extends EsField {
     @Override
     public void writeContent(StreamOutput out) throws IOException {
         ((PlanStreamOutput) out).writeCachedString(getName());
-        getDataType().writeTo(out);
+        DataTypeSerializer.writeTo(getDataType(), out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);

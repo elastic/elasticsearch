@@ -16,8 +16,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -150,7 +148,7 @@ import static java.util.stream.Collectors.toMap;
  *         unsupported types.</li>
  * </ul>
  */
-public enum DataType implements Writeable {
+public enum DataType {
     /**
      * Fields of this type are unsupported by any functions and are always
      * rendered as {@code null} in the response.
@@ -792,23 +790,6 @@ public enum DataType implements Writeable {
      */
     public DataType counter() {
         return counter;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (supportedVersion.supportedOn(out.getTransportVersion(), Build.current().isSnapshot()) == false) {
-            /*
-             * Throw a 500 error - this is a bug, we failed to account for an old node during planning.
-             */
-            throw new QlIllegalArgumentException(
-                "remote node at version [" + out.getTransportVersion() + "] doesn't understand data type [" + this + "]"
-            );
-        }
-        ((PlanStreamOutput) out).writeCachedString(typeName);
-    }
-
-    public static DataType readFrom(StreamInput in) throws IOException {
-        return readFrom(((PlanStreamInput) in).readCachedString());
     }
 
     /**

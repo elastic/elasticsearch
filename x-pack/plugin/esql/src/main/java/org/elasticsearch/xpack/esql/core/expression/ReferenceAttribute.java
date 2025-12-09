@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeSerializer;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
@@ -60,7 +61,7 @@ public class ReferenceAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             out.writeString(name());
-            dataType().writeTo(out);
+            DataTypeSerializer.writeTo(dataType(), out);
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             if (out.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
                 // We used to always serialize a null qualifier here, so do the same for bwc.
@@ -88,7 +89,7 @@ public class ReferenceAttribute extends TypedAttribute {
         Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
         // We could cache this if we wanted to.
         String name = in.readString();
-        DataType dataType = DataType.readFrom(in);
+        DataType dataType = DataTypeSerializer.readFrom(in);
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
         if (in.getTransportVersion().supports(ESQL_QUALIFIERS_IN_ATTRIBUTES) == false) {
             in.readOptionalString();

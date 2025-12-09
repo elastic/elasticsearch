@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeSerializer;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
@@ -107,7 +108,7 @@ public class FieldAttribute extends TypedAttribute {
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
         String name = ((PlanStreamInput) in).readCachedString();
         if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
-            DataType.readFrom(in);
+            DataTypeSerializer.readFrom(in);
         }
         EsField field = EsField.readFrom(in);
         if (in.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
@@ -127,7 +128,7 @@ public class FieldAttribute extends TypedAttribute {
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             ((PlanStreamOutput) out).writeCachedString(name());
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
-                dataType().writeTo(out);
+                DataTypeSerializer.writeTo(dataType(), out);
             }
             field.writeTo(out);
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {

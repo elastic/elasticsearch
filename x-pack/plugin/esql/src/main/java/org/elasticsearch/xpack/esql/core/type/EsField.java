@@ -154,7 +154,7 @@ public class EsField implements Writeable {
 
     public EsField(StreamInput in) throws IOException {
         this.name = ((PlanStreamInput) in).readCachedString();
-        this.esDataType = DataType.readFrom(in);
+        this.esDataType = DataTypeSerializer.readFrom(in);
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
@@ -177,7 +177,7 @@ public class EsField implements Writeable {
      */
     public void writeContent(StreamOutput out) throws IOException {
         ((PlanStreamOutput) out).writeCachedString(name);
-        esDataType.writeTo(out);
+        DataTypeSerializer.writeTo(esDataType, out);
         out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);
         out.writeBoolean(isAlias);

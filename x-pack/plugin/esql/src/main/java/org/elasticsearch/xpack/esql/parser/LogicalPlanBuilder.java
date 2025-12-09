@@ -1085,7 +1085,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     throw new ParsingException(source(fuseConfigurationContext), "Only one KEY BY can be specified");
                 }
 
-                keys = visitGrouping(fuseConfigurationContext.key);
+                keys = visitList(this, fuseConfigurationContext.key.qualifiedName(), NamedExpression.class);
             }
         }
 
@@ -1299,8 +1299,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {
         if (ctx == null) {
             return promqlQuery;
-        } else if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        } else if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
@@ -1360,7 +1360,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             start = time;
             end = time;
-        } else if (step != null) {
+        } else if (step != null || start != null || end != null) {
             if (start != null || end != null) {
                 if (start == null || end == null) {
                     throw new ParsingException(
@@ -1379,7 +1379,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     );
                 }
             }
-            if (step.isPositive() == false) {
+            if (step == null) {
+                throw new ParsingException(source, "Parameter [{}] must be specified for a range query", STEP);
+            } else if (step.isPositive() == false) {
                 throw new ParsingException(
                     source,
                     "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
@@ -1388,14 +1390,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
         } else {
-            throw new ParsingException(source, "Parameter [{}] or [{}] is required", STEP, TIME);
+            start = Instant.now();
+            end = start;
         }
         return new PromqlParams(source, start, end, step, indexPattern);
     }
 
     private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
-        if (ctx.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-            return ctx.PROMQL_UNQUOTED_IDENTIFIER().getText();
+        if (ctx.UNQUOTED_IDENTIFIER() != null) {
+            return ctx.UNQUOTED_IDENTIFIER().getText();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             return AbstractBuilder.unquote(ctx.QUOTED_IDENTIFIER().getText());
         } else {
@@ -1413,8 +1416,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             EsqlBaseParser.PromqlIndexStringContext string = ctx.promqlIndexPattern().getFirst().promqlIndexString();
             if (string.UNQUOTED_SOURCE() != null) {
                 return string.UNQUOTED_SOURCE().getText();
-            } else if (string.PROMQL_UNQUOTED_IDENTIFIER() != null) {
-                return string.PROMQL_UNQUOTED_IDENTIFIER().getText();
+            } else if (string.UNQUOTED_IDENTIFIER() != null) {
+                return string.UNQUOTED_IDENTIFIER().getText();
             } else if (string.QUOTED_STRING() != null) {
                 return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
             }

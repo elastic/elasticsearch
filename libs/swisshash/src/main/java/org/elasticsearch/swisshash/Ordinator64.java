@@ -475,8 +475,8 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         }
 
         int add(long key, int hash) {
-            byte control = control(hash);
-            int found = find(key, hash, control);
+            final byte control = control(hash);
+            final int found = find(key, hash, control);
             if (found >= 0) {
                 return found;
             }
@@ -487,7 +487,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                 grow();
             }
 
-            int id = idSpace.next();
+            final int id = idSpace.next();
             bigCore.insert(key, hash, control, id);
             return id;
         }
@@ -497,21 +497,21 @@ public final class Ordinator64 extends Ordinator implements Releasable {
          * after we verify that the key isn't in the index. And used by {@link #rehash}
          * because we know all keys are unique.
          */
-        void insert(long key, int hash, byte control, int id) {
+        void insert(final long key, final int hash, final byte control, final int id) {
             int slotIncrement = 0;
             int slot = slot(hash);
             while (true) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
                 if (VectorComparisonUtils.anyTrue(empty)) {
                     final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
-                    final int keyOffset = keyOffset(slot);
-                    final int idOffset = idOffset(slot);
+                    final int keyOffset = keyOffset(insertSlot);
+                    final int idOffset = idOffset(insertSlot);
                     LONG_HANDLE.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, key);
                     INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
                     controlData[insertSlot] = control;
                     // Mirror the first group bytes to the end of the array to handle wraparound loads.
                     // Benign writes: all other positions are just written twice.
-                    controlData[((slot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
+                    controlData[((insertSlot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
                     return;
                 }
                 slotIncrement += BYTE_VECTOR_LANES;

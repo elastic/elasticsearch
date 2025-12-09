@@ -1,0 +1,8 @@
+steps:
+  - label: vector-ops-jmh
+    command: '.buildkite/scripts/run-vector-ops-jmh.sh'
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: custom-16-32768
+      buildDirectory: /dev/shm/bk

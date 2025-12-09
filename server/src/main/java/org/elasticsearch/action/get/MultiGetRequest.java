@@ -10,7 +10,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -26,7 +25,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -82,9 +80,6 @@ public class MultiGetRequest extends LegacyActionRequest
 
         public Item(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readOptionalString();
-            }
             id = in.readString();
             routing = in.readOptionalString();
             storedFields = in.readOptionalStringArray();
@@ -176,9 +171,6 @@ public class MultiGetRequest extends LegacyActionRequest
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-            }
             out.writeString(id);
             out.writeOptionalString(routing);
             out.writeOptionalStringArray(storedFields);

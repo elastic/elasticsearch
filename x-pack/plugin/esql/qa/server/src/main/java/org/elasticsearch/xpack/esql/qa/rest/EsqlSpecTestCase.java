@@ -184,7 +184,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsSourceFieldMapping(),
                 supportsInferenceTestService(),
                 false,
-                supportsExponentialHistograms()
+                supportsExponentialHistograms(),
+                supportsTDigestField()
             );
             return null;
         });
@@ -289,7 +290,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected boolean supportsExponentialHistograms() {
         return RestEsqlTestCase.hasCapabilities(
             client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V2.capabilityName())
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.capabilityName())
+        );
+    }
+
+    protected boolean supportsTDigestField() {
+        return RestEsqlTestCase.hasCapabilities(
+            client(),
+            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
         );
     }
 
@@ -380,6 +388,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (value == null) {
             return "null";
         }
+        if (value instanceof CsvTestUtils.Range) {
+            return value;
+        }
         if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
             // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
             if (value instanceof String wkt) {
@@ -419,6 +430,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
+            }
+        }
+        if (type == CsvTestUtils.Type.DOUBLE || type == CsvTestUtils.Type.INTEGER || type == CsvTestUtils.Type.LONG) {
+            if (value instanceof List<?> vs) {
+                return vs.stream().map(v -> valueMapper(type, v)).toList();
+            } else if (type == CsvTestUtils.Type.DOUBLE) {
+                return ((Number) value).doubleValue();
+            } else if (type == CsvTestUtils.Type.INTEGER) {
+                return ((Number) value).intValue();
+            } else if (type == CsvTestUtils.Type.LONG) {
+                return ((Number) value).longValue();
             }
         }
         return value.toString();

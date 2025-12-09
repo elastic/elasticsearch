@@ -83,7 +83,10 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
-        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        DenseVectorFieldMapper.ElementType elementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         // dot product means that we need normalized vectors; it's not worth doing that in this test
         SimilarityMeasure similarity = randomValueOtherThan(
             SimilarityMeasure.DOT_PRODUCT,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -49,10 +51,12 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -67,6 +71,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -208,9 +213,28 @@ public class ComputeService {
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
 
+        // take a snapshot of the initial cluster statuses, this is the status after index resolutions,
+        // and it will be checked before executing data node plan on remote clusters
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses = new HashMap<>(execInfo.clusterInfo.size());
+        for (Map.Entry<String, EsqlExecutionInfo.Cluster> entry : execInfo.clusterInfo.entrySet()) {
+            initialClusterStatuses.put(entry.getKey(), entry.getValue().getStatus());
+        }
+
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(
+                sessionId,
+                rootTask,
+                flags,
+                physicalPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                null,
+                listener,
+                null,
+                initialClusterStatuses
+            );
             return;
         }
 
@@ -285,7 +309,8 @@ public class ComputeService {
                             exchangeService.finishSinkHandler(childSessionId, e);
                             subPlanListener.onFailure(e);
                         }),
-                        () -> exchangeSink.createExchangeSink(() -> {})
+                        () -> exchangeSink.createExchangeSink(() -> {}),
+                        initialClusterStatuses
                     );
                 }
             }
@@ -302,7 +327,8 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         String profileQualifier,
         ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -325,9 +351,7 @@ public class ComputeService {
             listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
-        Map<String, OriginalIndices> clusterToConcreteIndices = transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planConcreteIndices(physicalPlan).toArray(String[]::new));
-        QueryPragmas queryPragmas = configuration.pragmas();
+        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(physicalPlan, EsRelation::concreteIndices);
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
         if (dataNodePlan == null) {
             if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
@@ -369,8 +393,7 @@ public class ComputeService {
                 return;
             }
         }
-        Map<String, OriginalIndices> clusterToOriginalIndices = transportService.getRemoteClusterService()
-            .groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, PlannerUtils.planOriginalIndices(physicalPlan));
+        Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(physicalPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*
@@ -380,7 +403,7 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = physicalPlan.output();
         var exchangeSource = new ExchangeSourceHandler(
-            queryPragmas.exchangeBufferSize(),
+            configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
@@ -487,8 +510,20 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
-                    if (execInfo.getCluster(cluster.clusterAlias()).getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                    String clusterAlias = cluster.clusterAlias();
+                    // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
+                    // only if it is behind a snapshot build and this is a fork or subquery branch (exchangeSinkSupplier is not null).
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = Build.current().isSnapshot() && exchangeSinkSupplier != null
+                        ? initialClusterStatuses.get(clusterAlias)
+                        : execInfo.getCluster(clusterAlias).getStatus();
+                    if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         // if the cluster is already in the terminal state from the planning stage, no need to call it
+                        // the initial cluster status is collected before the query is executed
+                        LOGGER.trace(
+                            "skipping execution on remote cluster [{}] since its initial status is [{}]",
+                            clusterAlias,
+                            clusterStatus
+                        );
                         continue;
                     }
                     clusterComputeHandler.startComputeOnRemoteCluster(
@@ -798,5 +833,15 @@ public class ComputeService {
         public String getDescription() {
             return "group [" + parentDescription.get() + "]";
         }
+    }
+
+    private static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {
+        var holder = new Holder<Map<String, OriginalIndices>>();
+        PlannerUtils.forEachRelation(plan, esRelation -> {
+            holder.set(Maps.transformValues(getter.apply(esRelation), v -> {
+                return new OriginalIndices(v.toArray(String[]::new), SearchRequest.DEFAULT_INDICES_OPTIONS);
+            }));
+        });
+        return holder.getOrDefault(Map::of);
     }
 }

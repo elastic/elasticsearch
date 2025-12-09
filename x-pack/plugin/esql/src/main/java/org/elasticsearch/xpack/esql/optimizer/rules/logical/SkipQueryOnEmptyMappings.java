@@ -16,6 +16,6 @@ public final class SkipQueryOnEmptyMappings extends OptimizerRules.OptimizerRule
 
     @Override
     protected LogicalPlan rule(EsRelation plan) {
-        return plan.concreteIndices().isEmpty() ? new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY) : plan;
+        return plan.concreteQualifiedIndices().isEmpty() ? new LocalRelation(plan.source(), plan.output(), EmptyLocalSupplier.EMPTY) : plan;
     }
 }

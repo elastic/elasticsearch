@@ -18,6 +18,7 @@ import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
@@ -35,9 +36,30 @@ import static org.hamcrest.Matchers.containsString;
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
 public class GPUIndexIT extends ESIntegTestCase {
 
+    private static boolean isGpuIndexingFeatureAllowed = true;
+
+    private String similarity;
+
+    public static class TestGPUPlugin extends GPUPlugin {
+        public TestGPUPlugin() {
+            super(Settings.builder().put("vectors.indexing.use_gpu", GpuMode.TRUE.name()).build());
+        }
+
+        @Override
+        protected boolean isGpuIndexingFeatureAllowed() {
+            return GPUIndexIT.isGpuIndexingFeatureAllowed;
+        }
+    }
+
+    @After
+    public void reset() {
+        isGpuIndexingFeatureAllowed = true;
+        similarity = null;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(GPUPlugin.class);
+        return List.of(TestGPUPlugin.class);
     }
 
     @BeforeClass
@@ -56,6 +78,36 @@ public class GPUIndexIT extends ESIntegTestCase {
             totalDocs += numDocs[i];
         }
         refresh();
+        assertSearch(indexName, randomFloatVector(dims), totalDocs);
+    }
+
+    public void testSearchAndIndexAfterDisablingGpu() {
+        String indexName = "index1";
+        final int dims = randomIntBetween(4, 128);
+        final int numDocs = randomIntBetween(1, 500);
+        createIndex(indexName, dims, false);
+        ensureGreen();
+
+        indexDocs(indexName, numDocs, dims, 0);
+        refresh();
+
+        // Disable GPU usage via feature flag (simulating missing license)
+        isGpuIndexingFeatureAllowed = false;
+        ensureGreen();
+
+        assertAcked(indicesAdmin().prepareClose(indexName).get());
+        assertAcked(indicesAdmin().prepareOpen(indexName).get());
+        ensureGreen();
+
+        assertSearch(indexName, randomFloatVector(dims), numDocs);
+
+        // Add more data to the index
+        final int additionalDocs = randomIntBetween(1, 100);
+        indexDocs(indexName, additionalDocs, dims, numDocs);
+        refresh();
+        final int totalDocs = numDocs + additionalDocs;
+
+        // Perform another search with the additional data
         assertSearch(indexName, randomFloatVector(dims), totalDocs);
     }
 
@@ -182,21 +234,56 @@ public class GPUIndexIT extends ESIntegTestCase {
         }
     }
 
-    public void testSearchWithoutGPU() {
-        String indexName = "index1";
+    public void testDeletesUpdates() {
+        String indexName = "index_deletes_updates";
         final int dims = randomIntBetween(4, 128);
-        final int numDocs = randomIntBetween(1, 500);
         createIndex(indexName, dims, false);
-        ensureGreen();
 
+        final int numDocs = randomIntBetween(700, 1000);
         indexDocs(indexName, numDocs, dims, 0);
         refresh();
 
-        // update settings to disable GPU usage
-        Settings.Builder settingsBuilder = Settings.builder().put("index.vectors.indexing.use_gpu", false);
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(settingsBuilder.build()));
-        ensureGreen();
-        assertSearch(indexName, randomFloatVector(dims), numDocs);
+        // Perform random updates and deletes
+        final int numOperations = randomIntBetween(10, 50);
+        BulkRequestBuilder bulkRequest = client().prepareBulk();
+        for (int i = 0; i < numOperations; i++) {
+            int docId = randomIntBetween(0, numDocs - 1);
+            if (randomBoolean()) {
+                bulkRequest.add(
+                    prepareIndex(indexName).setId(String.valueOf(docId))
+                        .setSource("my_vector", randomFloatVector(dims), "my_keyword", String.valueOf(randomIntBetween(1, numDocs)))
+                );
+            } else {
+                bulkRequest.add(client().prepareDelete(indexName, String.valueOf(docId)));
+            }
+        }
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertFalse("Bulk request failed: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+        refresh();
+
+        // Assert that approximate and exact searches return same sets of results
+        float[] queryVector = randomFloatVector(dims);
+        int k = 10;
+        int numCandidates = k * 10;
+
+        var approxSearchResponse = prepareSearch(indexName).setSize(k)
+            .setFetchSource(false)
+            .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
+            .get();
+
+        var exactSearchResponse = prepareSearch(indexName).setSize(k)
+            .setFetchSource(false)
+            .setQuery(new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector), "my_vector", null))
+            .get();
+
+        try {
+            SearchHit[] approxHits = approxSearchResponse.getHits().getHits();
+            SearchHit[] exactHits = exactSearchResponse.getHits().getHits();
+            assertAtLeastNOutOfKMatches(approxHits, exactHits, k - 3, k);
+        } finally {
+            approxSearchResponse.decRef();
+            exactSearchResponse.decRef();
+        }
     }
 
     public void testInt8HnswMaxInnerProductProductFails() {
@@ -205,7 +292,6 @@ public class GPUIndexIT extends ESIntegTestCase {
 
         Settings.Builder settingsBuilder = Settings.builder().put(indexSettings());
         settingsBuilder.put("index.number_of_shards", 1);
-        settingsBuilder.put("index.vectors.indexing.use_gpu", true);
 
         String mapping = String.format(Locale.ROOT, """
             {
@@ -229,7 +315,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         // Attempt to index a document and expect it to fail
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomFloatVector(dims)).get()
+            () -> client().prepareIndex(indexName).setId("1").setSource("my_vector", randomNonUnitFloatVector(dims)).get()
         );
         assertThat(
             ex.getMessage(),
@@ -240,9 +326,12 @@ public class GPUIndexIT extends ESIntegTestCase {
     private void createIndex(String indexName, int dims, boolean sorted) {
         var settings = Settings.builder().put(indexSettings());
         settings.put("index.number_of_shards", 1);
-        settings.put("index.vectors.indexing.use_gpu", true);
         if (sorted) {
             settings.put("index.sort.field", "my_keyword");
+        }
+
+        if (similarity == null) {
+            similarity = randomFrom("dot_product", "l2_norm", "cosine");
         }
 
         String type = randomFrom("hnsw", "int8_hnsw");
@@ -252,7 +341,7 @@ public class GPUIndexIT extends ESIntegTestCase {
                 "my_vector": {
                   "type": "dense_vector",
                   "dims": %d,
-                  "similarity": "l2_norm",
+                  "similarity": "%s",
                   "index_options": {
                     "type": "%s"
                   }
@@ -262,7 +351,7 @@ public class GPUIndexIT extends ESIntegTestCase {
                 }
               }
             }
-            """, dims, type);
+            """, dims, similarity, type);
         assertAcked(prepareCreate(indexName).setSettings(settings.build()).setMapping(mapping));
         ensureGreen();
     }
@@ -272,8 +361,8 @@ public class GPUIndexIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = String.valueOf(startDoc + i);
             String keywordValue = String.valueOf(numDocs - i);
-            var indexRequest = prepareIndex(indexName).setId(id)
-                .setSource("my_vector", randomFloatVector(dims), "my_keyword", keywordValue);
+            float[] vector = randomFloatVector(dims);
+            var indexRequest = prepareIndex(indexName).setId(id).setSource("my_vector", vector, "my_keyword", keywordValue);
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequest.get();
@@ -292,12 +381,33 @@ public class GPUIndexIT extends ESIntegTestCase {
         );
     }
 
-    private static float[] randomFloatVector(int dims) {
+    private static float[] randomNonUnitFloatVector(int dims) {
         float[] vector = new float[dims];
         for (int i = 0; i < dims; i++) {
             vector[i] = randomFloat();
         }
         return vector;
+    }
+
+    private static float[] randomUnitVector(int dims) {
+        float[] vector = new float[dims];
+        double sumSquares = 0.0;
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomFloat() * 2 - 1; // Generate values between -1 and 1 for better distribution
+            sumSquares += vector[i] * vector[i];
+        }
+        float magnitude = (float) Math.sqrt(sumSquares);
+        if (magnitude > 0) {
+            for (int i = 0; i < dims; i++) {
+                vector[i] /= magnitude;
+            }
+        }
+        return vector;
+    }
+
+    private float[] randomFloatVector(int dims) {
+        boolean useUnitVectors = "dot_product".equals(similarity);
+        return useUnitVectors ? randomUnitVector(dims) : randomNonUnitFloatVector(dims);
     }
 
     /**

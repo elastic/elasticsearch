@@ -61,13 +61,6 @@ tasks.named("dependencyLicenses") {
   mapping from: /jackson.*/, to: 'jackson'
 }
 
-tasks.named("thirdPartyAudit") {
-  ignoreMissingClasses(
-    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-    'org.slf4j.ext.EventData'
-  )
-}
-
 tasks.named("yamlRestTest") {
   usesDefaultDistribution("uses the xpack/usage api")
 }

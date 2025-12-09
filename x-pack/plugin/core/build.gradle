@@ -161,8 +161,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.jms.Message',
     // HttpClient5 can use Conscrypt (TLS using BoringSSL), but we don't want that
     'org.conscrypt.Conscrypt',
-    // SLF4j via HttpClient5
-    'org.slf4j.ext.EventData'
   )
 }
 

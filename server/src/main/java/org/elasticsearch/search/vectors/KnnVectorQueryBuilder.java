@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -153,14 +152,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
      * True if auto pre-filtering should be applied.
      */
     private boolean isAutoPrefilteringEnabled = false;
-
-    /**
-     * True if the query is in the middle of applying auto pre-filtering.
-     * This is used to prevent infinite loops while applying auto pre-filtering as it is possible
-     * to have two knn queries where the one is a prefilter to the other.
-     */
-    // TODO remove
-    private boolean isInTheMiddleOfAutoPrefiltering = false;
 
     public KnnVectorQueryBuilder(
         String fieldName,
@@ -572,12 +563,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        if (isInTheMiddleOfAutoPrefiltering) {
-            // There is a circular dependency where this knn is used as an auto prefilter to
-            // an auto prefilter of its own. We break the cycle by returning a MatchAllDocsQuery.
-            return new MatchAllDocsQuery();
-        }
-
         MappedFieldType fieldType = context.getFieldType(fieldName);
         int k;
         if (this.k != null) {
@@ -684,20 +669,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (isAutoPrefilteringEnabled == false) {
             return List.of();
         }
-        try {
-            isInTheMiddleOfAutoPrefiltering = true;
-            final List<Query> autoPrefilters = new ArrayList<>();
-            for (QueryBuilder queryBuilder : context.autoPrefilteringScope().getPrefilters().stream().filter(f -> this != f).toList()) {
-                Optional<QueryBuilder> pruned = AutoPrefilteringUtils.pruneQuery(queryBuilder, UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES);
-                if (pruned.isPresent()) {
-                    Query query = pruned.get().toQuery(context);
-                    autoPrefilters.add(query);
-                }
+        final List<Query> autoPrefilters = new ArrayList<>();
+        for (QueryBuilder queryBuilder : context.autoPrefilteringScope().getPrefilters().stream().filter(f -> this != f).toList()) {
+            Optional<QueryBuilder> pruned = AutoPrefilteringUtils.pruneQuery(queryBuilder, UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES);
+            if (pruned.isPresent()) {
+                Query query = pruned.get().toQuery(context);
+                autoPrefilters.add(query);
             }
-            return autoPrefilters;
-        } finally {
-            isInTheMiddleOfAutoPrefiltering = false;
         }
+        return autoPrefilters;
     }
 
     private static Query buildFilterQuery(List<Query> filters) {

@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.Authoriz
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMCache;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMInformedSettings;
@@ -463,8 +464,23 @@ public class InferencePlugin extends Plugin
         ModelRegistry modelRegistry,
         CCMFeature ccmFeature
     ) {
+        var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        var ccmService = new CCMService(ccmPersistentStorageService, services.client());
+        var ccmCache = new CCMCache(
+            ccmPersistentStorageService,
+            services.clusterService(),
+            settings,
+            services.featureService(),
+            services.projectResolver(),
+            services.client()
+        );
+        var ccmService = new CCMService(
+            ccmPersistentStorageService,
+            ccmEnablementService,
+            ccmCache,
+            services.projectResolver(),
+            services.client()
+        );
         var ccmAuthApplierFactory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
@@ -476,6 +492,8 @@ public class InferencePlugin extends Plugin
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),
+            ccmEnablementService,
+            ccmFeature,
             new AuthorizationPoller.Parameters(
                 serviceComponents,
                 authorizationHandler,
@@ -488,30 +506,10 @@ public class InferencePlugin extends Plugin
             )
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
-
-        // If CCM is not allowed in this environment then we can initialize the auth poller task because
-        // authentication with EIS will be through certs that are already configured. If CCM configuration is allowed,
-        // we need to wait for the user to provide an API key before we can start polling EIS
-        if (ccmFeature.isCcmSupportedEnvironment() == false) {
-            logger.info("CCM configuration is not permitted - starting EIS authorization task executor");
-            authTaskExecutor.startAndLazyCreateTask();
-        }
+        authTaskExecutor.startAndLazilyCreateTask();
 
         return new CCMRelatedComponents(
-            List.of(
-                authorizationHandler,
-                authTaskExecutor,
-                ccmService,
-                ccmPersistentStorageService,
-                new CCMCache(
-                    ccmPersistentStorageService,
-                    services.clusterService(),
-                    settings,
-                    services.featureService(),
-                    services.projectResolver(),
-                    services.client()
-                )
-            ),
+            List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),
             ccmAuthApplierFactory
         );
     }
@@ -623,7 +621,8 @@ public class InferencePlugin extends Plugin
                 )
             ),
             InferenceNamedWriteablesProvider.getNamedWriteables(),
-            AuthorizationTaskExecutor.getNamedWriteables()
+            AuthorizationTaskExecutor.getNamedWriteables(),
+            CCMEnablementService.getNamedWriteables()
         ).flatMap(List::stream).toList();
 
     }
@@ -643,7 +642,8 @@ public class InferencePlugin extends Plugin
                     ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::fromXContent
                 )
             ),
-            AuthorizationTaskExecutor.getNamedXContentParsers()
+            AuthorizationTaskExecutor.getNamedXContentParsers(),
+            CCMEnablementService.getNamedXContentParsers()
         ).flatMap(List::stream).toList();
     }
 

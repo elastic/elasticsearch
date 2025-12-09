@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -629,7 +628,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
+            case LOOKUP -> 3;
         };
         out.writeByte((byte) code);
     }

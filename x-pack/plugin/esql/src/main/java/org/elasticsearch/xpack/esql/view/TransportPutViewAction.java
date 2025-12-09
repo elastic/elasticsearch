@@ -53,7 +53,7 @@ public class TransportPutViewAction extends AcknowledgedTransportMasterNodeProje
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        viewService.putView(state.projectId(), request, listener.map(v -> AcknowledgedResponse.TRUE));
+        viewService.putView(state.projectId(), request, listener);
     }
 
     @Override

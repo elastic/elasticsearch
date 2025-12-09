@@ -21,15 +21,31 @@ if (buildParams.inFipsJvm) {
     String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
-    File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
-    def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.6')
-    def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
+
+    def bcFips
+    def bcTlsFips
+    def bcUtilFips
     def manualDebug = false; //change this to manually debug bouncy castle in an IDE
-    if(manualDebug) {
-      bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:1.0.2.6')
-      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19'){
-        exclude group: 'org.bouncycastle', module: 'bc-fips'  // to avoid jar hell
+    def isFips140_3 = buildParams.fipsMode == null || buildParams.fipsMode == '140-3' // temporarily default to FIPS 140-3 if not specified
+    String javaPolicyFilename = isFips140_3 ? 'fips_java_140_3.policy' : 'fips_java.policy'
+    File fipsPolicy = new File(fipsResourcesDir, javaPolicyFilename)
+
+    if (isFips140_3) {
+      // FIPS 140-3 certified BouncyCastle libraries
+      bcFips = dependencies.create('org.bouncycastle:bc-fips:2.1.2')
+      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.1.22')
+      bcUtilFips = dependencies.create('org.bouncycastle:bcutil-fips:2.1.5')
+    } else {
+      // FIPS 140-2 certified BouncyCastle libraries (default)
+      bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.6')
+      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
+      bcUtilFips = null
+      if (manualDebug) {
+        bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:1.0.2.6')
+        bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19'){
+          exclude group: 'org.bouncycastle', module: 'bc-fips'  // to avoid jar hell
+        }
       }
     }
     pluginManager.withPlugin('java-base') {
@@ -37,7 +53,7 @@ if (buildParams.inFipsJvm) {
       fipsResourcesTask.configure {
         outputDir = fipsResourcesDir
         copy javaSecurityFilename
-        copy 'fips_java.policy'
+        copy javaPolicyFilename
         copy 'cacerts.bcfks'
       }
 
@@ -45,6 +61,9 @@ if (buildParams.inFipsJvm) {
         withDependencies {
           add(bcFips)
           add(bcTlsFips)
+          if (bcUtilFips != null) {
+            add(bcUtilFips)
+          }
         }
       }
 

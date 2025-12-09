@@ -1,0 +1,28 @@
+grant {
+     permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
+     permission java.security.SecurityPermission "putProviderProperty.BCJSSE";
+     permission java.security.SecurityPermission "getProperty.keystore.type.compat";
+     permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
+     permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
+     permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
+     permission java.security.SecurityPermission "getProperty.org.bouncycastle.ec.max_f2m_field_size";
+     permission java.lang.RuntimePermission "getProtectionDomain";
+     permission java.util.PropertyPermission "java.runtime.name", "read";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";
+     //io.netty.handler.codec.DecoderException
+     permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
+     //java.security.InvalidAlgorithmParameterException: Cannot process GCMParameterSpec
+     permission java.lang.RuntimePermission "accessDeclaredMembers";
+     permission java.util.PropertyPermission "intellij.debug.agent", "read";
+     permission java.util.PropertyPermission "intellij.debug.agent", "write";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
+     permission java.io.FilePermission "${javax.net.ssl.trustStore}", "read";
+};
+
+// rely on the caller's socket permissions, the JSSE TLS implementation here is always allowed to connect
+// FIPS 140-3: bctls-fips 2.1.22
+grant codeBase "file:${jdk.module.path}/bctls-fips-2.1.22.jar" {
+  permission java.net.SocketPermission "*", "connect";
+};
+

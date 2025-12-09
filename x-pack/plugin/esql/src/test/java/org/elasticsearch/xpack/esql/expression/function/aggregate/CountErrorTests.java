@@ -44,6 +44,6 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(2));
+        assertThat("all signatures except for dense_vector or exponential_histogram should be supported", checked, equalTo(2));
     }
 }

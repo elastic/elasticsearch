@@ -338,13 +338,17 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/forcemerge*"
                     )
                     .build(),
-                // Endpoint specific action responses. Kibana reads and writes (for third party
-                // agents) to the index to display action responses to the user.
-                // `create_index`: is necessary in order to ensure that the DOT datastream index is
-                // created by Kibana in order to avoid errors on the Elastic Defend side when streaming
-                // documents to it.
+
+                // Kibana Security Solution EDR workflows team
+                // 1.`.logs-endpoint.action.responses-*`:
+                // Endpoint specific action responses. Kibana reads and writes (for third party agents)
+                // to the index to display action responses to the user. `create_index`: is necessary
+                // in order to ensure that the DOT datastream index is created by Kibana in order to
+                // avoid errors on the Elastic Defend side when streaming documents to it.
+                // 2. `.endpoint-script-file*`:
+                // indexes are used internally within Kibana in support of Elastic Defend scripts library.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".logs-endpoint.action.responses-*")
+                    .indices(".logs-endpoint.action.responses-*", ".endpoint-script-file-meta-*", ".endpoint-script-file-data-*")
                     .privileges("auto_configure", "read", "write", "create_index")
                     .build(),
                 // Endpoint specific actions. Kibana reads and writes to this index to track new

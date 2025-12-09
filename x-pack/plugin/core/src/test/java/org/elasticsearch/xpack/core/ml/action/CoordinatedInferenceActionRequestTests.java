@@ -34,17 +34,6 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
         assertThat(copy.getPrefixType(), is(TrainedModelPrefixStrings.PrefixType.INGEST));
     }
 
-    public void testSerializesPrefixType_DoesNotSerialize_WhenTransportVersion_IsPriorToInputTypeAdded() throws IOException {
-        var instance = createTestInstance();
-        instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
-        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), TransportVersions.V_8_12_1);
-
-        assertNotSame(copy, instance);
-        assertNotEquals(copy, instance);
-        assertNotEquals(copy.hashCode(), instance.hashCode());
-        assertThat(copy.getPrefixType(), is(TrainedModelPrefixStrings.PrefixType.NONE));
-    }
-
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();

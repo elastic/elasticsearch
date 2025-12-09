@@ -321,11 +321,6 @@ public final class TextFieldMapper extends FieldMapper {
             });
 
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                // ideally and for simplicity, store should be set to false by default
-                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion)) {
-                    return false;
-                }
-
                 // however, because historically we set store to true to support synthetic source, we must also keep that logic:
                 if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                     return isSyntheticSourceEnabled

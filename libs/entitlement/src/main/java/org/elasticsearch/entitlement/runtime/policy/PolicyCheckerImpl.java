@@ -227,28 +227,29 @@ public class PolicyCheckerImpl implements PolicyChecker {
         ModuleEntitlements entitlements = policyManager.getEntitlements(requestingClass);
 
         Path realPath = null;
-        boolean canRead = entitlements.fileAccess().canRead(path);
-        if (canRead && followLinks) {
+        String denialReason = entitlements.fileAccess().canRead(path) ? null : "Forbidden by policies";
+        if (denialReason == null && followLinks) {
             try {
                 realPath = path.toRealPath();
                 if (realPath.equals(path) == false) {
-                    canRead = entitlements.fileAccess().canRead(realPath);
+                    denialReason = entitlements.fileAccess().canRead(realPath) ? null : "Symlink target forbidden by policies";
                 }
             } catch (NoSuchFileException e) {
                 throw e; // rethrow
             } catch (IOException e) {
-                canRead = false;
+                denialReason = e.toString();
             }
         }
 
-        if (canRead == false) {
+        if (denialReason != null) {
             notEntitled(
                 Strings.format(
-                    "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
+                    "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s], reason [%s]",
                     entitlements.componentName(),
                     entitlements.moduleName(),
                     requestingClass,
-                    realPath == null ? path : Strings.format("%s -> %s", path, realPath)
+                    realPath == null ? path : Strings.format("%s -> %s", path, realPath),
+                    denialReason
                 ),
                 requestingClass,
                 entitlements

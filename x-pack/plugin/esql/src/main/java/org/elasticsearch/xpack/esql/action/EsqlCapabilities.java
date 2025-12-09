@@ -1668,9 +1668,9 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_EQUALS_FIELD,
 
         /**
-         * Support for base conversion in TO_LONG
+         * Support for base conversion in TO_LONG and TO_INTEGER
          */
-        TO_LONG_BASE,
+        BASE_CONVERSION,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.

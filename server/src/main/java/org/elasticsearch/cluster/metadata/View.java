@@ -55,8 +55,8 @@ public final class View implements Writeable, ToXContentObject {
     private final String query;
 
     public View(String name, String query) {
-        this.name = name;
-        this.query = query;
+        this.name = Objects.requireNonNull(name, "view name must not be null");
+        this.query = Objects.requireNonNull(query, "view query must not be null");
     }
 
     public View(StreamInput in) throws IOException {

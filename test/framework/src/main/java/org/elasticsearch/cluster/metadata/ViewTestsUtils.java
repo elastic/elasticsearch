@@ -9,11 +9,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import java.util.Locale;
+
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 
 public class ViewTestsUtils {
     public static String randomName() {
-        return randomAlphaOfLength(8);
+        return randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
     }
 
     public static View randomView(String name) {

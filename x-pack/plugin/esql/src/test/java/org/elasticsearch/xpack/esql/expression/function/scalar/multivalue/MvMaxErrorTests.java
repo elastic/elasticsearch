@@ -38,7 +38,7 @@ public class MvMaxErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 validPerPosition,
                 signature,
                 (v, p) -> "any type except counter, spatial types, dense_vector, aggregate_metric_double, "
-                    + " exponential_histogram or date_range"
+                    + "exponential_histogram or date_range"
             )
         );
     }

@@ -1,5 +1,0 @@
-pr: 131694
-summary: Accept unsigned longs on MAX and MIN aggregations
-area: ES|QL
-type: enhancement
-issues: []

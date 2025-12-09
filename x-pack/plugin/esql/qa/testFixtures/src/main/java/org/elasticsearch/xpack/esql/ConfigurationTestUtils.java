@@ -51,6 +51,10 @@ public class ConfigurationTestUtils {
         return randomConfiguration(randomRealisticUnicodeOfLength(len), randomTables());
     }
 
+    public static Configuration randomConfiguration(String query) {
+        return randomConfiguration(query, randomTables());
+    }
+
     public static Configuration randomConfiguration(String query, Map<String, Map<String, Column>> tables) {
         var zoneId = randomZone();
         var locale = randomLocale(random());
@@ -58,6 +62,8 @@ public class ConfigurationTestUtils {
         var clusterName = randomAlphaOfLengthBetween(3, 10);
         var truncation = randomNonNegativeInt();
         var defaultTruncation = randomNonNegativeInt();
+        var tsTruncation = truncation + randomNonNegativeInt();
+        var defaultTsTruncation = defaultTruncation + randomNonNegativeInt();
         boolean profile = randomBoolean();
 
         return new Configuration(
@@ -72,8 +78,15 @@ public class ConfigurationTestUtils {
             profile,
             tables,
             System.nanoTime(),
-            false
+            false,
+            tsTruncation,
+            defaultTsTruncation,
+            null
         );
+    }
+
+    public static ConfigurationBuilder randomConfigurationBuilder() {
+        return new ConfigurationBuilder(randomConfiguration());
     }
 
     private static QueryPragmas randomQueryPragmas() {

@@ -455,7 +455,7 @@ emp_no:integer  | birth_date:datetime
 ;
 
 convertToAggregateMetricDouble
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 //tag::toAggregateMetricDouble[]
 ROW x = 3892095203
 | EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
@@ -469,7 +469,7 @@ x:long     | agg_metric:aggregate_metric_double
 ;
 
 convertToAggregateMetricDoubleMv
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 //tag::toAggregateMetricDoubleMv[]
 ROW x = [5032, 11111, 40814]
 | EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
@@ -484,7 +484,7 @@ x:integer            | agg_metric:aggregate_metric_double
 
 convertToAggregateMetricDoubleCastingOperatorFromDouble
 required_capability: suggested_cast
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 ROW x = 29384.1256
 | EVAL agg_metric = x::aggregate_metric_double
 ;
@@ -495,7 +495,7 @@ x:double   | agg_metric:aggregate_metric_double
 
 convertToAggregateMetricDoubleCastingOperatorFromInt
 required_capability: suggested_cast
-required_capability: aggregate_metric_double_convert_to
+required_capability: aggregate_metric_double_v0
 ROW x = 55555
 | EVAL agg_metric = x::aggregate_metric_double
 ;

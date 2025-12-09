@@ -101,9 +101,31 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final String TYPE_FIELD_NAME = "_type";
+
+    private static final int LEGACY_NESTED_FIELDS_LIMIT = 50;
+    private static final int DEFAULT_NESTED_FIELDS_LIMIT = 100;
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
-        50L,
+        settings -> {
+            final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+            return Integer.toString(
+                indexVersionCreated.onOrAfter(IndexVersions.NESTED_PATH_LIMIT) ? DEFAULT_NESTED_FIELDS_LIMIT : LEGACY_NESTED_FIELDS_LIMIT
+            );
+        },
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    private static final int LEGACY_NESTED_PARENTS_LIMIT = Integer.MAX_VALUE;
+    private static final int DEFAULT_NESTED_PARENTS_LIMIT = 50;
+    public static final Setting<Long> INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.nested_parents.limit",
+        settings -> {
+            final IndexVersion indexVersionCreated = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+            return Integer.toString(
+                indexVersionCreated.onOrAfter(IndexVersions.NESTED_PATH_LIMIT) ? DEFAULT_NESTED_PARENTS_LIMIT : LEGACY_NESTED_PARENTS_LIMIT
+            );
+        },
         0,
         Property.Dynamic,
         Property.IndexScope
@@ -154,6 +176,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         "index.mapping.field_name_length.limit",
         Long.MAX_VALUE,
         1L,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<Boolean> INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING = Setting.boolSetting(
+        "index.mapping.field_name_length.ignore_dynamic_beyond_limit",
+        false,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -245,7 +273,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexAnalyzers,
             indexSettings,
             idFieldMapper,
-            bitSetProducer
+            bitSetProducer,
+            mapperRegistry.getVectorsFormatProviders(),
+            mapperRegistry.getNamespaceValidator()
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(

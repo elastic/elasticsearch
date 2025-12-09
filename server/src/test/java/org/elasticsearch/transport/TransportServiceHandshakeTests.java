@@ -10,9 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -42,7 +40,6 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptySet;
@@ -212,7 +209,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             new VersionInformation(
                 VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
                 IndexVersions.MINIMUM_COMPATIBLE,
@@ -264,7 +261,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
+            TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible()),
             new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current()),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -324,10 +321,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
     }
 
     public void testRejectsMismatchedBuildHash() {
-        final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
-        final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
-        transportInterceptorA.setModifyBuildHash(true);
-        transportInterceptorB.setModifyBuildHash(true);
+        final var transportInterceptorA = new BuildHashModifyingTransportInterceptor();
+        final var transportInterceptorB = new BuildHashModifyingTransportInterceptor();
         final Settings settings = Settings.builder()
             .put("cluster.name", "a")
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
@@ -376,39 +371,9 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         assertFalse(transportServiceA.nodeConnected(discoveryNode));
     }
 
-    public void testAcceptsMismatchedServerlessBuildHash() {
-        assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
-        final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
-        final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
-        transportInterceptorA.setModifyBuildHash(true);
-        transportInterceptorB.setModifyBuildHash(true);
-        final Settings settings = Settings.builder()
-            .put("cluster.name", "a")
-            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
-            .build();
-        final TransportService transportServiceA = startServices(
-            "TS_A",
-            settings,
-            TransportVersion.current(),
-            VersionInformation.CURRENT,
-            transportInterceptorA
-        );
-        final TransportService transportServiceB = startServices(
-            "TS_B",
-            settings,
-            TransportVersion.current(),
-            VersionInformation.CURRENT,
-            transportInterceptorB
-        );
-        AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
-        assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
-    }
-
     public void testAcceptsMismatchedBuildHashFromDifferentVersion() {
-        final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
-        final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
-        transportInterceptorA.setModifyBuildHash(true);
-        transportInterceptorB.setModifyBuildHash(true);
+        final var transportInterceptorA = new BuildHashModifyingTransportInterceptor();
+        final var transportInterceptorB = new BuildHashModifyingTransportInterceptor();
         final TransportService transportServiceA = startServices(
             "TS_A",
             Settings.builder().put("cluster.name", "a").build(),
@@ -419,65 +384,11 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "a").build(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current()),
             transportInterceptorB
         );
         AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
         assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
     }
-
-    private static class DisruptingTransportInterceptor implements TransportInterceptor {
-
-        private boolean modifyBuildHash;
-
-        public void setModifyBuildHash(boolean modifyBuildHash) {
-            this.modifyBuildHash = modifyBuildHash;
-        }
-
-        @Override
-        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
-            String action,
-            Executor executor,
-            boolean forceExecution,
-            TransportRequestHandler<T> actualHandler
-        ) {
-
-            if (TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
-                return (request, channel, task) -> actualHandler.messageReceived(request, new TransportChannel() {
-                    @Override
-                    public String getProfileName() {
-                        return channel.getProfileName();
-                    }
-
-                    @Override
-                    public void sendResponse(TransportResponse response) {
-                        assertThat(response, instanceOf(TransportService.HandshakeResponse.class));
-                        if (modifyBuildHash) {
-                            final TransportService.HandshakeResponse handshakeResponse = (TransportService.HandshakeResponse) response;
-                            channel.sendResponse(
-                                new TransportService.HandshakeResponse(
-                                    handshakeResponse.getVersion(),
-                                    handshakeResponse.getBuildHash() + "-modified",
-                                    handshakeResponse.getDiscoveryNode(),
-                                    handshakeResponse.getClusterName()
-                                )
-                            );
-                        } else {
-                            channel.sendResponse(response);
-                        }
-                    }
-
-                    @Override
-                    public void sendResponse(Exception exception) {
-                        channel.sendResponse(exception);
-
-                    }
-                }, task);
-            } else {
-                return actualHandler;
-            }
-        }
-    }
-
 }

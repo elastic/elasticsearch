@@ -1,32 +1,37 @@
 {
   "enrich.delete_policy": {
     "documentation": {
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-enrich-policy-api.html",
-      "description": "Deletes an existing enrich policy and its enrich index."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-delete-policy",
+      "description": "Delete an enrich policy"
     },
-    "stability" : "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_enrich/policy/{name}",
-          "methods": [ "DELETE" ],
+          "methods": [
+            "DELETE"
+          ],
           "parts": {
             "name": {
-              "type" : "string",
-              "description" : "The name of the enrich policy"
+              "type": "string",
+              "description": "The name of the enrich policy"
             }
           }
         }
       ]
     },
     "params": {
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for processing on master node"
       }
     }
   }

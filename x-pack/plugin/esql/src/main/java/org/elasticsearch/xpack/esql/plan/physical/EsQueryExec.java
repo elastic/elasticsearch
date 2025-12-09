@@ -40,9 +40,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         EsField.TimeSeriesFieldType.NONE
     );
 
+    public static final List<EsField> TIME_SERIES_SOURCE_FIELDS = List.of(
+        new EsField("_ts_slice_index", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+        new EsField("_ts_future_max_timestamp", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+    );
+
     private final String indexPattern;
     private final IndexMode indexMode;
-    private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
     private final Expression limit;
     private final List<Sort> sorts;
@@ -69,6 +73,12 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         Order.OrderDirection direction();
 
         FieldAttribute field();
+
+        /**
+         * Type of the <strong>result</strong> of the sort. For example,
+         * geo distance will be {@link DataType#DOUBLE}.
+         */
+        DataType resulType();
     }
 
     public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Sort {
@@ -80,6 +90,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             builder.unmappedType(field.dataType().esType());
             return builder;
         }
+
+        @Override
+        public DataType resulType() {
+            return field.dataType();
+        }
     }
 
     public record GeoDistanceSort(FieldAttribute field, Order.OrderDirection direction, double lat, double lon) implements Sort {
@@ -88,6 +103,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder(field.name(), lat, lon);
             builder.order(Direction.from(direction).asOrder());
             return builder;
+        }
+
+        @Override
+        public DataType resulType() {
+            return DataType.DOUBLE;
         }
     }
 
@@ -102,20 +122,19 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             // TODO: refactor this: not all Sorts are backed by FieldAttributes
             return null;
         }
+
+        @Override
+        public DataType resulType() {
+            return DataType.DOUBLE;
+        }
     }
 
-    public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
-        @Override
-        public String toString() {
-            return "QueryBuilderAndTags{" + "queryBuilder=[" + query + "], tags=" + tags.toString() + "}";
-        }
-    };
+    public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {};
 
     public EsQueryExec(
         Source source,
         String indexPattern,
         IndexMode indexMode,
-        Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attrs,
         Expression limit,
         List<Sort> sorts,
@@ -125,7 +144,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
-        this.indexNameWithModes = indexNameWithModes;
         this.attrs = attrs;
         this.limit = limit;
         this.sorts = sorts;
@@ -144,8 +162,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         throw new UnsupportedOperationException("not serialized");
     }
 
-    public static boolean isSourceAttribute(Attribute attr) {
-        return DOC_ID_FIELD.getName().equals(attr.name());
+    public static boolean isDocAttribute(Attribute attr) {
+        // While the user can create columns with the same name as DOC_ID_FIELD, they cannot create a field with the DOC_DATA_TYPE.
+        return attr.typeResolved().resolved() && attr.dataType() == DataType.DOC_DATA_TYPE;
     }
 
     public boolean hasScoring() {
@@ -159,18 +178,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(
-            this,
-            EsQueryExec::new,
-            indexPattern,
-            indexMode,
-            indexNameWithModes,
-            attrs,
-            limit,
-            sorts,
-            estimatedRowSize,
-            queryBuilderAndTags
-        );
+        return NodeInfo.create(this, EsQueryExec::new, indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     public String indexPattern() {
@@ -179,10 +187,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public IndexMode indexMode() {
         return indexMode;
-    }
-
-    public Map<String, IndexMode> indexNameWithModes() {
-        return indexNameWithModes;
     }
 
     /**
@@ -233,23 +237,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, limit, sorts, size, queryBuilderAndTags);
+            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags);
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(
-                source(),
-                indexPattern,
-                indexMode,
-                indexNameWithModes,
-                attrs,
-                limit,
-                sorts,
-                estimatedRowSize,
-                queryBuilderAndTags
-            );
+            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     public boolean canPushSorts() {
@@ -263,17 +257,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(
-                source(),
-                indexPattern,
-                indexMode,
-                indexNameWithModes,
-                attrs,
-                limit,
-                sorts,
-                estimatedRowSize,
-                queryBuilderAndTags
-            );
+            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     /**
@@ -289,7 +273,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
                 source(),
                 indexPattern,
                 indexMode,
-                indexNameWithModes,
                 attrs,
                 limit,
                 sorts,
@@ -303,8 +286,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public boolean canSubstituteRoundToWithQueryBuilderAndTags() {
-        // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags
-        return indexMode != IndexMode.TIME_SERIES && (sorts == null || sorts.isEmpty());
+        // LuceneTopNSourceOperator doesn't support QueryAndTags
+        return sorts == null || sorts.isEmpty();
     }
 
     /**
@@ -316,6 +299,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private QueryBuilder queryWithoutTag() {
         QueryBuilder queryWithoutTag;
+
         if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
             return null;
         } else if (queryBuilderAndTags.size() == 1) {
@@ -335,7 +319,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs, limit, sorts, queryBuilderAndTags);
+        return Objects.hash(indexPattern, indexMode, attrs, limit, sorts, queryBuilderAndTags);
     }
 
     @Override
@@ -351,7 +335,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         EsQueryExec other = (EsQueryExec) obj;
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
-            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(limit, other.limit)
             && Objects.equals(sorts, other.sorts)

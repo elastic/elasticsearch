@@ -69,4 +69,5 @@ PUT _ingest/pipeline/my-pipeline-id
   ]
 }
 ```
+% NOTCONSOLE
 

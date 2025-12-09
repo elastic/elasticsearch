@@ -54,7 +54,8 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     false,
                     null,
                     null,
-                    1
+                    1,
+                    null
                 )
             ) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
@@ -193,7 +194,8 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     false,
                     null,
                     null,
-                    1
+                    1,
+                    null
                 )
             ) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,8 +23,8 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -36,6 +37,7 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -54,14 +56,24 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -75,6 +87,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -83,13 +96,14 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     public void testKeywordKey() throws IOException {
-        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" } }));
+        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" } }), null);
     }
 
     public void testJoinOnTwoKeys() throws IOException {
         runLookup(
             List.of(DataType.KEYWORD, DataType.LONG),
-            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" }, new Long[] { 12L, 33L, 1L, 42L } })
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" }, new Long[] { 12L, 33L, 1L, 42L } }),
+            null
         );
     }
 
@@ -101,7 +115,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new String[] { "aa", "bb", "cc", "dd" },
                     new Long[] { 12L, 33L, 1L, 42L },
                     new String[] { "one", "two", "three", "four" }, }
-            )
+            ),
+            null
         );
     }
 
@@ -114,25 +129,35 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new Long[] { 12L, 33L, 1L, 42L },
                     new String[] { "one", "two", "three", "four" },
                     new Integer[] { 1, 2, 3, 4 }, }
-            )
+            ),
+            buildGreaterThanFilter(1L)
         );
     }
 
     public void testLongKey() throws IOException {
-        runLookup(List.of(DataType.LONG), new UsingSingleLookupTable(new Object[][] { new Long[] { 12L, 33L, 1L } }));
+        runLookup(
+            List.of(DataType.LONG),
+            new UsingSingleLookupTable(new Object[][] { new Long[] { 12L, 33L, 1L } }),
+            buildGreaterThanFilter(0L)
+        );
     }
 
     /**
      * LOOKUP multiple results match.
      */
     public void testLookupIndexMultiResults() throws IOException {
-        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }));
+        runLookup(
+            List.of(DataType.KEYWORD),
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }),
+            buildGreaterThanFilter(-1L)
+        );
     }
 
     public void testJoinOnTwoKeysMultiResults() throws IOException {
         runLookup(
             List.of(DataType.KEYWORD, DataType.LONG),
-            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" }, new Long[] { 12L, 1L, 1L, 42L } })
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" }, new Long[] { 12L, 1L, 1L, 42L } }),
+            null
         );
     }
 
@@ -144,12 +169,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new String[] { "aa", "bb", "bb", "dd" },
                     new Long[] { 12L, 1L, 1L, 42L },
                     new String[] { "one", "two", "two", "four" } }
-            )
+            ),
+            null
         );
     }
 
     interface PopulateIndices {
-        void populate(int docCount, List<String> expected) throws IOException;
+        void populate(int docCount, List<String> expected, Predicate<Integer> filter) throws IOException;
     }
 
     class UsingSingleLookupTable implements PopulateIndices {
@@ -171,7 +197,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
 
         @Override
-        public void populate(int docCount, List<String> expected) {
+        public void populate(int docCount, List<String> expected, Predicate<Integer> filter) {
             List<IndexRequestBuilder> docs = new ArrayList<>();
             int numFields = lookupData.length;
             int numRows = lookupData[0].length;
@@ -190,14 +216,20 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 } else {
                     keyString = String.join(",", key.stream().map(String::valueOf).toArray(String[]::new));
                 }
-                for (Integer match : matches.get(key)) {
-                    expected.add(keyString + ":" + match);
+                List<Integer> filteredMatches = matches.get(key).stream().filter(filter).toList();
+                if (filteredMatches.isEmpty()) {
+                    expected.add(keyString + ":null");
+                } else {
+                    for (Integer match : filteredMatches) {
+                        expected.add(keyString + ":" + match);
+                    }
                 }
             }
             for (int i = 0; i < numRows; i++) {
                 Map<String, Object> lookupDoc = new HashMap<>();
                 for (int f = 0; f < numFields; f++) {
                     lookupDoc.put("key" + f, lookupData[f][i]);
+                    lookupDoc.put("rkey" + f, lookupData[f][i]);
                 }
                 lookupDoc.put("l", i);
                 docs.add(client().prepareIndex("lookup").setSource(lookupDoc));
@@ -207,7 +239,19 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices) throws IOException {
+    private PhysicalPlan buildGreaterThanFilter(long value) {
+        FieldAttribute filterAttribute = new FieldAttribute(
+            Source.EMPTY,
+            "l",
+            new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
+        Filter filter = new Filter(Source.EMPTY, esRelation, greaterThan);
+        return new FragmentExec(filter);
+    }
+
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan pushedDownFilter) throws IOException {
         String[] fieldMappers = new String[keyTypes.size() * 2];
         for (int i = 0; i < keyTypes.size(); i++) {
             fieldMappers[2 * i] = "key" + i;
@@ -224,21 +268,29 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             .put(IndexSettings.MODE.getKey(), "lookup")
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1);
 
-        String[] lookupMappers = new String[keyTypes.size() * 2 + 2];
-        int lookupMappersCounter = 0;
-        for (; lookupMappersCounter < keyTypes.size(); lookupMappersCounter++) {
-            lookupMappers[2 * lookupMappersCounter] = "key" + lookupMappersCounter;
-            lookupMappers[2 * lookupMappersCounter + 1] = "type=" + keyTypes.get(lookupMappersCounter).esType();
+        String[] lookupMappers = new String[keyTypes.size() * 4 + 2];
+        for (int i = 0; i < keyTypes.size(); i++) {
+            lookupMappers[2 * i] = "key" + i;
+            lookupMappers[2 * i + 1] = "type=" + keyTypes.get(i).esType();
         }
-        lookupMappers[2 * lookupMappersCounter] = "l";
-        lookupMappers[2 * lookupMappersCounter + 1] = "type=long";
+        for (int i = 0; i < keyTypes.size(); i++) {
+            lookupMappers[2 * (keyTypes.size() + i)] = "rkey" + i;
+            lookupMappers[2 * (keyTypes.size() + i) + 1] = "type=" + keyTypes.get(i).esType();
+        }
+        lookupMappers[keyTypes.size() * 4] = "l";
+        lookupMappers[keyTypes.size() * 4 + 1] = "type=long";
         client().admin().indices().prepareCreate("lookup").setSettings(lookupSettings).setMapping(lookupMappers).get();
 
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
+        Predicate<Integer> filterPredicate = l -> true;
+        if (pushedDownFilter instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof Filter filter) {
+            filterPredicate = getPredicateFromFilter(filter);
+        }
+
         int docCount = between(10, 1000);
         List<String> expected = new ArrayList<>(docCount);
-        populateIndices.populate(docCount, expected);
+        populateIndices.populate(docCount, expected, filterPredicate);
 
         /*
          * Find the data node hosting the only shard of the source index.
@@ -266,7 +318,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
          */
         try (
             SearchContext searchContext = searchService.createSearchContext(
-                new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null),
+                new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.UNSET),
                 SearchService.NO_TIMEOUT
             )
         ) {
@@ -277,7 +329,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 AliasFilter.EMPTY
             );
             LuceneSourceOperator.Factory source = new LuceneSourceOperator.Factory(
-                List.of(esqlContext),
+                new IndexedByShardIdFromSingleton<>(esqlContext),
                 ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
@@ -299,11 +351,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 );
             }
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
-                PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
+                PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
                 fieldInfos,
-                List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
-                    throw new IllegalStateException("can't load source here");
-                }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
+                new IndexedByShardIdFromSingleton<>(
+                    new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), (paths) -> {
+                        throw new IllegalStateException("can't load source here");
+                    }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
+                ),
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(
@@ -318,9 +372,37 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 TEST_REQUEST_TIMEOUT
             );
             final String finalNodeWithShard = nodeWithShard;
+            boolean expressionJoin = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
             List<MatchConfig> matchFields = new ArrayList<>();
+            List<Expression> joinOnConditions = new ArrayList<>();
+            if (expressionJoin) {
+                for (int i = 0; i < keyTypes.size(); i++) {
+                    FieldAttribute leftAttr = new FieldAttribute(
+                        Source.EMPTY,
+                        "key" + i,
+                        new EsField("key" + i, keyTypes.get(0), Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+                    );
+                    FieldAttribute rightAttr = new FieldAttribute(
+                        Source.EMPTY,
+                        "rkey" + i,
+                        new EsField("rkey" + i, keyTypes.get(i), Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+                    );
+                    joinOnConditions.add(new Equals(Source.EMPTY, leftAttr, rightAttr));
+                    // randomly decide to apply the filter as additional join on filter instead of pushed down filter
+                    boolean applyAsJoinOnCondition = EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+                        ? randomBoolean()
+                        : false;
+                    if (applyAsJoinOnCondition
+                        && pushedDownFilter instanceof FragmentExec fragmentExec
+                        && fragmentExec.fragment() instanceof Filter filter) {
+                        joinOnConditions.add(filter.condition());
+                        pushedDownFilter = null;
+                    }
+                }
+            }
+            // the matchFields are shared for both types of join
             for (int i = 0; i < keyTypes.size(); i++) {
-                matchFields.add(new MatchConfig(new FieldAttribute.FieldName("key" + i), i + 1, keyTypes.get(i)));
+                matchFields.add(new MatchConfig("key" + i, i + 1, keyTypes.get(i)));
             }
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -331,7 +413,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 "lookup",
                 "lookup",
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
-                Source.EMPTY
+                Source.EMPTY,
+                pushedDownFilter,
+                Predicates.combineAnd(joinOnConditions)
             );
             DriverContext driverContext = driverContext();
             try (
@@ -345,7 +429,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                             for (int i = 0; i < keyTypes.size(); i++) {
                                 keyBlocks.add(page.getBlock(i + 1));
                             }
-                            LongVector loadedBlock = page.<LongBlock>getBlock(keyTypes.size() + 1).asVector();
+                            LongBlock loadedBlock = page.<LongBlock>getBlock(keyTypes.size() + 1);
                             for (int p = 0; p < page.getPositionCount(); p++) {
                                 StringBuilder result = new StringBuilder();
                                 for (int j = 0; j < keyBlocks.size(); j++) {
@@ -361,7 +445,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                                     }
 
                                 }
-                                result.append(":" + loadedBlock.getLong(p));
+                                if (loadedBlock.isNull(p)) {
+                                    result.append(":null");
+                                } else {
+                                    result.append(":" + loadedBlock.getLong(loadedBlock.getFirstValueIndex(p)));
+                                }
                                 results.add(result.toString());
                             }
                         } finally {
@@ -390,6 +478,19 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             }
             assertDriverContext(driverContext);
         }
+    }
+
+    private static Predicate<Integer> getPredicateFromFilter(Filter filter) {
+        if (filter.condition() instanceof GreaterThan gt
+            && gt.left() instanceof FieldAttribute fa
+            && fa.name().equals("l")
+            && gt.right() instanceof Literal lit) {
+            long value = ((Number) lit.value()).longValue();
+            return l -> l > value;
+        } else {
+            fail("Unsupported filter type in test baseline generation: " + filter);
+        }
+        return null;
     }
 
     /**

@@ -451,18 +451,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         assertThat(infe.getResourceId().toString(), equalTo("[-*]"));
 
-        infe = expectThrows(
-            IndexNotFoundException.class,
-            // throws error because "-foobar" was not covered by a wildcard that included it
-            () -> indexNameExpressionResolver.concreteIndexNames(context2, "bar", "hidden", "-foobar")
-        );
-        assertThat(
-            infe.getMessage(),
-            containsString(
-                "if you intended to exclude this index, ensure that you use wildcards that include it " + "before explicitly excluding it"
-            )
-        );
-        assertThat(infe.getResourceId().toString(), equalTo("[-foobar]"));
+        results = indexNameExpressionResolver.concreteIndexNames(context2, "bar", "hidden", "-foobar");
+        assertThat(results, arrayContainingInAnyOrder("bar", "hidden"));
 
         // open and hidden
         options = IndicesOptions.fromOptions(false, true, true, false, true);
@@ -983,9 +973,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("testXXX").state(State.OPEN))
             .put(indexBuilder("testXXY").state(State.OPEN))
             .put(indexBuilder("testXYY").state(State.OPEN))
-            .put(indexBuilder("-testXYZ").state(State.OPEN))
-            .put(indexBuilder("-testXZZ").state(State.OPEN))
-            .put(indexBuilder("-testYYY").state(State.OPEN))
             .put(indexBuilder("testYYY").state(State.OPEN))
             .put(indexBuilder("testYYX").state(State.OPEN))
             .build();
@@ -1005,19 +992,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             equalTo(newHashSet("testYYY", "testYYX"))
         );
 
-        assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testX*")),
-            equalTo(newHashSet("-testXYZ", "-testXZZ"))
-        );
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testX*")), empty());
+
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXY", "-testX*")), empty());
 
         assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXY", "-testX*")),
-            equalTo(newHashSet("testXXY", "-testXYZ", "-testXZZ"))
-        );
-
-        assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "*", "--testX*")),
-            equalTo(newHashSet("testXXX", "testXXY", "testXYY", "testYYX", "testYYY", "-testYYY"))
+            newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "*", "-testX*")),
+            equalTo(newHashSet("testYYX", "testYYY"))
         );
 
         assertThat(
@@ -1032,7 +1013,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         assertThat(
             newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXX", "testXXY", "testYYY", "-testYYY")),
-            equalTo(newHashSet("testXXX", "testXXY", "testYYY", "-testYYY"))
+            equalTo(newHashSet("testXXX", "testXXY"))
         );
 
         assertThat(
@@ -1042,16 +1023,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         assertThat(
             newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testXXX", "*testY*", "-testYYY")),
-            equalTo(newHashSet("testYYX", "-testYYY"))
+            equalTo(newHashSet("testYYX"))
         );
 
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "-doesnotexist");
         assertEquals(0, indexNames.length);
 
-        assertThat(
-            newHashSet(indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "-*")),
-            equalTo(newHashSet("-testXYZ", "-testXZZ", "-testYYY"))
-        );
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "-*")), empty());
 
         assertThat(
             newHashSet(
@@ -1064,7 +1042,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     "-testXXY"
                 )
             ),
-            equalTo(newHashSet("testXXX", "testXYY", "testXXY"))
+            equalTo(newHashSet("testXXX", "testXYY"))
         );
 
         indexNames = indexNameExpressionResolver.concreteIndexNames(project, IndicesOptions.lenientExpandOpen(), "*", "-*");
@@ -2371,7 +2349,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndicesOptions(
                     IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
                     IndicesOptions.WildcardOptions.DEFAULT,
-                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build()
+                    IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build(),
+                    IndicesOptions.CrossProjectModeOptions.DEFAULT
                 ),
                 "ind*",
                 "test-index"

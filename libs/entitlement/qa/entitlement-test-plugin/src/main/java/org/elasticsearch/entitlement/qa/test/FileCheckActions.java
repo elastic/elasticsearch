@@ -13,6 +13,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 import org.elasticsearch.env.Environment;
+import org.xml.sax.helpers.DefaultHandler;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -39,6 +40,7 @@ import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 import javax.imageio.stream.FileImageInputStream;
+import javax.xml.parsers.SAXParserFactory;
 
 import static java.nio.charset.Charset.defaultCharset;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -95,6 +97,17 @@ class FileCheckActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileCreateTempFile() throws IOException {
         File.createTempFile("prefix", "suffix", readWriteDir().toFile());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void fileCreateTempFileSystemTempDirectory() throws IOException {
+        File.createTempFile("prefix", "suffix");
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void fileCreateTempFileNullDirectory() throws IOException {
+        // null directory = system temp directory
+        File.createTempFile("prefix", "suffix", null);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -578,6 +591,42 @@ class FileCheckActions {
         Files.createFile(file);
     }
 
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenJvmOptionsFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options");
+        Files.readAllBytes(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenElasticsearchYmlFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("elasticsearch.yml");
+        Files.readAllBytes(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options.d");
+        Files.isDirectory(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessForbiddenJvmOptionsFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options");
+        Files.newBufferedWriter(file).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessForbiddenElasticsearchYmlFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("elasticsearch.yml");
+        Files.newBufferedWriter(file).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writerAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options.d").resolve("foo");
+        Files.newBufferedWriter(file).close();
+    }
+
     @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
     static void readAccessSourcePath() throws URISyntaxException {
         var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
@@ -597,6 +646,13 @@ class FileCheckActions {
         // any sensitive operation from java.desktop to fail.
         var file = EntitledActions.createTempFileForRead();
         new FileImageInputStream(file.toFile()).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaXmlFileRequest() throws Exception {
+        // java.xml is part of the jdk, but not a system module. this checks it can't access files
+        var saxParser = SAXParserFactory.newInstance().newSAXParser();
+        saxParser.parse(readFile().toFile(), new DefaultHandler());
     }
 
     private FileCheckActions() {}

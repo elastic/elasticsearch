@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -25,7 +26,7 @@ public class ReservedStateUpdateTaskTests extends ESTestCase {
     public void testBlockedClusterState() {
         ReservedStateUpdateTask<?> task = new ReservedClusterStateUpdateTask(
             "dummy",
-            null,
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current())),
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of(),
             List.of(),
@@ -40,7 +41,7 @@ public class ReservedStateUpdateTaskTests extends ESTestCase {
         task = new ReservedProjectStateUpdateTask(
             randomProjectIdOrDefault(),
             "dummy",
-            null,
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current())),
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of(),
             List.of(),

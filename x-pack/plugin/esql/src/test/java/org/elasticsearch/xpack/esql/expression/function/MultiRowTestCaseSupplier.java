@@ -11,10 +11,19 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -25,6 +34,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -48,6 +59,7 @@ public final class MultiRowTestCaseSupplier {
             case LONG -> longCases(minRows, maxRows, Long.MIN_VALUE, Long.MAX_VALUE, true);
             case UNSIGNED_LONG -> ulongCases(minRows, maxRows, BigInteger.ZERO, UNSIGNED_LONG_MAX, true);
             case DOUBLE -> doubleCases(minRows, maxRows, -Double.MAX_VALUE, Double.MAX_VALUE, true);
+            case KEYWORD, TEXT -> stringCases(minRows, maxRows, type);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };
@@ -452,6 +464,59 @@ public final class MultiRowTestCaseSupplier {
         return cases;
     }
 
+    public static List<TypedDataSupplier> geohashCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return Geohash.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, Geohash.PRECISION));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohash>", DataType.GEOHASH, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> geotileCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return GeoTileUtils.longEncode(point.getX(), point.getY(), ESTestCase.randomIntBetween(1, GeoTileUtils.MAX_ZOOM));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geotile>", DataType.GEOTILE, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> geohexCases(int minRows, int maxRows) {
+        Supplier<Long> gen = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return H3.geoToH3(point.getLat(), point.getLon(), ESTestCase.randomIntBetween(1, H3.MAX_H3_RES));
+        };
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        addSuppliers(cases, minRows, maxRows, "<geohex>", DataType.GEOHEX, gen);
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> exponentialHistogramCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "empty exponential histograms",
+                DataType.EXPONENTIAL_HISTOGRAM,
+                () -> new WriteableExponentialHistogram(ExponentialHistogram.empty())
+            );
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "random exponential histograms",
+                DataType.EXPONENTIAL_HISTOGRAM,
+                EsqlTestUtils::randomExponentialHistogram
+            );
+        }
+        return cases;
+    }
+
     public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
@@ -495,6 +560,99 @@ public final class MultiRowTestCaseSupplier {
         }
 
         return cases;
+    }
+
+    public static List<TypedDataSupplier> tsidCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "_tsid",
+            DataType.TSID_DATA_TYPE,
+            () -> EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value()
+        );
+
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> aggregateMetricDoubleCases(int minRows, int maxRows, double min, double max) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        if (0 <= max && 0 >= min) {
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "0 aggregate metric double with positive count",
+                DataType.AGGREGATE_METRIC_DOUBLE,
+                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                    0.0,
+                    0.0,
+                    0.0,
+                    ESTestCase.randomIntBetween(1, Integer.MAX_VALUE)
+                )
+            );
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "0 aggregate metric double with count 0",
+                DataType.AGGREGATE_METRIC_DOUBLE,
+                () -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, 0)
+            );
+        }
+
+        addSuppliers(cases, minRows, maxRows, "random aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+            var v1 = randomDoubleBetween(min, max, true);
+            var v2 = randomDoubleBetween(min, max, true);
+            double generatedMin = Math.min(v1, v2);
+            double generatedMax = Math.max(v1, v2);
+            int count = randomIntBetween(1, Integer.MAX_VALUE);
+            double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+            return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+        });
+
+        if (min < 0) {
+            addSuppliers(cases, minRows, maxRows, "entirely negative aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+                var v1 = randomDoubleBetween(min, 0, true);
+                var v2 = randomDoubleBetween(min, 0, true);
+                double generatedMin = Math.min(v1, v2);
+                double generatedMax = Math.max(v1, v2);
+                int count = randomIntBetween(1, Integer.MAX_VALUE);
+                double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+            });
+        }
+        if (max > 0) {
+            addSuppliers(cases, minRows, maxRows, "entirely positive aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+                var v1 = randomDoubleBetween(0, max, false);
+                var v2 = randomDoubleBetween(0, max, false);
+                double generatedMin = Math.min(v1, v2);
+                double generatedMax = Math.max(v1, v2);
+                int count = randomIntBetween(1, Integer.MAX_VALUE);
+                double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+            });
+        }
+        if (min < 0 && max > 0) {
+            addSuppliers(cases, minRows, maxRows, "negative and positive aggregate metric double", DataType.AGGREGATE_METRIC_DOUBLE, () -> {
+                var generatedMin = randomDoubleBetween(min, 0, true);
+                var generatedMax = randomDoubleBetween(0, max, false);
+                int count = randomIntBetween(1, Integer.MAX_VALUE);
+                double sum = generateAggregateMetricDoubleSum(generatedMin, generatedMax);
+                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(generatedMin, generatedMax, sum, count);
+            });
+        }
+        return cases;
+    }
+
+    private static double generateAggregateMetricDoubleSum(double min, double max) {
+        if ((max >= 0 && min >= 0) || (max <= 0 && min <= 0)) {
+            return min + max + randomDoubleBetween(min, max, true);
+        }
+        return randomDoubleBetween(min, max, true);
     }
 
     private static <T> void addSuppliers(

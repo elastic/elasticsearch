@@ -25,6 +25,7 @@ POST /_query?format=txt
   "query": "FROM library | KEEP author, name, page_count, release_date | SORT page_count DESC | LIMIT 5"
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -37,7 +38,8 @@ Frank Herbert    |Dune                |604            |1965-06-01T00:00:00.000Z
 Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 ```
-
+% TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
+% TESTRESPONSE[non_json]
 
 ### Run the {{esql}} query API in Console [esql-kibana-console]
 
@@ -56,6 +58,7 @@ POST /_query?format=txt
   """
 }
 ```
+% TEST[setup:library]
 
 ### Response formats [esql-rest-format]
 
@@ -65,7 +68,16 @@ For example:
 
 ```console
 POST /_query?format=yaml
+{
+  "query": """
+    FROM library
+    | KEEP author, name, page_count, release_date
+    | SORT page_count DESC
+    | LIMIT 5
+  """
+}
 ```
+% TEST[setup:library]
 
 ::::{note}
 The URL parameter takes precedence over the HTTP headers. If neither is specified then the response is returned in the same format as the request.
@@ -128,6 +140,7 @@ POST /_query?format=txt
   }
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -136,7 +149,45 @@ Which returns:
 ---------------+------------------------------------+---------------+------------------------
 Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T00:00:00.000Z
 ```
+% TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
+% TESTRESPONSE[non_json]
 
+#### Filter vs WHERE clause behavior
+
+The `filter` parameter can eliminate columns from the result set when it skips entire indices.
+This is useful for resolving type conflicts between attributes of different indices.
+
+For example, if several days of data in a data stream were indexed with an incorrect type, you can use a filter to exclude the incorrect range.
+This allows {{esql}} to use the correct type for the remaining data without changing the source pattern.
+
+##### Example
+
+Consider querying `index-1` with an `f1` attribute and `index-2` with an `f2` attribute.
+
+Using a filter the following query returns only the `f1` column:
+
+```console
+POST /_query?format=txt
+{
+  "query": "FROM index-*",
+  "filter": {
+    "term": {
+      "f1": "*"
+    }
+  }
+}
+```
+% TEST[skip:no index]
+
+Using a WHERE clause returns both the `f1` and `f2` columns:
+
+```console
+POST /_query?format=txt
+{
+  "query": "FROM index-* WHERE f1 is not null"
+}
+```
+% TEST[skip:no index]
 
 ### Columnar results [esql-rest-columnar]
 
@@ -154,6 +205,7 @@ POST /_query?format=json
   "columnar": true
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -175,7 +227,7 @@ Which returns:
   ]
 }
 ```
-
+% TESTRESPONSE[s/"took": 28/"took": "$body.took"/]
 
 ### Returning localized results [esql-locale-param]
 
@@ -197,7 +249,8 @@ POST /_query
    """
 }
 ```
-
+% TEST[setup:library]
+% TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 
 ### Passing parameters to a query [esql-rest-params]
 
@@ -216,6 +269,7 @@ POST /_query
   """
 }
 ```
+% TEST[setup:library]
 
 To avoid any attempts of hacking or code injection, extract the values in a separate list of parameters. Use question mark placeholders (`?`) in the query string for each of the parameters:
 
@@ -233,6 +287,7 @@ POST /_query
   "params": [300, "Frank Herbert", 0]
 }
 ```
+% TEST[setup:library]
 
 The parameters can be named parameters or positional parameters.
 
@@ -252,6 +307,7 @@ POST /_query
   "params": [{"page_count" : 300}, {"author" : "Frank Herbert"}, {"count" : 0}]
 }
 ```
+% TEST[setup:library]
 
 Positional parameters use question mark placeholders (`?`) followed by an integer.
 
@@ -269,7 +325,7 @@ POST /_query
   "params": [300, "Frank Herbert", 0]
 }
 ```
-
+% TEST[setup:library]
 
 ### Running an async {{esql}} query [esql-rest-async-query]
 
@@ -292,6 +348,8 @@ POST /_query/async
   "wait_for_completion_timeout": "2s"
 }
 ```
+% TEST[setup:library]
+% TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
 If the results are not available within the given timeout period, 2 seconds in this case, no results are returned but rather a response that includes:
 
@@ -306,12 +364,14 @@ The query continues to run in the background without blocking other requests.
   "is_running": true
 }
 ```
+% TEST[skip: no access to query ID - may return response values]
 
 To check the progress of an async query, use the [{{esql}} async query get API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-get) with the query ID. Specify how long you’d like to wait for complete results in the `wait_for_completion_timeout` parameter.
 
 ```console
 GET /_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=30s
 ```
+% TEST[skip: no access to query ID - may return response values]
 
 If the response’s `is_running` value is `false`, the query has finished and the results are returned, along with the `took` time for the query.
 
@@ -322,12 +382,15 @@ If the response’s `is_running` value is `false`, the query has finished and th
   "columns": ...
 }
 ```
+% TEST[skip: no access to query ID - may return response values]
 
 To stop a running async query and return the results computed so far, use the [async stop API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-stop) with the query ID.
 
 ```console
 POST /_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/stop
 ```
+% TEST[skip: no access to query ID - may return response values]
+
 The query will be stopped and the response will contain the results computed so far. The response format is the same as the `get` API.
 
 ```console-result
@@ -338,6 +401,8 @@ The query will be stopped and the response will contain the results computed so 
   "columns": ...
 }
 ```
+% TEST[skip: no access to query ID - may return response values]
+
 This API can be used to retrieve results even if the query has already completed, as long as it's within the `keep_alive` window.
 The `is_partial` field indicates result completeness. A value of `true` means the results are potentially incomplete.
 
@@ -346,6 +411,7 @@ Use the [{{esql}} async query delete API](https://www.elastic.co/docs/api/doc/el
 ```console
 DELETE /_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
 ```
+% TEST[skip: no access to query ID]
 
 ::::{note}
 You will also receive the async ID and running status in the `X-Elasticsearch-Async-Id` and `X-Elasticsearch-Async-Is-Running` HTTP headers of the response, respectively.

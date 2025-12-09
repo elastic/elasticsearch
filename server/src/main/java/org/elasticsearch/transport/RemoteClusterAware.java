@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
@@ -29,9 +27,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Base class for all services and components that need up-to-date information about the registered remote clusters
+ * Base class for services and components that utilize linked projects.
  */
-public abstract class RemoteClusterAware {
+public abstract class RemoteClusterAware implements LinkedProjectConfigService.LinkedProjectConfigListener {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
@@ -54,13 +52,6 @@ public abstract class RemoteClusterAware {
     }
 
     /**
-     * Returns remote clusters that are enabled in these settings
-     */
-    protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
-        return RemoteConnectionStrategy.getRemoteClusters(settings);
-    }
-
-    /**
      * Check whether the index expression represents remote index or not.
      * The index name is assumed to be individual index (no commas) but can contain `-`, wildcards,
      * datemath, remote cluster name and any other syntax permissible in index expression component.
@@ -79,17 +70,39 @@ public abstract class RemoteClusterAware {
     }
 
     /**
+     * Extracts the list of remote index expressions from the given array of index expressions
+     */
+    public static List<String> getRemoteIndexExpressions(String... expressions) {
+        List<String> crossClusterIndices = new ArrayList<>();
+        for (int i = 0; i < expressions.length; i++) {
+            if (isRemoteIndexName(expressions[i])) {
+                crossClusterIndices.add(expressions[i]);
+            }
+        }
+        return crossClusterIndices;
+    }
+
+    /**
      * @param indexExpression expects a single index expression at a time (not a csv list of expression)
      * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
      */
     public static String parseClusterAlias(String indexExpression) {
         assert indexExpression != null : "Must not pass null indexExpression";
-        String[] parts = splitIndexName(indexExpression.trim());
-        if (parts[0] == null) {
-            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        } else {
-            return parts[0];
-        }
+        return getClusterAlias(splitIndexName(indexExpression.trim()));
+    }
+
+    /**
+     * @return the cluster alias or LOCAL_CLUSTER_GROUP_KEY if the split represents local index
+     */
+    public static String getClusterAlias(String[] split) {
+        return split[0] == null ? LOCAL_CLUSTER_GROUP_KEY : split[0];
+    }
+
+    /**
+     * @return the local index name from the qualified index name split by RemoteClusterAware#splitIndexName
+     */
+    public static String getLocalIndexName(String[] split) {
+        return split[1];
     }
 
     /**
@@ -210,36 +223,6 @@ public abstract class RemoteClusterAware {
             );
         }
         return perClusterIndices;
-    }
-
-    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
-        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-        }
-        updateRemoteCluster(clusterAlias, settings);
-    }
-
-    /**
-     * Subclasses must implement this to receive information about updated cluster aliases.
-     */
-    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
-
-    /**
-     * Registers this instance to listen to updates on the cluster settings.
-     */
-    public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterSettings.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategy.PROXY_ADDRESS,
-            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
-        );
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

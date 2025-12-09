@@ -12,8 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -43,6 +47,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -135,6 +140,9 @@ public final class CsvAssert {
                         || expectedType == Type.DATE_NANOS
                         || expectedType == Type.GEO_POINT
                         || expectedType == Type.CARTESIAN_POINT
+                        || expectedType == Type.GEOHASH
+                        || expectedType == Type.GEOTILE
+                        || expectedType == Type.GEOHEX
                         || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
@@ -228,7 +236,7 @@ public final class CsvAssert {
 
                     var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
                     var transformedActual = valueTransformer.apply(expectedType, actualValue);
-                    if (Objects.equals(transformedExpected, transformedActual) == false) {
+                    if (equals(transformedExpected, transformedActual) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
@@ -264,6 +272,24 @@ public final class CsvAssert {
                 actualValues,
                 valueTransformer
             );
+        }
+    }
+
+    private static boolean equals(Object expected, Object actual) {
+        if (expected instanceof List<?> expectedList && actual instanceof List<?> actualList) {
+            if (expectedList.size() != actualList.size()) {
+                return false;
+            }
+            for (int i = 0; i < expectedList.size(); i++) {
+                if (equals(expectedList.get(i), actualList.get(i)) == false) {
+                    return false;
+                }
+            }
+            return true;
+        } else if (expected instanceof CsvTestUtils.Range expectedRange) {
+            return expectedRange.includes(actual);
+        } else {
+            return Objects.equals(expected, actual);
         }
     }
 
@@ -412,6 +438,9 @@ public final class CsvAssert {
                 BytesRef.class,
                 x -> CARTESIAN.wkbToWkt((BytesRef) x)
             );
+            case Type.GEOHASH -> rebuildExpected(expectedValue, Long.class, x -> Geohash.stringEncode((long) x));
+            case Type.GEOTILE -> rebuildExpected(expectedValue, Long.class, x -> GeoTileUtils.stringEncode((long) x));
+            case Type.GEOHEX -> rebuildExpected(expectedValue, Long.class, x -> H3.h3ToString((long) x));
             case Type.IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                 rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
             case Type.VERSION -> // convert BytesRef-packed Version to String
@@ -421,6 +450,11 @@ public final class CsvAssert {
                 expectedValue,
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class,
                 x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) x)
+            );
+            case EXPONENTIAL_HISTOGRAM -> rebuildExpected(
+                expectedValue,
+                ExponentialHistogram.class,
+                x -> exponentialHistogramToString((ExponentialHistogram) x)
             );
             default -> expectedValue;
         };

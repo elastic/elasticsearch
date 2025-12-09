@@ -1,9 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/analysis-phonetic-token-filter.html
+navigation_title: phonetic token filter
 ---
 
-# phonetic token filter [analysis-phonetic-token-filter]
+# phonetic token filter plugin [analysis-phonetic-token-filter]
 
 The `phonetic` token filter takes the following settings:
 

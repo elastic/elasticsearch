@@ -6,6 +6,51 @@ stack: preview 9.1.0
 
 The `COMPLETION` command allows you to send prompts and context to a Large Language Model (LLM) directly within your ES|QL queries, to perform text generation tasks.
 
+:::::{important}
+**Every row processed by the COMPLETION command generates a separate API call to the LLM endpoint.**
+
+::::{tab-set}
+
+:::{tab-item} 9.3.0+
+
+Starting in version 9.3.0, `COMPLETION` automatically limits processing to **100 rows by default** to prevent accidental high consumption and costs. This limit is applied before the `COMPLETION` command executes.
+
+If you need to process more rows, you can adjust the limit using the cluster setting:
+```
+PUT _cluster/settings
+{
+  "persistent": {
+    "esql.command.completion.limit": 500
+  }
+}
+```
+
+You can also disable the command entirely if needed:
+```
+PUT _cluster/settings
+{
+  "persistent": {
+    "esql.command.completion.enabled": false
+  }
+}
+```
+:::
+
+:::{tab-item} 9.1.x - 9.2.x
+
+Be careful to test with small datasets first before running on production data or in automated workflows, to avoid unexpected costs.
+
+Best practices:
+
+1. **Start with dry runs**: Validate your query logic and row counts by running without `COMPLETION` initially. Use `| STATS count = COUNT(*)` to check result size.
+2. **Filter first**: Use `WHERE` clauses to limit rows before applying `COMPLETION`.
+3. **Test with `LIMIT`**: Always start with a low [`LIMIT`](/reference/query-languages/esql/commands/limit.md) and gradually increase.
+4. **Monitor usage**: Track your LLM API consumption and costs.
+:::
+
+::::
+:::::
+
 **Syntax**
 
 ::::{tab-set}

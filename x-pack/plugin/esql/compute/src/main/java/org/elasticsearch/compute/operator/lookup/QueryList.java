@@ -125,7 +125,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
      * Returns the query at the given position.
      */
     @Nullable
-    abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
+    public abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
 
     private Query wrapSingleValueQuery(Query query) {
         assert onlySingleValueParams != null : "Requested to wrap single value query without single value params";
@@ -155,17 +155,11 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block
-     * using only the {@link ElementType} of the {@link Block} to determine the
-     * query.
+     * Returns a function that reads values from the given block. The function
+     * takes the offset of the value to read and returns the value as an {@link Object}.
      */
-    public static QueryList rawTermQueryList(
-        MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        AliasFilter aliasFilter,
-        Block block
-    ) {
-        IntFunction<Object> blockToJavaObject = switch (block.elementType()) {
+    public static IntFunction<Object> createBlockValueReader(Block block) {
+        return switch (block.elementType()) {
             case BOOLEAN -> {
                 BooleanBlock booleanBlock = (BooleanBlock) block;
                 yield booleanBlock::getBoolean;
@@ -194,9 +188,24 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             case DOC -> throw new IllegalArgumentException("can't read values from [doc] block");
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't read values from [aggregate metric double] block");
+            case EXPONENTIAL_HISTOGRAM -> throw new IllegalArgumentException("can't read values from [exponential histogram] block");
+            case TDIGEST -> throw new IllegalArgumentException("can't read values from [tdigest] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
-        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, null, blockToJavaObject);
+    }
+
+    /**
+     * Returns a list of term queries for the given field and the input block
+     * using only the {@link ElementType} of the {@link Block} to determine the
+     * query.
+     */
+    public static QueryList rawTermQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        AliasFilter aliasFilter,
+        Block block
+    ) {
+        return new TermQueryList(field, searchExecutionContext, aliasFilter, block, null, createBlockValueReader(block));
     }
 
     /**
@@ -297,7 +306,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
 
         @Override
-        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
             return switch (valueCount) {
                 case 0 -> null;
                 case 1 -> field.termQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
@@ -360,7 +369,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
 
         @Override
-        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
             return switch (valueCount) {
                 case 0 -> null;
                 case 1 -> dateFieldType.equalityQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
@@ -412,7 +421,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
 
         @Override
-        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+        public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
             return switch (valueCount) {
                 case 0 -> null;
                 case 1 -> shapeQuery.apply(firstValueIndex);
@@ -453,5 +462,5 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
         }
     }
 
-    protected record OnlySingleValueParams(Warnings warnings, String multiValueWarningMessage) {}
+    public record OnlySingleValueParams(Warnings warnings, String multiValueWarningMessage) {}
 }

@@ -176,7 +176,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * </p>
      */
     public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
-        return setSource(IndexRequest.getXContentBuilder(xContentType, source));
+        return setSource(IndexSource.getXContentBuilder(xContentType, source));
     }
 
     /**

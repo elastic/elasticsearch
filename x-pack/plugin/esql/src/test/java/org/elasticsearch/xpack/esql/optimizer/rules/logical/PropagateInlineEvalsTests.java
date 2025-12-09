@@ -12,16 +12,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -39,30 +38,29 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PropagateInlineEvalsTests extends ESTestCase {
 
-    private static EsqlParser parser;
     private static Map<String, EsField> mapping;
     private static Analyzer analyzer;
 
     @BeforeClass
     public static void init() {
-        parser = new EsqlParser();
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 defaultLookupResolution(),
                 new EnrichResolution(),
                 defaultInferenceResolution()
@@ -83,12 +81,12 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      *     \_StubRelation[[emp_no{f}#11, languages{f}#14, gender{f}#13, y{r}#10]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin() {
-        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender
-            | inlinestats max_lang = MAX(languages) BY y = gender
-            """, LogicalPlanOptimizerTests.SubstitutionOnlyOptimizer.INSTANCE);
+            | inline stats max_lang = MAX(languages) BY y = gender
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
         var inline = as(limit.child(), InlineJoin.class);
@@ -126,13 +124,13 @@ public class PropagateInlineEvalsTests extends ESTestCase {
      * {r}#21]]
      */
     public void testGroupingAliasingMoved_To_LeftSideOfJoin_WithExpression() {
-        assumeTrue("Requires INLINESTATS", EsqlCapabilities.Cap.INLINESTATS_V10.isEnabled());
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         var plan = plan("""
             from test
             | keep emp_no, languages, gender, last_name, first_name
             | eval first_name_l = left(first_name, 1)
-            | inlinestats max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), g = gender, first_name_l
-            """, LogicalPlanOptimizerTests.SubstitutionOnlyOptimizer.INSTANCE);
+            | inline stats max_lang = MAX(languages), min_lang = MIN(languages) BY f = left(last_name, 1), g = gender, first_name_l
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
 
         var limit = as(plan, Limit.class);
         var inline = as(limit.child(), InlineJoin.class);
@@ -169,7 +167,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return optimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        return optimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -34,6 +35,7 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    @SuppressWarnings("unchecked")
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
@@ -74,6 +76,14 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
             List.of()
+        );
+        TestCaseSupplier.forUnaryDenseVector(
+            suppliers,
+            "ToStringFromFloatEvaluator[flt=" + read + "]",
+            DataType.KEYWORD,
+            d -> d.stream().map(f -> new BytesRef(f.toString())).toList(),
+            -1.0f,
+            1.0f
         );
         TestCaseSupplier.forUnaryBoolean(
             suppliers,
@@ -141,7 +151,32 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             v -> new BytesRef(v.toString()),
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        // Geo-Grid types
+        for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
+            TestCaseSupplier.forUnaryGeoGrid(
+                suppliers,
+                "ToStringFromGeoGridEvaluator[gridId=Attribute[channel=0], dataType=" + gridType + "]",
+                gridType,
+                DataType.KEYWORD,
+                v -> new BytesRef(EsqlDataTypeConverter.geoGridToString((long) v, gridType)),
+                List.of()
+            );
+        }
+        TestCaseSupplier.forUnaryAggregateMetricDouble(
+            suppliers,
+            "ToStringFromAggregateMetricDoubleEvaluator[field=" + read + "]",
+            DataType.KEYWORD,
+            agg -> new BytesRef(EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString(agg)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryExponentialHistogram(
+            suppliers,
+            "ToStringFromExponentialHistogramEvaluator[histogram=" + read + "]",
+            DataType.KEYWORD,
+            eh -> new BytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
+            List.of()
+        );
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

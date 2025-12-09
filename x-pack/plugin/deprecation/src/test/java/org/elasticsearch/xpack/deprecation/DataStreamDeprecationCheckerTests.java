@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -73,6 +76,55 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
+    public void testOldIndicesCheckWithPercolatorField() {
+        int oldIndexCount = randomIntBetween(1, 100);
+        int newIndexCount = randomIntBetween(1, 100);
+
+        Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
+        Set<String> expectedIndices = new HashSet<>();
+
+        MappingMetadata mappingMetadata = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text")))
+        );
+        DataStream dataStream = createTestDataStream(
+            oldIndexCount,
+            0,
+            newIndexCount,
+            0,
+            nameToIndexMetadata,
+            expectedIndices,
+            mappingMetadata,
+            randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(9000019)
+        );
+
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Field mappings with incompatible percolator type",
+            "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+            "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                + "fields.",
+            false,
+            ofEntries(
+                entry("reindex_required", true),
+                entry("excluded_actions", List.of("readOnly")),
+                entry("total_backing_indices", oldIndexCount + newIndexCount),
+                entry("indices_requiring_upgrade_count", expectedIndices.size()),
+                entry("indices_requiring_upgrade", expectedIndices)
+            )
+        );
+
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
+        assertThat(issuesByDataStream.size(), equalTo(1));
+        assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
+        assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
+    }
+
     public void testOldIndicesCheckWithOnlyNewIndices() {
         // This tests what happens when any old indices that we have are closed. We expect no deprecation warning.
         int newOpenIndexCount = randomIntBetween(1, 100);
@@ -105,6 +157,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
         Set<String> expectedIndices = new HashSet<>();
 
+        MappingMetadata mappingMetadata = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text")))
+        );
         DataStream dataStream = createTestDataStream(
             oldOpenIndexCount,
             oldClosedIndexCount,
@@ -138,6 +194,26 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
+    private DataStream createTestDataStream(
+        int oldOpenIndexCount,
+        int oldClosedIndexCount,
+        int newOpenIndexCount,
+        int newClosedIndexCount,
+        Map<String, IndexMetadata> nameToIndexMetadata,
+        Set<String> expectedIndices
+    ) {
+        return createTestDataStream(
+            oldOpenIndexCount,
+            oldClosedIndexCount,
+            newOpenIndexCount,
+            newClosedIndexCount,
+            nameToIndexMetadata,
+            expectedIndices,
+            MappingMetadata.EMPTY_MAPPINGS,
+            TransportVersion.fromId(0)
+        );
+    }
+
     /*
      * This creates a test DataStream with the given counts. The nameToIndexMetadata Map and the expectedIndices Set are mutable collections
      * that will be populated by this method.
@@ -148,21 +224,23 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         int newOpenIndexCount,
         int newClosedIndexCount,
         Map<String, IndexMetadata> nameToIndexMetadata,
-        Set<String> expectedIndices
+        Set<String> expectedIndices,
+        MappingMetadata mappingMetadata,
+        TransportVersion oldTransportVersion
     ) {
         List<Index> allIndices = new ArrayList<>();
 
         for (int i = 0; i < oldOpenIndexCount; i++) {
-            allIndices.add(createOldIndex(i, false, nameToIndexMetadata, expectedIndices));
+            allIndices.add(createOldIndex(i, false, nameToIndexMetadata, expectedIndices, mappingMetadata, oldTransportVersion));
         }
         for (int i = 0; i < oldClosedIndexCount; i++) {
-            allIndices.add(createOldIndex(i, true, nameToIndexMetadata, expectedIndices));
+            allIndices.add(createOldIndex(i, true, nameToIndexMetadata, expectedIndices, mappingMetadata, oldTransportVersion));
         }
         for (int i = 0; i < newOpenIndexCount; i++) {
-            allIndices.add(createNewIndex(i, false, nameToIndexMetadata));
+            allIndices.add(createNewIndex(i, false, nameToIndexMetadata, mappingMetadata));
         }
         for (int i = 0; i < newClosedIndexCount; i++) {
-            allIndices.add(createNewIndex(i, true, nameToIndexMetadata));
+            allIndices.add(createNewIndex(i, true, nameToIndexMetadata, mappingMetadata));
         }
 
         DataStream dataStream = new DataStream(
@@ -188,13 +266,20 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         int suffix,
         boolean isClosed,
         Map<String, IndexMetadata> nameToIndexMetadata,
-        Set<String> expectedIndices
+        Set<String> expectedIndices,
+        MappingMetadata mappingMetadata,
+        TransportVersion transportVersion
     ) {
-        return createIndex(true, suffix, isClosed, nameToIndexMetadata, expectedIndices);
+        return createIndex(true, suffix, isClosed, nameToIndexMetadata, expectedIndices, mappingMetadata, transportVersion);
     }
 
-    private Index createNewIndex(int suffix, boolean isClosed, Map<String, IndexMetadata> nameToIndexMetadata) {
-        return createIndex(false, suffix, isClosed, nameToIndexMetadata, null);
+    private Index createNewIndex(
+        int suffix,
+        boolean isClosed,
+        Map<String, IndexMetadata> nameToIndexMetadata,
+        MappingMetadata mappingMetadata
+    ) {
+        return createIndex(false, suffix, isClosed, nameToIndexMetadata, null, mappingMetadata, TransportVersion.current());
     }
 
     private Index createIndex(
@@ -202,7 +287,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         int suffix,
         boolean isClosed,
         Map<String, IndexMetadata> nameToIndexMetadata,
-        Set<String> expectedIndices
+        Set<String> expectedIndices,
+        MappingMetadata mappingMetadata,
+        TransportVersion transportVersion
     ) {
         Settings.Builder settingsBuilder = isOld ? settings(IndexVersion.fromId(7170099)) : settings(IndexVersion.current());
         String indexName = (isOld ? "old-" : "new-") + (isClosed ? "closed-" : "") + "data-stream-index-" + suffix;
@@ -216,7 +303,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(settingsBuilder)
             .numberOfShards(1)
-            .numberOfReplicas(0);
+            .numberOfReplicas(0)
+            .putMapping(mappingMetadata)
+            .transportVersion(transportVersion);
         if (isClosed) {
             indexMetadataBuilder.state(IndexMetadata.State.CLOSE);
         }
@@ -251,7 +340,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         }
 
         for (int i = 0; i < newIndexCount; i++) {
-            Index newIndex = createNewIndex(i, false, nameToIndexMetadata);
+            Index newIndex = createNewIndex(i, false, nameToIndexMetadata, MappingMetadata.EMPTY_MAPPINGS);
             allIndices.add(newIndex);
         }
 
@@ -298,6 +387,86 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
+    public void testOldIndicesIgnoredWithPercolatorField() {
+        int oldIndexCount = randomIntBetween(1, 100);
+        int newIndexCount = randomIntBetween(1, 100);
+
+        List<Index> allIndices = new ArrayList<>();
+        Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
+        Set<String> expectedIndices = new HashSet<>();
+
+        MappingMetadata mappingMetadata = new MappingMetadata(
+            MapperService.SINGLE_MAPPING_NAME,
+            Map.of("properties", Map.of("query", Map.of("type", "percolator"), "field", Map.of("type", "text")))
+        );
+
+        for (int i = 0; i < oldIndexCount; i++) {
+            Settings.Builder settings = settings(IndexVersion.fromId(9000019));
+
+            String indexName = "old-data-stream-index-" + i;
+            settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+            expectedIndices.add(indexName);
+
+            Settings.Builder settingsBuilder = settings;
+            IndexMetadata oldIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settingsBuilder)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(mappingMetadata)
+                .transportVersion(randomBoolean() ? TransportVersion.fromId(0) : TransportVersion.fromId(9000019))
+                .build();
+            allIndices.add(oldIndexMetadata.getIndex());
+            nameToIndexMetadata.put(oldIndexMetadata.getIndex().getName(), oldIndexMetadata);
+        }
+
+        for (int i = 0; i < newIndexCount; i++) {
+            Index newIndex = createNewIndex(i, false, nameToIndexMetadata, mappingMetadata);
+            allIndices.add(newIndex);
+        }
+
+        DataStream dataStream = new DataStream(
+            randomAlphaOfLength(10),
+            allIndices,
+            randomNegativeLong(),
+            Map.of(),
+            randomBoolean(),
+            false,
+            false,
+            randomBoolean(),
+            randomFrom(IndexMode.values()),
+            null,
+            randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
+            List.of(),
+            randomBoolean(),
+            null
+        );
+
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Field mappings with incompatible percolator type",
+            "https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/percolator#_reindexing_your_percolator_queries",
+            "The data stream was created before 9.latest and contains mappings that must be reindexed due to containing percolator "
+                + "fields.",
+            false,
+            ofEntries(
+                entry("reindex_required", true),
+                entry("excluded_actions", List.of("readOnly")),
+                entry("total_backing_indices", oldIndexCount + newIndexCount),
+                entry("ignored_indices_requiring_upgrade_count", expectedIndices.size()),
+                entry("ignored_indices_requiring_upgrade", expectedIndices)
+            )
+        );
+
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(project);
+        assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
+        assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
+    }
+
     public void testOldSystemDataStreamIgnored() {
         // We do not want system data streams coming back in the deprecation info API
         int oldIndexCount = randomIntBetween(1, 100);
@@ -319,7 +488,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             nameToIndexMetadata.put(oldIndexMetadata.getIndex().getName(), oldIndexMetadata);
         }
         for (int i = 0; i < newIndexCount; i++) {
-            Index newIndex = createNewIndex(i, false, nameToIndexMetadata);
+            Index newIndex = createNewIndex(i, false, nameToIndexMetadata, MappingMetadata.EMPTY_MAPPINGS);
             allIndices.add(newIndex);
         }
         DataStream dataStream = new DataStream(

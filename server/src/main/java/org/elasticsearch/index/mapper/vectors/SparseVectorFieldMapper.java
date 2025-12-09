@@ -13,9 +13,13 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -29,6 +33,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -219,7 +225,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Map<String, String> meta,
             @Nullable SparseVectorIndexOptions indexOptions
         ) {
-            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, IndexType.vectors(), isStored, meta);
             this.indexVersionCreated = indexVersionCreated;
             this.indexOptions = indexOptions;
         }
@@ -236,6 +242,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isVectorEmbedding() {
             return true;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_ONLY;
         }
 
         @Override
@@ -328,8 +339,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new SparseVectorSyntheticFieldLoader(fullPath(), leafName());
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyAsMap);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
+                SparseVectorSyntheticFieldLoader::copyAsMap
+            );
         }
         return null;
     }
@@ -430,6 +444,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private final String leafName;
 
         private TermsEnum termsDocEnum;
+        private boolean hasValue;
 
         private SparseVectorSyntheticFieldLoader(String fullPath, String leafName) {
             this.fullPath = fullPath;
@@ -443,39 +458,60 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            var fieldInfos = leafReader.getFieldInfos().fieldInfo(fullPath);
-            if (fieldInfos == null || fieldInfos.hasTermVectors() == false) {
-                return null;
+            // Use an exists query on _field_names to distinguish documents with no value
+            // from those containing an empty map.
+            var existsQuery = new TermQuery(new Term(FieldNamesFieldMapper.NAME, fullPath));
+            var searcher = new IndexSearcher(leafReader);
+            searcher.setQueryCache(null);
+            var scorer = searcher.createWeight(existsQuery, ScoreMode.COMPLETE_NO_SCORES, 0).scorer(searcher.getLeafContexts().getFirst());
+            if (scorer == null) {
+                return docId -> false;
             }
+
+            var fieldInfos = leafReader.getFieldInfos().fieldInfo(fullPath);
+            boolean hasTermVectors = fieldInfos != null && fieldInfos.hasTermVectors();
             return docId -> {
+                termsDocEnum = null;
+
+                if (scorer.iterator().docID() < docId) {
+                    scorer.iterator().advance(docId);
+                }
+                if (scorer.iterator().docID() != docId) {
+                    return hasValue = false;
+                }
+
+                if (hasTermVectors == false) {
+                    return hasValue = true;
+                }
+
                 var terms = leafReader.termVectors().get(docId, fullPath);
-                if (terms == null) {
-                    return false;
+                if (terms != null) {
+                    termsDocEnum = terms.iterator();
+                    if (termsDocEnum.next() == null) {
+                        termsDocEnum = null;
+                    }
                 }
-                termsDocEnum = terms.iterator();
-                if (termsDocEnum.next() == null) {
-                    termsDocEnum = null;
-                    return false;
-                }
-                return true;
+                return hasValue = true;
             };
         }
 
         @Override
         public boolean hasValue() {
-            return termsDocEnum != null;
+            return hasValue;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            assert termsDocEnum != null;
-            PostingsEnum reuse = null;
+            assert hasValue;
             b.startObject(leafName);
-            do {
-                reuse = termsDocEnum.postings(reuse);
-                reuse.nextDoc();
-                b.field(termsDocEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(reuse.freq()));
-            } while (termsDocEnum.next() != null);
+            if (termsDocEnum != null) {
+                PostingsEnum reuse = null;
+                do {
+                    reuse = termsDocEnum.postings(reuse);
+                    reuse.nextDoc();
+                    b.field(termsDocEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(reuse.freq()));
+                } while (termsDocEnum.next() != null);
+            }
             b.endObject();
         }
 
@@ -485,7 +521,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
          * @throws IOException if reading fails
          */
         private Map<String, Float> copyAsMap() throws IOException {
-            assert termsDocEnum != null;
+            assert hasValue;
+            if (termsDocEnum == null) {
+                return Map.of();
+            }
             Map<String, Float> tokenMap = new LinkedHashMap<>();
             PostingsEnum reuse = null;
             do {

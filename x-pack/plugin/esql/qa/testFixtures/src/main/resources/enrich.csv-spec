@@ -590,7 +590,7 @@ warningRegex:evaluation of \[LENGTH\(TO_STRING\(city_boundary\)\)\] failed, trea
 warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
-POINT(1.396561 24.127649)  |  872         |  88               |  1044
+POINT(1.396561 24.127649)  |  872         |  88               |  947
 ;
 
 
@@ -650,6 +650,7 @@ IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8
 fieldsInOtherIndicesBug
 required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
+required_capability: dense_vector_agg_metric_double_if_fns
 
 from *
 | keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version
@@ -761,4 +762,22 @@ FROM sample_data
 
 message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
 Connected to 10.1.0.1 | 1                     | English                     | English
+;
+
+enrichOnSameFieldTwiceValues
+required_capability: enrich_load
+required_capability: attribute_equals_respects_name_id
+
+ROW a = 1, b = 2
+| EVAL language_code = a
+| ENRICH languages_policy ON language_code
+| RENAME language_name AS language_name_a
+| EVAL language_code = b
+| ENRICH languages_policy ON language_code
+| RENAME language_name AS language_name_b
+| STATS values(language_name_a), values(language_name_b)
+;
+
+values(language_name_a):keyword | values(language_name_b):keyword
+English                         | French
 ;

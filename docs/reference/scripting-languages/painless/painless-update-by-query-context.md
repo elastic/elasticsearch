@@ -85,4 +85,4 @@ POST /seats/_update_by_query
   }
 }
 ```
-
+% TEST[setup:seats]

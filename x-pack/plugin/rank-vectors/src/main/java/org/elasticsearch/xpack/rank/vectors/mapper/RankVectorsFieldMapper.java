@@ -20,15 +20,17 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.SyntheticVectorsPatchFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -75,9 +77,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
                         "invalid element_type [" + o + "]; available types are " + namesToElementType.keySet()
                     );
                 }
+                if (elementType == ElementType.BFLOAT16) {
+                    throw new MapperParsingException("Rank vectors does not support bfloat16");
+                }
                 return elementType;
             },
-            m -> toType(m).fieldType().elementType,
+            m -> toType(m).fieldType().element.elementType(),
             XContentBuilder::field,
             Objects::toString
         );
@@ -160,19 +165,19 @@ public class RankVectorsFieldMapper extends FieldMapper {
     }
 
     public static final class RankVectorsFieldType extends SimpleMappedFieldType {
-        private final DenseVectorFieldMapper.ElementType elementType;
+        private final Element element;
         private final Integer dims;
         private final XPackLicenseState licenseState;
 
         public RankVectorsFieldType(
             String name,
-            DenseVectorFieldMapper.ElementType elementType,
+            ElementType elementType,
             Integer dims,
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
-            super(name, false, false, true, TextSearchInfo.NONE, meta);
-            this.elementType = elementType;
+            super(name, IndexType.docValuesOnly(), false, meta);
+            this.element = Element.getElement(elementType);
             this.dims = dims;
             this.licenseState = licenseState;
         }
@@ -180,6 +185,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return false;
         }
 
         @Override
@@ -228,7 +238,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
-            return new RankVectorsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, dims, elementType);
+            return new RankVectorsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, dims, element.elementType());
         }
 
         @Override
@@ -246,7 +256,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
 
         DenseVectorFieldMapper.ElementType getElementType() {
-            return elementType;
+            return element.elementType();
         }
     }
 
@@ -303,7 +313,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
         if (fieldType().dims == null) {
             int currentDims = -1;
             while (XContentParser.Token.END_ARRAY != context.parser().nextToken()) {
-                int dims = fieldType().elementType.parseDimensionCount(context);
+                int dims = fieldType().element.parseDimensionCount(context);
                 if (currentDims == -1) {
                     currentDims = dims;
                 } else if (currentDims != dims) {
@@ -319,10 +329,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
             return;
         }
         int dims = fieldType().dims;
-        DenseVectorFieldMapper.ElementType elementType = fieldType().elementType;
+        Element element = fieldType().element;
         List<VectorData> vectors = new ArrayList<>();
         while (XContentParser.Token.END_ARRAY != context.parser().nextToken()) {
-            VectorData vector = elementType.parseKnnVector(context, dims, (i, b) -> {
+            VectorData vector = element.parseKnnVector(context, dims, (i, b) -> {
                 if (b) {
                     checkDimensionMatches(i, context);
                 } else {
@@ -331,12 +341,12 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }, null);
             vectors.add(vector);
         }
-        int bufferSize = elementType.getNumBytes(dims) * vectors.size();
+        int bufferSize = element.getNumBytes(dims) * vectors.size();
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer magnitudeBuffer = ByteBuffer.allocate(vectors.size() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (VectorData vector : vectors) {
-            vector.addToBuffer(buffer);
-            magnitudeBuffer.putFloat((float) Math.sqrt(elementType.computeSquaredMagnitude(vector)));
+            vector.addToBuffer(element, buffer);
+            magnitudeBuffer.putFloat((float) Math.sqrt(element.computeSquaredMagnitude(vector)));
         }
         String vectorFieldName = fieldType().name();
         String vectorMagnitudeFieldName = vectorFieldName + VECTOR_MAGNITUDES_SUFFIX;
@@ -407,8 +417,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new DocValuesSyntheticFieldLoader();
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorsAsList);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                DocValuesSyntheticFieldLoader::new,
+                DocValuesSyntheticFieldLoader::copyVectorsAsList
+            );
         }
         return null;
     }
@@ -444,15 +457,15 @@ public class RankVectorsFieldMapper extends FieldMapper {
             b.startArray(leafName());
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length).order(ByteOrder.LITTLE_ENDIAN);
-            assert ref.length % fieldType().elementType.getNumBytes(fieldType().dims) == 0;
-            int numVecs = ref.length / fieldType().elementType.getNumBytes(fieldType().dims);
+            assert ref.length % fieldType().element.getNumBytes(fieldType().dims) == 0;
+            int numVecs = ref.length / fieldType().element.getNumBytes(fieldType().dims);
             for (int i = 0; i < numVecs; i++) {
                 b.startArray();
-                int dims = fieldType().elementType == DenseVectorFieldMapper.ElementType.BIT
+                int dims = fieldType().element.elementType() == DenseVectorFieldMapper.ElementType.BIT
                     ? fieldType().dims / Byte.SIZE
                     : fieldType().dims;
                 for (int dim = 0; dim < dims; dim++) {
-                    fieldType().elementType.readAndWriteValue(byteBuffer, b);
+                    fieldType().element.readAndWriteValue(byteBuffer, b);
                 }
                 b.endArray();
             }
@@ -468,15 +481,15 @@ public class RankVectorsFieldMapper extends FieldMapper {
             assert hasValue : "rank vector is null";
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length).order(ByteOrder.LITTLE_ENDIAN);
-            assert ref.length % fieldType().elementType.getNumBytes(fieldType().dims) == 0;
-            int numVecs = ref.length / fieldType().elementType.getNumBytes(fieldType().dims);
+            assert ref.length % fieldType().element.getNumBytes(fieldType().dims) == 0;
+            int numVecs = ref.length / fieldType().element.getNumBytes(fieldType().dims);
             List<List<?>> vectors = new ArrayList<>(numVecs);
             for (int i = 0; i < numVecs; i++) {
-                int dims = fieldType().elementType == DenseVectorFieldMapper.ElementType.BIT
+                int dims = fieldType().element.elementType() == DenseVectorFieldMapper.ElementType.BIT
                     ? fieldType().dims / Byte.SIZE
                     : fieldType().dims;
 
-                switch (fieldType().elementType) {
+                switch (fieldType().element.elementType()) {
                     case FLOAT -> {
                         List<Float> vec = new ArrayList<>(dims);
                         for (int dim = 0; dim < dims; dim++) {

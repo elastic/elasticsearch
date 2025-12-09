@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>elastic/renovate-config:only-chainguard",
+    "github>elastic/renovate-config:base",
+    "github>elastic/renovate-config:ci-agent-images",
     ":disableDependencyDashboard"
   ],
   "schedule": [
@@ -10,15 +11,31 @@
   "labels": [
     ">non-issue",
     ":Delivery/Packaging",
+    ":Delivery/Build",
     "Team:Delivery",
     "auto-merge-without-approval"
   ],
   "baseBranches": [
     "main",
+    "9.2",
     "9.1",
-    "9.0",
     "8.19",
-    "8.18",
     "7.17"
+  ],
+  "packageRules": [
+    {
+      "description": "Don't manage dependencies by default",
+      "matchPackageNames": [
+        "*"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Explicitly enable Elastic Docker updates",
+      "matchPackageNames": [
+        "/docker.elastic.co/.*/"
+      ],
+      "enabled": true
+    }
   ]
 }

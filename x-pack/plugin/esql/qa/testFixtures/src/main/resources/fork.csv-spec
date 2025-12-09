@@ -179,6 +179,32 @@ fork3         | null           | 100    | 10100     | 10001
 fork4         | null           | 100    | 10001     | null
 ;
 
+forkWithStatsCountStarDateTrunc
+required_capability: fork_v9
+
+FROM employees
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+       (STATS x = COUNT(*), y = MAX(emp_no) by hd = DATE_TRUNC(1 year, hire_date))
+       (STATS x = COUNT(*), y = MIN(emp_no) by hd = DATE_TRUNC(2 year, hire_date))
+| KEEP _fork, emp_no, hd, x, y
+| SORT _fork, emp_no, hd
+| LIMIT 10
+;
+
+_fork:keyword | emp_no:integer | hd:datetime              | x:long | y:integer
+fork1         | 10048          | null                     | null   | null
+fork1         | 10081          | null                     | null   | null
+fork2         | 10081          | null                     | null   | null
+fork2         | 10087          | null                     | null   | null
+fork3         | null           | 1985-01-01T00:00:00.000Z | 11     | 10098
+fork3         | null           | 1986-01-01T00:00:00.000Z | 11     | 10095
+fork3         | null           | 1987-01-01T00:00:00.000Z | 15     | 10100
+fork3         | null           | 1988-01-01T00:00:00.000Z | 9      | 10099
+fork3         | null           | 1989-01-01T00:00:00.000Z | 13     | 10092
+fork3         | null           | 1990-01-01T00:00:00.000Z | 12     | 10097
+;
+
 forkWithDissect
 required_capability: fork_v9
 
@@ -384,133 +410,134 @@ a:long | b:keyword | _fork:keyword
 forkAfterDrop
 required_capability: fork_v9
 
-FROM languages
-| DROP language_code
-| FORK ( WHERE language_name == "English" | EVAL x = 1 )
-       ( WHERE language_name != "English" )
-| SORT _fork, language_name
+FROM employees
+| DROP first_name
+| FORK ( WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = 1 )
+       ( WHERE emp_no == 10048 )
+| SORT _fork, emp_no, x
+| KEEP emp_no, x, _fork
 ;
 
-language_name:keyword | x:integer | _fork:keyword
-English               | 1         | fork1
-French                | null      | fork2
-German                | null      | fork2
-Spanish               | null      | fork2
+emp_no:integer | x:integer | _fork:keyword
+10048          | 1         | fork1
+10081          | 1         | fork1
+10048          | null      | fork2
 ;
 
 forkBranchWithDrop
 required_capability: fork_v9
 
-FROM languages
-| FORK ( EVAL x = 1 | DROP language_code | WHERE language_name == "English" | DROP x )
-       ( WHERE language_name != "English" )
-| SORT _fork, language_name
-| KEEP language_name, language_code, _fork
+FROM employees
+| FORK ( EVAL x = 1 | DROP first_name | WHERE emp_no == 10048 OR emp_no == 10081 | DROP x )
+        ( WHERE emp_no == 10048 )
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
 ;
 
-language_name:keyword | language_code:integer | _fork:keyword
-English               | null                  | fork1
-French                | 2                     | fork2
-German                | 4                     | fork2
-Spanish               | 3                     | fork2
+emp_no:integer | _fork:keyword
+10048          | fork1
+10081          | fork1
+10048          | fork2
 ;
-
 
 forkBeforeDrop
 required_capability: fork_v9
 
-FROM languages
-| FORK (WHERE language_code == 1 OR language_code == 2)
-       (WHERE language_code == 1)
-| DROP language_code
-| SORT _fork, language_name
+FROM employees
+| FORK ( WHERE emp_no == 10048 OR emp_no == 10081 | EVAL x = 1 )
+       ( WHERE emp_no == 10048 )
+| DROP first_name, x
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
 ;
 
-language_name:keyword | _fork:keyword
-English               | fork1
-French                | fork1
-English               | fork2
+emp_no:integer | _fork:keyword
+10048          | fork1
+10081          | fork1
+10048          | fork2
 ;
 
 forkBranchWithKeep
 required_capability: fork_v9
 
-FROM languages
-| FORK ( WHERE language_name == "English" | KEEP language_name, language_code )
-       ( WHERE language_name != "English" )
-| SORT _fork, language_name
+FROM employees
+| FORK ( WHERE emp_no == 10048 OR emp_no == 10081 | KEEP emp_no )
+       ( WHERE emp_no == 10048 )
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
 ;
 
-language_name:keyword | language_code:integer | _fork:keyword
-English               | 1                     | fork1
-French                | 2                     | fork2
-German                | 4                     | fork2
-Spanish               | 3                     | fork2
+emp_no:integer | _fork:keyword
+10048          | fork1
+10081          | fork1
+10048          | fork2
 ;
 
 forkBeforeRename
 required_capability: fork_v9
 
-FROM languages
-| FORK (WHERE language_code == 1 OR language_code == 2)
-       (WHERE language_code == 1)
-| RENAME language_code AS code
-| SORT _fork, language_name
+FROM employees
+| FORK ( WHERE emp_no == 10048 OR emp_no == 10081 )
+       ( WHERE emp_no == 10048 )
+| RENAME emp_no AS code
+| SORT _fork, code
+| KEEP code, _fork
 ;
 
-code:integer | language_name:keyword | _fork:keyword
-1            | English               | fork1
-2            | French                | fork1
-1            | English               | fork2
+code:integer | _fork:keyword
+10048        | fork1
+10081        | fork1
+10048        | fork2
 ;
 
 forkBranchWithRenameAs
 required_capability: fork_v9
 
-FROM languages
-| FORK (RENAME language_code AS code | WHERE code == 1 OR code == 2)
-       (WHERE language_code == 1 | RENAME language_code AS x)
-| SORT _fork, language_name
-| KEEP code, language_name, x, _fork
+FROM employees
+| FORK (RENAME emp_no AS emp_code | WHERE emp_code == 10048 OR emp_code == 10081)
+       (WHERE emp_no == 10048 | RENAME emp_no AS x)
+| SORT _fork, emp_code, x
+| KEEP emp_code, x, _fork
 ;
 
-code:integer | language_name:keyword | x:integer | _fork:keyword
-1            | English               | null      | fork1
-2            | French                | null      | fork1
-null         | English               | 1         | fork2
+emp_code:integer | x:integer | _fork:keyword
+10048            | null      | fork1
+10081            | null      | fork1
+null             | 10048     | fork2
 ;
 
 forkBranchWithRenameEquals
 required_capability: fork_v9
 
-FROM languages
-| FORK (RENAME code = language_code | WHERE code == 1 OR code == 2)
-       (WHERE language_code == 1 | RENAME x = language_code)
-| SORT _fork, language_name
-| KEEP code, language_name, x, _fork
+FROM employees
+| FORK (RENAME emp_code = emp_no | WHERE emp_code == 10048 OR emp_code == 10081)
+       (WHERE emp_no == 10048 | RENAME x = emp_no)
+| SORT _fork, emp_code, x
+| KEEP emp_code, x, _fork
 ;
 
-code:integer | language_name:keyword | x:integer | _fork:keyword
-1            | English               | null      | fork1
-2            | French                | null      | fork1
-null         | English               | 1         | fork2
+emp_code:integer | x:integer | _fork:keyword
+10048            | null      | fork1
+10081            | null      | fork1
+null             | 10048     | fork2
 ;
 
 
 forkAfterRename
 required_capability: fork_v9
 
-FROM languages
-| RENAME language_code AS code
-| FORK (WHERE code == 1 OR code == 2)
-       (WHERE code == 1)
-| SORT _fork, language_name
+FROM employees
+| RENAME emp_no AS emp_code
+| FORK (WHERE emp_code == 10048 OR emp_code == 10081)
+       (WHERE emp_code == 10048)
+| SORT _fork, emp_code
+| KEEP emp_code, _fork
 ;
 
-code:integer | language_name:keyword | _fork:keyword
-1            | English               | fork1
-2            | French                | fork1
-1            | English               | fork2
+emp_code:integer | _fork:keyword
+10048            | fork1
+10081            | fork1
+10048            | fork2
 ;
 
 
@@ -687,33 +714,37 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 10087          | Junior Developer      | fork2
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
 forkBeforeInlineStats-Ignore
+// temporarily forbid LIMIT before INLINE STATS
 required_capability: fork_v9
+required_capability: inline_stats
 
 FROM employees
 | KEEP emp_no, languages, gender
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
        (WHERE emp_no == 10081 OR emp_no == 10087)
-| INLINESTATS max_lang = MAX(languages) BY gender 
+| INLINE STATS max_lang = MAX(languages) BY gender 
 | SORT emp_no, gender, _fork
 | LIMIT 5
 ;
 
 emp_no:integer | languages:integer | _fork:keyword | max_lang:integer | gender:keyword
-1 | 2 | 3 | 4 | 5
+10048          |3                  |fork1          |3                 |M              
+10081          |2                  |fork1          |3                 |M              
+10081          |2                  |fork2          |3                 |M              
+10087          |5                  |fork2          |5                 |F
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
-forkBranchWithInlineStats-Ignore
+forkBranchWithInlineStats
 required_capability: fork_v9
+required_capability: inline_stats
 
 FROM employees
 | KEEP emp_no, languages, gender
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081
-        | INLINESTATS x = MAX(languages) BY gender)
+        | INLINE STATS x = MAX(languages) BY gender)
        (WHERE emp_no == 10081 OR emp_no == 10087
-        | INLINESTATS x = MIN(languages))
+        | INLINE STATS x = MIN(languages))
         (WHERE emp_no == 10012 OR emp_no == 10012)
 | SORT emp_no, gender, _fork
 ;
@@ -726,13 +757,13 @@ emp_no:integer | languages:integer | x:integer | gender:keyword | _fork:keyword
 10087          | 5                 | 2         | F              | fork2
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
-forkAfterInlineStats-Ignore
+forkAfterInlineStats
 required_capability: fork_v9
+required_capability: inline_stats
 
 FROM employees
 | KEEP emp_no, languages, gender
-| INLINESTATS max_lang = MAX(languages) BY gender 
+| INLINE STATS max_lang = MAX(languages) BY gender 
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
        (WHERE emp_no == 10081 OR emp_no == 10087)
 | SORT emp_no, gender, _fork

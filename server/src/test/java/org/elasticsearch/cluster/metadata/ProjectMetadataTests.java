@@ -2244,6 +2244,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2281,6 +2282,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2320,6 +2322,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2361,6 +2364,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2397,6 +2401,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2511,6 +2516,7 @@ public class ProjectMetadataTests extends ESTestCase {
                       "indices": {
                         "index-01": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2548,6 +2554,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-02": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2587,6 +2594,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         "index-03": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2628,6 +2636,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000001": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2664,6 +2673,7 @@ public class ProjectMetadataTests extends ESTestCase {
                         },
                         ".ds-logs-ultron-2024.08.30-000002": {
                           "version": 1,
+                          "transport_version" : "0",
                           "mapping_version": 1,
                           "settings_version": 1,
                           "aliases_version": 1,
@@ -2745,8 +2755,7 @@ public class ProjectMetadataTests extends ESTestCase {
                           }
                         },
                         "data_stream_aliases": {}
-                      },
-                      "reserved_state": {}
+                      }
                     }
                     """,
                 IndexVersion.current(),
@@ -2847,11 +2856,6 @@ public class ProjectMetadataTests extends ESTestCase {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));
             }
-        }
-
-        if (params.paramAsBoolean("multi-project", false)) {
-            // 2 chunks for wrapping reserved state + 1 chunk for each item
-            chunkCount += 2 + project.reservedStateMetadata().size();
         }
 
         return Math.toIntExact(chunkCount);

@@ -111,9 +111,8 @@ def mlCppVersion(){
       (project.version + "-SNAPSHOT") : project.version;
 }
 
-artifacts {
-  // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
+tasks.named('assemble').configure {
+  dependsOn tasks.named('jar')
 }
 
 tasks.register("extractNativeLicenses", Copy) {

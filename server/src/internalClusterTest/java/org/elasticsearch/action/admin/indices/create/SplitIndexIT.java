@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -56,6 +57,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -183,11 +185,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
             firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
         }
-        assertAcked(
-            indicesAdmin().prepareResizeIndex("source", "first_split")
-                .setResizeType(ResizeType.SPLIT)
-                .setSettings(firstSplitSettingsBuilder.build())
-        );
+        assertAcked(executeResize(ResizeType.SPLIT, "source", "first_split", firstSplitSettingsBuilder));
         ensureGreen();
         assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
         assertNoResizeSourceIndexSettings("first_split");
@@ -211,9 +209,12 @@ public class SplitIndexIT extends ESIntegTestCase {
         ensureGreen();
         // now split source into a new index
         assertAcked(
-            indicesAdmin().prepareResizeIndex("first_split", "second_split")
-                .setResizeType(ResizeType.SPLIT)
-                .setSettings(indexSettings(secondSplitShards, 0).putNull("index.blocks.write").build())
+            executeResize(
+                ResizeType.SPLIT,
+                "first_split",
+                "second_split",
+                indexSettings(secondSplitShards, 0).putNull("index.blocks.write")
+            )
         );
         ensureGreen();
         assertHitCount(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
@@ -324,8 +325,9 @@ public class SplitIndexIT extends ESIntegTestCase {
         final long beforeSplitPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetadata::primaryTerm).max().getAsLong();
 
         // now split source into target
-        final Settings splitSettings = indexSettings(numberOfTargetShards, 0).putNull("index.blocks.write").build();
-        assertAcked(indicesAdmin().prepareResizeIndex("source", "target").setResizeType(ResizeType.SPLIT).setSettings(splitSettings).get());
+        assertAcked(
+            executeResize(ResizeType.SPLIT, "source", "target", indexSettings(numberOfTargetShards, 0).putNull("index.blocks.write"))
+        );
 
         ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to relocate many shards
 
@@ -371,9 +373,12 @@ public class SplitIndexIT extends ESIntegTestCase {
 
             final boolean createWithReplicas = randomBoolean();
             assertAcked(
-                indicesAdmin().prepareResizeIndex("source", "target")
-                    .setResizeType(ResizeType.SPLIT)
-                    .setSettings(indexSettings(2, createWithReplicas ? 1 : 0).putNull("index.blocks.write").build())
+                executeResize(
+                    ResizeType.SPLIT,
+                    "source",
+                    "target",
+                    indexSettings(2, createWithReplicas ? 1 : 0).putNull("index.blocks.write")
+                )
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
@@ -469,18 +474,12 @@ public class SplitIndexIT extends ESIntegTestCase {
         // check that index sort cannot be set on the target index
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            indicesAdmin().prepareResizeIndex("source", "target")
-                .setResizeType(ResizeType.SPLIT)
-                .setSettings(indexSettings(4, 0).put("index.sort.field", "foo").build())
+            executeResize(ResizeType.SPLIT, "source", "target", indexSettings(4, 0).put("index.sort.field", "foo"))
         );
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
 
         // check that the index sort order of `source` is correctly applied to the `target`
-        assertAcked(
-            indicesAdmin().prepareResizeIndex("source", "target")
-                .setResizeType(ResizeType.SPLIT)
-                .setSettings(indexSettings(4, 0).putNull("index.blocks.write").build())
-        );
+        assertAcked(executeResize(ResizeType.SPLIT, "source", "target", indexSettings(4, 0).putNull("index.blocks.write")));
         ensureGreen();
         flushAndRefresh();
         GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
@@ -495,5 +494,34 @@ public class SplitIndexIT extends ESIntegTestCase {
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);
         assertNoResizeSourceIndexSettings("target");
+    }
+
+    /**
+     * Tests that splitting a logsdb index with a non-default timestamp mapping doesn't result in any mapping conflicts.
+     * N.B.: we don't test time_series indices as split is not supported for them.
+     */
+    public void testSplitLogsdbIndexWithNonDefaultTimestamp() {
+        // Create a logsdb index with a date_nanos @timestamp field
+        final int numberOfReplicas = randomInt(internalCluster().numDataNodes() - 1);
+        final var settings = indexSettings(1, numberOfReplicas).put("index.mode", "logsdb").put("index.blocks.write", true);
+        prepareCreate("source").setSettings(settings).setMapping("@timestamp", "type=date_nanos").get();
+        ensureGreen();
+
+        // Split the index
+        executeResize(
+            ResizeType.SPLIT,
+            "source",
+            "target",
+            // We need to explicitly set the number of replicas in case the source has 0 replicas and the cluster has only 1 data node
+            indexSettings(2, numberOfReplicas)
+        ).actionGet();
+
+        // Verify that the target index has the correct @timestamp mapping
+        final var targetMappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "target").get();
+        assertThat(
+            ObjectPath.eval("properties.@timestamp.type", targetMappings.mappings().get("target").getSourceAsMap()),
+            equalTo("date_nanos")
+        );
+        ensureGreen();
     }
 }

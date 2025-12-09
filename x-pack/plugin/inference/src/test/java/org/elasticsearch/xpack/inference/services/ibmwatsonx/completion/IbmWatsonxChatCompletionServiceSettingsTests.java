@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -168,6 +169,20 @@ public class IbmWatsonxChatCompletionServiceSettingsTests extends AbstractWireSe
 
     @Override
     protected IbmWatsonxChatCompletionServiceSettings mutateInstance(IbmWatsonxChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, IbmWatsonxChatCompletionServiceSettingsTests::createRandom);
+        var uri = instance.uri();
+        var apiVersion = instance.apiVersion();
+        var modelId = instance.modelId();
+        var projectId = instance.projectId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(4)) {
+            case 0 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(10)));
+            case 1 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
+            case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 3 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLength(8));
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
     }
 }

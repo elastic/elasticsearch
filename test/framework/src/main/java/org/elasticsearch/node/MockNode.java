@@ -45,11 +45,15 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -60,6 +64,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -75,6 +80,21 @@ import java.util.function.LongSupplier;
 public class MockNode extends Node {
 
     private static class MockServiceProvider extends NodeServiceProvider {
+        @Override
+        TaskManager newTaskManager(
+            PluginsService pluginsService,
+            Settings settings,
+            ThreadPool threadPool,
+            Set<String> taskHeaders,
+            Tracer tracer,
+            String nodeId
+        ) {
+            if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).findAny().isEmpty()) {
+                return super.newTaskManager(pluginsService, settings, threadPool, taskHeaders, tracer, nodeId);
+            }
+            return MockTaskManager.create(settings, threadPool, taskHeaders, tracer, nodeId);
+        }
+
         @Override
         BigArrays newBigArrays(
             PluginsService pluginsService,
@@ -172,8 +192,10 @@ public class MockNode extends Node {
             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
             ClusterSettings clusterSettings,
             TaskManager taskManager,
-            Tracer tracer,
-            String nodeId
+            TelemetryProvider telemetryProvider,
+            String nodeId,
+            LinkedProjectConfigService linkedProjectConfigService,
+            ProjectResolver projectResolver
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -190,19 +212,23 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager,
-                    tracer,
-                    nodeId
+                    telemetryProvider,
+                    nodeId,
+                    linkedProjectConfigService,
+                    projectResolver
                 );
             } else {
                 return new MockTransportService(
                     settings,
-                    transport,
+                    new StubbableTransport(transport),
                     threadPool,
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    taskManager.getTaskHeaders(),
-                    nodeId
+                    taskManager,
+                    linkedProjectConfigService,
+                    telemetryProvider,
+                    projectResolver
                 );
             }
         }

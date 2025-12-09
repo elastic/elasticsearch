@@ -8,6 +8,7 @@ toc:
     - file: es-connectors-confluence.md
     - file: es-connectors-dropbox.md
     - file: es-connectors-github.md
+    - file: es-connectors-gitlab.md
     - file: es-connectors-gmail.md
     - file: es-connectors-google-cloud.md
     - file: es-connectors-google-drive.md
@@ -26,6 +27,7 @@ toc:
     - file: es-connectors-redis.md
     - file: es-connectors-s3.md
     - file: es-connectors-salesforce.md
+    - file: es-connectors-sandfly.md
     - file: es-connectors-servicenow.md
     - file: es-connectors-sharepoint-online.md
     - file: es-connectors-sharepoint.md

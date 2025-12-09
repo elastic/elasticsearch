@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -206,7 +205,7 @@ class PushDownUtils {
 
     @SuppressWarnings("unchecked")
     public static <P extends LogicalPlan> P resolveRenamesFromMap(P plan, AttributeMap<Expression> map) {
-        return (P) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> map.resolve(r, r));
+        return (P) plan.transformExpressionsOnly(Attribute.class, r -> map.resolve(r, r));
     }
 
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}

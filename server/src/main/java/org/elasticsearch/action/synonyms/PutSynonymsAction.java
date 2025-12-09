@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -57,11 +57,13 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_SET_FIELD);
         }
 
+        private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+
         public Request(StreamInput in) throws IOException {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRules = in.readArray(SynonymRule::new, SynonymRule[]::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            if (in.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
                 this.refresh = in.readBoolean();
             } else {
                 this.refresh = false;
@@ -104,7 +106,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             out.writeArray(synonymRules);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+            if (out.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
                 out.writeBoolean(refresh);
             }
         }

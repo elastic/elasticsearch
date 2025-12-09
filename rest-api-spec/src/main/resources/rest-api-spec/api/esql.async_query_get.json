@@ -1,38 +1,50 @@
 {
-  "esql.async_query_get":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/esql-async-query-get-api.html",
-      "description": "Retrieves the results of a previously submitted async query request given its ID."
+  "esql.async_query_get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-get",
+      "description": "Get async ES|QL query results"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_query/async/{id}",
-          "methods":[
+          "path": "/_query/async/{id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The async query ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async query ID"
             }
           }
         }
       ]
     },
-    "params":{
-      "format":{
-        "type":"string",
-        "description":"a short version of the Accept header, e.g. json, yaml"
+    "params": {
+      "format": {
+        "type": "enum",
+        "description": "A short version of the Accept header, for example `json` or `yaml`.",
+        "options": [
+          "csv",
+          "json",
+          "tsv",
+          "txt",
+          "yaml",
+          "cbor",
+          "smile",
+          "arrow"
+        ]
       },
-      "wait_for_completion_timeout":{
-        "type":"time",
-        "description":"Specify the time that the request should block waiting for the final response"
+      "wait_for_completion_timeout": {
+        "type": "time",
+        "description": "Specify the time that the request should block waiting for the final response"
       },
       "keep_alive": {
         "type": "time",

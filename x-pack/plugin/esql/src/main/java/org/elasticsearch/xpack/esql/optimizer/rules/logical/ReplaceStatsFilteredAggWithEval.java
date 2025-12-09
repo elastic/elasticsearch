@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -33,16 +34,17 @@ import java.util.List;
 /**
  * Replaces an aggregation function having a false/null filter with an EVAL node.
  * <pre>
- *     ... | STATS/INLINESTATS x = someAgg(y) WHERE FALSE {BY z} | ...
+ *     ... | STATS/INLINE STATS x = someAgg(y) WHERE FALSE {BY z} | ...
  *     =>
- *     ... | STATS/INLINESTATS x = someAgg(y) {BY z} > | EVAL x = NULL | KEEP x{, z} | ...
+ *     ... | STATS/INLINE STATS x = someAgg(y) {BY z} > | EVAL x = NULL | KEEP x{, z} | ...
  * </pre>
  *
  * This rule is applied to both STATS' {@link Aggregate} and {@link InlineJoin} right-hand side {@link Aggregate} plans.
  * The logic is common for both, but the handling of the {@link InlineJoin} is slightly different when it comes to pruning
  * its right-hand side {@link Aggregate}.
+ * Skipped in local optimizer: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
  */
-public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> implements OptimizerRules.CoordinatorOnly {
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
         Aggregate aggregate;
@@ -92,7 +94,7 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                                 agg -> agg == aggregate ? new Eval(aggregate.source(), aggregate.child(), newEvals) : agg
                             );
                         // Remove the StubRelation since the right-hand side of the join is now part of the main plan
-                        // and it won't be executed separately by the EsqlSession inlinestats planning.
+                        // and it won't be executed separately by the EsqlSession INLINE STATS planning.
                         newRight = InlineJoin.replaceStub(leftHandSide, newRight);
 
                         // project the correct output (the one of the former inlinejoin) and remove the InlineJoin altogether,
@@ -136,6 +138,6 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
             attributes.add(alias.toAttribute());
             blocks[i] = BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, ((Literal) alias.child()).value(), 1);
         }
-        return new LocalRelation(source, attributes, LocalSupplier.of(blocks));
+        return new LocalRelation(source, attributes, LocalSupplier.of(new Page(blocks)));
     }
 }

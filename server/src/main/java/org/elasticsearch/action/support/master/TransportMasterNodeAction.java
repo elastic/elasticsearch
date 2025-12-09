@@ -143,7 +143,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             state.metadata().reservedStateMetadata().values(),
             handlerName.get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
     }
 

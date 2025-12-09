@@ -59,6 +59,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
@@ -219,7 +220,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
 
             BytesReference reference = readFully(container.readBlob(randomPurpose(), key));
-            assertEquals(new BytesArray(initialValue), reference);
+            assertThat(reference, equalBytes(new BytesArray(initialValue)));
 
             container.deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single(key));
         }

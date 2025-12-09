@@ -82,16 +82,39 @@ public final class XContentTestUtils {
      * @return null if maps are equal or path to the element where the difference was found
      */
     public static String differenceBetweenMapsIgnoringArrayOrder(Map<String, Object> first, Map<String, Object> second) {
-        return differenceBetweenMapsIgnoringArrayOrder("", first, second);
+        return differenceBetweenMapsIgnoringArrayOrder("", first, second, p -> true);
     }
 
-    private static String differenceBetweenMapsIgnoringArrayOrder(String path, Map<String, Object> first, Map<String, Object> second) {
+    /**
+     * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
+     *
+     * @param pathFilter Predicate to filter a path and its children. True if the path should be checked, false to exclude it.
+     * @return null if maps are equal or path to the element where the difference was found
+     */
+    public static String differenceBetweenMapsIgnoringArrayOrder(
+        Map<String, Object> first,
+        Map<String, Object> second,
+        Predicate<String> pathFilter
+    ) {
+        return differenceBetweenMapsIgnoringArrayOrder("", first, second, pathFilter);
+    }
+
+    private static String differenceBetweenMapsIgnoringArrayOrder(
+        String path,
+        Map<String, Object> first,
+        Map<String, Object> second,
+        Predicate<String> pathFilter
+    ) {
+        if (pathFilter.test(path) == false) {
+            return null;
+        }
+
         if (first.size() != second.size()) {
             return path + ": sizes of the maps don't match: " + first.size() + " != " + second.size();
         }
 
         for (String key : first.keySet()) {
-            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key));
+            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key), pathFilter);
             if (reason != null) {
                 return reason;
             }
@@ -100,7 +123,16 @@ public final class XContentTestUtils {
     }
 
     @SuppressWarnings("unchecked")
-    private static String differenceBetweenObjectsIgnoringArrayOrder(String path, Object first, Object second) {
+    private static String differenceBetweenObjectsIgnoringArrayOrder(
+        String path,
+        Object first,
+        Object second,
+        Predicate<String> pathFilter
+    ) {
+        if (pathFilter.test(path) == false) {
+            return null;
+        }
+
         if (first == null) {
             if (second == null) {
                 return null;
@@ -116,7 +148,7 @@ public final class XContentTestUtils {
                     for (Object firstObj : firstList) {
                         boolean found = false;
                         for (Object secondObj : secondList) {
-                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/*", firstObj, secondObj);
+                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/*", firstObj, secondObj, pathFilter);
                             if (reason == null) {
                                 secondList.remove(secondObj);
                                 found = true;
@@ -140,7 +172,7 @@ public final class XContentTestUtils {
             }
         } else if (first instanceof Map) {
             if (second instanceof Map) {
-                return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second);
+                return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second, pathFilter);
             } else {
                 return path + ": the second element is not a map (got " + second + ")";
             }

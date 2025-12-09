@@ -106,4 +106,12 @@ public class StringPatternTests extends ESTestCase {
         assertNotNull(exactMatchRLike("#|foo"));
         assertNotNull(exactMatchRLike("foo|#"));
     }
+
+    public void testTooComplexPattern() {
+        var e = expectThrows(IllegalArgumentException.class, () -> rlike("(a|b)*a(a|b){13}").createAutomaton(false));
+        assertEquals("Pattern was too complex to determinize", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> like("*a?????????????").createAutomaton(false));
+        assertEquals("Pattern was too complex to determinize", e.getMessage());
+    }
 }

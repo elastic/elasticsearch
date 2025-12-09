@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -65,7 +63,6 @@ public enum IndexMode {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             validateRoutingPathSettings(settings);
-            validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -130,11 +127,6 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
-
-        @Override
-        public boolean useDefaultPostingsFormat() {
-            return true;
-        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -142,18 +134,25 @@ public enum IndexMode {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
                 throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
             }
+
+            var settingsWithIndexMode = Settings.builder().put(IndexSettings.MODE.getKey(), getName()).build();
+
             for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
-                if (false == Objects.equals(unsupported.getDefault(Settings.EMPTY), settings.get(unsupported))) {
+                if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
+            if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
+                // index.dimensions is a private setting that only gets populated for data streams.
+                // We don't include it in the error message to not confuse users that are manually creating time series indices
+                // which is the only case where this error can occur.
+                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + routingPath.getKey() + "]");
+            }
         }
 
-        private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
-            if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
-            }
+        private static boolean isEmpty(Map<Setting<?>, Object> settings, Setting<List<String>> setting) {
+            return Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting));
         }
 
         private static String error(Setting<?> unsupported) {
@@ -215,8 +214,14 @@ public enum IndexMode {
 
         @Override
         public RoutingFields buildRoutingFields(IndexSettings settings) {
-            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
-            return new RoutingPathFields(routing.builder());
+            IndexRouting indexRouting = settings.getIndexRouting();
+            if (indexRouting instanceof IndexRouting.ExtractFromSource.ForRoutingPath forRoutingPath) {
+                return new RoutingPathFields(forRoutingPath.builder());
+            } else if (indexRouting instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
+                return RoutingFields.Noop.INSTANCE;
+            } else {
+                throw new IllegalStateException("Index routing strategy not supported for index_mode=time_series: " + indexRouting);
+            }
         }
 
         @Override
@@ -235,11 +240,20 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
+        }
     },
     LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            validateTimeSeriesSettings(settings);
             var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
             if (setting.equals(Boolean.FALSE)) {
                 validateRoutingPathSettings(settings);
@@ -321,6 +335,16 @@ public enum IndexMode {
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
         }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
+        }
     },
     LOOKUP("lookup") {
         @Override
@@ -401,11 +425,6 @@ public enum IndexMode {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
     }
 
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
-    }
-
     private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
         if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
             throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
@@ -461,6 +480,7 @@ public enum IndexMode {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_ROUTING_PATH,
+                IndexMetadata.INDEX_DIMENSIONS,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
@@ -559,9 +579,17 @@ public enum IndexMode {
     }
 
     /**
-     * Whether the default posting format (for inverted indices) from Lucene should be used.
+     * Whether by default to use the ES 8.12 {@link org.apache.lucene.codecs.PostingsFormat}. This is a historical PostingsFormat we used
+     * for all indices by default. However, starting with Lucene 10.3, we began using a new, more modern format, for standard indices.
      */
-    public boolean useDefaultPostingsFormat() {
+    public boolean useEs812PostingsFormat() {
+        return false;
+    }
+
+    /**
+     * Whether by default to use the time series doc values codec.
+     */
+    public boolean useTimeSeriesDocValuesCodec() {
         return false;
     }
 
@@ -600,7 +628,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
+            case LOOKUP -> 3;
         };
         out.writeByte((byte) code);
     }
@@ -616,7 +644,7 @@ public enum IndexMode {
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
-        public void provideAdditionalMetadata(
+        public void provideAdditionalSettings(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
@@ -624,8 +652,8 @@ public enum IndexMode {
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings,
-            Settings.Builder additionalSettings,
-            BiConsumer<String, Map<String, String>> additionalCustomMetadata
+            IndexVersion indexVersion,
+            Settings.Builder additionalSettings
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {

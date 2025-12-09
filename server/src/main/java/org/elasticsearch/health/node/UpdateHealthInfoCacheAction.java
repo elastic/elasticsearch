@@ -9,6 +9,7 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -41,6 +42,8 @@ import java.util.Objects;
  */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
+
+    private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;
@@ -92,7 +95,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                     ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
                     : null;
-                this.fileSettingsHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)
+                this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                     ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
                     : null;
             } else {
@@ -143,7 +146,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                     out.writeOptionalWriteable(repositoriesHealthInfo);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)) {
+                if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
                     out.writeOptionalWriteable(fileSettingsHealthInfo);
                 }
             } else {

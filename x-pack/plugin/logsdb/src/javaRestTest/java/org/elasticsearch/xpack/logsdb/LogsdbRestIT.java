@@ -15,8 +15,10 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
@@ -29,19 +31,29 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class LogsdbRestIT extends ESRestTestCase {
 
-    private static final String USER = "test_admin";
+    private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static final ElasticsearchCluster cluster = createCluster();
+
+    private static ElasticsearchCluster createCluster() {
+        LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .setting("xpack.security.enabled", "true")
+            .user(USER, PASS)
+            .keystore("bootstrap.password", "x-pack-test-password")
+            .setting("xpack.license.self_generated.type", "trial");
+        boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
+        if (setNodes) {
+            clusterBuilder.nodes(1);
+        }
+        return clusterBuilder.build();
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -81,7 +93,10 @@ public class LogsdbRestIT extends ESRestTestCase {
             boolean found = false;
             for (var feature : features) {
                 if (feature.get("family") != null) {
-                    assertThat(feature.get("name"), anyOf(equalTo("synthetic-source"), equalTo("logsdb-routing-on-sort-fields")));
+                    assertThat(
+                        feature.get("name"),
+                        anyOf(equalTo("synthetic-source"), equalTo("logsdb-routing-on-sort-fields"), equalTo("pattern-text-templating"))
+                    );
                     assertThat(feature.get("license_level"), equalTo("enterprise"));
                     found = true;
                 }
@@ -460,7 +475,7 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         var shardsHeader = (Map<?, ?>) searchResponseBody.get("_shards");
         assertThat(shardsHeader.get("failed"), equalTo(0));
-        assertThat(shardsHeader.get("successful"), equalTo(1));
+        assertThat((Integer) shardsHeader.get("successful"), greaterThanOrEqualTo(1));
         assertThat(shardsHeader.get("skipped"), equalTo(0));
     }
 }

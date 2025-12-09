@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -69,7 +70,7 @@ public class S3RepositoryTests extends ESTestCase {
             ProjectResolver projectResolver,
             ResourceWatcherService resourceWatcherService
         ) {
-            super(environment, clusterService, projectResolver, resourceWatcherService, () -> null);
+            super(environment, clusterService, projectResolver, resourceWatcherService, () -> Region.of(randomIdentifier()));
         }
 
         @Override

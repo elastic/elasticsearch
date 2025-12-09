@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils;
+import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils.WeightedRetrieverSource;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,11 +47,17 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEI
  * meaning it has a set of child retrievers that each return a set of
  * top docs that will then be combined and ranked according to the rrf
  * formula.
+ *
+ * Supports both explicit retriever configuration and simplified field-based
+ * syntax with optional per-field weights (e.g., "field^2.0").
  */
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
     public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature("rrf_retriever.multi_fields_query_format_support");
     public static final NodeFeature WEIGHTED_SUPPORT = new NodeFeature("rrf_retriever.weighted_support");
-
+    public static final NodeFeature SIMPLIFIED_WEIGHTED_SUPPORT = new NodeFeature("rrf_retriever.simplified_weighted_support");
+    public static final NodeFeature MULTI_INDEX_SIMPLIFIED_FORMAT_SUPPORT = new NodeFeature(
+        "rrf_retriever.multi_index_simplified_format_support"
+    );
     public static final String NAME = "rrf";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
@@ -253,11 +260,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             // TODO: Refactor duplicate code
             // Using the multi-fields query format
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
-            if (localIndicesMetadata.size() > 1) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying multiple indices"
-                );
-            } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
                 throw new IllegalArgumentException(
                     "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying remote indices"
                 );
@@ -267,23 +270,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 fields,
                 query,
                 localIndicesMetadata.values(),
-                r -> {
-                    List<RetrieverSource> retrievers = new ArrayList<>(r.size());
-                    float[] weights = new float[r.size()];
-                    for (int i = 0; i < r.size(); i++) {
-                        var retriever = r.get(i);
-                        retrievers.add(retriever.retrieverSource());
-                        weights[i] = retriever.weight();
-                    }
-                    return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
-                },
-                w -> {
-                    if (w != 1.0f) {
-                        throw new IllegalArgumentException(
-                            "[" + NAME + "] does not support per-field weights in [" + FIELDS_FIELD.getPreferredName() + "]"
-                        );
-                    }
-                }
+                r -> createRRFFromWeightedRetrievers(r, rankWindowSize, rankConstant),
+                w -> validateNonNegativeWeight(w)
             ).stream().map(RetrieverSource::from).toList();
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
@@ -297,7 +285,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
-
         return rewritten;
     }
 
@@ -341,5 +328,27 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     @Override
     public int doHashCode() {
         return Objects.hash(super.doHashCode(), fields, query, rankConstant, Arrays.hashCode(weights));
+    }
+
+    private static RRFRetrieverBuilder createRRFFromWeightedRetrievers(
+        List<WeightedRetrieverSource> r,
+        int rankWindowSize,
+        int rankConstant
+    ) {
+        int size = r.size();
+        List<RetrieverSource> retrievers = new ArrayList<>(size);
+        float[] weights = new float[size];
+        for (int i = 0; i < size; i++) {
+            var retriever = r.get(i);
+            retrievers.add(retriever.retrieverSource());
+            weights[i] = retriever.weight();
+        }
+        return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
+    }
+
+    private static void validateNonNegativeWeight(float w) {
+        if (w < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
+        }
     }
 }

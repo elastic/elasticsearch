@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -25,7 +24,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,6 +73,8 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
             return new PipelineConfiguration(id, config);
         }
     }
+
+    private static final TransportVersion PIPELINE_TRACKING_INFO = TransportVersion.fromName("pipeline_tracking_info");
 
     private final String id;
     private final Map<String, Object> config;
@@ -170,13 +170,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
         final String id = in.readString();
         final Map<String, Object> config;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            config = in.readGenericMap();
-        } else {
-            final BytesReference bytes = in.readSlicedBytesReference();
-            final XContentType type = in.readEnum(XContentType.class);
-            config = XContentHelper.convertToMap(bytes, true, type).v2();
-        }
+        config = in.readGenericMap();
         return new PipelineConfiguration(id, config);
     }
 
@@ -194,14 +188,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         final TransportVersion transportVersion = out.getTransportVersion();
         final Map<String, Object> configForTransport = configForTransport(transportVersion);
         out.writeString(id);
-        if (transportVersion.onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeGenericMap(configForTransport);
-        } else {
-            XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).prettyPrint();
-            builder.map(configForTransport);
-            out.writeBytesReference(BytesReference.bytes(builder));
-            XContentHelper.writeTo(out, XContentType.JSON);
-        }
+        out.writeGenericMap(configForTransport);
     }
 
     @Override
@@ -253,7 +240,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     /** Remove system properties from config if they aren't supported by the transport version */
     private Map<String, Object> configForTransport(final TransportVersion transportVersion) {
-        final boolean transportSupportsNewProperties = transportVersion.onOrAfter(TransportVersions.PIPELINE_TRACKING_INFO);
+        final boolean transportSupportsNewProperties = transportVersion.supports(PIPELINE_TRACKING_INFO);
         final boolean noNewProperties = config.containsKey(Pipeline.CREATED_DATE_MILLIS) == false
             && config.containsKey(Pipeline.MODIFIED_DATE_MILLIS) == false;
 

@@ -8,10 +8,10 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.DenseCollector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 
@@ -40,8 +40,8 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
     }
 
     @Override
-    protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
-        return new EvalOperator(blockFactory, new LuceneQueryExpressionEvaluator(blockFactory, shards));
+    protected Operator createOperator(DriverContext ctx, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards) {
+        return new EvalOperator(ctx, new LuceneQueryExpressionEvaluator(ctx.blockFactory(), shards));
     }
 
     @Override

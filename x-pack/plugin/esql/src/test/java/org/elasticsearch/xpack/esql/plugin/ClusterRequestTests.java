@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,19 +16,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,13 +45,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 
 public class ClusterRequestTests extends AbstractWireSerializingTestCase<ClusterComputeRequest> {
 
     @Override
     protected Writeable.Reader<ClusterComputeRequest> instanceReader() {
-        return ClusterComputeRequest::new;
+        return (in) -> new ClusterComputeRequest(in, new SerializationTestUtils.TestNameIdMapper());
     }
 
     @Override
@@ -122,7 +123,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.configuration(),
                     new RemoteClusterPlan(
                         plan.plan(),
-                        randomValueOtherThan(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
+                        randomArrayOtherThan(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
                         plan.originalIndices()
                     )
                 );
@@ -154,23 +155,6 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         };
     }
 
-    public void testFallbackIndicesOptions() throws Exception {
-        ClusterComputeRequest request = createTestInstance();
-        var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_14_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_16_0)
-        );
-        ClusterComputeRequest cloned = copyInstance(request, oldVersion);
-        assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));
-        assertThat(cloned.sessionId(), equalTo(request.sessionId()));
-        RemoteClusterPlan plan = cloned.remoteClusterPlan();
-        assertThat(plan.targetIndices(), equalTo(request.remoteClusterPlan().targetIndices()));
-        OriginalIndices originalIndices = plan.originalIndices();
-        assertThat(originalIndices.indices(), equalTo(request.remoteClusterPlan().originalIndices().indices()));
-        assertThat(originalIndices.indicesOptions(), equalTo(SearchRequest.DEFAULT_INDICES_OPTIONS));
-    }
-
     private static String randomQuery() {
         return randomFrom("""
             from test
@@ -185,22 +169,25 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             """);
     }
 
-    static LogicalPlan parse(String query) {
+    static Versioned<LogicalPlan> parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        LogicalOptimizerContext context = unboundLogicalOptimizerContext();
+        TransportVersion minimumVersion = context.minimumVersion();
+        var logicalOptimizer = new LogicalPlanOptimizer(context);
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
+                Map.of(),
                 emptyPolicyResolution(),
-                emptyInferenceResolution()
+                emptyInferenceResolution(),
+                minimumVersion
             ),
             TEST_VERIFIER
         );
-        return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query, EsqlTestUtils.TEST_CFG)));
+        return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query))), minimumVersion);
     }
 
     @Override

@@ -9,13 +9,36 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Set;
+
+import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
+import static org.elasticsearch.transport.RemoteClusterSettings.toConfig;
+import static org.elasticsearch.transport.RemoteConnectionStrategy.buildConnectionProfile;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {
@@ -40,10 +63,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );
         Settings newSettings = Settings.builder()
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
-            .put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
+            .put(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "sniff")
+            .put(REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
             .build();
-        assertTrue(first.shouldRebuildConnection(newSettings));
+        assertTrue(first.shouldRebuildConnection(toConfig("cluster-alias", newSettings)));
     }
 
     public void testSameStrategyChangeMeansThatStrategyDoesNotNeedToBeRebuilt() {
@@ -64,10 +87,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );
         Settings newSettings = Settings.builder()
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy")
-            .put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
+            .put(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy")
+            .put(PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300")
             .build();
-        assertFalse(first.shouldRebuildConnection(newSettings));
+        assertFalse(first.shouldRebuildConnection(toConfig("cluster-alias", newSettings)));
     }
 
     public void testChangeInConnectionProfileMeansTheStrategyMustBeRebuilt() {
@@ -92,8 +115,8 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         );
 
         Settings.Builder newBuilder = Settings.builder();
-        newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
-        newBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
+        newBuilder.put(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
+        newBuilder.put(PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
         String ping = "ping";
         String compress = "compress";
         String compressionScheme = "compression_scheme";
@@ -116,16 +139,19 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         } else {
             throw new AssertionError("Unexpected option: " + change);
         }
-        assertTrue(first.shouldRebuildConnection(newBuilder.build()));
+        assertTrue(first.shouldRebuildConnection(toConfig("cluster-alias", newBuilder.build())));
     }
 
     public void testCorrectChannelNumber() {
         String clusterAlias = "cluster-alias";
 
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            String settingKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+            String settingKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
             Settings proxySettings = Settings.builder().put(settingKey, strategy.name()).build();
-            ConnectionProfile proxyProfile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, proxySettings, randomBoolean());
+            ConnectionProfile proxyProfile = buildConnectionProfile(
+                toConfig(clusterAlias, proxySettings),
+                randomBoolean() ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
+            );
             assertEquals(
                 "Incorrect number of channels for " + strategy.name(),
                 strategy.getNumberOfChannels(),
@@ -139,7 +165,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         // New rcs connection with credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, Settings.EMPTY, true);
+            ConnectionProfile profile = buildConnectionProfile(
+                toConfig(clusterAlias, Settings.EMPTY),
+                RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            );
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
@@ -149,7 +178,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         // Legacy ones without credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, Settings.EMPTY, false);
+            ConnectionProfile profile = buildConnectionProfile(toConfig(clusterAlias, Settings.EMPTY), TransportSettings.DEFAULT_PROFILE);
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 TransportSettings.DEFAULT_PROFILE,
@@ -166,9 +195,144 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.transport.RemoteConnectionStrategyTests.FakeConnectionStrategy:DEBUG",
+        reason = "logging verification"
+    )
+    public void testConnectionAttemptMetricsAndLogging() {
+        final var originProjectId = randomUniqueProjectId();
+        final var linkedProjectId = randomUniqueProjectId();
+        final var alias = randomAlphanumericOfLength(10);
+
+        try (
+            var threadPool = new TestThreadPool(getClass().getName());
+            var transportService = startTransport(threadPool);
+            var connectionManager = new RemoteConnectionManager(
+                alias,
+                RemoteClusterCredentialsManager.EMPTY,
+                new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class), threadContext)
+            )
+        ) {
+            assert transportService.getTelemetryProvider() != null;
+            final var meterRegistry = transportService.getTelemetryProvider().getMeterRegistry();
+            assert meterRegistry instanceof RecordingMeterRegistry;
+            final var metricRecorder = ((RecordingMeterRegistry) meterRegistry).getRecorder();
+
+            for (boolean shouldConnectFail : new boolean[] { true, false }) {
+                for (boolean isInitialConnectAttempt : new boolean[] { true, false }) {
+                    final var strategy = new FakeConnectionStrategy(
+                        originProjectId,
+                        linkedProjectId,
+                        alias,
+                        transportService,
+                        connectionManager
+                    );
+                    if (isInitialConnectAttempt == false) {
+                        waitForConnect(strategy);
+                    }
+                    strategy.setShouldConnectFail(shouldConnectFail);
+                    final var expectedLogLevel = shouldConnectFail ? Level.WARN : Level.DEBUG;
+                    final var expectedLogMessage = Strings.format(
+                        "Origin project [%s] %s to linked project [%s] with alias [%s] on %s attempt",
+                        originProjectId,
+                        shouldConnectFail ? "failed to connect" : "successfully connected",
+                        linkedProjectId,
+                        alias,
+                        isInitialConnectAttempt ? "the initial connection" : "a reconnection"
+                    );
+                    assertThatLogger(() -> {
+                        if (shouldConnectFail) {
+                            assertThrows(RuntimeException.class, () -> waitForConnect(strategy));
+                        } else {
+                            waitForConnect(strategy);
+                        }
+                    },
+                        strategy.getClass(),
+                        new MockLog.SeenEventExpectation(
+                            "connection strategy should log at "
+                                + expectedLogLevel
+                                + " after a "
+                                + (shouldConnectFail ? "failed" : "successful")
+                                + (isInitialConnectAttempt ? " initial connection attempt" : " reconnection attempt"),
+                            strategy.getClass().getCanonicalName(),
+                            expectedLogLevel,
+                            expectedLogMessage
+                        )
+                    );
+                    if (shouldConnectFail) {
+                        metricRecorder.collect();
+                        final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
+                        final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_COUNTER, counterName);
+                        assertFalse(measurements.isEmpty());
+                        final var measurement = measurements.getLast();
+                        assertThat(measurement.getLong(), equalTo(1L));
+                        final var attributes = measurement.attributes();
+                        final var keySet = Set.of(
+                            RemoteConnectionStrategy.linkedProjectIdLabel,
+                            RemoteConnectionStrategy.linkedProjectAliasLabel,
+                            RemoteConnectionStrategy.connectionAtemptLabel
+                        );
+                        final var expectedAttemptType = isInitialConnectAttempt
+                            ? RemoteConnectionStrategy.ConnectionAttempt.initial
+                            : RemoteConnectionStrategy.ConnectionAttempt.reconnect;
+                        assertThat(attributes.keySet(), equalTo(keySet));
+                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectIdLabel), equalTo(linkedProjectId.toString()));
+                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectAliasLabel), equalTo(alias));
+                        assertThat(attributes.get(RemoteConnectionStrategy.connectionAtemptLabel), equalTo(expectedAttemptType.toString()));
+                    }
+                }
+            }
+        }
+    }
+
+    private MockTransportService startTransport(ThreadPool threadPool) {
+        boolean success = false;
+        final Settings s = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "cluster1").put("node.name", "node1").build();
+        MockTransportService newService = MockTransportService.createNewService(
+            s,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
+        try {
+            newService.start();
+            newService.acceptIncomingRequests();
+            success = true;
+            return newService;
+        } finally {
+            if (success == false) {
+                newService.close();
+            }
+        }
+    }
+
+    private static void waitForConnect(RemoteConnectionStrategy strategy) {
+        PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
+        strategy.connect(connectFuture);
+        connectFuture.actionGet();
+    }
+
     private static class FakeConnectionStrategy extends RemoteConnectionStrategy {
 
         private final ConnectionStrategy strategy;
+        private boolean shouldConnectFail;
+
+        FakeConnectionStrategy(
+            ProjectId originProjectId,
+            ProjectId linkedProjectId,
+            String clusterAlias,
+            TransportService transportService,
+            RemoteConnectionManager connectionManager
+        ) {
+            this(
+                originProjectId,
+                linkedProjectId,
+                clusterAlias,
+                transportService,
+                connectionManager,
+                randomFrom(RemoteConnectionStrategy.ConnectionStrategy.values())
+            );
+        }
 
         FakeConnectionStrategy(
             String clusterAlias,
@@ -176,12 +340,33 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
             RemoteConnectionManager connectionManager,
             RemoteConnectionStrategy.ConnectionStrategy strategy
         ) {
-            super(clusterAlias, transportService, connectionManager, Settings.EMPTY);
+            this(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias, transportService, connectionManager, strategy);
+        }
+
+        FakeConnectionStrategy(
+            ProjectId originProjectId,
+            ProjectId linkedProjectId,
+            String clusterAlias,
+            TransportService transportService,
+            RemoteConnectionManager connectionManager,
+            RemoteConnectionStrategy.ConnectionStrategy strategy
+        ) {
+            super(switch (strategy) {
+                case PROXY -> new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
+                    .build();
+                case SNIFF -> new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
+                    .build();
+            }, transportService, connectionManager);
             this.strategy = strategy;
+            this.shouldConnectFail = false;
+        }
+
+        void setShouldConnectFail(boolean shouldConnectFail) {
+            this.shouldConnectFail = shouldConnectFail;
         }
 
         @Override
-        protected boolean strategyMustBeRebuilt(Settings newSettings) {
+        protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
             return false;
         }
 
@@ -197,7 +382,11 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         @Override
         protected void connectImpl(ActionListener<Void> listener) {
-
+            if (shouldConnectFail) {
+                listener.onFailure(new RuntimeException("simulated failure"));
+            } else {
+                listener.onResponse(null);
+            }
         }
 
         @Override

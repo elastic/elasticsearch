@@ -14,7 +14,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
@@ -366,24 +365,6 @@ public class RestTable {
                 return Long.toString(v.getTb());
             } else if ("p".equals(resolution) || "pb".equals(resolution)) {
                 return Long.toString(v.getPb());
-            } else {
-                return v.toString();
-            }
-        }
-        if (value instanceof SizeValue v) {
-            String resolution = request.param("size");
-            if ("".equals(resolution)) {
-                return Long.toString(v.singles());
-            } else if ("k".equals(resolution)) {
-                return Long.toString(v.kilo());
-            } else if ("m".equals(resolution)) {
-                return Long.toString(v.mega());
-            } else if ("g".equals(resolution)) {
-                return Long.toString(v.giga());
-            } else if ("t".equals(resolution)) {
-                return Long.toString(v.tera());
-            } else if ("p".equals(resolution)) {
-                return Long.toString(v.peta());
             } else {
                 return v.toString();
             }

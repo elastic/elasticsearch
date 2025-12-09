@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.common.Strings;
@@ -32,6 +31,8 @@ import java.util.Set;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -95,8 +96,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse, QueryBuilder filter) {
-        EsqlQueryRequest request = randomBoolean() ? EsqlQueryRequest.asyncEsqlQueryRequest() : EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = randomBoolean() ? asyncEsqlQueryRequest(query) : syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
@@ -420,11 +420,11 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
         )) {
             // One index
-            var e = expectThrows(ElasticsearchException.class, () -> runQuery("from cluster-a:log-2", randomBoolean(), filter).close());
+            var e = expectThrows(RuntimeException.class, () -> runQuery("from cluster-a:log-2", randomBoolean(), filter).close());
             // Two indices
-            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log-2", randomBoolean(), filter).close());
+            e = expectThrows(RuntimeException.class, () -> runQuery("from logs-1,cluster-a:log-2", randomBoolean(), filter).close());
             // Wildcard
-            e = expectThrows(ElasticsearchException.class, () -> runQuery("from logs-1,cluster-a:log*", randomBoolean(), filter).close());
+            e = expectThrows(RuntimeException.class, () -> runQuery("from logs-1,cluster-a:log*", randomBoolean(), filter).close());
         }
     }
 

@@ -1,0 +1,5 @@
+pr: 137023
+summary: Support choosing the downsampling method in data stream lifecycle
+area: "Data streams"
+type: enhancement
+issues: []

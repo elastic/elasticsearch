@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,15 +24,19 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 // TODO rename package
@@ -47,7 +51,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        PhysicalPlan rightPreJoinPlan,
+        Expression joinOnConditions
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -57,10 +63,12 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 stringBuilder.append(" input_type=")
                     .append(matchField.type())
                     .append(" match_field=")
-                    .append(matchField.fieldName().string())
+                    .append(matchField.fieldName())
                     .append(" inputChannel=")
                     .append(matchField.channel());
             }
+            stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
+            stringBuilder.append(" join_on_expression=").append(joinOnConditions == null ? "null" : joinOnConditions.toString());
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
@@ -77,7 +85,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 lookupIndexPattern,
                 lookupIndex,
                 loadFields,
-                source
+                source,
+                rightPreJoinPlan,
+                joinOnConditions
             );
         }
     }
@@ -90,7 +100,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final List<NamedExpression> loadFields;
     private final Source source;
     private long totalRows = 0L;
-    private List<MatchConfig> matchFields;
+    private final List<MatchConfig> matchFields;
+    private final PhysicalPlan rightPreJoinPlan;
+    private final Expression joinOnConditions;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
@@ -114,7 +126,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        PhysicalPlan rightPreJoinPlan,
+        Expression joinOnConditions
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.matchFields = matchFields;
@@ -125,14 +139,17 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.lookupIndex = lookupIndex;
         this.loadFields = loadFields;
         this.source = source;
+        this.rightPreJoinPlan = rightPreJoinPlan;
+        this.joinOnConditions = joinOnConditions;
     }
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        Block[] inputBlockArray = new Block[matchFields.size()];
         List<MatchConfig> newMatchFields = new ArrayList<>();
-        for (int i = 0; i < matchFields.size(); i++) {
-            MatchConfig matchField = matchFields.get(i);
+        List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields);
+        Block[] inputBlockArray = new Block[uniqueMatchFields.size()];
+        for (int i = 0; i < uniqueMatchFields.size(); i++) {
+            MatchConfig matchField = uniqueMatchFields.get(i);
             int inputChannel = matchField.channel();
             final Block inputBlock = inputPage.getBlock(inputChannel);
             inputBlockArray[i] = inputBlock;
@@ -151,13 +168,29 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             newMatchFields,
             new Page(inputBlockArray),
             loadFields,
-            source
+            source,
+            rightPreJoinPlan,
+            joinOnConditions
         );
         lookupService.lookupAsync(
             request,
             parentTask,
             listener.map(pages -> new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator()))
         );
+    }
+
+    private List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields) {
+        if (joinOnConditions == null) {
+            return matchFields;
+        }
+        List<MatchConfig> uniqueFields = new ArrayList<>();
+        Set<String> seenFieldNames = new HashSet<>();
+        for (MatchConfig matchField : matchFields) {
+            if (seenFieldNames.add(matchField.fieldName())) {
+                uniqueFields.add(matchField);
+            }
+        }
+        return uniqueFields;
     }
 
     @Override
@@ -207,10 +240,13 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             stringBuilder.append(" input_type=")
                 .append(matchField.type())
                 .append(" match_field=")
-                .append(matchField.fieldName().string())
+                .append(matchField.fieldName())
                 .append(" inputChannel=")
                 .append(matchField.channel());
         }
+
+        stringBuilder.append(" right_pre_join_plan=").append(rightPreJoinPlan == null ? "null" : rightPreJoinPlan.toString());
+        stringBuilder.append(" join_on_expression=").append(joinOnConditions == null ? "null" : joinOnConditions.toString());
         stringBuilder.append("]");
         return stringBuilder.toString();
     }
@@ -247,6 +283,10 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
+        private static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = TransportVersion.fromName(
+            "esql_lookup_operator_emitted_rows"
+        );
+
         private final long totalRows;
         /**
          * Total number of pages emitted by this {@link Operator}.
@@ -268,7 +308,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             super(in);
             this.totalRows = in.readVLong();
             this.emittedPages = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
                 this.emittedRows = in.readVLong();
             } else {
                 this.emittedRows = 0L;
@@ -280,7 +320,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             super.writeTo(out);
             out.writeVLong(totalRows);
             out.writeVLong(emittedPages);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
                 out.writeVLong(emittedRows);
             }
 

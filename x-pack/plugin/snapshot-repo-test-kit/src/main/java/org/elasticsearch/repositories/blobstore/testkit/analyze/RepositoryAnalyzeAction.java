@@ -365,6 +365,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
     public static class AsyncAction {
 
+        private static final TransportVersion REPO_ANALYSIS_COPY_BLOB = TransportVersion.fromName("repo_analysis_copy_blob");
+
         private final TransportService transportService;
         private final BlobStoreRepository repository;
         private final CancellableTask task;
@@ -481,37 +483,35 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
-            if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_8_0)) {
-                final String contendedRegisterName = CONTENDED_REGISTER_NAME_PREFIX + UUIDs.randomBase64UUID(random);
-                final AtomicBoolean contendedRegisterAnalysisComplete = new AtomicBoolean();
-                final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
-                try (
-                    var registerRefs = new RefCountingRunnable(
-                        finalRegisterValueVerifier(
-                            contendedRegisterName,
-                            registerOperations,
-                            random,
-                            Releasables.wrap(requestRefs.acquire(), () -> contendedRegisterAnalysisComplete.set(true))
-                        )
+            final String contendedRegisterName = CONTENDED_REGISTER_NAME_PREFIX + UUIDs.randomBase64UUID(random);
+            final AtomicBoolean contendedRegisterAnalysisComplete = new AtomicBoolean();
+            final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
+            try (
+                var registerRefs = new RefCountingRunnable(
+                    finalRegisterValueVerifier(
+                        contendedRegisterName,
+                        registerOperations,
+                        random,
+                        Releasables.wrap(requestRefs.acquire(), () -> contendedRegisterAnalysisComplete.set(true))
                     )
-                ) {
-                    for (int i = 0; i < registerOperations; i++) {
-                        final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
-                            request.getRepositoryName(),
-                            blobPath,
-                            contendedRegisterName,
-                            registerOperations,
-                            random.nextInt((registerOperations + 1) * 2)
-                        );
-                        final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
-                        final Releasable registerRef = registerRefs.acquire();
-                        queue.add(ref -> runContendedRegisterAnalysis(Releasables.wrap(registerRef, ref), registerAnalyzeRequest, node));
-                    }
+                )
+            ) {
+                for (int i = 0; i < registerOperations; i++) {
+                    final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
+                        request.getRepositoryName(),
+                        blobPath,
+                        contendedRegisterName,
+                        registerOperations,
+                        random.nextInt((registerOperations + 1) * 2)
+                    );
+                    final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
+                    final Releasable registerRef = registerRefs.acquire();
+                    queue.add(ref -> runContendedRegisterAnalysis(Releasables.wrap(registerRef, ref), registerAnalyzeRequest, node));
                 }
+            }
 
-                if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
-                    new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
-                }
+            if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
+                new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
             }
 
             final List<Long> blobSizes = getBlobSizes(request);
@@ -522,9 +522,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
                 final boolean abortWrite = smallBlob && request.isAbortWritePermitted() && rarely(random);
-                final boolean doCopy = minClusterTransportVersion.onOrAfter(TransportVersions.REPO_ANALYSIS_COPY_BLOB)
-                    && rarely(random)
-                    && i > 0;
+                final boolean doCopy = minClusterTransportVersion.supports(REPO_ANALYSIS_COPY_BLOB) && rarely(random) && i > 0;
                 final String blobName = "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random);
                 String copyBlobName = null;
                 if (doCopy) {

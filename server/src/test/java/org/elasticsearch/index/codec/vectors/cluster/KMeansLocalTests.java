@@ -15,9 +15,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class KMeansLocalTests extends ESTestCase {
 
@@ -140,5 +143,48 @@ public class KMeansLocalTests extends ESTestCase {
             vectors.add(vector);
         }
         return FloatVectorValues.fromFloats(vectors, nDims);
+    }
+
+    public void testComputeNeighbours() throws IOException {
+        int numCentroids = randomIntBetween(1000, 2000);
+        int dims = randomIntBetween(10, 200);
+        float[][] vectors = new float[numCentroids][dims];
+        for (int i = 0; i < numCentroids; i++) {
+            for (int j = 0; j < dims; j++) {
+                vectors[i][j] = randomFloat();
+            }
+        }
+        int clustersPerNeighbour = randomIntBetween(64, 128);
+        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
+        NeighborHood[] neighborHoodsBruteForce = NeighborHood.computeNeighborhoodsBruteForce(vectors, clustersPerNeighbour);
+        assertEquals(neighborHoodsGraph.length, neighborHoodsBruteForce.length);
+        for (int i = 0; i < neighborHoodsGraph.length; i++) {
+            assertEquals(neighborHoodsBruteForce[i].neighbors().length, neighborHoodsGraph[i].neighbors().length);
+            int matched = compareNN(i, neighborHoodsBruteForce[i].neighbors(), neighborHoodsGraph[i].neighbors());
+            double recall = (double) matched / neighborHoodsGraph[i].neighbors().length;
+            assertThat(recall, greaterThanOrEqualTo(0.5));
+            if (recall == 1.0) {
+                // we cannot assert on array equality as there can be small differences due to numerical errors
+                assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-5f);
+            }
+        }
+    }
+
+    private static int compareNN(int currentId, int[] expected, int[] results) {
+        int matched = 0;
+        Set<Integer> expectedSet = new HashSet<>();
+        Set<Integer> alreadySeen = new HashSet<>();
+        for (int i : expected) {
+            assertNotEquals(currentId, i);
+            assertTrue(expectedSet.add(i));
+        }
+        for (int i : results) {
+            assertNotEquals(currentId, i);
+            assertTrue(alreadySeen.add(i));
+            if (expectedSet.contains(i)) {
+                ++matched;
+            }
+        }
+        return matched;
     }
 }

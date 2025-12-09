@@ -16,7 +16,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,8 +32,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -45,15 +42,12 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING;
-import static org.elasticsearch.TransportVersions.ESQL_REPORT_SHARD_PARTITIONING_8_19;
-
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
-    protected final List<? extends RefCounted> shardContextCounters;
+    protected final IndexedByShardId<? extends RefCounted> refCounteds;
     protected final BlockFactory blockFactory;
 
     /**
@@ -66,7 +60,7 @@ public abstract class LuceneOperator extends SourceOperator {
     final Set<Query> processedQueries = new HashSet<>();
     final Set<String> processedShards = new HashSet<>();
 
-    private LuceneSlice currentSlice;
+    protected LuceneSlice currentSlice;
     private int sliceIndex;
 
     private LuceneScorer currentScorer;
@@ -80,13 +74,13 @@ public abstract class LuceneOperator extends SourceOperator {
     long rowsEmitted;
 
     protected LuceneOperator(
-        List<? extends RefCounted> shardContextCounters,
+        IndexedByShardId<? extends RefCounted> refCounteds,
         BlockFactory blockFactory,
         int maxPageSize,
         LuceneSliceQueue sliceQueue
     ) {
-        this.shardContextCounters = shardContextCounters;
-        shardContextCounters.forEach(RefCounted::mustIncRef);
+        this.refCounteds = refCounteds;
+        refCounteds.collection().forEach(RefCounted::mustIncRef);
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
@@ -105,7 +99,7 @@ public abstract class LuceneOperator extends SourceOperator {
          * @param needsScore Whether the score is needed.
          */
         protected Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contextsByShardId,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
@@ -117,7 +111,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
-                contexts,
+                contextsByShardId,
                 queryFunction,
                 dataPartitioning,
                 autoStrategy,
@@ -155,7 +149,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
-        shardContextCounters.forEach(RefCounted::decRef);
+        refCounteds.collection().forEach(RefCounted::decRef);
         additionalClose();
     }
 
@@ -269,18 +263,12 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("shards = ").append(sortedUnion(processedShards, sliceQueue.remainingShardsIdentifiers()));
+        sb.append("shards = ")
+            .append(sliceQueue.partitioningStrategies().keySet().stream().sorted().collect(Collectors.joining(",", "[", "]")));
         sb.append(", maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");
         return sb.toString();
-    }
-
-    private static Set<String> sortedUnion(Collection<String> a, Collection<String> b) {
-        var result = new TreeSet<String>();
-        result.addAll(a);
-        result.addAll(b);
-        return result;
     }
 
     protected abstract void describe(StringBuilder sb);
@@ -296,6 +284,8 @@ public abstract class LuceneOperator extends SourceOperator {
             "lucene_source",
             Status::new
         );
+
+        private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
 
         private final int processedSlices;
         private final Set<String> processedQueries;
@@ -367,25 +357,16 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                processedQueries = in.readCollectionAsSet(StreamInput::readString);
-                processedShards = in.readCollectionAsSet(StreamInput::readString);
-            } else {
-                processedQueries = Collections.emptySet();
-                processedShards = Collections.emptySet();
-            }
-            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
+            processedQueries = in.readCollectionAsSet(StreamInput::readString);
+            processedShards = in.readCollectionAsSet(StreamInput::readString);
+            processNanos = in.readVLong();
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
             sliceMin = in.readVInt();
             sliceMax = in.readVInt();
             current = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsEmitted = 0;
-            }
+            rowsEmitted = in.readVLong();
             partitioningStrategies = serializeShardPartitioning(in.getTransportVersion())
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
@@ -394,29 +375,23 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(processedSlices);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeCollection(processedQueries, StreamOutput::writeString);
-                out.writeCollection(processedShards, StreamOutput::writeString);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeVLong(processNanos);
-            }
+            out.writeCollection(processedQueries, StreamOutput::writeString);
+            out.writeCollection(processedShards, StreamOutput::writeString);
+            out.writeVLong(processNanos);
             out.writeVInt(sliceIndex);
             out.writeVInt(totalSlices);
             out.writeVInt(pagesEmitted);
             out.writeVInt(sliceMin);
             out.writeVInt(sliceMax);
             out.writeVInt(current);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsEmitted);
             if (serializeShardPartitioning(out.getTransportVersion())) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
             }
         }
 
         private static boolean serializeShardPartitioning(TransportVersion version) {
-            return version.onOrAfter(ESQL_REPORT_SHARD_PARTITIONING) || version.isPatchFrom(ESQL_REPORT_SHARD_PARTITIONING_8_19);
+            return version.supports(ESQL_REPORT_SHARD_PARTITIONING);
         }
 
         @Override
@@ -543,7 +518,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ValidationException;
@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,6 +40,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
     public static final GetTransformAction INSTANCE = new GetTransformAction();
     public static final String NAME = "cluster:monitor/transform/get";
 
+    static final TransportVersion DANGLING_TASKS = TransportVersion.fromName("transform_check_for_dangling_tasks");
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetTransformAction.class);
 
     private GetTransformAction() {
@@ -47,22 +50,47 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
     public static class Request extends AbstractGetResourcesRequest {
 
+        // for legacy purposes, this transport action previously had no timeout
+        private static final TimeValue LEGACY_TIMEOUT_VALUE = TimeValue.MAX_VALUE;
         private static final int MAX_SIZE_RETURN = 1000;
+        private final boolean checkForDanglingTasks;
+        private final TimeValue timeout;
 
         public Request(String id) {
-            super(id, PageParams.defaultParams(), true);
+            this(id, false, LEGACY_TIMEOUT_VALUE);
         }
 
-        public Request() {
-            super(null, PageParams.defaultParams(), true);
+        public Request(String id, boolean checkForDanglingTasks, TimeValue timeout) {
+            super(id, PageParams.defaultParams(), true);
+            this.checkForDanglingTasks = checkForDanglingTasks;
+            this.timeout = timeout;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.checkForDanglingTasks = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readBoolean() : true;
+            this.timeout = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(DANGLING_TASKS)) {
+                out.writeBoolean(checkForDanglingTasks);
+                out.writeTimeValue(timeout);
+            }
         }
 
         public String getId() {
             return getResourceId();
+        }
+
+        public boolean checkForDanglingTasks() {
+            return checkForDanglingTasks;
+        }
+
+        public TimeValue timeout() {
+            return timeout;
         }
 
         @Override
@@ -85,6 +113,20 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public String getResourceIdField() {
             return TransformField.ID.getPreferredName();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj
+                || (obj instanceof Request other
+                    && super.equals(obj)
+                    && (checkForDanglingTasks == other.checkForDanglingTasks)
+                    && Objects.equals(timeout, other.timeout));
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), checkForDanglingTasks, timeout);
         }
     }
 
@@ -136,12 +178,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                if (in.readBoolean()) {
-                    this.errors = in.readCollectionAsList(Error::new);
-                } else {
-                    this.errors = null;
-                }
+            if (in.readBoolean()) {
+                this.errors = in.readCollectionAsList(Error::new);
             } else {
                 this.errors = null;
             }
@@ -197,13 +235,11 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                if (errors != null) {
-                    out.writeBoolean(true);
-                    out.writeCollection(errors);
-                } else {
-                    out.writeBoolean(false);
-                }
+            if (errors != null) {
+                out.writeBoolean(true);
+                out.writeCollection(errors);
+            } else {
+                out.writeBoolean(false);
             }
         }
 

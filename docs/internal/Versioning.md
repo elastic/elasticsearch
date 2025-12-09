@@ -22,99 +22,164 @@ it could be any arbitrary string.
 
 ## Transport protocol
 
-The transport protocol is used to send binary data between Elasticsearch nodes;
-`TransportVersion` is the version number used for this protocol.
-This version number is negotiated between each pair of nodes in the cluster
-on first connection, and is set as the lower of the highest transport version
-understood by each node.
+The transport protocol is used to send binary data between Elasticsearch nodes; a
+`TransportVersion` encapsulates versioning of this protocol.
+This version is negotiated between each pair of nodes in the cluster
+on first connection, selecting the highest shared version.
 This version is then accessible through the `getTransportVersion` method
 on `StreamInput` and `StreamOutput`, so serialization code can read/write
 objects in a form that will be understood by the other node.
 
-Every change to the transport protocol is represented by a new transport version,
-higher than all previous transport versions, which then becomes the highest version
-recognized by that build of Elasticsearch. The version ids are stored
-as constants in the `TransportVersions` class.
-Each id has a standard pattern `M_NNN_S_PP`, where:
-* `M` is the major version
-* `NNN` is an incrementing id
-* `S` is used in subsidiary repos amending the default transport protocol
-* `PP` is used for patches and backports
+At a high level a `TransportVersion` contains one id per release branch it will
+be committed to. Each `TransportVersion` has a name selected when it is generated.
+In order to ensure consistency and robustness, all new `TransportVersion`s
+must first be created in the `main` branch and then backported to the relevant
+release branches.
 
-When you make a change to the serialization form of any object,
-you need to create a new sequential constant in `TransportVersions`,
-introduced in the same PR that adds the change, that increments
-the `NNN` component from the previous highest version,
-with other components  set to zero.
-For example, if the previous version number is `8_413_0_01`,
-the next version number should be `8_414_0_00`.
+_Elastic developers_ - instructions in this section for managing transport
+versions are the same in Serverless.
 
-Once you have defined your constant, you then need to use it
-in serialization code. If the transport version is at or above the new id,
-the modified protocol should be used:
+### Internal state files
 
-    str = in.readString();
-    bool = in.readBoolean();
-    if (in.getTransportVersion().onOrAfter(TransportVersions.NEW_CONSTANT)) {
-        num = in.readVInt();
+The Elasticsearch server jar contains resource files representing each
+transport version. These files are loaded at runtime to construct
+`TransportVersion` instances. Since each transport version has its own file
+they can be backported without conflict.
+
+Additional resource files represent the latest transport version known on
+each release branch. If two transport versions are added at the same time,
+there will be a conflict in these internal state files, forcing one to be
+regenerated to resolve the conflict before merging to `main`.
+
+All of these internal state files are managed by gradle tasks; they should
+not be edited directly.
+
+### Creating transport versions locally
+
+To create a transport version, declare a reference anywhere in java code. For example:
+
+    private static final TransportVersion MY_NEW_TV = TransportVersion.fromName("my_new_tv");
+
+`fromName` takes an arbitrary String name. The String must be a String literal;
+it cannot be a reference to a String. It must match the regex `[_0-9a-zA-Z]+`.
+You can reference the same transport version name from multiple classes, but
+you must not use an existing transport version name after it as already been
+committed to `main`.
+
+Once you have declared your `TransportVersion` you can use it in serialization code.
+For example, in a constructor that takes `StreamInput in`:
+
+    if (in.getTransportVersion().supports(MY_NEW_TV)) {
+        // new serialization code
     }
 
-If a transport version change needs to be reverted, a **new** version constant
-should be added representing the revert, and the version id checks
-adjusted appropriately to only use the modified protocol between the version id
-the change was added, and the new version id used for the revert (exclusive).
-The `between` method can be used for this.
+Finally, in order to run Elasticsearch or run tests, the transport version ids
+must be generated. Run the following gradle task:
 
-Once a transport change with a new version has been merged into main or a release branch,
-it **must not** be modified - this is so the meaning of that specific
-transport version does not change.
+    ./gradlew generateTransportVersion
 
-_Elastic developers_ - please see corresponding documentation for Serverless
-on creating transport versions for Serverless changes.
+This will generate the internal state to support the new transport version. If
+you also intend to backport your code, include branches you will backport to:
 
-### Collapsing transport versions
+    ./gradlew generateTransportVersion --backport-branches=9.1,8.19
 
-As each change adds a new constant, the list of constants in `TransportVersions`
-will keep growing. However, once there has been an official release of Elasticsearch,
-that includes that change, that specific transport version is no longer needed,
-apart from constants that happen to be used for release builds.
-As part of managing transport versions, consecutive transport versions can be
-periodically collapsed together into those that are only used for release builds.
-This task is normally performed by Core/Infra on a semi-regular basis,
-usually after each new minor release, to collapse the transport versions
-for the previous minor release. An example of such an operation can be found
-[here](https://github.com/elastic/elasticsearch/pull/104937).
+### Updating transport versions
 
-#### Tips
+You can modify a transport version before it is merged to `main`. This includes
+renaming the transport version, updating the branches it will be backported to,
+or even removing the transport version itself.
 
-- We collapse versions only on the `main` branch.
-- Use [TransportVersions.csv](../../server/src/main/resources/org/elasticsearch/TransportVersions.csv) as your guide.
-- For each release version listed in that file with a corresponding `INITIAL_ELASTICSEARCH_` entry corresponding to that version,
-  - change the prefix to `V_`
-  - replace all intervening entries since the previous patch `V_` entry with the new `V_` entry
-  - look at all uses of the new `V_` entry and look for dead code that can be deleted
+The generation task is idempotent. It can be re-run at any time and will result
+in a valid internal state. For example, if you want to add an additional
+backport branch, re-run the generation task with all the target backport
+branches:
 
-For example, if there's a version `1.2.3` in the CSV file,
-and `TransportVersions.java` has an entry called `INITIAL_ELASTICSEARCH_1_2_3`,
-then:
-- rename it to `V_1_2_3`,
-- replace any other intervening symbols between `V_1_2_2` and `V_1_2_3` with `V_1_2_3` itself, and
-- look through all the uses of the new `V_1_2_3` symbol; if any contain dead code, simplify it.
+    ./gradlew generateTransportVersion --backport-branches=9.1,9.0,8.19,8.18
 
-When in doubt, you can always leave the code as-is.
-This is an optional cleanup step that is never required for correctness.
+You can also let CI handle updating transport versions for you. As version
+labels are updated on your PR, the generation task is automatically run with
+the appropriate backport branches and any changes to the internal state files
+are committed to your branch.
+
+Transport versions can also have additional branches added after merging to
+`main`. When doing so, you must include all branches the transport version was
+added to in addition to new branch. For example, if you originally committed
+your transport version `my_tv` to `main` and `9.1`, and then realized you also
+needed to backport to `8.19` you would run (in `main`):
+
+    ./gradlew generateTransportVersion --name=my_tv --backport-branches=9.1,8.19
+
+In the above case CI will not know what transport version name to update, so you
+must run the generate task again as described. After merging the updated
+transport version it will need to be backported to all the applicable branches.
+Backport branches that already included the original change can use
+auto-backport in CI or cherry-pick the updated transport version. Backport
+branches that did not include the original change need to cherry-pick both the
+original change and the updated transport version. For example, with the above
+change that is first backported to `9.1`, and subsequently added to `8.19`, the
+sequence of events would look like the following:
+
+1. Create a pull request with target branch `main` for a new change
+(`C0`) with a newly created transport version (`TV`) required by `C0`
+   1. Use the `github` labels `auto-backport` and `branch:9.1` to backport `C0`
+   and `TV` into the target branch `9.1`.
+2. Discover that `C0` is also required in target branch `8.19`.
+3. Create a pull request with target branch `main` for a change (`C1`) to only
+update `TV` to include `8.19`
+   1. Use the gradle task
+   `./gradlew generateTransportVersion --name=my_tv
+   --backport-branches=9.1,8.19`
+   to update `TV` to include `8.19`
+   2. Use the `github` labels `auto-backport`, `branch:9.1`, and `branch:8.19`
+   to backport `C1` and updated `TV` into the target branches `9.1` and `8.19`.
+   This creates a source branch for `8.19` (`SB819`) that does not contain `C0`.
+   3. Cherry-pick `C0` into the source branch `SB819`
+
+Note there are several ways to achieve the desired end state. This
+specific example takes advantage of the available CI tooling to simplify the
+process.
+
+### Resolving merge conflicts
+
+Transport versions are created sequentially. If two developers create a transport
+version at the same time, based on the same `main` commit, they will generate
+the same internal ids. The first of these two merged into `main` will "win", and
+the latter will have a merge conflict with `main`.
+
+In the event of a conflict, merge `main` into your branch. You will have
+conflict(s) with transport version internal state files. Run the following
+task to resolve the conflict(s):
+
+    ./gradlew resolveTransportVersionConflict
+
+This command will regenerate your transport version and stage the updated
+state files in git. You can then proceed with your merge as usual.
+
+### Reverting changes
+
+Transport versions cannot be removed, they can only be added. If the logic
+using a transport version needs to be reverted, it must be done with a
+new transport version.
+
+For example, if you have previously added a transport version named
+`original_tv` you could add `revert_tv` reversing the logic:
+
+    TransportVersion tv = in.getTransportVersion();
+    if (tv.supports(ORIGINAL_TV) && tv.supports(REVERT_TV) == false) {
+        // serialization code being reverted
+    }
 
 ### Minimum compatibility versions
 
 The transport version used between two nodes is determined by the initial handshake
 (see `TransportHandshaker`, where the two nodes swap their highest known transport version).
 The lowest transport version that is compatible with the current node
-is determined by `TransportVersions.MINIMUM_COMPATIBLE`,
+is determined by `TransportVersion.minimumCompatible()`,
 and the node is prevented from joining the cluster if it is below that version.
 This constant should be updated manually on a major release.
 
 The minimum version that can be used for CCS is determined by
-`TransportVersions.MINIMUM_CCS_VERSION`, but this is not actively checked
+`TransportVersion.minimumCCSVersion()`, but this is not actively checked
 before queries are performed. Only if a query cannot be serialized at that
 version is an action rejected. This constant is updated automatically
 as part of performing a release.
@@ -133,70 +198,22 @@ is updated automatically as part of performing a release.
 In releases that do not have a release version number, that method becomes
 a no-op.
 
-### Managing patches and backports
-
-Backporting transport version changes to previous releases
-should only be done if absolutely necessary, as it is very easy to get wrong
-and break the release in a way that is very hard to recover from.
-
-If we consider the version number as an incrementing line, what we are doing is
-grafting a change that takes effect at a certain point in the line,
-to additionally take effect in a fixed window earlier in the line.
-
-To take an example, using indicative version numbers, when the latest
-transport version is 52, we decide we need to backport a change done in
-transport version 50 to transport version 45. We use the `P` version id component
-to create version 45.1 with the backported change.
-This change will apply for version ids 45.1 to 45.9 (should they exist in the future).
-
-The serialization code in the backport needs to use the backported protocol
-for all version numbers 45.1 to 45.9. The `TransportVersion.isPatchFrom` method
-can be used to easily determine if this is the case: `streamVersion.isPatchFrom(45.1)`.
-However, the `onOrAfter` also does what is needed on patch branches.
-
-The serialization code in version 53 then needs to additionally check
-version numbers 45.1-45.9 to use the backported protocol, also using the `isPatchFrom` method.
-
-As an example, [this transport change](https://github.com/elastic/elasticsearch/pull/107862)
-was backported from 8.15 to [8.14.0](https://github.com/elastic/elasticsearch/pull/108251)
-and [8.13.4](https://github.com/elastic/elasticsearch/pull/108250) at the same time
-(8.14 was a build candidate at the time).
-
-The 8.13 PR has:
-
-    if (transportVersion.onOrAfter(8.13_backport_id))
-
-The 8.14 PR has:
-
-    if (transportVersion.isPatchFrom(8.13_backport_id)
-        || transportVersion.onOrAfter(8.14_backport_id))
-
-The 8.15 PR has:
-
-    if (transportVersion.isPatchFrom(8.13_backport_id)
-        || transportVersion.isPatchFrom(8.14_backport_id)
-        || transportVersion.onOrAfter(8.15_transport_id))
-
-In particular, if you are backporting a change to a patch release,
-you also need to make sure that any subsequent released version on any branch
-also has that change, and knows about the patch backport ids and what they mean.
-
 ## Index version
 
 Index version is a single incrementing version number for the index data format,
-metadata, and associated mappings. It is declared the same way as the
-transport version - with the pattern `M_NNN_S_PP`, for the major version, version id,
-subsidiary version id, and patch number respectively.
+metadata, and associated mappings. It is declared with the pattern `M_NNN_S_PP`,
+for the major version, version id, subsidiary version id, and patch number
+respectively.
 
 Index version is stored in index metadata when an index is created,
 and it is used to determine the storage format and what functionality that index supports.
 The index version does not change once an index is created.
 
-In the same way as transport versions, when a change is needed to the index
-data format or metadata, or new mapping types are added, create a new version constant
-below the last one, incrementing the `NNN` version component.
+When a change is needed to the index data format or metadata, or new mapping
+types are added, create a new version constant below the last one, incrementing
+the `NNN` version component.
 
-Unlike transport version, version constants cannot be collapsed together,
+Index version constants cannot be collapsed together,
 as an index keeps its creation version id once it is created.
 Fortunately, new index versions are only created once a month or so,
 so we don’t have a large list of index versions that need managing.

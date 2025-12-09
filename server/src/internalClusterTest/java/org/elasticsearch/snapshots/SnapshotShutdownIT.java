@@ -483,6 +483,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var otherNode = internalCluster().startDataOnlyNode();
         final var otherIndex = randomIdentifier();
         createIndexWithContent(otherIndex, indexSettings(numShards, 0).put(REQUIRE_NODE_NAME_SETTING, otherNode).build());
+        indexAllShardsToAnEqualOrGreaterMinimumSize(otherIndex, ByteSizeValue.of(2, ByteSizeUnit.KB).getBytes());
         blockDataNode(repoName, otherNode);
 
         final var nodeForRemoval = internalCluster().startDataOnlyNode(
@@ -565,28 +566,28 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             })
         );
 
+        // The SnapshotShutdownProgressTracker periodically logs the status of in-flight snapshots during node shutdown.
+        // The periodic logger ends when the last snapshot is either finished or paused. Since this is asynchronous, to avoid race
+        // conditions we must define all of our mocklog assertions up front to ensure that the tracker is acting as expected
+
+        // Check that the SnapshotShutdownProgressTracker observed the request sent to the master node.
+        // Note that we cannot guarantee how many requests the tracker receives before finishing its logging
         mockLog.addExpectation(
             new MockLog.SeenEventExpectation(
                 "SnapshotShutdownProgressTracker shard snapshot has paused log message",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "*Number shard snapshots waiting for master node reply to status update request [" + numShards + "]*"
+                "*Number shard snapshots waiting for master node reply to status update request [*]*"
             )
         );
 
-        // Let the shard snapshot proceed. It will still get stuck waiting for the master node to respond.
-        unblockNode(repoName, nodeForRemoval);
-
-        // Check that the SnapshotShutdownProgressTracker observed the request sent to the master node.
-        mockLog.awaitAllExpectationsMatched();
-        resetMockLog();
-
+        // Check that the SnapshotShutdownProgressTracker observed the shard snapshot finishing as paused.
         mockLog.addExpectation(
             new MockLog.SeenEventExpectation(
                 "SnapshotShutdownProgressTracker shard snapshot has paused log message",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "Current active shard snapshot stats on data node [" + nodeForRemovalId + "]*Paused [" + numShards + "]"
+                "*on data node [" + nodeForRemovalId + "]*Paused [" + numShards + "]"
             )
         );
         mockLog.addExpectation(
@@ -598,13 +599,15 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             )
         );
 
+        // Let the shard snapshot proceed. It will still get stuck waiting for the master node to respond.
+        unblockNode(repoName, nodeForRemoval);
+
         // Release the master node to respond
         snapshotStatusUpdateLatch.countDown();
 
         // Wait for the snapshot to fully pause.
         safeAwait(snapshotPausedListener);
 
-        // Check that the SnapshotShutdownProgressTracker observed the shard snapshot finishing as paused.
         mockLog.awaitAllExpectationsMatched();
         resetMockLog();
 

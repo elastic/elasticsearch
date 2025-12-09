@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,7 +55,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
@@ -115,9 +113,16 @@ public final class Authentication implements ToXContentObject {
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
-    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
-    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersions.V_8_2_0;
-    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
+    public static final TransportVersion VERSION_SYNTHETIC_ROLE_NAMES = TransportVersion.fromId(7_08_00_99);
+    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.fromId(7_09_00_99);
+    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.fromId(8_02_00_99);
+    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.fromId(8_08_00_99);
+    public static final TransportVersion VERSION_CROSS_CLUSTER_ACCESS = TransportVersion.fromId(8_500_0_61);
+
+    private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
+        "security_cloud_api_key_realm_and_type"
+    );
+
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -206,7 +211,7 @@ public final class Authentication implements ToXContentObject {
 
     private User copyUserWithRolesRemovedForLegacyApiKeys(TransportVersion version, User user) {
         // API keys prior to 7.8 had synthetic role names. Strip these out to maintain the invariant that API keys don't have role names
-        if (type == AuthenticationType.API_KEY && version.onOrBefore(TransportVersions.V_7_8_0) && user.roles().length > 0) {
+        if (type == AuthenticationType.API_KEY && version.onOrBefore(VERSION_SYNTHETIC_ROLE_NAMES) && user.roles().length > 0) {
             logger.debug(
                 "Stripping [{}] roles from API key user [{}] for legacy version [{}]",
                 user.roles().length,
@@ -260,19 +265,19 @@ public final class Authentication implements ToXContentObject {
 
         // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting is
         // not possible
-        if (isCrossClusterAccess() && olderVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        if (isCrossClusterAccess() && olderVersion.before(VERSION_CROSS_CLUSTER_ACCESS)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                    + VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to rewrite for ["
                     + olderVersion.toReleaseVersion()
                     + "]"
             );
         }
-        if (isCloudApiKey() && olderVersion.before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+        if (isCloudApiKey() && olderVersion.supports(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
                     + "] can't handle cloud API key authentication and attempted to rewrite for ["
                     + olderVersion.toReleaseVersion()
                     + "]"
@@ -640,20 +645,20 @@ public final class Authentication implements ToXContentObject {
         // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we
         // should not send them across the wire to older nodes
         final boolean isCrossClusterAccess = effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
-        if (isCrossClusterAccess && out.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        if (isCrossClusterAccess && out.getTransportVersion().before(VERSION_CROSS_CLUSTER_ACCESS)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                    + VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         }
         if (effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY
-            && out.getTransportVersion().before(TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE)) {
+            && out.getTransportVersion().supports(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE) == false) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersions.SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
+                    + SECURITY_CLOUD_API_KEY_REALM_AND_TYPE.toReleaseVersion()
                     + "] can't handle cloud API key authentication and attempted to send to ["
                     + out.getTransportVersion().toReleaseVersion()
                     + "]"
@@ -1376,14 +1381,61 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
-        assert authResult.isAuthenticated() : "cloud API Key authn result must be successful";
-        final User apiKeyUser = authResult.getValue();
-        final Authentication.RealmRef authenticatedBy = newCloudApiKeyRealmRef(nodeName);
+    private static final Map<Subject.Type, Set<AuthenticationType>> VALID_CLOUD_AUTH_TYPES = Map.ofEntries(
+        Map.entry(Subject.Type.CLOUD_API_KEY, Set.of(AuthenticationType.API_KEY, AuthenticationType.TOKEN)),
+        Map.entry(Subject.Type.USER, Set.of(AuthenticationType.TOKEN))
+    );
+
+    public static Authentication newCloudAuthentication(
+        AuthenticationType authenticationType,
+        Subject.Type subjectType,
+        AuthenticationResult<User> authenticationResult,
+        String nodeName,
+        @Nullable RealmIdentifier realmId
+    ) {
+        assert authenticationResult.isAuthenticated() : "cloud authentication results must be successful";
+
+        if (VALID_CLOUD_AUTH_TYPES.getOrDefault(subjectType, Set.of()).contains(authenticationType) == false) {
+            throw new IllegalArgumentException(
+                "Cannot create cloud [" + subjectType + "] authentication with authentication type [" + authenticationType + "]"
+            );
+        }
+
+        final User user = authenticationResult.getValue();
+        final RealmRef realmRef;
+        if (subjectType == Subject.Type.CLOUD_API_KEY) {
+            assert realmId == null : "Cannot have realm id [" + realmId + "] for cloud API Key subject [" + user + "]";
+            realmRef = newCloudApiKeyRealmRef(nodeName);
+        } else if (subjectType == Subject.Type.USER) {
+            assert realmId != null : "Must have realm id for cloud user subject [" + user + "]";
+            realmRef = new RealmRef(realmId.getName(), realmId.getType(), nodeName);
+        } else {
+            throw new IllegalArgumentException("Unsupported subject type [" + subjectType + "] for cloud authentication");
+        }
+
         return new Authentication(
-            new Subject(apiKeyUser, authenticatedBy, TransportVersion.current(), authResult.getMetadata()),
-            AuthenticationType.API_KEY
+            new Subject(user, realmRef, TransportVersion.current(), authenticationResult.getMetadata()),
+            authenticationType
         );
+    }
+
+    @Deprecated
+    public static Authentication newCloudAccessTokenAuthentication(
+        AuthenticationResult<User> authResult,
+        Authentication.RealmRef realmRef
+    ) {
+        return newCloudAuthentication(
+            AuthenticationType.TOKEN,
+            Subject.Type.USER,
+            authResult,
+            realmRef.nodeName,
+            new RealmIdentifier(realmRef.type, realmRef.name)
+        );
+    }
+
+    @Deprecated
+    public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        return newCloudAuthentication(AuthenticationType.API_KEY, Subject.Type.CLOUD_API_KEY, authResult, nodeName, null);
     }
 
     public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
@@ -1439,8 +1491,8 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-                && streamVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_CROSS_CLUSTER_ACCESS)
+                && streamVersion.before(VERSION_CROSS_CLUSTER_ACCESS)) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,

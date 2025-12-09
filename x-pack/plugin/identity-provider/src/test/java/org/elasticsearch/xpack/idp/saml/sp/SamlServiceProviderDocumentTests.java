@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,6 +39,14 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
+
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
+        "idp_custom_saml_attributes_allow_list"
+    );
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH = IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST
+        .nextPatchVersion();
+    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = TransportVersion.fromName("stored_script_content_length");
+    private static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_PATCH = STORED_SCRIPT_CONTENT_LENGTH.nextPatchVersion();
 
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
@@ -96,13 +103,13 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         final TransportVersion version = randomBoolean()
             ? TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_9_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
+                STORED_SCRIPT_CONTENT_LENGTH_PATCH,
+                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
             )
             : TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.V_8_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
+                TransportVersion.minimumCompatible(),
+                TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_PATCH)
             );
         final SamlServiceProviderDocument copy = copyWriteable(
             original,
@@ -189,7 +196,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
+            IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
             TransportVersion.current()
         );
         final SamlServiceProviderDocument read = copyWriteable(

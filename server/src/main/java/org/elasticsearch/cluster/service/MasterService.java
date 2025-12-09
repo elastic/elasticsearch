@@ -415,13 +415,30 @@ public class MasterService extends AbstractLifecycleComponent {
 
                 @Override
                 public void onFailure(Exception exception) {
-                    if (exception instanceof FailedToCommitClusterStateException failedToCommitClusterStateException) {
+                    if (exception instanceof FailedToCommitClusterStateException || exception instanceof NotMasterException) {
                         final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
                         final long version = newClusterState.version();
-                        logger.warn(() -> format("failing [%s]: failed to commit cluster state version [%s]", summary, version), exception);
-                        for (final var executionResult : executionResults) {
-                            executionResult.onPublishFailure(failedToCommitClusterStateException);
+
+                        if (exception instanceof FailedToCommitClusterStateException) {
+                            logger.warn(
+                                () -> format("Failing [%s]: failed to commit cluster state version [%s]", summary, version),
+                                exception
+                            );
+                        } else {
+                            logger.debug(
+                                () -> format(
+                                    "Failing [%s]: node is no longer the master. Failed to publish cluster state version [%s]",
+                                    summary,
+                                    version
+                                ),
+                                exception
+                            );
                         }
+
+                        for (final var executionResult : executionResults) {
+                            executionResult.onPublishFailure(exception);
+                        }
+
                         final long notificationMillis = threadPool.rawRelativeTimeInMillis() - notificationStartTime;
                         clusterStateUpdateStatsTracker.onPublicationFailure(
                             threadPool.rawRelativeTimeInMillis(),
@@ -985,11 +1002,18 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        void onPublishFailure(FailedToCommitClusterStateException e) {
+        void onPublishFailure(Exception e) {
+            assert e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException : e;
             if (publishedStateConsumer == null && onPublicationSuccess == null) {
                 assert failure != null;
                 var taskFailure = failure;
-                failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+
+                if (e instanceof FailedToCommitClusterStateException) {
+                    failure = new FailedToCommitClusterStateException(e.getMessage(), e);
+                } else {
+                    failure = new NotMasterException(e.getMessage(), e);
+                }
+
                 failure.addSuppressed(taskFailure);
                 notifyFailure();
                 return;
@@ -1283,7 +1307,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 if (lifecycle.started()) {
                     nextBatch.run(batchCompletionListener);
                 } else {
-                    nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+                    nextBatch.onRejection(new NotMasterException("node closed", getRejectionException()));
                     batchCompletionListener.onResponse(null);
                 }
             });
@@ -1309,7 +1333,7 @@ public class MasterService extends AbstractLifecycleComponent {
         @Override
         public void onRejection(Exception e) {
             assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
+            drainQueueOnRejection(new NotMasterException("node closed", e));
         }
 
         @Override
@@ -1336,7 +1360,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private void forkQueueProcessor() {
         // single-threaded: started when totalQueueSize transitions from 0 to 1 and keeps calling itself until the queue is drained.
         if (lifecycle.started() == false) {
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
+            drainQueueOnRejection(new NotMasterException("node closed", getRejectionException()));
             return;
         }
 
@@ -1353,7 +1377,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return new EsRejectedExecutionException("master service is in state [" + lifecycleState() + "]", true);
     }
 
-    private void drainQueueOnRejection(FailedToCommitClusterStateException e) {
+    private void drainQueueOnRejection(NotMasterException e) {
         assert totalQueueSize.get() > 0;
         do {
             assert currentlyExecutingBatch == null;
@@ -1407,12 +1431,12 @@ public class MasterService extends AbstractLifecycleComponent {
         /**
          * Called when the batch is rejected due to the master service shutting down.
          *
-         * @param e is a {@link FailedToCommitClusterStateException} to cause things like {@link TransportMasterNodeAction} to retry after
-         *          submitting a task to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
-         *          {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
+         * @param e is a {@link NotMasterException} to cause things like {@link TransportMasterNodeAction} to retry after submitting a task
+         *         to a master which shut down. {@code e.getCause()} is the rejection exception, which should be a
+         *         {@link EsRejectedExecutionException} with {@link EsRejectedExecutionException#isExecutorShutdown()} true.
          */
         // Should really be a NodeClosedException instead, but this exception type doesn't trigger retries today.
-        void onRejection(FailedToCommitClusterStateException e);
+        void onRejection(NotMasterException e);
 
         /**
          * @return number of tasks in this batch if the batch is pending, or {@code 0} if the batch is not pending.
@@ -1583,13 +1607,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
                     task.onFailure(
-                        new FailedToCommitClusterStateException(
-                            "could not schedule timeout handler for [%s][%s] on queue [%s]",
-                            e,
-                            source,
-                            task,
-                            name
-                        )
+                        new NotMasterException("could not schedule timeout handler for [%s][%s] on queue [%s]", e, source, task, name)
                     );
                     return;
                 }
@@ -1634,7 +1652,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 return task;
             }
 
-            void onRejection(FailedToCommitClusterStateException e) {
+            void onRejection(NotMasterException e) {
                 final var task = acquireForExecution();
                 if (task != null) {
                     try (var ignored = storedContextSupplier.get()) {
@@ -1654,7 +1672,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private class Processor implements Batch {
             @Override
-            public void onRejection(FailedToCommitClusterStateException e) {
+            public void onRejection(NotMasterException e) {
                 final var items = queueSize.getAndSet(0);
                 for (int i = 0; i < items; i++) {
                     final var entry = queue.poll();

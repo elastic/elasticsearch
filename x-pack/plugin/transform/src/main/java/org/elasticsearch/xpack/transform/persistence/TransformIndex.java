@@ -213,7 +213,7 @@ public final class TransformIndex {
                     config.getDestination().getIndex(),
                     config.getId()
                 );
-                logger.error(message, e);
+                logger.warn(message, e);
                 listener.onFailure(new RuntimeException(message, e));
             })
         );
@@ -255,7 +255,7 @@ public final class TransformIndex {
                     config.getDestination().getIndex(),
                     config.getId()
                 );
-                logger.error(message, e);
+                logger.warn(message, e);
                 listener.onFailure(new RuntimeException(message, e));
             })
         );

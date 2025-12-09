@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -15,9 +16,13 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafeRefCounted implements AggregateMetricDoubleBlock {
+    public static final TransportVersion WRITE_TYPED_BLOCK = TransportVersion.fromName("aggregate_metric_double_typed_block");
+
     private final DoubleBlock minBlock;
     private final DoubleBlock maxBlock;
     private final DoubleBlock sumBlock;
@@ -234,8 +239,35 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
-            block.writeTo(out);
+        if (out.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
+            for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+                Block.writeTypedBlock(block, out);
+            }
+        } else {
+            // We can't serialize ConstantNullBlock instances for BWC reasons,
+            // so we replace them with non-constant null blocks here
+            for (DoubleBlock block : List.of(minBlock, maxBlock, sumBlock)) {
+                try (Block notConstantNull = replaceConstantNullBlock(block, blockFactory()::newDoubleBlockBuilder)) {
+                    notConstantNull.writeTo(out);
+                }
+            }
+            try (Block notConstantNull = replaceConstantNullBlock(countBlock, blockFactory()::newIntBlockBuilder)) {
+                notConstantNull.writeTo(out);
+            }
+        }
+    }
+
+    private Block replaceConstantNullBlock(Block block, IntFunction<Builder> builderProducer) {
+        if (block instanceof ConstantNullBlock) {
+            try (var builder = builderProducer.apply(block.getPositionCount())) {
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    builder.appendNull();
+                }
+                return builder.build();
+            }
+        } else {
+            block.incRef();
+            return block;
         }
     }
 
@@ -247,10 +279,17 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         IntBlock countBlock = null;
         BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         try {
-            minBlock = DoubleBlock.readFrom(blockStreamInput);
-            maxBlock = DoubleBlock.readFrom(blockStreamInput);
-            sumBlock = DoubleBlock.readFrom(blockStreamInput);
-            countBlock = IntBlock.readFrom(blockStreamInput);
+            if (in.getTransportVersion().supports(WRITE_TYPED_BLOCK)) {
+                minBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                maxBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                sumBlock = (DoubleBlock) Block.readTypedBlock(blockStreamInput);
+                countBlock = (IntBlock) Block.readTypedBlock(blockStreamInput);
+            } else {
+                minBlock = DoubleBlock.readFrom(blockStreamInput);
+                maxBlock = DoubleBlock.readFrom(blockStreamInput);
+                sumBlock = DoubleBlock.readFrom(blockStreamInput);
+                countBlock = IntBlock.readFrom(blockStreamInput);
+            }
             AggregateMetricDoubleArrayBlock result = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
             success = true;
             return result;
@@ -309,5 +348,14 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
             return countBlock;
         }
         throw new UnsupportedOperationException("Received an index (" + index + ") outside of range for AggregateMetricDoubleBlock.");
+    }
+
+    @Override
+    public String toString() {
+        String valuesString = Stream.of(AggregateMetricDoubleBlockBuilder.Metric.values())
+            .map(metric -> metric.getLabel() + "=" + getMetricBlock(metric.getIndex()))
+            .collect(Collectors.joining(", ", "[", "]"));
+
+        return getClass().getSimpleName() + valuesString;
     }
 }

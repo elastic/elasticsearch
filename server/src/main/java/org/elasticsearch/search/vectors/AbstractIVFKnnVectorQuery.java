@@ -15,26 +15,23 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -187,24 +184,35 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
+        final int maxDoc = reader.maxDoc();
 
         if (filterWeight == null) {
-            return approximateSearch(ctx, liveDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+            return approximateSearch(
+                ctx,
+                liveDocs == null ? ESAcceptDocs.ESAcceptDocsAll.INSTANCE : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
+                Integer.MAX_VALUE,
+                knnCollectorManager,
+                visitRatio
+            );
         }
 
-        Scorer scorer = filterWeight.scorer(ctx);
-        if (scorer == null) {
+        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+        if (supplier == null) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
 
-        BitSet acceptDocs = createBitSet(scorer.iterator(), liveDocs, reader.maxDoc());
-        final int cost = acceptDocs.cardinality();
-        return approximateSearch(ctx, acceptDocs, cost + 1, knnCollectorManager, visitRatio);
+        return approximateSearch(
+            ctx,
+            new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc),
+            Integer.MAX_VALUE,
+            knnCollectorManager,
+            visitRatio
+        );
     }
 
     abstract TopDocs approximateSearch(
         LeafReaderContext context,
-        Bits acceptDocs,
+        AcceptDocs acceptDocs,
         int visitedLimit,
         IVFCollectorManager knnCollectorManager,
         float visitRatio
@@ -217,22 +225,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     @Override
     public final void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
-    }
-
-    BitSet createBitSet(DocIdSetIterator iterator, Bits liveDocs, int maxDoc) throws IOException {
-        if (liveDocs == null && iterator instanceof BitSetIterator bitSetIterator) {
-            // If we already have a BitSet and no deletions, reuse the BitSet
-            return bitSetIterator.getBitSet();
-        } else {
-            // Create a new BitSet from matching and live docs
-            FilteredDocIdSetIterator filterIterator = new FilteredDocIdSetIterator(iterator) {
-                @Override
-                protected boolean match(int doc) {
-                    return liveDocs == null || liveDocs.get(doc);
-                }
-            };
-            return BitSet.of(filterIterator, maxDoc);
-        }
     }
 
     static class IVFCollectorManager implements KnnCollectorManager {

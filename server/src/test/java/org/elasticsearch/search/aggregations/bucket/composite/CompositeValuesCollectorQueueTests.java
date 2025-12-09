@@ -35,6 +35,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.KnnCollector;
@@ -50,6 +51,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -274,7 +276,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     sources[i] = new LongValuesSource(
                         bigArrays,
                         fieldType,
-                        context -> DocValues.getSortedNumeric(context.reader(), fieldType.name()),
+                        context -> SortedNumericLongValues.wrap(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
                         value -> value,
                         DocValueFormat.RAW,
                         missingBucket,
@@ -286,7 +288,9 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     sources[i] = new DoubleValuesSource(
                         bigArrays,
                         fieldType,
-                        context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
+                        context -> FieldData.sortableLongBitsToDoubles(
+                            SortedNumericLongValues.wrap(DocValues.getSortedNumeric(context.reader(), fieldType.name()))
+                        ),
                         DocValueFormat.RAW,
                         missingBucket,
                         MissingOrder.DEFAULT,
@@ -490,12 +494,13 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs)
+            throws IOException {
 
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
 
         }
 

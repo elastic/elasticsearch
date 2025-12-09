@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class FieldCapabilitiesIndexResponse implements Writeable {
-    private static final TransportVersion MAPPING_HASH_VERSION = TransportVersions.V_8_2_0;
 
     private final String indexName;
     @Nullable
@@ -57,11 +56,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.responseMap = in.readMap(IndexFieldCapabilities::readFrom);
         this.canMatch = in.readBoolean();
         this.originVersion = in.getTransportVersion();
-        if (in.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
-            this.indexMappingHash = in.readOptionalString();
-        } else {
-            this.indexMappingHash = null;
-        }
+        this.indexMappingHash = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.indexMode = IndexMode.readFrom(in);
         } else {
@@ -74,9 +69,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         out.writeString(indexName);
         out.writeMap(responseMap, StreamOutput::writeWriteable);
         out.writeBoolean(canMatch);
-        if (out.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
-            out.writeOptionalString(indexMappingHash);
-        }
+        out.writeOptionalString(indexMappingHash);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             IndexMode.writeTo(indexMode, out);
         }
@@ -85,20 +78,13 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private record CompressedGroup(String[] indices, IndexMode indexMode, String mappingHash, int[] fields) {}
 
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
-        if (input.getTransportVersion().before(MAPPING_HASH_VERSION)) {
-            return input.readCollectionAsList(FieldCapabilitiesIndexResponse::new);
-        }
         final int ungrouped = input.readVInt();
         final ArrayList<FieldCapabilitiesIndexResponse> responses = new ArrayList<>(ungrouped);
         for (int i = 0; i < ungrouped; i++) {
             responses.add(new FieldCapabilitiesIndexResponse(input));
         }
         final int groups = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            collectCompressedResponses(input, groups, responses);
-        } else {
-            collectResponsesLegacyFormat(input, groups, responses);
-        }
+        collectCompressedResponses(input, groups, responses);
         return responses;
     }
 
@@ -138,11 +124,6 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     }
 
     static void writeList(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {
-        if (output.getTransportVersion().before(MAPPING_HASH_VERSION)) {
-            output.writeCollection(responses);
-            return;
-        }
-
         Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap = new HashMap<>();
         final List<FieldCapabilitiesIndexResponse> ungroupedResponses = new ArrayList<>();
         for (FieldCapabilitiesIndexResponse r : responses) {
@@ -154,11 +135,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         }
 
         output.writeCollection(ungroupedResponses);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            writeCompressedResponses(output, groupedResponsesMap);
-        } else {
-            writeResponsesLegacyFormat(output, groupedResponsesMap);
-        }
+        writeCompressedResponses(output, groupedResponsesMap);
     }
 
     private static void writeResponsesLegacyFormat(

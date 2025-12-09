@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec;
 
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -348,7 +349,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] diff = generateRandomVector(vectorSize);
         float soarLambda = random().nextFloat();
-        float rnorm = random().nextFloat();
+        float rnorm = random().nextFloat(10);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
         defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);
@@ -370,6 +371,60 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(packedLegacy, packed);
     }
 
+    public void testPackAsBinaryCorrectness() {
+        // 5 bits
+        int[] toPack = new int[] { 1, 1, 0, 0, 1 };
+        byte[] packed = new byte[1];
+        ESVectorUtil.packAsBinary(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001000 }, packed);
+
+        // 8 bits
+        toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0 };
+        packed = new byte[1];
+        ESVectorUtil.packAsBinary(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001010 }, packed);
+
+        // 10 bits
+        toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1 };
+        packed = new byte[2];
+        ESVectorUtil.packAsBinary(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11000000 }, packed);
+
+        // 16 bits
+        toPack = new int[] { 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0 };
+        packed = new byte[2];
+        ESVectorUtil.packAsBinary(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b11100110 }, packed);
+    }
+
+    public void testPackAsBinaryDuel() {
+        int dims = random().nextInt(16, 2049);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = random().nextInt(2);
+        }
+        int length = BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        packAsBinaryLegacy(toPack, packedLegacy);
+        ESVectorUtil.packAsBinary(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testIntegerTransposeHalfByte() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(15);
+        }
+        int length = 4 * BQVectorUtils.discretize(dims, 64) / 8;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        transposeHalfByteLegacy(toPack, packedLegacy);
+        ESVectorUtil.transposeHalfByte(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
     public void testTransposeHalfByte() {
         int dims = randomIntBetween(16, 2048);
         int[] toPack = new int[dims];
@@ -382,6 +437,41 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().transposeHalfByte(toPack, packedLegacy);
         defOrPanamaProvider.getVectorUtilSupport().transposeHalfByte(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testPackAsDibit() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(3);
+        }
+        int length = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
+        ;
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().packDibit(toPack, packedLegacy);
+        defOrPanamaProvider.getVectorUtilSupport().packDibit(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testPackDibitCorrectness() {
+        // 5 bits
+        // binary lower bits 1 1 0 0 1
+        // binary upper bits 0 1 1 0 0
+        // resulting dibit 1 3 2 0 1
+        int[] toPack = new int[] { 1, 3, 2, 0, 1 };
+        byte[] packed = new byte[2];
+        ESVectorUtil.packDibit(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001000, (byte) 0b01100000 }, packed);
+
+        // 8 bits
+        // binary lower bits 1 1 0 0 1 0 1 0
+        // binary upper bits 0 1 1 0 0 1 0 1
+        // resulting dibit 1 3 2 0 1 2 1 2
+        toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
+        packed = new byte[2];
+        ESVectorUtil.packDibit(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b01100101 }, packed);
     }
 
     private float[] generateRandomVector(int size) {
@@ -440,4 +530,128 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
         return res;
     }
+
+    // -- indexOf
+
+    static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
+
+    public void testIndexOfBounds() {
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            var bytes = new byte[size];
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOf(bytes, 0, bytes.length + 1, (byte) 0x0A));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOf(bytes, 1, bytes.length, (byte) 0x0A));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOf(bytes, bytes.length, 1, (byte) 0x0A));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOf(bytes, bytes.length - 1, 2, (byte) 0x0A));
+            expectThrows(IOOBE, () -> ESVectorUtil.indexOf(bytes, randomIntBetween(2, size), bytes.length, (byte) 0x0A));
+        }
+    }
+
+    public void testIndexOfSimple() {
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            var bytes = new byte[size];
+            byte marker = (byte) 0x0A;
+            int markerIdx = randomIntBetween(0, bytes.length - 1);
+            bytes[markerIdx] = marker;
+
+            assertEquals(markerIdx, ESVectorUtil.indexOf(bytes, 0, bytes.length, marker));
+            assertEquals(markerIdx, defaultedProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length, marker));
+            assertEquals(markerIdx, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length, marker));
+
+            bytes = new byte[size];
+            bytes[bytes.length - 1] = marker;
+            assertEquals(bytes.length - 1, ESVectorUtil.indexOf(bytes, 0, bytes.length, marker));
+            assertEquals(bytes.length - 1, defaultedProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length, marker));
+            assertEquals(bytes.length - 1, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length, marker));
+
+            assertEquals(bytes.length - 2, ESVectorUtil.indexOf(bytes, 1, bytes.length - 1, marker));
+            assertEquals(bytes.length - 2, defaultedProvider.getVectorUtilSupport().indexOf(bytes, 1, bytes.length - 1, marker));
+            assertEquals(bytes.length - 2, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, 1, bytes.length - 1, marker));
+
+            // not found
+            assertEquals(-1, ESVectorUtil.indexOf(bytes, 0, bytes.length - 1, marker));
+            assertEquals(-1, defaultedProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length - 1, marker));
+            assertEquals(-1, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length - 1, marker));
+
+            bytes = new byte[size];
+            bytes[0] = marker;
+            assertEquals(0, ESVectorUtil.indexOf(bytes, 0, bytes.length, marker));
+            assertEquals(0, defaultedProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length, marker));
+            assertEquals(0, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, 0, bytes.length, marker));
+
+            // not found
+            assertEquals(-1, ESVectorUtil.indexOf(bytes, 1, bytes.length - 1, marker));
+            assertEquals(-1, defaultedProvider.getVectorUtilSupport().indexOf(bytes, 1, bytes.length - 1, marker));
+            assertEquals(-1, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, 1, bytes.length - 1, marker));
+        }
+    }
+
+    public void testIndexOfRandom() {
+        int iterations = atLeast(50);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(2, 5000);
+            var bytes = new byte[size];
+            random().nextBytes(bytes);
+            byte marker = randomByte();
+            int markerIdx = randomIntBetween(0, bytes.length - 1);
+            bytes[markerIdx] = marker;
+
+            final int offset = randomIntBetween(0, bytes.length - 2);
+            final int length = randomIntBetween(0, bytes.length - offset);
+            final int expectedIdx = scalarIndexOf(bytes, offset, length, marker);
+            assertEquals(expectedIdx, ESVectorUtil.indexOf(bytes, offset, length, marker));
+            assertEquals(expectedIdx, defaultedProvider.getVectorUtilSupport().indexOf(bytes, offset, length, marker));
+            assertEquals(expectedIdx, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, offset, length, marker));
+        }
+    }
+
+    static int scalarIndexOf(byte[] bytes, final int offset, final int length, final byte marker) {
+        final int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            if (bytes[i] == marker) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
+    private static void packAsBinaryLegacy(int[] vector, byte[] packed) {
+        for (int i = 0; i < vector.length;) {
+            byte result = 0;
+            for (int j = 7; j >= 0 && i < vector.length; j--) {
+                assert vector[i] == 0 || vector[i] == 1;
+                result |= (byte) ((vector[i] & 1) << j);
+                ++i;
+            }
+            int index = ((i + 7) / 8) - 1;
+            assert index < packed.length;
+            packed[index] = result;
+        }
+    }
+
+    private static void transposeHalfByteLegacy(int[] q, byte[] quantQueryByte) {
+        for (int i = 0; i < q.length;) {
+            assert q[i] >= 0 && q[i] <= 15;
+            int lowerByte = 0;
+            int lowerMiddleByte = 0;
+            int upperMiddleByte = 0;
+            int upperByte = 0;
+            for (int j = 7; j >= 0 && i < q.length; j--) {
+                lowerByte |= (q[i] & 1) << j;
+                lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+                upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+                upperByte |= ((q[i] >> 3) & 1) << j;
+                i++;
+            }
+            int index = ((i + 7) / 8) - 1;
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+        }
+    }
+
 }

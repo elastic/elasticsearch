@@ -48,6 +48,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
+    public static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
     public static final ParseField VECTOR_SIMILARITY = new ParseField("similarity");
@@ -73,8 +74,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 (QueryVectorBuilder) args[2],
                 (int) args[3],
                 (int) args[4],
-                (RescoreVectorBuilder) args[6],
-                (Float) args[5]
+                (Float) args[5],
+                (RescoreVectorBuilder) args[7],
+                (Float) args[6]
             );
         }
     );
@@ -89,6 +91,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         );
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
         PARSER.declareField(
             optionalConstructorArg(),
@@ -108,6 +111,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     private final QueryVectorBuilder queryVectorBuilder;
     private final int k;
     private final int numCands;
+    private final Float visitPercentage;
     private final RescoreVectorBuilder rescoreVectorBuilder;
     private final Float similarity;
 
@@ -117,6 +121,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
+        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -142,6 +147,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCands;
+        this.visitPercentage = visitPercentage;
         this.similarity = similarity;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
     }
@@ -152,6 +158,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         this.field = clone.field;
         this.k = clone.k;
         this.numCands = clone.numCands;
+        this.visitPercentage = clone.visitPercentage;
         this.similarity = clone.similarity;
         this.retrieverName = clone.retrieverName;
         this.preFilterQueryBuilders = clone.preFilterQueryBuilders;
@@ -236,6 +243,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             null,
             k,
             numCands,
+            visitPercentage,
             rescoreVectorBuilder,
             similarity
         );
@@ -262,6 +270,10 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
+        if (visitPercentage != null) {
+            builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
+        }
+
         if (queryVector != null) {
             builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get());
         }
@@ -284,6 +296,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         KnnRetrieverBuilder that = (KnnRetrieverBuilder) o;
         return k == that.k
             && numCands == that.numCands
+            && Objects.equals(visitPercentage, that.visitPercentage)
             && Objects.equals(field, that.field)
             && ((queryVector == null && that.queryVector == null)
                 || (queryVector != null && that.queryVector != null && Arrays.equals(queryVector.get(), that.queryVector.get())))
@@ -294,7 +307,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public int doHashCode() {
-        int result = Objects.hash(field, queryVectorBuilder, k, numCands, rescoreVectorBuilder, similarity);
+        int result = Objects.hash(field, queryVectorBuilder, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
         result = 31 * result + Arrays.hashCode(queryVector != null ? queryVector.get() : null);
         return result;
     }

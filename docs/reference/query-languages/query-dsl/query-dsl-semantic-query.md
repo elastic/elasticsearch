@@ -9,8 +9,22 @@ applies_to:
 
 # Semantic query [query-dsl-semantic-query]
 
-The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field.
+::::{note}
+We don't recommend this legacy query type for _new_ projects. Use the match query (with [QueryDSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ESQL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match)) instead. The semantic query remains available to support existing implementations.
+::::
 
+The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field. This query accepts natural-language text and uses the field’s configured inference endpoint to generate a query embedding and match documents.
+
+For an overview of all query options available for `semantic_text` fields, see [Querying `semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md#querying-semantic-text-fields).
+
+## Inference endpoint selection
+
+The target field of `semantic` query must be mapped as `semantic_text` and associated with an inference endpoint. At query time, the inference endpoint is chosen as follows:
+- If `search_inference_id` is defined, the semantic query uses that endpoint to embed the query.
+- If no `search_inference_id` is defined, `inference_id` is used for both indexing and search.
+- If no endpoint is specified at mapping, `inference_id` defaults to `.elser-2-elasticsearch`.￼
+
+The underlying vector type (dense or sparse) is determined by the endpoint automatically. No extra query parameters are required.
 
 ## Example request [semantic-query-example]
 
@@ -25,6 +39,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[skip: Requires inference endpoints]
 
 
 ## Top-level parameters for `semantic` [semantic-query-params]
@@ -69,6 +84,7 @@ POST my-index/_search
   }
 }
 ```
+% TEST[skip: Requires inference endpoints]
 
 You can also use semantic_text as part of [Reciprocal Rank Fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) to make ranking relevant results easier:
 
@@ -104,4 +120,5 @@ GET my-index/_search
   }
 }
 ```
+% TEST[skip: Requires inference endpoints]
 

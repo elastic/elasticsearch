@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -83,11 +85,12 @@ public class SerializationTestUtils {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
             serializer.write(planStreamOutput, orig);
+
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config, new TestNameIdMapper());
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -123,6 +126,19 @@ public class SerializationTestUtils {
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral::new
             )
         );
+        entries.add(TDigestHolder.ENTRY);
+        entries.add(WriteableExponentialHistogram.ENTRY);
         return new NamedWriteableRegistry(entries);
+    }
+
+    /**
+     * Maps NameIds seen in a plan to themselves rather than creating new, unique ones.
+     * This makes equality checks easier when comparing a plan to itself after serialization and deserialization.
+     */
+    public static class TestNameIdMapper extends PlanStreamInput.NameIdMapper {
+        @Override
+        public NameId apply(long streamNameId) {
+            return new NameId(streamNameId);
+        }
     }
 }

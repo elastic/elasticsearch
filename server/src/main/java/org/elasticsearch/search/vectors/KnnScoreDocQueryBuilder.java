@@ -36,6 +36,9 @@ import java.util.Objects;
  */
 public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQueryBuilder> {
     public static final String NAME = "knn_score_doc";
+
+    private static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = TransportVersion.fromName("to_child_block_join_query");
+
     private final ScoreDoc[] scoreDocs;
     private final String fieldName;
     private final VectorData queryVector;
@@ -85,7 +88,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         } else {
             this.vectorSimilarity = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TO_CHILD_BLOCK_JOIN_QUERY)) {
+        if (in.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             this.filterQueries = readQueries(in);
         } else {
             this.filterQueries = List.of();
@@ -132,7 +135,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TO_CHILD_BLOCK_JOIN_QUERY)) {
+        if (out.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
         }
     }
@@ -228,6 +231,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_4_0;
+        return TransportVersion.minimumCompatible();
     }
 }

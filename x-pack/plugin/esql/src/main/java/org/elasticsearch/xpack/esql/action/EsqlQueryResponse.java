@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,8 +36,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED;
-import static org.elasticsearch.TransportVersions.ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19;
+import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
@@ -47,6 +45,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     @SuppressWarnings("this-escape")
     private final AbstractRefCounted counted = AbstractRefCounted.of(this::closeInternal);
+
+    private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
+        "esql_documents_found_and_values_loaded"
+    );
+    private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
+    private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -62,6 +66,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isAsync;
     private final EsqlExecutionInfo executionInfo;
 
+    private final long startTimeMillis;
+    private final long expirationTimeMillis;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -72,6 +79,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable String asyncExecutionId,
         boolean isRunning,
         boolean isAsync,
+        long startTimeMillis,
+        long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
         this.columns = columns;
@@ -83,6 +92,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isAsync = isAsync;
+        this.startTimeMillis = startTimeMillis;
+        this.expirationTimeMillis = expirationTimeMillis;
         this.executionInfo = executionInfo;
     }
 
@@ -94,9 +105,24 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable Profile profile,
         boolean columnar,
         boolean isAsync,
+        long startTimeMillis,
+        long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
-        this(columns, pages, documentsFound, valuesLoaded, profile, columnar, null, false, isAsync, executionInfo);
+        this(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            profile,
+            columnar,
+            null,
+            false,
+            isAsync,
+            startTimeMillis,
+            expirationTimeMillis,
+            executionInfo
+        );
     }
 
     /**
@@ -111,27 +137,24 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
-        String asyncExecutionId = null;
-        boolean isRunning = false;
-        boolean isAsync = false;
-        Profile profile = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            asyncExecutionId = in.readOptionalString();
-            isRunning = in.readBoolean();
-            isAsync = in.readBoolean();
-        }
+        String asyncExecutionId = in.readOptionalString();
+        boolean isRunning = in.readBoolean();
+        boolean isAsync = in.readBoolean();
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
         long documentsFound = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            profile = in.readOptionalWriteable(Profile::readFrom);
-        }
+        Profile profile = in.readOptionalWriteable(Profile::readFrom);
         boolean columnar = in.readBoolean();
-        EsqlExecutionInfo executionInfo = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
+
+        long startTimeMillis = 0L;
+        long expirationTimeMillis = 0L;
+        if (in.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+            startTimeMillis = in.readLong();
+            expirationTimeMillis = in.readLong();
         }
+
+        EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         return new EsqlQueryResponse(
             columns,
             pages,
@@ -142,35 +165,36 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             asyncExecutionId,
             isRunning,
             isAsync,
+            startTimeMillis,
+            expirationTimeMillis,
             executionInfo
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalString(asyncExecutionId);
-            out.writeBoolean(isRunning);
-            out.writeBoolean(isAsync);
-        }
+        out.writeOptionalString(asyncExecutionId);
+        out.writeBoolean(isRunning);
+        out.writeBoolean(isAsync);
         out.writeCollection(columns);
         out.writeCollection(pages);
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(profile);
-        }
+        out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(executionInfo);
+
+        if (out.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+            out.writeLong(startTimeMillis);
+            out.writeLong(expirationTimeMillis);
         }
+
+        out.writeOptionalWriteable(executionInfo);
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {
-        return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED)
-            || version.isPatchFrom(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19);
+        return version.supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
     }
 
     public List<ColumnInfoImpl> columns() {
@@ -196,6 +220,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
     }
 
+    /**
+     * @return the number of "documents" we got back from lucene, as input into the compute engine. Note that in this context, we think
+     * of things like the result of LuceneMaxOperator as single documents.
+     */
     public long documentsFound() {
         return documentsFound;
     }
@@ -221,7 +249,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public boolean isAsync() {
-        return isRunning;
+        return isAsync;
     }
 
     public boolean isPartial() {
@@ -250,21 +278,36 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
         }
         if (executionInfo != null && executionInfo.overallTook() != null) {
-            content.add(
-                ChunkedToXContentHelper.chunk(
-                    (builder, p) -> builder //
-                        .field("took", executionInfo.overallTook().millis())
-                        .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
-                )
-            );
+            content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+                builder //
+                    .field("took", executionInfo.overallTook().millis())
+                    .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
+
+                if (startTimeMillis != 0L) {
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + executionInfo.overallTook().millis()
+                    );
+                }
+
+                return builder;
+            }));
         }
-        content.add(
-            ChunkedToXContentHelper.chunk(
-                (builder, p) -> builder //
-                    .field("documents_found", documentsFound)
-                    .field("values_loaded", valuesLoaded)
-            )
-        );
+        content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
+            builder //
+                .field("documents_found", documentsFound)
+                .field("values_loaded", valuesLoaded);
+
+            if (startTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+            }
+            if (expirationTimeMillis != 0L) {
+                builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            }
+
+            return builder;
+        }));
         if (dropNullColumns) {
             content.add(ResponseXContentUtils.allColumns(columns, "all_columns"));
             content.add(ResponseXContentUtils.nonNullColumns(columns, nullColumns, "columns"));
@@ -288,6 +331,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }));
             content.add(ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params));
             content.add(ChunkedToXContentHelper.array("plans", profile.plans.iterator()));
+            content.add(ChunkedToXContentHelper.chunk((b, p) -> {
+                TransportVersion minimumVersion = profile.minimumVersion();
+                b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
+                return b;
+            }));
             content.add(ChunkedToXContentHelper.endObject());
         }
         content.add(ChunkedToXContentHelper.endObject());
@@ -396,24 +444,44 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
-    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans) implements Writeable {
+    public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {
 
         public static Profile readFrom(StreamInput in) throws IOException {
             return new Profile(
                 in.readCollectionAsImmutableList(DriverProfile::readFrom),
-                in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                    || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
-                        ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                        : List.of()
+                in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
+                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                    : List.of(),
+                in.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION) ? readOptionalTransportVersion(in) : null
             );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
+            if (out.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)) {
                 out.writeCollection(plans);
+            }
+            if (out.getTransportVersion().supports(ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION)) {
+                // When retrieving the profile from an older node, there might be no minimum version attached.
+                // When writing the profile somewhere else, we need to handle the case that the minimum version is null.
+                writeOptionalTransportVersion(minimumVersion, out);
+            }
+        }
+
+        private static TransportVersion readOptionalTransportVersion(StreamInput in) throws IOException {
+            if (in.readBoolean()) {
+                return TransportVersion.readVersion(in);
+            }
+            return null;
+        }
+
+        private static void writeOptionalTransportVersion(@Nullable TransportVersion version, StreamOutput out) throws IOException {
+            if (version == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                TransportVersion.writeVersion(version, out);
             }
         }
     }

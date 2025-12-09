@@ -8,9 +8,9 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 
@@ -49,8 +49,8 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
     }
 
     @Override
-    protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
-        return new ScoreOperator(blockFactory, new LuceneQueryScoreEvaluator(blockFactory, shards), 1);
+    protected Operator createOperator(DriverContext ctx, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards) {
+        return new ScoreOperator(ctx.blockFactory(), new LuceneQueryScoreEvaluator(ctx.blockFactory(), shards), 1);
     }
 
     @Override

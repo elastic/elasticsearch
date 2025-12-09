@@ -18,7 +18,7 @@ public interface ESVectorUtilSupport {
 
     /**
      * Compute dot product between {@code q} and {@code d}
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code BQSpaceUtils.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
      * @param d data vector, 1-bit quantized
      */
     long ipByteBinByte(byte[] q, byte[] d);
@@ -66,5 +66,9 @@ public interface ESVectorUtilSupport {
 
     void packAsBinary(int[] vector, byte[] packed);
 
+    void packDibit(int[] vector, byte[] packed);
+
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
+
+    int indexOf(byte[] bytes, int offset, int length, byte marker);
 }

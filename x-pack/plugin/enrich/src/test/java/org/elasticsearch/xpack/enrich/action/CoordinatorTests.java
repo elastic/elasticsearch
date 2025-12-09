@@ -75,7 +75,7 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(coordinator.queue.size(), equalTo(5));
         assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
-        assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
+        assertThat(lookupFunction.capturedRequests.getFirst().requests().size(), equalTo(5));
 
         // Nothing should happen now, because there is an outstanding request and max number of requests has been set to 1:
         coordinator.coordinateLookups();
@@ -93,7 +93,7 @@ public class CoordinatorTests extends ESTestCase {
         emptyResponse.decRef();
         final MultiSearchResponse res1 = new MultiSearchResponse(responseItems, 1L);
         try {
-            lookupFunction.capturedConsumers.get(0).accept(res1, null);
+            lookupFunction.capturedConsumers.getFirst().accept(res1, null);
             assertThat(coordinator.queue.size(), equalTo(0));
             assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
             assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
@@ -149,10 +149,10 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
-        assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
+        assertThat(lookupFunction.capturedRequests.getFirst().requests().size(), equalTo(5));
 
         RuntimeException e = new RuntimeException();
-        lookupFunction.capturedConsumers.get(0).accept(null, e);
+        lookupFunction.capturedConsumers.getFirst().accept(null, e);
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
@@ -189,7 +189,7 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
-        assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
+        assertThat(lookupFunction.capturedRequests.getFirst().requests().size(), equalTo(5));
 
         RuntimeException e = new RuntimeException();
         // Replying a response and that should trigger another coordination round
@@ -199,7 +199,7 @@ public class CoordinatorTests extends ESTestCase {
         }
         var res = new MultiSearchResponse(responseItems, 1L);
         try {
-            lookupFunction.capturedConsumers.get(0).accept(res, null);
+            lookupFunction.capturedConsumers.getFirst().accept(res, null);
             assertThat(coordinator.queue.size(), equalTo(0));
             assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
             assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
@@ -213,7 +213,7 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testNoBlockingWhenQueueing() throws Exception {
+    public void testNoBlockingWhenQueueing() {
         MockLookupFunction lookupFunction = new MockLookupFunction();
         // Only one request allowed in flight. Queue size maxed at 1.
         Coordinator coordinator = new Coordinator(lookupFunction, 1, 1, 1);
@@ -256,11 +256,11 @@ public class CoordinatorTests extends ESTestCase {
         // Fulfill the captured consumer which will schedule the next item in the queue.
         var res = new MultiSearchResponse(new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(emptySearchResponse(), null) }, 1L);
         try {
-            lookupFunction.capturedConsumers.get(0).accept(res, null);
+            lookupFunction.capturedConsumers.getFirst().accept(res, null);
             // Ensure queue was drained and that the item in it was scheduled
             assertThat(coordinator.queue.size(), equalTo(0));
             assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
-            assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));
+            assertThat(lookupFunction.capturedRequests.get(1).requests().getFirst(), sameInstance(searchRequest));
         } finally {
             res.decRef();
         }
@@ -308,8 +308,8 @@ public class CoordinatorTests extends ESTestCase {
             String index = indices.get(i);
             assertThat(requests.get(i).index(), equalTo(index));
             assertThat(requests.get(i).getMultiSearchRequest().requests().size(), equalTo(2));
-            assertThat(requests.get(i).getMultiSearchRequest().requests().get(0).indices().length, equalTo(1));
-            assertThat(requests.get(i).getMultiSearchRequest().requests().get(0).indices()[0], equalTo(index));
+            assertThat(requests.get(i).getMultiSearchRequest().requests().getFirst().indices().length, equalTo(1));
+            assertThat(requests.get(i).getMultiSearchRequest().requests().getFirst().indices()[0], equalTo(index));
         }
     }
 

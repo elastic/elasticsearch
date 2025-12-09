@@ -66,6 +66,11 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
                 }
 
                 @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
+
+                @Override
                 public void close() {}
             },
             expEval

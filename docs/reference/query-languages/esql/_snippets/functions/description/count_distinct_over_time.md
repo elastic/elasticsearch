@@ -2,10 +2,5 @@
 
 **Description**
 
-The count of distinct values over time for a field.
-
-::::{note}
-Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds
-::::
-
+Calculates the count of distinct values over time for a field.
 

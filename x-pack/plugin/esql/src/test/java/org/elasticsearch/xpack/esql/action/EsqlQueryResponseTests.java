@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -25,10 +27,13 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
@@ -38,10 +43,19 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -52,8 +66,10 @@ import org.elasticsearch.xcontent.ParserConstructor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
@@ -64,6 +80,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -128,6 +145,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         List<Page> values = randomList(noPages, noPages, () -> randomPage(columns));
         String id = null;
         boolean isRunning = false;
+        long startTimeMillis = 0L;
+        long expirationTimeMillis = 0L;
         if (async) {
             id = randomAlphaOfLengthBetween(1, 16);
             isRunning = randomBoolean();
@@ -142,6 +161,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             id,
             isRunning,
             async,
+            startTimeMillis,
+            expirationTimeMillis,
             createExecutionInfo()
         );
     }
@@ -187,8 +208,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             t -> false == DataType.isPrimitiveAndSupported(t)
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
-                || t == DataType.PARTIAL_AGG
-                || t == DataType.AGGREGATE_METRIC_DOUBLE,
+                || t == DataType.AGGREGATE_METRIC_DOUBLE
+                || t == DataType.TSID_DATA_TYPE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -232,6 +253,22 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
+                case GEOHASH -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(
+                        Geohash.longEncode(p.getX(), p.getY(), randomIntBetween(1, Geohash.PRECISION))
+                    );
+                }
+                case GEOTILE -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(
+                        GeoTileUtils.longEncode(p.getX(), p.getY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM))
+                    );
+                }
+                case GEOHEX -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(H3.geoToH3(p.getLat(), p.getLon(), randomIntBetween(1, H3.MAX_H3_RES)));
+                }
                 case AGGREGATE_METRIC_DOUBLE -> {
                     BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
                     aggBuilder.min().appendDouble(randomDouble());
@@ -263,6 +300,22 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     }
                     floatBuilder.endPositionEntry();
                 }
+                case TSID_DATA_TYPE -> {
+                    BytesRef tsIdValue = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+                    ((BytesRefBlock.Builder) builder).appendBytesRef(tsIdValue);
+                }
+                case EXPONENTIAL_HISTOGRAM -> {
+                    ExponentialHistogramBlockBuilder expBuilder = (ExponentialHistogramBlockBuilder) builder;
+                    int valueCount = randomIntBetween(0, 500);
+                    int bucketCount = randomIntBetween(4, Math.max(4, valueCount));
+                    ExponentialHistogram histo = ExponentialHistogram.create(
+                        bucketCount,
+                        ExponentialHistogramCircuitBreaker.noop(),
+                        randomDoubles(valueCount).toArray()
+                    );
+                    expBuilder.append(histo);
+                }
+                case TDIGEST -> ((TDigestBlockBuilder) builder).append(EsqlTestUtils.randomTDigest());
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
             return builder.build();
@@ -312,7 +365,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
             default -> throw new IllegalArgumentException();
         }
-        return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, executionInfo);
+        return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, 0L, 0L, executionInfo);
     }
 
     private List<Page> deepCopyOfPages(EsqlQueryResponse response) {
@@ -397,6 +450,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 asyncExecutionId,
                 isRunning != null,
                 isAsync(asyncExecutionId, isRunning),
+                0L,
+                0L,
                 executionInfo
             );
         }
@@ -749,6 +804,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 "id-123",
                 true,
                 true,
+                0L,
+                0L,
                 null
             )
         ) {
@@ -788,6 +845,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null,
                 false,
                 false,
+                0L,
+                0L,
                 null
             )
         ) {
@@ -829,6 +888,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 null,
                 false,
                 false,
+                0L,
+                0L,
                 null
             )
         ) {
@@ -891,6 +952,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     null,
                     false,
                     false,
+                    0L,
+                    0L,
                     null
                 )
             ) {
@@ -948,11 +1011,15 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             null,
             columnar,
             async,
+            0L,
+            0L,
             null
         );
     }
 
     public void testProfileXContent() {
+        TransportVersion minimumVersion = EsqlQueryResponseProfileTests.randomMinimumVersion();
+
         try (
             EsqlQueryResponse response = new EsqlQueryResponse(
                 List.of(new ColumnInfoImpl("foo", "integer", null)),
@@ -974,14 +1041,17 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             DriverSleeps.empty()
                         )
                     ),
-                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree"))
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null)),
+                    minimumVersion
                 ),
                 false,
                 false,
+                0L,
+                0L,
                 null
             );
         ) {
-            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo("""
+            assertThat(Strings.toString(wrapAsToXContent(response), true, false), equalTo(LoggerMessageFormat.format("""
                 {
                   "documents_found" : 10,
                   "values_loaded" : 100,
@@ -1037,9 +1107,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "node_name" : "node-1",
                         "plan" : "plan tree"
                       }
-                    ]
+                    ],
+                    "minimumTransportVersion" : {}
                   }
-                }"""));
+                }""", minimumVersion == null ? "null" : minimumVersion.id())));
         }
     }
 
@@ -1056,7 +1127,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var longBlk2 = blockFactory.newLongArrayVector(new long[] { 300L, 400L, 500L }, 3).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null), new ColumnInfoImpl("bar", "long", null));
         var pages = List.of(new Page(intBlk1, longBlk1), new Page(intBlk2, longBlk2));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(10, 20, 30, 40, 50));
             assertThat(columnValues(response.column(1)), contains(100L, 200L, 300L, 400L, 500L));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
@@ -1068,7 +1139,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10 }, 1).asBlock();
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(intBlk1));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(1));
         }
@@ -1087,7 +1158,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(10, null, 30, null, null, 60, null, 80, 90, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
@@ -1107,7 +1178,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
         var columnInfo = List.of(new ColumnInfoImpl("foo", "integer", null));
         var pages = List.of(new Page(blk1), new Page(blk2), new Page(blk3));
-        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, null)) {
+        try (var response = new EsqlQueryResponse(columnInfo, pages, 0, 0, null, false, null, false, false, 0L, 0L, null)) {
             assertThat(columnValues(response.column(0)), contains(List.of(10, 20), null, List.of(40, 50), null, 70, 80, null));
             expectThrows(IllegalArgumentException.class, () -> response.column(-1));
             expectThrows(IllegalArgumentException.class, () -> response.column(2));
@@ -1120,7 +1191,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             List<ColumnInfoImpl> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
             int noPages = randomIntBetween(1, 20);
             List<Page> pages = randomList(noPages, noPages, () -> randomPage(columns));
-            try (var resp = new EsqlQueryResponse(columns, pages, 0, 0, null, false, "", false, false, null)) {
+            try (var resp = new EsqlQueryResponse(columns, pages, 0, 0, null, false, "", false, false, 0L, 0L, null)) {
                 var rowValues = getValuesList(resp.rows());
                 var valValues = getValuesList(resp.values());
                 for (int i = 0; i < rowValues.size(); i++) {
@@ -1206,6 +1277,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
+                    case GEOHASH -> ((LongBlock.Builder) builder).appendLong(Geohash.longEncode(value.toString()));
+                    case GEOTILE -> ((LongBlock.Builder) builder).appendLong(GeoTileUtils.longEncode(value.toString()));
+                    case GEOHEX -> ((LongBlock.Builder) builder).appendLong(H3.stringToH3(value.toString()));
                     case AGGREGATE_METRIC_DOUBLE -> {
                         BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
                         aggBuilder.min().appendDouble(((Number) value).doubleValue());
@@ -1226,6 +1300,46 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             }
                         }
                         floatBuilder.endPositionEntry();
+                    }
+                    case TSID_DATA_TYPE -> {
+                        // This has been added just to test a round trip. In reality, TSID should never be taken from XContent
+                        byte[] decode = Base64.getUrlDecoder().decode(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(decode));
+                    }
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        ExponentialHistogramBlockBuilder expHistoBuilder = (ExponentialHistogramBlockBuilder) builder;
+                        Map<String, Object> serializedHisto = Types.forciblyCast(value);
+                        ExponentialHistogram parsed = ExponentialHistogramXContent.parseForTesting(serializedHisto);
+                        if (parsed == null) {
+                            expHistoBuilder.appendNull();
+                        } else {
+                            expHistoBuilder.append(parsed);
+                        }
+                    }
+                    case TDIGEST -> {
+                        TDigestBlockBuilder tDigestBlockBuilder = (TDigestBlockBuilder) builder;
+                        String json = Types.forciblyCast(value);
+                        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+                            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                                throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
+                            }
+                            parser.nextToken();
+                            TDigestHolder parsed = new TDigestHolder(
+                                TDigestParser.parse(
+                                    "serialized_block",
+                                    parser,
+                                    (a, b) -> new UnsupportedOperationException("failed parsing tdigest"),
+                                    (x, y, z) -> new UnsupportedOperationException("failed parsing tdigest")
+                                )
+                            );
+                            if (parsed == null) {
+                                tDigestBlockBuilder.appendNull();
+                            } else {
+                                tDigestBlockBuilder.append(parsed);
+                            }
+                        } catch (UnsupportedOperationException | IOException e) {
+                            fail("Unable to parse TDigestBlockBuilder: " + e.getMessage());
+                        }
                     }
                 }
             }

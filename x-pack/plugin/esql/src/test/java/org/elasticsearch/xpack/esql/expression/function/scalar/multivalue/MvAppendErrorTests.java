@@ -17,6 +17,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvAppendErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
@@ -32,14 +33,27 @@ public class MvAppendErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(
-            "second argument of ["
-                + sourceForSignature(signature)
-                + "] must be ["
-                + signature.get(0).noText().typeName()
-                + "], found value [] type ["
-                + signature.get(1).typeName()
-                + "]"
-        );
+        var unsupportedTypes = List.of(DataType.AGGREGATE_METRIC_DOUBLE, DataType.DENSE_VECTOR, DataType.EXPONENTIAL_HISTOGRAM);
+        if (unsupportedTypes.contains(signature.getFirst())
+            || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
+            return containsString(
+                typeErrorMessage(
+                    false,
+                    validPerPosition,
+                    signature,
+                    (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double or exponential_histogram"
+                )
+            );
+        } else {
+            return equalTo(
+                "second argument of ["
+                    + sourceForSignature(signature)
+                    + "] must be ["
+                    + signature.get(0).noText().typeName()
+                    + "], found value [] type ["
+                    + signature.get(1).typeName()
+                    + "]"
+            );
+        }
     }
 }

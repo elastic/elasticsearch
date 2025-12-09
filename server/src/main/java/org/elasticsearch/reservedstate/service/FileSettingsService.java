@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -125,26 +126,33 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * <p>
      * If there's no file based settings file in this cluster, we'll remove all state reservations for
      * file based settings from the cluster state.
+     *
      * @param clusterState the cluster state before snapshot restore
-     * @param mdBuilder the current metadata builder for the new cluster state
-     * @param projectId the project associated with the restore
+     * @param builder      the current ClusterState builder for the new cluster state
+     * @param mdBuilder    the current metadata builder for the new cluster state
+     * @param projectId    the project associated with the restore
      */
-    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder, ProjectId projectId) {
+    @FixForMultiProject(description = "Simplify parameters (ES-12796)")
+    public void handleSnapshotRestore(
+        ClusterState clusterState,
+        ClusterState.Builder builder,
+        Metadata.Builder mdBuilder,
+        ProjectId projectId
+    ) {
         assert clusterState.nodes().isLocalNodeElectedMaster();
-
-        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
 
         // When we restore from a snapshot we remove the reserved cluster state for file settings,
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
         if (watching() && filesExists(watchedFile)) {
+            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
             }
-        } else if (fileSettingsMetadata != null) {
-            mdBuilder.removeReservedState(fileSettingsMetadata);
+        } else {
+            stateService.initEmpty(NAMESPACE, ActionListener.noop());
         }
     }
 

@@ -137,6 +137,25 @@ public class NeighborQueue {
         return decodeNodeId(heap.pop());
     }
 
+    /** Removes the top element and returns it */
+    public long popRaw() {
+        return heap.pop();
+    }
+
+    /**
+     * if the new element is the new top then return its node id. Otherwise,
+     * removes the current top element, returns its node id and adds the new element
+     * to the queue.
+     * */
+    public int popAndAddRaw(long raw) {
+        long top = heap.top();
+        if (raw < top) {
+            return decodeNodeId(raw);
+        }
+        heap.updateTop(raw);
+        return decodeNodeId(top);
+    }
+
     public void clear() {
         heap.clear();
     }

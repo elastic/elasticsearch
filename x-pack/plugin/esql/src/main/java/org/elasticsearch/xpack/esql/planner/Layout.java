@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -115,7 +116,8 @@ public interface Layout {
                 for (NameId id : set.nameIds) {
                     // Duplicate name ids would mean that have 2 channels that are declared under the same id. That makes no sense - which
                     // channel should subsequent operators use, then, when they want to refer to this id?
-                    assert (layout.containsKey(id) == false) : "Duplicate name ids are not allowed in layouts";
+                    assert (layout.containsKey(id) == false)
+                        : Strings.format("Duplicate name ids are not allowed in layouts; found duplicate '%s' (layout: '%s')", id, layout);
                     ChannelAndType next = new ChannelAndType(channel, set.type);
                     layout.put(id, next);
                 }

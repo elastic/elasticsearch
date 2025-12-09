@@ -7,13 +7,17 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -22,42 +26,44 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
  * interact with in some way. This includes fully representable types (e.g.
  * {@link DataType#LONG}, numeric types which we promote (e.g. {@link DataType#SHORT})
  * or fold into other types (e.g. {@link DataType#DATE_PERIOD}) early in the
- * processing pipeline, types for internal use
- * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
- * doesn't support, but require special handling anyway (e.g.
- * {@link DataType#OBJECT})
+ * processing pipeline, and types which the language doesn't support, but require
+ * special handling anyway (e.g. {@link DataType#OBJECT})
  *
  * <h2>Process for adding a new data type</h2>
+ * We assume that the data type is already supported in ES indices, but not in
+ * ES|QL. Types that aren't yet enabled in ES will require some adjustments to
+ * the process.
+ * <p>
  * Note: it is not expected that all the following steps be done in a single PR.
  * Use capabilities to gate tests as you go, and use as many PRs as you think
  * appropriate. New data types are complex, and smaller PRs will make reviews
  * easier.
  * <ul>
  *     <li>
- *         Create a new feature flag for the type in {@link EsqlCorePlugin}. We
- *         recommend developing the data type over a series of smaller PRs behind
- *         a feature flag; even for relatively simple data types.</li>
+ *         Create a new data type and mark it as under construction using
+ *         {@link Builder#underConstruction(TransportVersion)}. This makes the type available on
+ *         SNAPSHOT builds, only, prevents some tests from running and prevents documentation
+ *         for the new type to be built.</li>
  *     <li>
- *         Add a capability to EsqlCapabilities related to the new type, and
- *         gated by the feature flag you just created. Again, using the feature
- *         flag is preferred over snapshot-only. As development progresses, you may
- *         need to add more capabilities related to the new type, e.g. for
- *         supporting specific functions. This is fine, and expected.</li>
+ *         New tests using the type will require a new {@code EsqlCapabilities} entry,
+ *         otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
+ *         know about the new type. This capability needs to be SNAPSHOT-only as long as
+ *         the type is under construction</li>
  *     <li>
  *         Create a new CSV test file for the new type. You'll either need to
  *         create a new data file as well, or add values of the new type to
@@ -81,11 +87,6 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *         compile errors for switch statements throughout the code.  Resolve those
  *         as appropriate. That is the main way in which the new type will be tied
  *         into the framework.</li>
- *     <li>
- *         Add the new type to the {@link DataType#UNDER_CONSTRUCTION}
- *         collection. This is used by the test framework to disable some checks
- *         around how functions report their supported types, which would otherwise
- *         generate a lot of noise while the type is still in development.</li>
  *     <li>
  *         Add typed data generators to TestCaseSupplier, and make sure all
  *         functions that support the new type have tests for it.</li>
@@ -117,19 +118,29 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *         EsqlDataTypeConverter#commonType, individual function type checking, the
  *         verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
+ *     <li>
+ *         Ensure the new type doesn't break {@code FROM idx | KEEP *} queries by
+ *         updating AllSupportedFieldsTestCase. Make sure to run this test in bwc
+ *         configurations in release mode.
+ *         </li>
  * </ul>
- * There are some additional steps that should be taken when removing the
- * feature flag and getting ready for a release:
+ * There are some additional steps that should be taken when getting ready for a release:
  * <ul>
  *     <li>
- *         Ensure the capabilities for this type are always enabled
- *     </li>
+ *         Ensure the capabilities for this type are always enabled.</li>
  *     <li>
- *         Remove the type from the {@link DataType#UNDER_CONSTRUCTION}
- *         collection</li>
+ *         Mark the type with a new transport version via
+ *         {@link Builder#supportedSince(TransportVersion, TransportVersion)}.
+ *         This will enable the type on non-SNAPSHOT builds as long as all nodes in the cluster
+ *         (and remote clusters) support it.
+ *         Use the under-construction transport version for the {@code createdVersion} here so that
+ *         existing tests continue to run.
+ *         </li>
  *     <li>
- *         Fix new test failures related to declared function types
- *     </li>
+ *         Fix new test failures related to declared function types.</li>
+ *     <li>
+ *         Update the expectations in AllSupportedFieldsTestCase and make sure it
+ *         passes in release builds.</li>
  *     <li>
  *         Make sure to run the full test suite locally via gradle to generate
  *         the function type tables and helper files with the new type. Ensure all
@@ -139,21 +150,21 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  *         unsupported types.</li>
  * </ul>
  */
-public enum DataType {
+public enum DataType implements Writeable {
     /**
      * Fields of this type are unsupported by any functions and are always
      * rendered as {@code null} in the response.
      */
-    UNSUPPORTED(builder().typeName("UNSUPPORTED").unknownSize()),
+    UNSUPPORTED(builder().typeName("UNSUPPORTED").estimatedSize(1024).supportedOnAllNodes()),
     /**
      * Fields that are always {@code null}, usually created with constant
      * {@code null} values.
      */
-    NULL(builder().esType("null").estimatedSize(0)),
+    NULL(builder().esType("null").estimatedSize(0).supportedOnAllNodes()),
     /**
      * Fields that can either be {@code true} or {@code false}.
      */
-    BOOLEAN(builder().esType("boolean").estimatedSize(1)),
+    BOOLEAN(builder().esType("boolean").estimatedSize(1).supportedOnAllNodes()),
 
     /**
      * 64-bit signed numbers labeled as metric counters in time-series indices.
@@ -163,7 +174,7 @@ public enum DataType {
      * These fields are strictly for use in retrieval from indices, rate
      * aggregation, and casting to their parent numeric type.
      */
-    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter()),
+    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter().supportedOnAllNodes()),
     /**
      * 32-bit signed numbers labeled as metric counters in time-series indices.
      * Although stored internally as numeric fields, they represent cumulative
@@ -172,7 +183,7 @@ public enum DataType {
      * These fields are strictly for use in retrieval from indices, rate
      * aggregation, and casting to their parent numeric type.
      */
-    COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter()),
+    COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter().supportedOnAllNodes()),
     /**
      * 64-bit floating point numbers labeled as metric counters in time-series indices.
      * Although stored internally as numeric fields, they represent cumulative
@@ -181,55 +192,75 @@ public enum DataType {
      * These fields are strictly for use in retrieval from indices, rate
      * aggregation, and casting to their parent numeric type.
      */
-    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
+    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter().supportedOnAllNodes()),
 
     /**
      * 64-bit signed numbers loaded as a java {@code long}.
      */
-    LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG)),
+    LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG).supportedOnAllNodes()),
     /**
      * 32-bit signed numbers loaded as a java {@code int}.
      */
-    INTEGER(builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER)),
+    INTEGER(
+        builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER).supportedOnAllNodes()
+    ),
     /**
      * 64-bit unsigned numbers packed into a java {@code long}.
      */
-    UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues()),
+    UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues().supportedOnAllNodes()),
     /**
      * 64-bit floating point number loaded as a java {@code double}.
      */
-    DOUBLE(builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE)),
+    DOUBLE(
+        builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE).supportedOnAllNodes()
+    ),
 
     /**
      * 16-bit signed numbers widened on load to {@link #INTEGER}.
      * Values of this type never escape type resolution and functions,
      * operators, and results should never encounter one.
      */
-    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    SHORT(builder().esType("short").estimatedSize(Short.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER).supportedOnAllNodes()),
     /**
      * 8-bit signed numbers widened on load to {@link #INTEGER}.
      * Values of this type never escape type resolution and functions,
      * operators, and results should never encounter one.
      */
-    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER)),
+    BYTE(builder().esType("byte").estimatedSize(Byte.BYTES).wholeNumber().docValues().widenSmallNumeric(INTEGER).supportedOnAllNodes()),
     /**
      * 32-bit floating point numbers widened on load to {@link #DOUBLE}.
      * Values of this type never escape type resolution and functions,
      * operators, and results should never encounter one.
      */
-    FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    FLOAT(
+        builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE).supportedOnAllNodes()
+    ),
     /**
      * 16-bit floating point numbers widened on load to {@link #DOUBLE}.
      * Values of this type never escape type resolution and functions,
      * operators, and results should never encounter one.
      */
-    HALF_FLOAT(builder().esType("half_float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    HALF_FLOAT(
+        builder().esType("half_float")
+            .estimatedSize(Float.BYTES)
+            .rationalNumber()
+            .docValues()
+            .widenSmallNumeric(DOUBLE)
+            .supportedOnAllNodes()
+    ),
     /**
      * Signed 64-bit fixed point numbers converted on load to a {@link #DOUBLE}.
      * Values of this type never escape type resolution and functions, operators,
      * and results should never encounter one.
      */
-    SCALED_FLOAT(builder().esType("scaled_float").estimatedSize(Long.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    SCALED_FLOAT(
+        builder().esType("scaled_float")
+            .estimatedSize(Long.BYTES)
+            .rationalNumber()
+            .docValues()
+            .widenSmallNumeric(DOUBLE)
+            .supportedOnAllNodes()
+    ),
 
     /**
      * String fields that are analyzed when the document is received but never
@@ -237,7 +268,7 @@ public enum DataType {
      * Generally ESQL uses {@code keyword} fields as raw strings. So things like
      * {@code TO_STRING} will make a {@code keyword} field.
      */
-    KEYWORD(builder().esType("keyword").unknownSize().docValues()),
+    KEYWORD(builder().esType("keyword").estimatedSize(50).docValues().supportedOnAllNodes()),
     /**
      * String fields that are analyzed when the document is received and may be
      * cut into more than one token. Generally ESQL only sees {@code text} fields
@@ -245,37 +276,59 @@ public enum DataType {
      * <strong>without</strong> analysis. The {@code MATCH} operator can be used
      * to query these fields with analysis.
      */
-    TEXT(builder().esType("text").unknownSize()),
+    TEXT(builder().esType("text").estimatedSize(1024).supportedOnAllNodes()),
     /**
      * Millisecond precision date, stored as a 64-bit signed number.
      */
-    DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues()),
+    DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
     /**
      * Nanosecond precision date, stored as a 64-bit signed number.
      */
-    DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues()),
+    DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
     /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
      * in IPv6. These flow through the compute engine as fixed length, 16 byte
      * {@link BytesRef}s.
      */
-    IP(builder().esType("ip").estimatedSize(16).docValues()),
+    IP(builder().esType("ip").estimatedSize(16).docValues().supportedOnAllNodes()),
     /**
      * A version encoded in a way that sorts using semver.
      */
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
-    VERSION(builder().esType("version").estimatedSize(15).docValues()),
-    OBJECT(builder().esType("object").unknownSize()),
-    SOURCE(builder().esType(SourceFieldMapper.NAME).unknownSize()),
-    DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
-    TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
+    VERSION(builder().esType("version").estimatedSize(15).docValues().supportedOnAllNodes()),
+    OBJECT(builder().esType("object").estimatedSize(1024).supportedOnAllNodes()),
+    SOURCE(builder().esType(SourceFieldMapper.NAME).estimatedSize(10 * 1024).supportedOnAllNodes()),
+    DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES).supportedOnAllNodes()),
+    TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES).supportedOnAllNodes()),
     // WKB for points is typically 21 bytes.
-    GEO_POINT(builder().esType("geo_point").estimatedSize(21).docValues()),
-    CARTESIAN_POINT(builder().esType("cartesian_point").estimatedSize(21).docValues()),
+    GEO_POINT(builder().esType("geo_point").estimatedSize(21).docValues().supportedOnAllNodes()),
+    CARTESIAN_POINT(builder().esType("cartesian_point").estimatedSize(21).docValues().supportedOnAllNodes()),
     // wild estimate for size, based on some test data (airport_city_boundaries)
-    CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues()),
-    GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues()),
+    CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
+    GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
+    // We use INDEX_SOURCE because it's already on Serverless at the time of writing, and it's not in stateful versions before 9.2.0.
+    // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support these types, we'll be missing validation for
+    // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because these types require specific
+    // geo functions to turn up in the query, and those types aren't available before 9.2.0 either.
+    GEOHASH(
+        builder().esType("geohash")
+            .typeName("GEOHASH")
+            .estimatedSize(Long.BYTES)
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    GEOTILE(
+        builder().esType("geotile")
+            .typeName("GEOTILE")
+            .estimatedSize(Long.BYTES)
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    GEOHEX(
+        builder().esType("geohex")
+            .typeName("GEOHEX")
+            .estimatedSize(Long.BYTES)
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -288,37 +341,61 @@ public enum DataType {
      *         loading field values</li>
      * </ul>
      */
-    DOC_DATA_TYPE(builder().esType("_doc").estimatedSize(Integer.BYTES * 3)),
+    DOC_DATA_TYPE(builder().esType("_doc").estimatedSize(Integer.BYTES * 3).supportedOnAllNodes()),
     /**
      * Fields with this type represent values from the {@link TimeSeriesIdFieldMapper}.
      * Every document in {@link IndexMode#TIME_SERIES} index will have a single value
      * for this field and the segments themselves are sorted on this value.
      */
-    TSID_DATA_TYPE(builder().esType("_tsid").unknownSize().docValues()),
-    /**
-     * Fields with this type are the partial result of running a non-time-series aggregation
-     * inside alongside time-series aggregations. These fields are not parsable from the
-     * mapping and should be hidden from users.
-     */
-    PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
+    // We use INDEX_SOURCE because it's already on Serverless at the time of writing, and it's not in stateful versions before 9.2.0.
+    // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support _tsid, we'll be missing validation for
+    // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because _tsid requires specifically being
+    // used in `FROM idx METADATA _tsid` or in the `TS` command, which both weren't available before 9.2.0.
+    TSID_DATA_TYPE(
+        builder().esType("_tsid")
+            .estimatedSize(Long.BYTES * 2)
+            .docValues()
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    AGGREGATE_METRIC_DOUBLE(
+        builder().esType("aggregate_metric_double")
+            .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
+            .supportedSince(
+                DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION
+            )
+    ),
 
-    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
+    EXPONENTIAL_HISTOGRAM(
+        builder().esType("exponential_histogram")
+            .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .docValues()
+            .underConstruction(DataTypesTransportVersions.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION)
+    ),
+
+    TDIGEST(
+        builder().esType("tdigest")
+            .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .docValues()
+            .underConstruction(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST)
+
+    ),
 
     /**
-     * Fields with this type are dense vectors, represented as an array of double values.
+     * Fields with this type are dense vectors, represented as an array of float values.
      */
-    DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
-
-    /**
-     * Types that are actively being built. These types are not returned
-     * from Elasticsearch if their associated {@link FeatureFlag} is disabled.
-     * They aren't included in generated documentation. And the tests don't
-     * check that sending them to a function produces a sane error message.
-     */
-    public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
+    DENSE_VECTOR(
+        builder().esType("dense_vector")
+            .estimatedSize(4096)
+            .supportedSince(
+                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION,
+                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
+            )
     );
+
+    public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
+        .filter(t -> t.supportedVersion().underConstruction())
+        .collect(Collectors.toSet());
 
     private final String typeName;
 
@@ -326,7 +403,7 @@ public enum DataType {
 
     private final String esType;
 
-    private final Optional<Integer> estimatedSize;
+    private final int estimatedSize;
 
     /**
      * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
@@ -360,23 +437,29 @@ public enum DataType {
      */
     private final DataType counter;
 
+    /**
+     * Version that first created this data type.
+     */
+    private final SupportedVersion supportedVersion;
+
     DataType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
-        assert builder.estimatedSize != null : "Missing size for type " + typeString;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
         this.name = typeString.toUpperCase(Locale.ROOT);
         this.esType = builder.esType;
-        this.estimatedSize = builder.estimatedSize;
+        this.estimatedSize = Objects.requireNonNull(builder.estimatedSize, "estimated size is required");
         this.isWholeNumber = builder.isWholeNumber;
         this.isRationalNumber = builder.isRationalNumber;
         this.docValues = builder.docValues;
         this.isCounter = builder.isCounter;
         this.widenSmallNumeric = builder.widenSmallNumeric;
         this.counter = builder.counter;
+        assert (builder.supportedVersion != null) : "version from when a data type is supported is required";
+        this.supportedVersion = builder.supportedVersion;
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
-        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .filter(d -> d != DOC_DATA_TYPE)
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
@@ -392,6 +475,9 @@ public enum DataType {
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
         map.put("point", DataType.CARTESIAN_POINT);
         map.put("shape", DataType.CARTESIAN_SHAPE);
+        // semantic_text is returned as text by field_caps, but unit tests will retrieve it from the mapping
+        // so we need to map it here as well
+        map.put("semantic_text", DataType.TEXT);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
         // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
         map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));
@@ -428,52 +514,59 @@ public enum DataType {
 
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
-        if (type == null) {
-            return UNSUPPORTED;
-        }
-        FeatureFlag underConstruction = UNDER_CONSTRUCTION.get(type);
-        if (underConstruction != null && underConstruction.isEnabled() == false) {
+        // Ensure that under construction types are not used in non-snapshot builds.
+        if (type == null || type.supportedVersion().supportedLocally() == false) {
             return UNSUPPORTED;
         }
         return type;
     }
 
     public static DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof BigInteger) {
-            return UNSIGNED_LONG;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof Byte) {
-            return BYTE;
-        }
-        if (value instanceof Short) {
-            return SHORT;
-        }
-        if (value instanceof ZonedDateTime) {
-            return DATETIME;
-        }
-        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
-            return KEYWORD;
+        switch (value) {
+            case null -> {
+                return NULL;
+            }
+            case Integer i -> {
+                return INTEGER;
+            }
+            case Long l -> {
+                return LONG;
+            }
+            case BigInteger bigInteger -> {
+                return UNSIGNED_LONG;
+            }
+            case Boolean b -> {
+                return BOOLEAN;
+            }
+            case Double v -> {
+                return DOUBLE;
+            }
+            case Float v -> {
+                return FLOAT;
+            }
+            case Byte b -> {
+                return BYTE;
+            }
+            case Short i -> {
+                return SHORT;
+            }
+            case ZonedDateTime zonedDateTime -> {
+                return DATETIME;
+            }
+            case List<?> list -> {
+                if (list.isEmpty()) {
+                    return null;
+                }
+                return fromJava(list.getFirst());
+            }
+            default -> {
+                if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
+                    return KEYWORD;
+                }
+                return null;
+            }
         }
 
-        return null;
     }
 
     public static boolean isUnsupported(DataType from) {
@@ -502,6 +595,14 @@ public enum DataType {
 
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
+    }
+
+    public static boolean isTimeDuration(DataType t) {
+        return t == TIME_DURATION;
+    }
+
+    public static boolean isDateNanos(DataType t) {
+        return t == DATE_NANOS;
     }
 
     public static boolean isNullOrTimeDuration(DataType t) {
@@ -554,7 +655,6 @@ public enum DataType {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
-            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 
@@ -563,23 +663,39 @@ public enum DataType {
     }
 
     public static boolean isSpatialPoint(DataType t) {
-        return t == GEO_POINT || t == CARTESIAN_POINT;
+        return isGeoPoint(t) || isCartesianPoint(t);
+    }
+
+    public static boolean isGeoPoint(DataType t) {
+        return t == GEO_POINT;
+    }
+
+    public static boolean isCartesianPoint(DataType t) {
+        return t == CARTESIAN_POINT;
     }
 
     public static boolean isSpatialShape(DataType t) {
-        return t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+        return t == GEO_SHAPE || t == CARTESIAN_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatialGeo(DataType t) {
-        return t == GEO_POINT || t == GEO_SHAPE;
+        return t == GEO_POINT || t == GEO_SHAPE || t == GEOHASH || t == GEOTILE || t == GEOHEX;
     }
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
     }
 
+    public static boolean isSpatialOrGrid(DataType t) {
+        return isSpatial(t) || isGeoGrid(t);
+    }
+
+    public static boolean isGeoGrid(DataType t) {
+        return t == GEOHASH || t == GEOTILE || t == GEOHEX;
+    }
+
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatial(t) || t == AGGREGATE_METRIC_DOUBLE);
+        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
     }
 
     public String nameUpper() {
@@ -631,10 +747,21 @@ public enum DataType {
     }
 
     /**
-     * @return the estimated size, in bytes, of this data type.  If there's no reasonable way to estimate the size,
-     *         the optional will be empty.
+     * An estimate of the size of values of this type in a Block. All types must have an
+     * estimate, and generally follow the following rules:
+     * <ol>
+     *     <li>
+     *         If you know the precise size of a single element of this type, use that.
+     *         For example {@link #INTEGER} uses {@link Integer#BYTES}.
+     *     </li>
+     *     <li>
+     *         Overestimates are better than under-estimates. Over-estimates make less
+     *         efficient operations, but under-estimates make circuit breaker errors.
+     *     </li>
+     * </ol>
+     * @return the estimated size of this data type in bytes
      */
-    public Optional<Integer> estimatedSize() {
+    public int estimatedSize() {
         return estimatedSize;
     }
 
@@ -665,13 +792,21 @@ public enum DataType {
         return counter;
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, typeName);
+        if (supportedVersion.supportedOn(out.getTransportVersion(), Build.current().isSnapshot()) == false) {
+            /*
+             * Throw a 500 error - this is a bug, we failed to account for an old node during planning.
+             */
+            throw new QlIllegalArgumentException(
+                "remote node at version [" + out.getTransportVersion() + "] doesn't understand data type [" + this + "]"
+            );
+        }
+        ((PlanStreamOutput) out).writeCachedString(typeName);
     }
 
     public static DataType readFrom(StreamInput in) throws IOException {
-        // TODO: Use our normal enum serialization pattern
-        return readFrom(readCachedStringWithVersionCheck(in));
+        return readFrom(((PlanStreamInput) in).readCachedString());
     }
 
     /**
@@ -711,11 +846,24 @@ public enum DataType {
         return isString(this) ? KEYWORD : this;
     }
 
+    public DataType noCounter() {
+        return switch (this) {
+            case COUNTER_DOUBLE -> DOUBLE;
+            case COUNTER_INTEGER -> INTEGER;
+            case COUNTER_LONG -> LONG;
+            default -> this;
+        };
+    }
+
     public boolean isDate() {
         return switch (this) {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    public SupportedVersion supportedVersion() {
+        return supportedVersion;
     }
 
     public static DataType suggestedCast(Set<DataType> originalTypes) {
@@ -750,7 +898,7 @@ public enum DataType {
 
         private String typeName;
 
-        private Optional<Integer> estimatedSize;
+        private Integer estimatedSize;
 
         /**
          * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
@@ -785,6 +933,12 @@ public enum DataType {
          */
         private DataType counter;
 
+        /**
+         * The version from when on a {@link DataType} is supported. When a query tries to use a data type
+         * not supported on the node it runs on, we throw during serialization of the type.
+         */
+        private SupportedVersion supportedVersion;
+
         Builder() {}
 
         Builder esType(String esType) {
@@ -797,13 +951,11 @@ public enum DataType {
             return this;
         }
 
+        /**
+         * See {@link DataType#estimatedSize}.
+         */
         Builder estimatedSize(int size) {
-            this.estimatedSize = Optional.of(size);
-            return this;
-        }
-
-        Builder unknownSize() {
-            this.estimatedSize = Optional.empty();
+            this.estimatedSize = size;
             return this;
         }
 
@@ -842,5 +994,61 @@ public enum DataType {
             this.counter = counter;
             return this;
         }
+
+        /**
+         * Marks a type that is supported in production since {@code supportedVersion}.
+         * When a query tries to use a data type not supported on the nodes it runs on, this is a bug.
+         * <p>
+         * On snapshot builds, the {@code createdVersion} is used instead, so that existing tests continue
+         * to work after release if the type was previously {@link #underConstruction(TransportVersion)};
+         * the under-construction version should be used as the {@code createdVersion}.
+         */
+        Builder supportedSince(TransportVersion createdVersion, TransportVersion supportedVersion) {
+            this.supportedVersion = SupportedVersion.supportedSince(createdVersion, supportedVersion);
+            return this;
+        }
+
+        Builder supportedOnAllNodes() {
+            this.supportedVersion = SupportedVersion.SUPPORTED_ON_ALL_NODES;
+            return this;
+        }
+
+        /**
+         * Marks a type that is not supported in production yet, but is supported in snapshot builds
+         * starting with the given version.
+         */
+        Builder underConstruction(TransportVersion createdVersion) {
+            this.supportedVersion = SupportedVersion.underConstruction(createdVersion);
+            return this;
+        }
+    }
+
+    public static class DataTypesTransportVersions {
+
+        /**
+         * The first transport version after the PR that introduced geotile/geohash/geohex, resp.
+         * after 9.1. We didn't require transport versions at that point in time, as geotile/hash/hex require
+         * using specific functions to even occur in query plans.
+         */
+        public static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
+
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
+
+        public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
+            "esql_aggregate_metric_double_created_version"
+        );
+
+        /**
+         * First transport version after the PR that introduced the exponential histogram data type which was NOT also backported to 9.2.
+         * (Exp. histogram was added as SNAPSHOT-only to 9.3.)
+         */
+        public static final TransportVersion TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION = TransportVersion.fromName(
+            "text_similarity_rank_docs_explain_chunks"
+        );
+
+        private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+
     }
 }

@@ -6,12 +6,29 @@
  */
 import org.elasticsearch.gradle.transform.UnzipTransform
 import com.google.protobuf.gradle.GenerateProtoTask
+
+buildscript {
+  repositories {
+    maven { url = "https://jitpack.io" }
+  }
+  dependencies {
+    classpath('com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT') {
+      changing = false
+    }
+  }
+}
+
 plugins {
   id 'elasticsearch.internal-es-plugin'
   id 'elasticsearch.internal-yaml-rest-test'
+  id 'elasticsearch.internal-java-rest-test'
   id 'elasticsearch.internal-cluster-test'
-  id('com.google.protobuf') version '0.9.5'
+  // We rely on a snapshot including a fix for 9.1 compatibility.
+  // See https://github.com/google/protobuf-gradle-plugin/pull/786
+  //  id('com.google.protobuf') version '0.9.5'
 }
+
+apply plugin:"com.google.protobuf"
 
 esplugin {
   name = 'x-pack-otel-data'
@@ -47,10 +64,11 @@ dependencies {
   });
   opentelemetryProtobuf "open-telemetry:opentelemetry-proto:1.7.0@zip"
 
+  api project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(':modules:data-streams')
+  testImplementation(testArtifact(project(":libs:exponential-histogram")))
+  testImplementation('org.apache.commons:commons-math3:3.6.1')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:ingest-geoip')
@@ -66,7 +84,21 @@ dependencies {
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(xpackModule('mapper-version'))
 
-  implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+  def otelVersion = "1.53.0"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-api:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-context:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
+
+  api "com.google.protobuf:protobuf-java:${protobufVersion}"
   // The protobuf plugin only adds a dependency for the variant relevant for the current platform.
   // Without explicitly adding all classifiers, the --write-verification-metadata task would only add the one for the current platform.
   // Therefore, the verification check would fail on other platforms, like on CI or for contributors that work on another platform.
@@ -149,4 +181,8 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("licenseHeaders").configure {
   excludes << 'io/opentelemetry/proto/**/*'
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("Requires a bunch of xpack plugins")
 }

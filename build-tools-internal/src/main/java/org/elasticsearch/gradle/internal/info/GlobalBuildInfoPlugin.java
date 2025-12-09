@@ -8,17 +8,17 @@
  */
 package org.elasticsearch.gradle.internal.info;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.internal.conventions.GitInfoPlugin;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -29,6 +29,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
@@ -47,7 +48,6 @@ import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.util.GradleVersion;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -56,29 +56,38 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
-import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestEABuildNumber;
+import static org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin.VERSIONS_EXT;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findPreReleaseBuild;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
+    private static final String DEFAULT_BRANCHES_FILE_URL = "https://raw.githubusercontent.com/elastic/elasticsearch/main/branches.json";
+    private static final String BRANCHES_FILE_LOCATION_PROPERTY = "org.elasticsearch.build.branches-file-location";
+    private static final Pattern LINE_PATTERN = Pattern.compile(
+        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
+    );
 
     private ObjectFactory objectFactory;
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
-    private final ObjectMapper objectMapper;
+    private final BuildFeatures buildFeatures;
     private JavaToolchainService toolChainService;
     private Project project;
 
@@ -87,24 +96,25 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         ObjectFactory objectFactory,
         JavaInstallationRegistry javaInstallationRegistry,
         JvmMetadataDetector metadataDetector,
-        ProviderFactory providers
+        ProviderFactory providers,
+        BuildFeatures buildFeatures
     ) {
         this.objectFactory = objectFactory;
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
-        this.objectMapper = new ObjectMapper();
+        this.buildFeatures = buildFeatures;
     }
 
     @Override
     public void apply(Project project) {
-
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
         this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         project.getPlugins().apply(JdkDownloadPlugin.class);
+        project.getPlugins().apply(VersionPropertiesPlugin.class);
         Provider<GitInfo> gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
 
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
@@ -113,41 +123,25 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             throw new GradleException("Gradle " + minimumGradleVersion.getVersion() + "+ is required");
         }
 
-        JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
-        JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
+        Properties versionProperties = (Properties) project.getExtensions().getByName(VERSIONS_EXT);
+        JavaVersion minimumCompilerVersion = JavaVersion.toVersion(versionProperties.get("minimumCompilerJava"));
+        JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(versionProperties.get("minimumRuntimeJava"));
+        Version elasticsearchVersionProperty = Version.fromString(versionProperties.getProperty("elasticsearch"));
 
-        Provider<File> explicitRuntimeJavaHome = findRuntimeJavaHome();
-        boolean isRuntimeJavaHomeExplicitlySet = explicitRuntimeJavaHome.isPresent();
-        Provider<File> actualRuntimeJavaHome = isRuntimeJavaHomeExplicitlySet
-            ? explicitRuntimeJavaHome
-            : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
-
-        Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
-            runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
-        );
+        RuntimeJava runtimeJavaHome = findRuntimeJavaHome();
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
-            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions() : val)
+            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(elasticsearchVersionProperty) : val)
         );
+
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
                 BuildParameterExtension.class,
                 BuildParameterExtension.EXTENSION_NAME,
                 DefaultBuildParameterExtension.class,
                 providers,
-                actualRuntimeJavaHome,
+                runtimeJavaHome,
                 resolveToolchainSpecFromEnv(),
-                actualRuntimeJavaHome.map(
-                    javaHome -> determineJavaVersion(
-                        "runtime java.home",
-                        javaHome,
-                        isRuntimeJavaHomeExplicitlySet
-                            ? minimumRuntimeVersion
-                            : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
-                    )
-                ),
-                isRuntimeJavaHomeExplicitlySet,
-                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
                 getAvailableJavaVersions(),
                 minimumCompilerVersion,
                 minimumRuntimeVersion,
@@ -197,32 +191,50 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     /* Introspect all versions of ES that may be tested against for backwards
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
-    private BwcVersions resolveBwcVersions() {
+    private BwcVersions resolveBwcVersions(Version currentElasticsearchVersion) {
         String versionsFilePath = elvis(
             System.getProperty("BWC_VERSION_SOURCE"),
             new File(Util.locateElasticsearchWorkspace(project.getGradle()), DEFAULT_VERSION_JAVA_FILE_PATH).getPath()
         );
         try (var is = new FileInputStream(versionsFilePath)) {
             List<String> versionLines = IOUtils.readLines(is, "UTF-8");
-            return new BwcVersions(versionLines, getDevelopmentBranches());
+            return new BwcVersions(currentElasticsearchVersion, parseVersionLines(versionLines), getDevelopmentBranches());
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }
     }
 
-    private List<String> getDevelopmentBranches() {
-        List<String> branches = new ArrayList<>();
-        File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
-        try (InputStream is = new FileInputStream(branchesFile)) {
-            JsonNode json = objectMapper.readTree(is);
-            for (JsonNode node : json.get("branches")) {
-                branches.add(node.get("branch").asText());
+    private List<Version> parseVersionLines(List<String> versionLines) {
+        return versionLines.stream()
+            .map(LINE_PATTERN::matcher)
+            .filter(Matcher::matches)
+            .map(match -> new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))))
+            .sorted()
+            .toList();
+    }
+
+    private List<DevelopmentBranch> getDevelopmentBranches() {
+        String branchesFileLocation = project.getProviders()
+            .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
+            .getOrElse(DEFAULT_BRANCHES_FILE_URL);
+        LOGGER.info("Reading branches.json from {}", branchesFileLocation);
+        byte[] branchesBytes;
+        if (branchesFileLocation.startsWith("http")) {
+            try (InputStream in = URI.create(branchesFileLocation).toURL().openStream()) {
+                branchesBytes = in.readAllBytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } else {
+            try {
+                branchesBytes = Files.readAllBytes(new File(branchesFileLocation).toPath());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read branches.json from: " + branchesFileLocation, e);
+            }
         }
 
-        return branches;
+        var branchesFileParser = new BranchesFileParser(new ObjectMapper());
+        return branchesFileParser.parse(branchesBytes);
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {
@@ -237,7 +249,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
-        if (buildParams.getIsRuntimeJavaHomeSet()) {
+        if (buildParams.getRuntimeJava().isExplicitlySet()) {
             JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(buildParams.getRuntimeJavaHome().get()));
             final String runtimeJvmVendorDetails = runtimeJvm.getVendor().getDisplayName();
             final String runtimeJvmImplementationVersion = runtimeJvm.getJvmVersion();
@@ -255,7 +267,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (javaToolchainHome != null) {
             LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
         }
-        LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
+
+        if (buildFeatures.getConfigurationCache().getActive().get() == false) {
+            // if configuration cache is enabled, resolving the test seed early breaks configuration cache reuse
+            LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
+        }
         LOGGER.quiet("  In FIPS 140 mode      : " + buildParams.getInFipsJvm());
         LOGGER.quiet("=======================================");
     }
@@ -310,16 +326,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
     }
 
-    private static String getTestSeed() {
-        String testSeedProperty = System.getProperty("tests.seed");
-        final String testSeed;
-        if (testSeedProperty == null) {
-            long seed = new Random(System.currentTimeMillis()).nextLong();
-            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT);
-        } else {
-            testSeed = testSeedProperty;
-        }
-        return testSeed;
+    private Provider<String> getTestSeed() {
+        return project.getProviders().of(TestSeedValueSource.class, spec -> {});
     }
 
     private static void throwInvalidJavaHomeException(String description, File javaHome, int expectedVersion, int actualVersion) {
@@ -344,50 +352,80 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private Provider<File> findRuntimeJavaHome() {
-        String runtimeJavaProperty = System.getProperty("runtime.java");
+    private RuntimeJava findRuntimeJavaHome() {
+        Properties versionProperties = (Properties) project.getExtensions().getByName(VERSIONS_EXT);
+        String bundledJdkVersion = versionProperties.getProperty("bundled_jdk");
+        String bundledJdkMajorVersion = bundledJdkVersion.split("[.+]")[0];
 
+        String runtimeJavaProperty = System.getProperty("runtime.java");
         if (runtimeJavaProperty != null) {
-            if (runtimeJavaProperty.toLowerCase().endsWith("-ea")) {
-                // handle EA builds differently due to lack of support in Gradle toolchain service
+            if (runtimeJavaProperty.toLowerCase().endsWith("-pre")) {
+                // handle pre-release builds differently due to lack of support in Gradle toolchain service
                 // we resolve them using JdkDownloadPlugin for now.
-                Integer major = Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 3));
-                return resolveEarlyAccessJavaHome(major);
+                return resolvePreReleaseRuntimeJavaHome(runtimeJavaProperty, bundledJdkMajorVersion);
             } else {
-                return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
+                return runtimeJavaHome(resolveJavaHomeFromToolChainService(runtimeJavaProperty), true, bundledJdkMajorVersion);
             }
         }
         if (System.getenv("RUNTIME_JAVA_HOME") != null) {
-            return providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME")));
+            return runtimeJavaHome(providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME"))), true, bundledJdkVersion);
         }
         // fall back to tool chain if set.
         String env = System.getenv("JAVA_TOOLCHAIN_HOME");
-        return providers.provider(() -> {
-            if (env == null) {
-                return null;
-            }
-            return new File(env);
-        });
+        boolean explicitlySet = env != null;
+        Provider<File> javaHome = explicitlySet
+            ? providers.provider(() -> new File(env))
+            : resolveJavaHomeFromToolChainService(bundledJdkMajorVersion);
+        return runtimeJavaHome(javaHome, explicitlySet, bundledJdkMajorVersion);
     }
 
-    private Provider<File> resolveEarlyAccessJavaHome(Integer runtimeJavaProperty) {
-        NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+    private RuntimeJava runtimeJavaHome(Provider<File> fileProvider, boolean explicitlySet, String bundledJdkMajorVersion) {
+        return runtimeJavaHome(fileProvider, explicitlySet, null, null, bundledJdkMajorVersion);
+    }
+
+    private RuntimeJava runtimeJavaHome(
+        Provider<File> fileProvider,
+        boolean explicitlySet,
+        String preReleasePostfix,
+        Integer buildNumber,
+        String bundledJdkMajorVersion
+    ) {
+        Provider<JavaVersion> javaVersion = fileProvider.map(
+            javaHome -> determineJavaVersion(
+                "runtime java.home",
+                javaHome,
+                fileProvider.isPresent()
+                    ? JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"))
+                    : JavaVersion.toVersion(bundledJdkMajorVersion)
+            )
+        );
+
+        Provider<String> vendorDetails = fileProvider.map(j -> metadataDetector.getMetadata(getJavaInstallation(j)))
+            .map(m -> formatJavaVendorDetails(m));
+
+        return new RuntimeJava(fileProvider, javaVersion, vendorDetails, explicitlySet, preReleasePostfix, buildNumber);
+    }
+
+    private RuntimeJava resolvePreReleaseRuntimeJavaHome(String runtimeJavaProperty, String bundledJdkMajorVersion) {
+        var major = JavaLanguageVersion.of(Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 4)));
         Integer buildNumber = Integer.getInteger("runtime.java.build");
-        if (buildNumber == null) {
-            buildNumber = findLatestEABuildNumber(runtimeJavaProperty);
-        }
-        String eaVersionString = String.format("%d-ea+%d", runtimeJavaProperty, buildNumber);
-        Jdk jdk = container.create("ea_jdk_" + runtimeJavaProperty, j -> {
-            j.setVersion(eaVersionString);
+        var jdkbuild = buildNumber == null ? findLatestPreReleaseBuild(major) : findPreReleaseBuild(major, buildNumber);
+        String preReleaseType = jdkbuild.type();
+        String prVersionString = String.format("%d-%s+%d", major.asInt(), preReleaseType, jdkbuild.buildNumber());
+        NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+        Jdk jdk = container.create(preReleaseType + "_" + major.asInt(), j -> {
+            j.setVersion(prVersionString);
             j.setVendor("openjdk");
             j.setPlatform(OS.current().javaOsReference);
             j.setArchitecture(Architecture.current().javaClassifier);
-            j.setDistributionVersion("ea");
+            j.setDistributionVersion(preReleaseType);
         });
-        return providers.provider(() -> new File(jdk.getJavaHomePath().toString()));
+        // We on purpose resolve this here eagerly to ensure we resolve the jdk configuration in the context of the root project.
+        // If we keep this lazy we can not guarantee in which project context this is resolved which will fail the build.
+        File file = new File(jdk.getJavaHomePath().toString());
+        return runtimeJavaHome(providers.provider(() -> file), true, preReleaseType, jdkbuild.buildNumber(), bundledJdkMajorVersion);
     }
 
-    @NotNull
     private Provider<File> resolveJavaHomeFromToolChainService(String version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
@@ -444,4 +482,5 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             spec.getLanguageVersion().set(expectedJavaLanguageVersion);
         }
     }
+
 }

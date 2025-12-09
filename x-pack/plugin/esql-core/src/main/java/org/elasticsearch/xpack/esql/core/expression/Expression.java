@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -53,6 +54,10 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
         public TypeResolution and(TypeResolution other) {
             return failed ? this : other;
+        }
+
+        public TypeResolution or(TypeResolution other) {
+            return failed ? other : this;
         }
 
         public TypeResolution and(Supplier<TypeResolution> other) {
@@ -97,7 +102,9 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     public abstract Nullability nullable();
 
-    // the references/inputs/leaves of the expression tree
+    /**
+     * {@link Set} of {@link Attribute}s referenced by this {@link Expression}.
+     */
     public AttributeSet references() {
         if (lazyReferences == null) {
             lazyReferences = Expressions.references(children());
@@ -173,10 +180,26 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return replaceChildrenSameSize(canonicalChildren);
     }
 
+    /**
+     * Whether this expression means the same as {@code other}, even if they are not exactly equal.
+     * For example, {@code a + b} and {@code b + a} are not equal, but they are semantically equal.
+     * <p>
+     * If two expressions are equal, they are also semantically equal, but the reverse is generally not true.
+     * <p>
+     * Caution! {@link Attribute#semanticEquals(Expression)} is especially lenient, as it considers two attributes
+     * with the same {@link NameId} to be semantically equal, even if they have different data types or are represented using different
+     * classes.
+     * <p>
+     * But this doesn't extend to expressions containing attributes as children, which is pretty inconsistent.
+     * We have to revisit this before using {@link #semanticEquals} in more places.
+     */
     public boolean semanticEquals(Expression other) {
         return canonical().equals(other.canonical());
     }
 
+    /**
+     * A hash code that is consistent with {@link #semanticEquals}.
+     */
     public int semanticHash() {
         return canonical().hashCode();
     }

@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,12 +49,14 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
@@ -179,11 +183,26 @@ public class MinTests extends AbstractAggregationTestCase {
                         DataType.VERSION,
                         equalTo(value)
                     );
+                }),
+                new TestCaseSupplier(List.of(DataType.AGGREGATE_METRIC_DOUBLE), () -> {
+                    var value = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                        randomDouble(),
+                        randomDouble(),
+                        randomDouble(),
+                        randomNonNegativeInt()
+                    );
+                    return new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.AGGREGATE_METRIC_DOUBLE, "field")),
+                        standardAggregatorName("Min", DataType.AGGREGATE_METRIC_DOUBLE),
+                        DataType.DOUBLE,
+                        equalTo(value.min())
+                    );
+
                 })
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
     }
 
     @Override
@@ -195,23 +214,43 @@ public class MinTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var expected = fieldTypedData.multiRowData()
-                .stream()
-                .map(v -> (Comparable<? super Comparable<?>>) v)
-                .min(Comparator.naturalOrder())
-                .orElse(null);
+            Comparable<?> expected;
+            DataType expectedReturnType;
+
+            if (fieldSupplier.type() == DataType.AGGREGATE_METRIC_DOUBLE) {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(
+                        v -> (Comparable<
+                            ? super Comparable<?>>) ((Object) ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).min())
+                    )
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
+            } else if (fieldSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(obj -> (ExponentialHistogram) obj)
+                    .filter(histo -> histo.valueCount() > 0) // only non-empty histograms have an influence
+                    .map(ExponentialHistogram::min)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
+            } else {
+                expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(v -> (Comparable<? super Comparable<?>>) v)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = fieldSupplier.type();
+            }
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Min", fieldSupplier.type()),
-                fieldSupplier.type(),
+                expectedReturnType,
                 equalTo(expected)
             );
         });
-    }
-
-    @Override
-    protected boolean optIntoToAggregatorToStringChecks() {
-        return true;
     }
 }

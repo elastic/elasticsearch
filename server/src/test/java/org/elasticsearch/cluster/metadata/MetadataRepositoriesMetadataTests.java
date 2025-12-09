@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
@@ -42,6 +41,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataRepositoriesMetadataTests extends ESTestCase {
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedWriteableRegistry namedWriteableRegistryBwc;
@@ -96,7 +97,7 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
     }
 
     public void testRepositoriesMetadataSerializationBwc() throws IOException {
-        final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         // Before multi-project, BWC is possible for a single project
         final Metadata orig = randomMetadata(0, -1);
         doTestRepositoriesMetadataSerializationBwc(orig, oldVersion);
@@ -126,7 +127,7 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
     }
 
     public void testRepositoriesMetadataDiffSerializationBwc() throws IOException {
-        final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(MULTI_PROJECT);
         // Before multi-project, BWC is possible for a single project
         final Tuple<Metadata, Metadata> tuple = randomMetadataAndUpdate(0, -1);
         doTestRepositoriesMetadataDiffSerializationBwc(tuple, oldVersion);
@@ -348,7 +349,7 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

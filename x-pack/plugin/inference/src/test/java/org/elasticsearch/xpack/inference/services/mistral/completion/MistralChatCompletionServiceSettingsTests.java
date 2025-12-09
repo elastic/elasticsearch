@@ -144,7 +144,13 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
 
     @Override
     protected MistralChatCompletionServiceSettings mutateInstance(MistralChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, MistralChatCompletionServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8));
+            return new MistralChatCompletionServiceSettings(modelId, instance.rateLimitSettings());
+        } else {
+            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
+            return new MistralChatCompletionServiceSettings(instance.modelId(), rateLimitSettings);
+        }
     }
 
     @Override

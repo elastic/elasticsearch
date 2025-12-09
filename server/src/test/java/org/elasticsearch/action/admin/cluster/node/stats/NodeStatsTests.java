@@ -131,6 +131,10 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(nodeStats.getOs().getMem().getUsedPercent(), deserializedNodeStats.getOs().getMem().getUsedPercent());
                     assertEquals(nodeStats.getOs().getCpu().getPercent(), deserializedNodeStats.getOs().getCpu().getPercent());
                     assertEquals(
+                        nodeStats.getOs().getCpu().getAvailableProcessors(),
+                        deserializedNodeStats.getOs().getCpu().getAvailableProcessors()
+                    );
+                    assertEquals(
                         nodeStats.getOs().getCgroup().getCpuAcctControlGroup(),
                         deserializedNodeStats.getOs().getCgroup().getCpuAcctControlGroup()
                     );
@@ -711,7 +715,7 @@ public class NodeStatsTests extends ESTestCase {
             long swapTotal = randomNonNegativeLong();
             osStats = new OsStats(
                 System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
+                new OsStats.Cpu(randomShort(), loadAverages, randomInt()),
                 new OsStats.Mem(memTotal, randomLongBetween(0, memTotal), randomLongBetween(0, memTotal)),
                 new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
                 new OsStats.Cgroup(

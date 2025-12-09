@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -39,7 +40,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -61,6 +62,9 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -83,6 +87,9 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -102,6 +109,9 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -138,14 +148,18 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCounters(field1, sourceText(), FIRST);
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(
+            field1,
+            sourceText(),
+            FIRST
+        );
         if (resolution.unresolved()) {
             return resolution;
         }
         dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
             dataType = field2.dataType().noText();
-            return isRepresentableExceptCounters(field2, sourceText(), SECOND);
+            return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(field2, sourceText(), SECOND);
         }
         return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }
@@ -201,7 +215,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Int")
-    static void process(IntBlock.Builder builder, int position, IntBlock field1, IntBlock field2) {
+    static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -222,7 +236,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Boolean")
-    static void process(BooleanBlock.Builder builder, int position, BooleanBlock field1, BooleanBlock field2) {
+    static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field1, BooleanBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -243,7 +257,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Long")
-    static void process(LongBlock.Builder builder, int position, LongBlock field1, LongBlock field2) {
+    static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -263,7 +277,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Double")
-    static void process(DoubleBlock.Builder builder, int position, DoubleBlock field1, DoubleBlock field2) {
+    static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field1, DoubleBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -284,7 +298,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "BytesRef")
-    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock field1, BytesRefBlock field2) {
+    static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field1, BytesRefBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {

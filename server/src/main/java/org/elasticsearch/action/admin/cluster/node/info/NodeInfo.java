@@ -66,31 +66,15 @@ public class NodeInfo extends BaseNodeResponse {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             version = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-                compatibilityVersions = CompatibilityVersions.readVersion(in);
-            } else {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
-            }
+            compatibilityVersions = CompatibilityVersions.readVersion(in);
             indexVersion = IndexVersion.readVersion(in);
         } else {
             Version legacyVersion = Version.readVersion(in);
             version = legacyVersion.toString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
-            } else {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(legacyVersion.id), Map.of());
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                indexVersion = IndexVersion.readVersion(in);
-            } else {
-                indexVersion = IndexVersion.fromId(legacyVersion.id);
-            }
+            compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions;
+            indexVersion = IndexVersion.readVersion(in);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
-        } else {
-            componentVersions = Map.of();
-        }
+        componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
         build = Build.readBuild(in);
         if (in.readBoolean()) {
             totalIndexingBuffer = ByteSizeValue.ofBytes(in.readLong());
@@ -111,9 +95,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
-        }
+        addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
     }
 
     public NodeInfo(
@@ -251,15 +233,9 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             Version.writeVersion(Version.fromString(version), out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            compatibilityVersions.writeTo(out);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            TransportVersion.writeVersion(compatibilityVersions.transportVersion(), out);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            IndexVersion.writeVersion(indexVersion, out);
-            out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
-        }
+        compatibilityVersions.writeTo(out);
+        IndexVersion.writeVersion(indexVersion, out);
+        out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
@@ -282,8 +258,6 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         out.writeOptionalWriteable(getInfo(AggregationInfo.class));
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
-        }
+        out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
     }
 }

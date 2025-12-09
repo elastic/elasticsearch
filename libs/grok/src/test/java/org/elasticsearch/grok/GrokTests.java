@@ -927,6 +927,25 @@ public class GrokTests extends ESTestCase {
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
     }
 
+    public void testCombinedPatterns() {
+        String matchKey = "_ingest._grok_match_index";
+        String combined;
+        combined = Grok.combinePatterns(List.of(""), null);
+        assertThat(combined, equalTo(""));
+        combined = Grok.combinePatterns(List.of(""), matchKey);
+        assertThat(combined, equalTo(""));
+        combined = Grok.combinePatterns(List.of("foo"), null);
+        assertThat(combined, equalTo("foo"));
+        combined = Grok.combinePatterns(List.of("foo"), matchKey);
+        assertThat(combined, equalTo("foo"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"), null);
+        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"));
+        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"), matchKey);
+        assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
+    }
+
     private void assertGrokedField(String fieldName) {
         String line = "foo";
         // test both with and without ECS compatibility

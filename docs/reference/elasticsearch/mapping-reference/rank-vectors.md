@@ -1,18 +1,13 @@
 ---
-navigation_title: "Rank Vectors"
+navigation_title: "Rank vectors"
+applies_to:
+  stack: preview 9.0
+  serverless: preview
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rank-vectors.html
-  # That link will 404 until 8.18 is current
-  # (see https://www.elastic.co/guide/en/elasticsearch/reference/8.18/rank-vectors.html)
 ---
 
-# Rank Vectors [rank-vectors]
-
-
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
+# Rank vectors [rank-vectors]
 
 The `rank_vectors` field type enables late-interaction dense vector scoring in Elasticsearch. The number of vectors per field can vary, but they must all share the same number of dimensions and element type.
 
@@ -37,6 +32,7 @@ PUT my-rank-vectors-float/_doc/1
   "my_vector" : [[0.5, 10, 6], [-0.5, 10, 10]]
 }
 ```
+% TESTSETUP
 
 In addition to the `float` element type, `byte` and `bit` element types are also supported.
 
@@ -90,7 +86,7 @@ The `rank_vectors` field type supports the following parameters:
 $$$rank-vectors-element-type$$$
 
 `element_type`
-:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
+:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and `bit`.
 
 ::::{dropdown} Valid values for element_type
 `float`

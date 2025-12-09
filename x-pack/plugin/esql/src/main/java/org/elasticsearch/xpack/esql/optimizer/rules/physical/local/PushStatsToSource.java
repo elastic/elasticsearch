@@ -51,22 +51,20 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
 
             // for the moment support pushing count just for one field
             List<EsStatsQueryExec.Stat> stats = tuple.v2();
-            if (stats.size() > 1) {
+            if (stats.size() != 1 || stats.size() != aggregateExec.aggregates().size()) {
                 return aggregateExec;
             }
 
             // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
             // use the stats since the attributes are larger in size (due to seen)
-            if (tuple.v2().size() == aggregateExec.aggregates().size()) {
-                plan = new EsStatsQueryExec(
-                    aggregateExec.source(),
-                    queryExec.indexPattern(),
-                    queryExec.query(),
-                    queryExec.limit(),
-                    tuple.v1(),
-                    tuple.v2()
-                );
-            }
+            plan = new EsStatsQueryExec(
+                aggregateExec.source(),
+                queryExec.indexPattern(),
+                queryExec.query(),
+                queryExec.limit(),
+                tuple.v1(),
+                stats.get(0)
+            );
         }
         return plan;
     }
@@ -117,7 +115,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                     var countFilter = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, count.filter());
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.toQueryBuilder(), query));
                                 }
-                                return new EsStatsQueryExec.Stat(fieldName, COUNT, query);
+                                return new EsStatsQueryExec.BasicStat(fieldName, COUNT, query);
                             }
                         }
                     }

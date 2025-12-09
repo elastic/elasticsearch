@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +36,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -231,7 +233,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
         var projectState = projectResolver.getProjectState(clusterState);
-        List<ShardIterator> shardIterators = clusterService.operationRouting()
+        List<SearchShardRouting> shardIterators = clusterService.operationRouting()
             .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
@@ -342,7 +344,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
-                shardContext.context,
+                new IndexedByShardIdFromSingleton<>(shardContext.context),
+                0,
                 warnings
             );
             releasables.add(queryOperator);
@@ -429,7 +432,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             BlockLoader loader = shardContext.blockLoader(
                 fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
-                MappedFieldType.FieldExtractPreference.NONE
+                MappedFieldType.FieldExtractPreference.NONE,
+                null
             );
             fields.add(
                 new ValuesSourceReaderOperator.FieldInfo(
@@ -449,7 +453,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             driverContext.blockFactory(),
             Long.MAX_VALUE,
             fields,
-            List.of(
+            new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     shardContext.searcher().getIndexReader(),
                     shardContext::newSourceLoader,
@@ -556,6 +560,10 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             this.toRelease = toRelease;
             this.extractFields = extractFields;
             this.source = source;
+        }
+
+        public Page getInputPage() {
+            return inputPage;
         }
 
         @Override
@@ -686,16 +694,16 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         SearchExecutionContext executionContext,
         Releasable release
     ) {
-        public static LookupShardContext fromSearchContext(SearchContext context) {
+        public static LookupShardContext fromSearchContext(SearchContext searchContext) {
             return new LookupShardContext(
                 new EsPhysicalOperationProviders.DefaultShardContext(
                     0,
-                    context,
-                    context.getSearchExecutionContext(),
-                    context.request().getAliasFilter()
+                    searchContext,
+                    searchContext.getSearchExecutionContext(),
+                    searchContext.request().getAliasFilter()
                 ),
-                context.getSearchExecutionContext(),
-                context
+                searchContext.getSearchExecutionContext(),
+                searchContext
             );
         }
     }

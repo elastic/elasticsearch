@@ -36,6 +36,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
@@ -751,7 +752,7 @@ public class SystemIndices {
      * details about what constitutes a system feature.
      *
      * <p>This class has a static
-     * {@link #cleanUpFeature(Collection, Collection, String, ClusterService, ProjectResolver, Client, ActionListener)} method
+     * {@link #cleanUpFeature(Collection, Collection, String, ClusterService, ProjectResolver, Client, TimeValue, ActionListener)} method
      * that is the default implementation for resetting feature state.
      */
     public static class Feature {
@@ -808,13 +809,14 @@ public class SystemIndices {
                 indexDescriptors,
                 Collections.emptyList(),
                 Collections.emptyList(),
-                (clusterService, projectResolver, client, listener) -> cleanUpFeature(
+                (clusterService, projectResolver, client, masterNodeTimeout, listener) -> cleanUpFeature(
                     indexDescriptors,
                     Collections.emptyList(),
                     name,
                     clusterService,
                     projectResolver,
                     client,
+                    masterNodeTimeout,
                     listener
                 ),
                 Feature::noopPreMigrationFunction,
@@ -841,13 +843,14 @@ public class SystemIndices {
                 indexDescriptors,
                 dataStreamDescriptors,
                 Collections.emptyList(),
-                (clusterService, projectResolver, client, listener) -> cleanUpFeature(
+                (clusterService, projectResolver, client, masterNodeTimeout, listener) -> cleanUpFeature(
                     indexDescriptors,
                     Collections.emptyList(),
                     name,
                     clusterService,
                     projectResolver,
                     client,
+                    masterNodeTimeout,
                     listener
                 ),
                 Feature::noopPreMigrationFunction,
@@ -918,10 +921,12 @@ public class SystemIndices {
             String name,
             Client client,
             String[] indexNames,
+            TimeValue masterNodeTimeout,
             final ActionListener<ResetFeatureStateStatus> listener
         ) {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
             deleteIndexRequest.indices(indexNames);
+            deleteIndexRequest.masterNodeTimeout(masterNodeTimeout);
             client.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -944,6 +949,7 @@ public class SystemIndices {
          * @param clusterService A clusterService, for retrieving cluster metadata
          * @param projectResolver The project resolver
          * @param client A client, for issuing delete requests
+         * @param masterNodeTimeout Timeout for tasks enqueued on the master node
          * @param listener A listener to return success or failure of cleanup
          */
         public static void cleanUpFeature(
@@ -953,6 +959,7 @@ public class SystemIndices {
             ClusterService clusterService,
             ProjectResolver projectResolver,
             Client client,
+            TimeValue masterNodeTimeout,
             final ActionListener<ResetFeatureStateStatus> listener
         ) {
             final ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
@@ -985,7 +992,7 @@ public class SystemIndices {
                     .flatMap(descriptor -> descriptor.getMatchingIndices(project).stream())
                     .toArray(String[]::new);
                 if (associatedIndices.length > 0) {
-                    cleanUpFeatureForIndices(name, client, associatedIndices, listeners.acquire(handleResponse));
+                    cleanUpFeatureForIndices(name, client, associatedIndices, masterNodeTimeout, listeners.acquire(handleResponse));
                 }
 
                 // One descriptor at a time, create an originating client and clean up the feature
@@ -1000,6 +1007,7 @@ public class SystemIndices {
                             name,
                             clientWithOrigin,
                             matchingIndices.toArray(Strings.EMPTY_ARRAY),
+                            masterNodeTimeout,
                             listeners.acquire(handleResponse)
                         );
                     }
@@ -1008,18 +1016,13 @@ public class SystemIndices {
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.
-        private static void noopPreMigrationFunction(
-            ClusterService clusterService,
-            Client client,
-            ActionListener<Map<String, Object>> listener
-        ) {
+        private static void noopPreMigrationFunction(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
             listener.onResponse(Collections.emptyMap());
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.
         private static void noopPostMigrationFunction(
             Map<String, Object> preUpgradeMetadata,
-            ClusterService clusterService,
             Client client,
             ActionListener<Boolean> listener
         ) {
@@ -1028,25 +1031,20 @@ public class SystemIndices {
 
         /**
          * Type for the handler that's invoked prior to migrating a Feature's system indices.
-         * See {@link SystemIndexPlugin#prepareForIndicesMigration(ClusterService, Client, ActionListener)}.
+         * See {@link SystemIndexPlugin#prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)}.
          */
         @FunctionalInterface
         public interface MigrationPreparationHandler {
-            void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener);
+            void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener);
         }
 
         /**
          * Type for the handler that's invoked when all of a feature's system indices have been migrated.
-         * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}.
+         * See {@link SystemIndexPlugin#indicesMigrationComplete(Map, Client, ActionListener)}.
          */
         @FunctionalInterface
         public interface MigrationCompletionHandler {
-            void indicesMigrationComplete(
-                Map<String, Object> preUpgradeMetadata,
-                ClusterService clusterService,
-                Client client,
-                ActionListener<Boolean> listener
-            );
+            void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener);
         }
 
         public interface CleanupFunction {
@@ -1054,6 +1052,7 @@ public class SystemIndices {
                 ClusterService clusterService,
                 ProjectResolver projectResolver,
                 Client client,
+                TimeValue masterNodeTimeout,
                 ActionListener<ResetFeatureStateStatus> listener
             );
         }

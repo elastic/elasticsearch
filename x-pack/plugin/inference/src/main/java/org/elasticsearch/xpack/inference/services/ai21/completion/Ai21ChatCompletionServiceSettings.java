@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.ai21.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +39,10 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
 
     // Rate limit for AI21 is 10 requests / sec or 200 requests / minute. Setting default to 200 requests / minute
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(200);
+
+    private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
+        "ml_inference_ai21_completion_added"
+    );
 
     public static Ai21ChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -77,7 +80,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AI21_COMPLETION_ADDED;
+        return ML_INFERENCE_AI21_COMPLETION_ADDED;
     }
 
     @Override

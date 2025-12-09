@@ -1,0 +1,6 @@
+pr: 135800
+summary: Switch `TextExpansionQueryBuilder` and `TextEmbeddingQueryVectorBuilder`
+  to return 400 instead of 500 errors
+area: Machine Learning
+type: bug
+issues: []

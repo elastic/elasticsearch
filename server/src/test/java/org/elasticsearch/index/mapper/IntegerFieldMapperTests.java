@@ -53,4 +53,13 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    protected boolean supportsBulkIntBlockReading() {
+        return true;
+    }
+
+    @Override
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { 1, 2, 3 };
+    }
 }

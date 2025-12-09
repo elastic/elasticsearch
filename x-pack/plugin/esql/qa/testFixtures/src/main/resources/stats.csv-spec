@@ -835,6 +835,21 @@ c:l | l:i
 15  |1
 ;
 
+countStarGroupedTrunc
+from employees | stats c = count(*) by d=date_trunc(1 year, hire_date) | sort d | limit 10;
+c:l | d:datetime
+11     | 1985-01-01T00:00:00.000Z
+11     | 1986-01-01T00:00:00.000Z
+15     | 1987-01-01T00:00:00.000Z
+9      | 1988-01-01T00:00:00.000Z
+13     | 1989-01-01T00:00:00.000Z
+12     | 1990-01-01T00:00:00.000Z
+6      | 1991-01-01T00:00:00.000Z
+8      | 1992-01-01T00:00:00.000Z
+3      | 1993-01-01T00:00:00.000Z
+4      | 1994-01-01T00:00:00.000Z
+;
+
 countAllAndOtherStatGrouped
 from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
 
@@ -2299,34 +2314,6 @@ M
 null
 ;
 
-docsStatsMvGroup
-// tag::mv-group[]
-ROW i=1, a=["a", "b"] | STATS MIN(i) BY a | SORT a ASC
-// end::mv-group[]
-;
-
-// tag::mv-group-result[]
-MIN(i):integer | a:keyword
-             1 | a
-             1 | b
-// end::mv-group-result[]
-;
-
-docsStatsMultiMvGroup
-// tag::multi-mv-group[]
-ROW i=1, a=["a", "b"], b=[2, 3] | STATS MIN(i) BY a, b | SORT a ASC, b ASC
-// end::multi-mv-group[]
-;
-
-// tag::multi-mv-group-result[]
-MIN(i):integer | a:keyword | b:integer
-             1 | a         | 2
-             1 | a         | 3
-             1 | b         | 2
-             1 | b         | 3
-// end::multi-mv-group-result[]
-;
-
 statsByConstant#[skip:-8.14.1,reason:implemented in 8.14]
 from employees
 | stats m = max(salary), a = round(avg(salary)) by 0
@@ -2986,14 +2973,31 @@ stdDeviation
 required_capability: std_dev
 // tag::stdev[]
 FROM employees
-| STATS STD_DEV(height)
+| STATS std_dev_height = STD_DEV(height)
 // end::stdev[]
+| EVAL std_dev_height = ROUND(std_dev_height, 7)
 ;
 
 // tag::stdev-result[]
-STD_DEV(height):double
-0.20637044362020449
+std_dev_height:double
+0.2063704
 // end::stdev-result[]
+;
+
+varianceSimple
+required_capability: variance_stddev_over_time
+
+// tag::variance[]
+FROM employees
+| STATS var_height = VARIANCE(height)
+// end::variance[]
+| EVAL var_height = ROUND(var_height, 7)
+;
+
+// tag::variance-result[]
+var_height:double
+0.0425888
+// end::variance-result[]
 ;
 
 stdDeviationNested
@@ -3002,33 +3006,74 @@ required_capability: std_dev
 FROM employees
 | STATS stddev_salary_change = STD_DEV(MV_MAX(salary_change))
 // end::docsStatsStdDevNestedExpression[]
+| EVAL stddev_salary_change = ROUND(stddev_salary_change, 5)
 ;
 
 // tag::docsStatsStdDevNestedExpression-result[]
 stddev_salary_change:double
-6.875829592924112
+6.87583
 // end::docsStatsStdDevNestedExpression-result[]
 ;
 
 
+varianceNested
+required_capability: variance_stddev_over_time
+
+# tag::variance[]
+FROM employees
+| STATS var_salary_change = VARIANCE(MV_MAX(salary_change))
+# end::variance[]
+| EVAL var_salary_change = ROUND(var_salary_change, 5)
+;
+
+# tag::variance-result[]
+var_salary_change:double
+47.27703
+# end::variance-result[]
+;
+
 stdDeviationWithLongs
 required_capability: std_dev
 FROM employees
-| STATS STD_DEV(avg_worked_seconds)
+| STATS std_dev = STD_DEV(avg_worked_seconds)
+| EVAL std_dev = ROUND(std_dev, 0)
 ;
 
-STD_DEV(avg_worked_seconds):double
-5.76010425971634E7
+std_dev:double
+5.7601043E7
+;
+
+varianceWithLongs
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS var = variance(avg_worked_seconds)
+| EVAL var = ROUND(var, 7)
+;
+
+var:double
+3.317880108280233E15
 ;
 
 stdDeviationWithInts
 required_capability: std_dev
 FROM employees
-| STATS STD_DEV(salary)
+| STATS std_dev = STD_DEV(salary)
+| EVAL std_dev = ROUND(std_dev, 5)
 ;
 
-STD_DEV(salary):double
-13765.12550278783
+std_dev:double
+13765.1255
+;
+
+varianceWithInts
+required_capability: variance_stddev_over_time
+FROM employees
+| STATS var = STD_VAR(salary)
+| EVAL var = ROUND(var, 5)
+;
+
+var:double
+1.894786801075E8
 ;
 
 stdDeviationConstantValue
@@ -3045,17 +3090,19 @@ STD_DEV(languages):double
 stdDeviationGroupedDoublesOnly
 required_capability: std_dev
 FROM employees
-| STATS STD_DEV(height) BY languages
+| STATS std_dev = STD_DEV(height) BY languages
+| EVAL std_dev = ROUND(std_dev, 5)
 | SORT languages asc
+| KEEP std_dev, languages
 ;
 
-STD_DEV(height):double | languages:integer
-0.22106409327010415    | 1
-0.22797190865484734    | 2
-0.18893070075713295    | 3
-0.14656141004227627    | 4
-0.17733860152780256    | 5
-0.2486543786061287     | null
+std_dev:double | languages:integer
+0.22106        | 1
+0.22797        | 2
+0.18893        | 3
+0.14656        | 4
+0.17734        | 5
+0.24865        | null
 ;
 
 stdDeviationGroupedAllTypes
@@ -3067,33 +3114,36 @@ FROM employees
     int_std_dev = STD_DEV(salary),
     long_std_dev = STD_DEV(avg_worked_seconds)
   BY languages
+| EVAL double_std_dev = ROUND(double_std_dev, 5), int_std_dev = ROUND(int_std_dev, 5), long_std_dev = ROUND(long_std_dev, 5)
 | SORT languages asc
+| KEEP double_std_dev, int_std_dev, long_std_dev, languages
 ;
 
-double_std_dev:double | int_std_dev:double | long_std_dev:double  | languages:integer
-0.22106409327010415   | 15166.244178730898 | 5.1998715922156096E7 | 1
-0.22797190865484734   | 12139.61099378116  | 5.309085506583288E7  | 2
+double_std_dev:double | int_std_dev:double | long_std_dev:double | languages:integer
+0.22106               | 15166.24418        | 5.199871592216E7    | 1
+0.22797               | 12139.61099        | 5.309085506583E7    | 2
 ;
 
 stdDeviationNoRows
 required_capability: std_dev
 FROM employees
 | WHERE languages IS null
-| STATS STD_DEV(languages)
+| STATS sd=STD_DEV(languages)
 ;
 
-STD_DEV(languages):double
+sd:double
 null
 ;
 
 stdDevMultiValue
 required_capability: std_dev
 FROM employees
-| STATS STD_DEV(salary_change)
+| STATS std_dev = STD_DEV(salary_change)
+| EVAL std_dev = ROUND(std_dev, 5)
 ;
 
-STD_DEV(salary_change):double
-7.062226788733394
+std_dev:double
+7.06223
 ;
 
 stdDevFilter
@@ -3103,23 +3153,28 @@ FROM employees
 , less_than = STD_DEV(salary_change) WHERE languages <= 3
 , salary = STD_DEV(salary * 2)
 , count = COUNT(*) BY gender
+| EVAL greater_than = ROUND(greater_than, 5)
+, less_than = ROUND(less_than, 5)
+, salary = ROUND(salary, 5)
 | SORT gender asc
+| KEEP greater_than, less_than, salary, count, gender
 ;
 
-greater_than:double | less_than:double  | salary:double      | count:long | gender:keyword
-6.4543266953142835  | 7.57786788789264  | 29045.770666969744 | 33         | F
-6.975232333891946   | 6.604807075547775 | 26171.331109641273 | 57         | M
-6.949207097931448   | 7.127229475750027 | 27921.220736207077 | 10         | null
+greater_than:double | less_than:double | salary:double | count:long | gender:keyword
+6.45433             | 7.57787          | 29045.77067   | 33         | F
+6.97523             | 6.60481          | 26171.33111   | 57         | M
+6.94921             | 7.12723          | 27921.22074   | 10         | null
 ;
 
 stdDevRow
 required_capability: std_dev
 ROW a = [1,2,3], b = 5
-| STATS STD_DEV(a), STD_DEV(b)
+| STATS std_dev_a = STD_DEV(a), std_dev_b = STD_DEV(b)
+| EVAL std_dev_a = ROUND(std_dev_a, 5), std_dev_b = ROUND(std_dev_b, 5)
 ;
 
-STD_DEV(a):double | STD_DEV(b):double
-0.816496580927726 | 0.0
+std_dev_a:double | std_dev_b:double
+0.8165           | 0.0
 ;
 
 resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
@@ -3144,4 +3199,351 @@ FROM employees
 
 m:datetime               | x:integer | d:boolean
 1999-04-30T00:00:00.000Z | 2         | true
+;
+
+sumWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+required_capability: aggregate_metric_double_v0
+
+FROM employees
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(1)
+| STATS sum1 = SUM(1),
+        sum2 = SUM(1) WHERE emp_no == 10080,
+        sum3 = SUM(1) WHERE emp_no < 10080,
+        sum4 = SUM(1) WHERE emp_no >= 10080,
+        sum5 = SUM(agg_metric),
+        sum6 = SUM(agg_metric) WHERE emp_no == 10080
+;
+
+sum1:long | sum2:long | sum3:long | sum4:long | sum5:double | sum6:double
+100       | 1         | 79        | 21        | 100.0       | 1.0
+;
+
+weightedAvgWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+| MV_EXPAND x
+| STATS w_avg1 = WEIGHTED_AVG(x, 1) WHERE x == 5,
+        w_avg2 = WEIGHTED_AVG(x, x) WHERE x == 5,
+        w_avg3 = WEIGHTED_AVG(x, 2) WHERE x <= 5,
+        w_avg4 = WEIGHTED_AVG(x, x) WHERE x > 5,
+        w_avg5 = WEIGHTED_AVG([1,2,3], 1),
+        w_avg6 = WEIGHTED_AVG([1,2,3], 1) WHERE x == 5
+;
+
+w_avg1:double | w_avg2:double | w_avg3:double | w_avg4:double | w_avg5:double | w_avg6:double
+5.0           | 5.0           | 3.0           | 8.25          | 2.0           | 2.0
+;
+
+maxWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+required_capability: aggregate_metric_double_v0
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+| STATS max1 = MAX(agg_metric) WHERE x <= 3,
+        max2 = MAX(agg_metric),
+        max3 = MAX(x),
+        max4 = MAX(x) WHERE x > 3
+;
+
+max1:double | max2:double | max3:integer | max4:integer
+3.0         | 5.0         | 5            | 5
+;
+
+minWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+required_capability: aggregate_metric_double_v0
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+| STATS min1 = MIN(agg_metric) WHERE x <= 3,
+        min2 = MIN(agg_metric),
+        min3 = MIN(x),
+        min4 = MIN(x) WHERE x > 3
+;
+
+min1:double | min2:double | min3:integer | min4:integer
+1.0         | 1.0         | 1            | 4
+;
+
+countWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+required_capability: aggregate_metric_double_v0
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+| STATS count1 = COUNT(x) WHERE x >= 3,
+        count2 = COUNT(x),
+        count3 = COUNT(agg_metric),
+        count4 = COUNT(agg_metric) WHERE x >=3,
+        count5 = COUNT(4) WHERE x >= 3,
+        count6 = COUNT(*) WHERE x >= 3,
+        count7 = COUNT([1,2,3]) WHERE x >= 3,
+        count8 = COUNT([1,2,3])
+;
+
+count1:long | count2:long | count3:long | count4:long | count5:long | count6:long | count7:long | count8:long
+3           | 5           | 5           | 3           | 3           | 3           | 9           | 15
+;
+
+countDistinctWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS count1 = COUNT_DISTINCT(x) WHERE x <= 3,
+        count2 = COUNT_DISTINCT(x),
+        count3 = COUNT_DISTINCT(1) WHERE x <= 3,
+        count4 = COUNT_DISTINCT(1)
+;
+
+count1:long | count2:long | count3:long | count4:long
+3           | 5           | 1           | 1
+;
+
+avgWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+required_capability: aggregate_metric_double_v0
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| EVAL agg_metric = TO_AGGREGATE_METRIC_DOUBLE(x)
+| STATS avg1 = AVG(x) WHERE x <= 3,
+        avg2 = AVG(x),
+        avg3 = AVG(agg_metric) WHERE x <=3,
+        avg4 = AVG(agg_metric)
+;
+
+avg1:double | avg2:double | avg3:double | avg4:double
+2.0         | 3.0         | 2.0         | 3.0
+;
+
+percentileWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS percentile1 = PERCENTILE(x, 50) WHERE x <= 3,
+        percentile2 = PERCENTILE(x, 50)
+;
+
+percentile1:double | percentile2:double
+2.0                | 3.0
+;
+
+medianWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 2, 3, 4, 5]
+| MV_EXPAND x
+| STATS median1 = MEDIAN(x) WHERE x <= 3,
+        median2 = MEDIAN(x),
+        median3 = MEDIAN([5,6,7,8,9]) WHERE x <= 3,
+        median4 = MEDIAN([5,6,7,8,9])
+;
+
+median1:double | median2:double | median3:double | median4:double
+2.0            | 3.0            | 7.0            | 7.0
+;
+
+medianAbsoluteDeviationWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+ROW x = [1, 3, 4, 7, 11, 18]
+| MV_EXPAND x
+| STATS median_dev1 = MEDIAN_ABSOLUTE_DEVIATION(x) WHERE x <= 3,
+        median_dev2 = MEDIAN_ABSOLUTE_DEVIATION(x),
+        median_dev3 = MEDIAN_ABSOLUTE_DEVIATION([3, 11, 14, 25]) WHERE x <= 3,
+        median_dev4 = MEDIAN_ABSOLUTE_DEVIATION([3, 11, 14, 25])
+;
+
+median_dev1:double | median_dev2:double | median_dev3:double | median_dev4:double
+1.0                | 3.5                | 5.5                | 5.5
+;
+
+topWithConditions
+required_capability: stats_with_filtered_surrogate_fixed
+
+FROM employees
+| STATS min1 = TOP(emp_no, 1, "ASC") WHERE emp_no > 10010,
+        min2 = TOP(emp_no, 2, "ASC") WHERE emp_no > 10010,
+        max1 = TOP(emp_no, 1, "DESC") WHERE emp_no < 10080,
+        max2 = TOP(emp_no, 2, "DESC") WHERE emp_no < 10080
+;
+
+min1:integer | min2:integer   | max1:integer | max2:integer
+10011        | [10011, 10012] | 10079        | [10079, 10078]
+;
+
+sumRowMany
+// tag::mv-group[]
+ROW price = 10, color = ["blue", "pink", "yellow"]
+| STATS SUM(price) BY color
+// end::mv-group[]
+| SORT color ASC
+;
+
+// tag::mv-group-result[]
+SUM(price):long | color:keyword
+             10 | blue
+             10 | pink
+             10 | yellow
+// end::mv-group-result[]
+;
+
+sumRowManyTwo
+// tag::multi-mv-group[]
+ROW price = 10, color = ["blue", "pink", "yellow"], size = ["s", "m", "l"]
+| STATS SUM(price) BY color, size
+// end::multi-mv-group[]
+| SORT color ASC, size ASC
+;
+
+// tag::multi-mv-group-result[]
+SUM(price):long | color:keyword | size:keyword
+             10 | blue          | l
+             10 | blue          | m
+             10 | blue          | s
+             10 | pink          | l
+             10 | pink          | m
+             10 | pink          | s
+             10 | yellow        | l
+             10 | yellow        | m
+             10 | yellow        | s
+// end::multi-mv-group-result[]
+;
+
+valuesRowMany
+// tag::mv-group-values[]
+ROW color = ["blue", "pink", "yellow"]
+| STATS VALUES(color) BY color
+// end::mv-group-values[]
+| SORT color ASC
+;
+
+// tag::mv-group-values-result[]
+VALUES(color):keyword | color:keyword
+ [blue, pink, yellow] | blue
+ [blue, pink, yellow] | pink
+ [blue, pink, yellow] | yellow
+// end::mv-group-values-result[]
+;
+
+valuesRowManyExpand
+// tag::mv-group-values-expand[]
+ROW color = ["blue", "pink", "yellow"]
+| MV_EXPAND color
+| STATS VALUES(color) BY color
+// end::mv-group-values-expand[]
+| SORT color ASC
+;
+
+// tag::mv-group-values-expand-result[]
+VALUES(color):keyword | color:keyword
+                 blue | blue
+                 pink | pink
+               yellow | yellow
+// end::mv-group-values-expand-result[]
+;
+
+filterOrdinalValues
+required_capability: fix_filter_ordinals
+from employees 
+| MV_EXPAND job_positions
+| WHERE job_positions != "Purchase Manager"
+| STATS employees=count(*) BY job_positions
+| SORT job_positions
+| LIMIT 1000
+;
+
+employees:long | job_positions:keyword
+18             | Accountant
+13             | Architect
+11             | Business Analyst
+13             | Data Scientist
+10             | Head Human Resources
+15             | Internship
+14             | Junior Developer
+20             | Principal Support Engineer
+13             | Python Developer
+15             | Reporting Analyst
+20             | Senior Python Developer
+15             | Senior Team Lead
+11             | Support Engineer
+15             | Tech Lead    
+;
+
+fixClassCastBugWithCountDistinct
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x)
+;
+
+a:long | b:long | c:long
+891    | 1782   | 8
+;
+
+fixClassCastBugWithValuesFn
+required_capability: fix_stats_classcast_exception
+
+ROW x = [1,2,3] 
+| STATS a = MV_COUNT(VALUES(x)), b = VALUES(x), c = SUM(x)
+;
+
+a:integer | b:integer | c:long
+3         | [1, 2, 3] | 6
+;
+
+fixClassCastBugWithSeveralCountDistincts
+required_capability: fix_stats_classcast_exception
+
+ROW x = 1 
+| STATS a = 2*COUNT_DISTINCT(x), b = COUNT_DISTINCT(x), c = MAX(x)
+;
+
+a:long | b:long | c:integer
+2      | 1      | 1
+;
+
+fixClassCastBugWithMedianPlusCountDistinct
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data_ts_long 
+| EVAL sym1 = 0, sym5 = 1
+| STATS sym2 = median(sym5) + 0, sym3 = median(sym5), sym4 = count_distinct(sym1)
+;
+
+sym2:double |sym3:double | sym4:long
+1.0         | 1.0        | 1
+;
+
+fixClassCastBugWithFoldableLiterals
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats  a = count(x), b = count(x) + count(x), c = count_distinct(x, 10), d = count_distinct(x, 10 + 1 - 1)
+;
+
+a:long | b:long | c:long | d:long
+891    | 1782   | 8      | 8
+;
+
+fixClassCastBugWithSurrogateExpressions
+required_capability: fix_stats_classcast_exception
+
+from airports 
+| rename scalerank AS x 
+| stats a = median(x), b = percentile(x, 50), c = count_distinct(x)
+;
+
+a:double | b:double | c:long
+6.0      | 6.0      | 8
 ;

@@ -19,11 +19,14 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -119,7 +122,21 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
         }));
-
+        if (EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()) {
+            noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.EXPONENTIAL_HISTOGRAM, DataType.EXPONENTIAL_HISTOGRAM), () -> {
+                ExponentialHistogram firstHisto = randomBoolean() ? null : EsqlTestUtils.randomExponentialHistogram();
+                ExponentialHistogram secondHisto = EsqlTestUtils.randomExponentialHistogram();
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(firstHisto, DataType.EXPONENTIAL_HISTOGRAM, "first"),
+                        new TestCaseSupplier.TypedData(secondHisto, DataType.EXPONENTIAL_HISTOGRAM, "second")
+                    ),
+                    "CoalesceExponentialHistogramEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                    DataType.EXPONENTIAL_HISTOGRAM,
+                    equalTo(firstHisto == null ? secondHisto : firstHisto)
+                );
+            }));
+        }
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);
         for (TestCaseSupplier s : noNullsSuppliers) {
             for (int nullUpTo = 1; nullUpTo < s.types().size(); nullUpTo++) {
@@ -183,14 +200,23 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
-        for (DataType dataType : List.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE)) {
+        for (DataType dataType : List.of(
+            DataType.GEO_POINT,
+            DataType.GEO_SHAPE,
+            DataType.CARTESIAN_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX
+        )) {
+            String blockType = DataType.isGeoGrid(dataType) ? "Long" : "BytesRef";
             TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
             TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
             suppliers.add(
                 TestCaseSupplier.testCaseSupplier(
                     leftDataSupplier,
                     rightDataSupplier,
-                    (l, r) -> equalTo("CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
+                    (l, r) -> equalTo("Coalesce" + blockType + "EagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
                     dataType,
                     (l, r) -> l
                 )
@@ -223,6 +249,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         @Override
                         public Block eval(Page page) {
                             throw new AssertionError("shouldn't be called");
+                        }
+
+                        @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
                         }
 
                         @Override

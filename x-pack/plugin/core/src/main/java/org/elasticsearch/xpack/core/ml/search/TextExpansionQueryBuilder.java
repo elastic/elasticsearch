@@ -118,7 +118,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_8_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -188,7 +188,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {
                         listener.onFailure(
-                            new IllegalStateException(
+                            new IllegalArgumentException(
                                 "expected a result of type ["
                                     + TextExpansionResults.NAME
                                     + "] received ["

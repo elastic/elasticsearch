@@ -189,6 +189,9 @@ public interface RuntimeField extends ToXContentFragment {
                             + " Check the documentation."
                     );
                 }
+                if (parserContext.getNamespaceValidator() != null) {
+                    parserContext.getNamespaceValidator().validateNamespace(null, fieldName);
+                }
                 runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(fieldName, propNode);

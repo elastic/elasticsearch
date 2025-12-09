@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,7 +39,7 @@ public record CompatibilityVersions(
     Map<String, org.elasticsearch.indices.SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersion
 ) implements Writeable, ToXContentFragment {
 
-    public static final CompatibilityVersions EMPTY = new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of());
+    public static final CompatibilityVersions EMPTY = new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of());
 
     /**
      * Constructs a VersionWrapper collecting all the minimum versions from the values of the map.
@@ -109,9 +108,7 @@ public record CompatibilityVersions(
         TransportVersion transportVersion = TransportVersion.readVersion(in);
 
         Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions = Map.of();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            mappingsVersions = in.readMap(SystemIndexDescriptor.MappingsVersion::new);
-        }
+        mappingsVersions = in.readMap(SystemIndexDescriptor.MappingsVersion::new);
 
         return new CompatibilityVersions(transportVersion, mappingsVersions);
     }
@@ -120,9 +117,7 @@ public record CompatibilityVersions(
     public void writeTo(StreamOutput out) throws IOException {
         TransportVersion.writeVersion(this.transportVersion(), out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeMap(this.systemIndexMappingsVersion(), StreamOutput::writeWriteable);
-        }
+        out.writeMap(this.systemIndexMappingsVersion(), StreamOutput::writeWriteable);
     }
 
     /**

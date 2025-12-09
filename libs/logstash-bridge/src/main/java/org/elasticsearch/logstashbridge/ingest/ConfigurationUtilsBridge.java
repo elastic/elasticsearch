@@ -10,7 +10,9 @@ package org.elasticsearch.logstashbridge.ingest;
 
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
-import org.elasticsearch.logstashbridge.script.TemplateScriptBridge;
+import org.elasticsearch.logstashbridge.script.TemplateScriptFactoryBridge;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.Map;
 
@@ -18,16 +20,24 @@ import java.util.Map;
  * An external bridge for {@link ConfigurationUtils}
  */
 public class ConfigurationUtilsBridge {
-    public static TemplateScriptBridge.Factory compileTemplate(
+    private ConfigurationUtilsBridge() {}
+
+    public static TemplateScriptFactoryBridge compileTemplate(
         final String processorType,
         final String processorTag,
         final String propertyName,
         final String propertyValue,
-        final ScriptServiceBridge scriptServiceBridge
+        final ScriptServiceBridge bridgedScriptService
     ) {
-        return new TemplateScriptBridge.Factory(
-            ConfigurationUtils.compileTemplate(processorType, processorTag, propertyName, propertyValue, scriptServiceBridge.toInternal())
+        ScriptService scriptService = bridgedScriptService.toInternal();
+        final TemplateScript.Factory templateScriptFactory = ConfigurationUtils.compileTemplate(
+            processorType,
+            processorTag,
+            propertyName,
+            propertyValue,
+            scriptService
         );
+        return TemplateScriptFactoryBridge.fromInternal(templateScriptFactory);
     }
 
     public static String readStringProperty(

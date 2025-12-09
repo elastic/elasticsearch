@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -417,7 +418,13 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
         var configuration = EsqlTestUtils.configuration("from test");
-        var ctx = new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, FoldContext.small(), SearchStats.EMPTY);
+        var ctx = new LocalPhysicalOptimizerContext(
+            TEST_PLANNER_SETTINGS,
+            new EsqlFlags(true),
+            configuration,
+            FoldContext.small(),
+            SearchStats.EMPTY
+        );
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);
     }
@@ -533,7 +540,15 @@ public class PushTopNToSourceTests extends ESTestCase {
                 }
                 refs.put(
                     alias.name(),
-                    new ReferenceAttribute(Source.EMPTY, alias.name(), alias.dataType(), Nullability.FALSE, alias.id(), alias.synthetic())
+                    new ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        alias.name(),
+                        alias.dataType(),
+                        Nullability.FALSE,
+                        alias.id(),
+                        alias.synthetic()
+                    )
                 );
                 this.aliases.add(alias);
             }
@@ -589,7 +604,6 @@ public class PushTopNToSourceTests extends ESTestCase {
                 Source.EMPTY,
                 this.index,
                 indexMode,
-                Map.of(),
                 attributes,
                 null,
                 List.of(),

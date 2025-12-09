@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.Murmur3Hasher;
@@ -59,9 +59,9 @@ public final class RoutingPathFields implements RoutingFields {
      * Builds the routing. Used for building {@code _id}. If null then skipped.
      */
     @Nullable
-    private final IndexRouting.ExtractFromSource.Builder routingBuilder;
+    private final RoutingHashBuilder routingBuilder;
 
-    public RoutingPathFields(@Nullable IndexRouting.ExtractFromSource.Builder routingBuilder) {
+    public RoutingPathFields(@Nullable RoutingHashBuilder routingBuilder) {
         this.routingBuilder = routingBuilder;
     }
 
@@ -69,7 +69,7 @@ public final class RoutingPathFields implements RoutingFields {
         return Collections.unmodifiableSortedMap(routingValues);
     }
 
-    IndexRouting.ExtractFromSource.Builder routingBuilder() {
+    RoutingHashBuilder routingBuilder() {
         return routingBuilder;
     }
 
@@ -205,6 +205,11 @@ public final class RoutingPathFields implements RoutingFields {
             throw new IllegalArgumentException("Routing field cannot be serialized.", e);
         }
         return this;
+    }
+
+    @Override
+    public boolean isNoop() {
+        return false;
     }
 
     private void add(String fieldName, BytesReference encoded) throws IOException {

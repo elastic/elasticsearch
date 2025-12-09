@@ -35,7 +35,10 @@ public class DockerAvailability {
 
     static void assumeDockerIsAvailable() {
         org.junit.Assume.assumeFalse("The current OS is excluded from Docker-based tests", EXCLUDED_OS);
-        org.junit.Assume.assumeTrue("The current OS is excluded from Docker-based tests", DOCKER_PROBING_SUCCESSFUL);
+        if (CI && DOCKER_PROBING_SUCCESSFUL == false) {
+            throw new AssertionError("Docker is expected to be available on this CI node but probing failed.");
+        }
+        org.junit.Assume.assumeTrue("Docker is not available", DOCKER_PROBING_SUCCESSFUL);
     }
 
     /**
@@ -54,7 +57,7 @@ public class DockerAvailability {
     }
 
     private static boolean isExcludedOs() {
-        if (CI) {
+        if (CI == false) {
             // we dont exclude OS outside of CI environment
             return false;
         }

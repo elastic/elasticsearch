@@ -1361,7 +1361,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             field.add(binaryValue);
         }
 
-        // Skip adding the field if we're using binary doc values (cardinality is high) and the field is neither indexed nor stored.
+        // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
+        // and this fieldType has docValuesType=NONE. Then, when there is no index defined and the field is not stored, this field
+        // is a no-op and we can skip adding it to the document.
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.docValuesType() != DocValuesType.NONE || fieldType.stored()) {
             Field field = buildKeywordField(binaryValue);
             context.doc().add(field);

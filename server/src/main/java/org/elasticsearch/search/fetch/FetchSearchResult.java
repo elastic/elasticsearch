@@ -90,6 +90,10 @@ public final class FetchSearchResult extends SearchPhaseResult {
         this.circuitBreakerBytes = bytes;
     }
 
+    public long getCircuitBreakerBytes() {
+        return circuitBreakerBytes;
+    }
+
     public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
         if (circuitBreakerBytes > 0L) {
             circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -69,9 +70,15 @@ public class PresentOverTime extends TimeSeriesAggregateFunction {
                 "unsigned_long",
                 "version",
                 "exponential_histogram" }
-        ) Expression field
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the present over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
     public PresentOverTime(Source source, Expression field, Expression filter, Expression window) {

@@ -475,6 +475,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/180_update_dense_vector_type/Test update flat --> bbq_flat --> bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/139253
 
 # Examples:
 #

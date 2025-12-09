@@ -885,14 +885,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<LongRangeBlockBuilder.LongRange, Object> expectedValue,
         List<String> warnings
     ) {
-        unary(
-            suppliers,
-            expectedEvaluatorToString,
-            dateRangeCases(),
-            expectedType,
-            v -> expectedValue.apply((LongRangeBlockBuilder.LongRange) v),
-            warnings
-        );
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+            unary(
+                suppliers,
+                expectedEvaluatorToString,
+                dateRangeCases(),
+                expectedType,
+                v -> expectedValue.apply((LongRangeBlockBuilder.LongRange) v),
+                warnings
+            );
+        }
     }
 
     public static void forUnaryExponentialHistogram(

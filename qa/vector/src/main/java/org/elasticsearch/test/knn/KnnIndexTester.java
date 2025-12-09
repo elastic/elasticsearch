@@ -389,7 +389,7 @@ public class KnnIndexTester {
                 String method = "eager";
                 if (queryResult.postFilteringThreshold > .5f) {
                     if (queryResult.filterSelectivity > .00009f) {
-                        method = "post-filtering (>=90%)";
+                        method = "post-filtering";
                     } else if (queryResult.filterSelectivity > .0000003f) {
                         method = "lazy-evaluation (>=30%)";
                     } else {

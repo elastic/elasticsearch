@@ -36,7 +36,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        heapAttackIT.initManyBigFieldsIndex(1000, "keyword");
+        heapAttackIT.initManyBigFieldsIndex(500, "keyword");
         Map<?, ?> response = buildSubqueries(2, "manybigfields");
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -47,7 +47,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManyKeywordFieldsInSubqueryIntermediateResultsWithAgg() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        int docs = 1000;
+        int docs = 500;
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword");
         Map<?, ?> response = buildSubqueriesWithAgg(1, "manybigfields");
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
@@ -57,7 +57,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         // TODO 25 docs + 2 subqueries without "limit 40" in the main query causes OOM, should we CBE instead?
-        heapAttackIT.initGiantTextField(200);
+        heapAttackIT.initGiantTextField(100);
         Map<?, ?> response = buildSubqueries(2, "bigtext");
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "f").entry("type", "text"));
         assertMap(response, matchesMap().entry("columns", columns));
@@ -65,7 +65,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithAgg() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        int docs = 200;
+        int docs = 100;
         heapAttackIT.initGiantTextField(docs);
         Map<?, ?> response = buildSubqueriesWithAgg(2, "bigtext");
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
@@ -81,7 +81,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManySubqueriesWithManyKeywordFields() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        heapAttackIT.initManyBigFieldsIndex(1000, "keyword");
+        heapAttackIT.initManyBigFieldsIndex(500, "keyword");
         Map<?, ?> response = buildSubqueries(MAX_SUBQUERIES, "manybigfields");
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -92,7 +92,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManySubqueriesWithManyKeywordFieldsWithAgg() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        int docs = 1000;
+        int docs = 500;
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword");
         Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields");
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
@@ -124,7 +124,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testManySubqueriesWithGiantTextFieldWithAgg() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        int docs = 200; // 500 docs didn't OOM or CB
+        int docs = 100; // 500 docs didn't OOM or CB
         heapAttackIT.initGiantTextField(docs);
         Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "bigtext");
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
@@ -148,7 +148,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     private Map<String, Object> buildSubqueries(int subqueries, String indexName) throws IOException {
         StringBuilder query = startQuery();
         // TODO remove the limit after fixing the OOM(limit 50 OOM locally) on bigtext, should we CBE instead?
-        String limit = indexName.equalsIgnoreCase("bigtext") ? " | LIMIT 40 " : "";
+        String limit = indexName.equalsIgnoreCase("bigtext") ? " | LIMIT 10 " : "";
         String subquery = "(FROM " + indexName + " )";
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {

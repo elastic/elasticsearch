@@ -1,8 +1,12 @@
 ---
 setup:
   - requires:
-      cluster_features: ["repositories.default_repository_setting"]
-      reason: "Default repository setting was introduced in 9.2.0"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /_cluster/settings
+          capabilities: ["repositories.default_repository_setting"]
+      reason: "Default repository setting capability check"
 
   # Create two test repositories without verification
   - do:
@@ -56,17 +60,9 @@ teardown:
 
   # Verify the setting is persisted
   - do:
-      cluster.get_settings:
-        flat_settings: false
+      cluster.get_settings: {}
 
   - match: { persistent.repositories.default_repository: "test_repo_1" }
-
-  # Clean up: clear the default setting
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            repositories.default_repository: null
 
 ---
 "Cannot delete default repository":
@@ -89,13 +85,6 @@ teardown:
         repository: test_repo_1
 
   - is_true: test_repo_1
-
-  # Clean up: clear the default setting
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            repositories.default_repository: null
 
 ---
 "Cannot set non-existent repository as default":
@@ -149,13 +138,6 @@ teardown:
       cluster.get_settings: {}
 
   - match: { persistent.repositories.default_repository: "test_repo_2" }
-
-  # Clean up: clear the default setting
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            repositories.default_repository: null
 
 ---
 "Clear default repository setting":

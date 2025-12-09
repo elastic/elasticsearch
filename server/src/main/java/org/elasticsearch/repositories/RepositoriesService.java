@@ -189,6 +189,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     private void setDefaultRepository(String repositoryName) {
         this.defaultRepository = repositoryName;
+        logger.info("Default repository set to [{}]", repositoryName);
     }
 
     /**
@@ -213,7 +214,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     + repositoryName
             );
         }
-        logger.info("Default repository set to [{}]", repositoryName);
     }
 
     /**

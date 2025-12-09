@@ -2037,18 +2037,18 @@ public class Security extends Plugin
             boolean test(String secProvPattern) {
                 int i = secProvPattern.indexOf(':');
                 if (i < 0) {
-                    return name.equalsIgnoreCase(secProvPattern);
+                    return name.equals(secProvPattern);
                 } else {
                     String provName = secProvPattern.substring(0, i);
                     String provVersion = secProvPattern.substring(i + 1);
-                    return name.equalsIgnoreCase(provName) && Regex.simpleMatch(provVersion, version);
+                    return name.equals(provName) && Regex.simpleMatch(provVersion, version);
                 }
             }
         }
 
         Set<SecProv> foundProviders = new HashSet<>();
         for (Provider provider : java.security.Security.getProviders()) {
-            foundProviders.add(new SecProv(provider.getName(), provider.getVersionStr()));
+            foundProviders.add(new SecProv(provider.getName().toLowerCase(Locale.ROOT), provider.getVersionStr()));
             if (logger.isTraceEnabled()) {
                 logger.trace("Security Provider: " + provider.getName() + ", Version: " + provider.getVersionStr());
                 provider.entrySet().forEach(entry -> { logger.trace("\t" + entry.getKey()); });
@@ -2059,6 +2059,7 @@ public class Security extends Plugin
         logger.info("JVM Security Providers: " + foundProviders);
         if (requiredProviders != null && requiredProviders.isEmpty() == false) {
             List<String> unsatisfiedProviders = requiredProviders.stream()
+                .map(s -> s.toLowerCase(Locale.ROOT))
                 .filter(element -> foundProviders.stream().noneMatch(prov -> prov.test(element)))
                 .toList();
 

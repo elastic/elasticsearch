@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -112,6 +113,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -568,7 +570,7 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class)),
+        new InferenceService(mock(Client.class), createMockClusterService()),
         new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
         TEST_PLANNER_SETTINGS,
         new CrossProjectModeDecider(Settings.EMPTY)
@@ -577,6 +579,12 @@ public final class EsqlTestUtils {
     private static ClusterService createMockClusterService() {
         var service = mock(ClusterService.class);
         doReturn(new ClusterName("test-cluster")).when(service).getClusterName();
+        doReturn(Settings.EMPTY).when(service).getSettings();
+
+        // Create ClusterSettings with the required inference settings
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, new java.util.HashSet<>(InferenceSettings.getSettings()));
+        doReturn(clusterSettings).when(service).getClusterSettings();
+
         return service;
     }
 

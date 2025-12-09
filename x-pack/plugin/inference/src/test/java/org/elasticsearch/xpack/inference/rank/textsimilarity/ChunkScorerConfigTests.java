@@ -31,11 +31,7 @@ public class ChunkScorerConfigTests extends ESTestCase {
     }
 
     public void testChunkingSettingsFromMapWithFullSettings() {
-        Map<String, Object> map = Map.of(
-            "strategy", "sentence",
-            "max_chunk_size", 200,
-            "sentence_overlap", 1
-        );
+        Map<String, Object> map = Map.of("strategy", "sentence", "max_chunk_size", 200, "sentence_overlap", 1);
         ChunkingSettings settings = ChunkScorerConfig.chunkingSettingsFromMap(map);
 
         assertNotNull(settings);
@@ -58,11 +54,7 @@ public class ChunkScorerConfigTests extends ESTestCase {
     }
 
     public void testSerializationRoundTripWithChunkingSettings() throws IOException {
-        ChunkScorerConfig original = new ChunkScorerConfig(
-            3,
-            "test query",
-            ChunkScorerConfig.defaultChunkingSettings(500)
-        );
+        ChunkScorerConfig original = new ChunkScorerConfig(3, "test query", ChunkScorerConfig.defaultChunkingSettings(500));
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -91,11 +83,7 @@ public class ChunkScorerConfigTests extends ESTestCase {
     }
 
     public void testSerializationRoundTripWithNullSize() throws IOException {
-        ChunkScorerConfig original = new ChunkScorerConfig(
-            null,
-            "test query",
-            ChunkScorerConfig.defaultChunkingSettings(200)
-        );
+        ChunkScorerConfig original = new ChunkScorerConfig(null, "test query", ChunkScorerConfig.defaultChunkingSettings(200));
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);

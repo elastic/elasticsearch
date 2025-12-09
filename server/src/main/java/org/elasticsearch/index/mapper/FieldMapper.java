@@ -1465,7 +1465,7 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults || isConfigured()) {
                 if (value.enabled == false) {
                     builder.field(name, false);
-                } else if (value.equals(getDefaultValue())) {
+                } else if (EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
                     builder.field(name, true);
                 } else {
                     builder.startObject(name);

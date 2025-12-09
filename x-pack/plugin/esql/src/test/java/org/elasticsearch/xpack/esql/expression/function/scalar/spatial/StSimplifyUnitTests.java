@@ -27,12 +27,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.evaluator;
@@ -68,11 +68,12 @@ public class StSimplifyUnitTests extends ESTestCase {
         return maybeConvertBytesRefsToOrdinals(new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values)));
     }
 
-    protected BytesRef process(String wkt, Double tolerance) {
+    protected BytesRef process(String wkt, Object tolerance) {
         BytesRef wkb = UNSPECIFIED.wktToWkb(wkt);
+        DataType toleranceType = DataType.fromJava(tolerance.getClass());
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                build(Source.EMPTY, List.of(new Literal(Source.EMPTY, wkb, GEO_POINT), new Literal(Source.EMPTY, tolerance, DOUBLE)))
+                build(Source.EMPTY, List.of(new Literal(Source.EMPTY, wkb, GEO_POINT), new Literal(Source.EMPTY, tolerance, toleranceType)))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(wkb, tolerance)))
         ) {
@@ -84,6 +85,11 @@ public class StSimplifyUnitTests extends ESTestCase {
     private final String polygonWkt = "POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))";
 
     public void testInvalidTolerance() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process(polygonWkt, "invalid"));
+        assertThat(ex.getMessage(), containsString("tolerance for st_simplify must be an integer or floating-point number"));
+    }
+
+    public void testINegativeTolerance() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process(polygonWkt, -1.0));
         assertThat(ex.getMessage(), containsString("tolerance must not be negative"));
     }
@@ -91,6 +97,17 @@ public class StSimplifyUnitTests extends ESTestCase {
     // This should succeed
     public void testZeroTolerance() {
         process(polygonWkt, 0.0);
+    }
+
+    public void testValidTolerance() {
+        // float
+        process(polygonWkt, 1.0f);
+        // double
+        process(polygonWkt, 1.0d);
+        // int
+        process(polygonWkt, 1);
+        // long
+        process(polygonWkt, 1L);
     }
 
     public void testBowtie() {

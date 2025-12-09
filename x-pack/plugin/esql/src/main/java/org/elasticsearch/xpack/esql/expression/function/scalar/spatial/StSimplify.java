@@ -130,12 +130,10 @@ public class StSimplify extends EsqlScalarFunction {
     private static double getInputTolerance(Object toleranceExpression) {
         double inputTolerance;
 
-        if (toleranceExpression instanceof Integer) {
-            inputTolerance = ((Integer) toleranceExpression).doubleValue();
-        } else if (toleranceExpression instanceof Double) {
-            inputTolerance = (double) toleranceExpression;
+        if (toleranceExpression instanceof Number number) {
+            inputTolerance = number.doubleValue();
         } else {
-            throw new IllegalArgumentException("tolerance for st_simplify must be a non negative integer or double");
+            throw new IllegalArgumentException("tolerance for st_simplify must be an integer or floating-point number");
         }
 
         if (inputTolerance < 0) {

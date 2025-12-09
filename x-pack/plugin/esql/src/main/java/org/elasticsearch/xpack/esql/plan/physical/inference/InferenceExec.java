@@ -28,7 +28,6 @@ public abstract class InferenceExec extends UnaryExec {
         return inferenceId;
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException("doesn't escape the coordinator node");

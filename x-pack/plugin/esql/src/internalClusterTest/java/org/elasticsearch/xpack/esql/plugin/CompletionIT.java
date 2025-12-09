@@ -118,7 +118,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
         // Create an index with more documents than the default limit (100)
         final String testIndexLarge = "test_completion_large";
         createAndPopulateTestIndex(testIndexLarge, 150);
-        
+
         var query = String.format(Locale.ROOT, """
             FROM %s
             | COMPLETION title WITH { "inference_id": "%s" }
@@ -141,7 +141,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
             // Create an index with more documents than the custom limit
             final String testIndexLarge = "test_completion_custom_limit";
             createAndPopulateTestIndex(testIndexLarge, customLimit + 10);
-            
+
             var query = String.format(Locale.ROOT, """
                 FROM %s
                 | COMPLETION title WITH { "inference_id": "%s" }

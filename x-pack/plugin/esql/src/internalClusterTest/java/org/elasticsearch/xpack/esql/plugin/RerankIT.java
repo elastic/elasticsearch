@@ -140,7 +140,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
         // Create an index with more documents than the default limit (1000)
         final String testIndexLarge = "test_rerank_large";
         createAndPopulateTestIndex(testIndexLarge, 1100);
-        
+
         var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK "search query" ON title WITH { "inference_id": "%s" }
@@ -163,7 +163,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
             // Create an index with more documents than the custom limit
             final String testIndexLarge = "test_rerank_custom_limit";
             createAndPopulateTestIndex(testIndexLarge, customLimit + 10);
-            
+
             var query = String.format(Locale.ROOT, """
                 FROM %s
                 | RERANK "search query" ON title WITH { "inference_id": "%s" }

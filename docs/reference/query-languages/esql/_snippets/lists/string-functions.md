@@ -22,6 +22,7 @@
 * [`SPLIT`](../../functions-operators/string-functions.md#esql-split)
 * [`STARTS_WITH`](../../functions-operators/string-functions.md#esql-starts_with)
 * [`SUBSTRING`](../../functions-operators/string-functions.md#esql-substring)
+* [`TOP_SNIPPETS`](../../functions-operators/string-functions.md#esql-top_snippets)
 * [`TO_BASE64`](../../functions-operators/string-functions.md#esql-to_base64)
 * [`TO_LOWER`](../../functions-operators/string-functions.md#esql-to_lower)
 * [`TO_UPPER`](../../functions-operators/string-functions.md#esql-to_upper)

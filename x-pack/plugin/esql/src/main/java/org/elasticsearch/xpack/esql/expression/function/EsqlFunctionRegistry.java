@@ -436,7 +436,8 @@ public class EsqlFunctionRegistry {
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
                 def(UrlDecode.class, UrlDecode::new, "url_decode"),
-                def(Chunk.class, bi(Chunk::new), "chunk") },
+                def(Chunk.class, bi(Chunk::new), "chunk"),
+                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, tric(DateDiff::new), "date_diff"),
@@ -574,8 +575,7 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming"),
-                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") } };
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

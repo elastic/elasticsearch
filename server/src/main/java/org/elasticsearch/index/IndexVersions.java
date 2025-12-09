@@ -204,7 +204,6 @@ public class IndexVersions {
     public static final IndexVersion DISK_BBQ_LICENSE_ENFORCEMENT = def(9_053_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES = def(9_054_0_00, Version.LUCENE_10_3_2);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -59,7 +59,14 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
 
         // we matched resource locally thus no error
-        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, null));
+        assertNull(
+            CrossProjectIndexResolutionValidator.validate(
+                getStrictIgnoreUnavailable(),
+                useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+                local,
+                null
+            )
+        );
     }
 
     public void testFlatExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
@@ -95,7 +102,14 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
 
         // we matched the flat resource in a linked project thus no error
-        assertNull(CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote));
+        assertNull(
+            CrossProjectIndexResolutionValidator.validate(
+                getStrictIgnoreUnavailable(),
+                useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+                local,
+                remote
+            )
+        );
     }
 
     public void testMissingFlatExpressionWithStrictIgnoreUnavailable() {
@@ -129,10 +143,223 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 )
             )
         );
-        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getStrictIgnoreUnavailable(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
         assertNotNull(e);
         assertThat(e, instanceOf(IndexNotFoundException.class));
         assertThat(e.getMessage(), containsString("no such index [logs]"));
+    }
+
+    public void testMissingResponseFromLinkedProjectsWithStrictIgnoreUnavailable() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs")
+                )
+            )
+        );
+
+        // logs does not exist in the remote responses and indices options are strict. We expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getStrictIgnoreUnavailable(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            Map.of()
+        );
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [logs]"));
+    }
+
+    public void testMissingResponseFromLinkedProjectsWithLenientIgnoreUnavailable() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs")
+                )
+            )
+        );
+
+        // logs does not exist in the remote responses and ignore_unavailable is set to true. We do not expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getLenientIndicesOptions(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            Map.of()
+        );
+        assertNull(e);
+    }
+
+    public void testMissingResponseFromLinkedProjectsWithStrictAllowNoIndices() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of("P1:logs*")
+                )
+            )
+        );
+
+        // Mimic no response from P1 project.
+        var remote = Map.of(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "not-logs*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("not-logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        // Index expression is a wildcard-ed expression but the indices options are strict. We expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getStrictAllowNoIndices(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [logs*]"));
+    }
+
+    public void testMissingResponseFromLinkedProjectsWithLenientAllowNoIndices() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs*",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                        null
+                    ),
+                    Set.of("P1:logs*")
+                )
+            )
+        );
+
+        // Mimic no response from P1 project.
+        var remote = Map.of(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "not-logs*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("not-logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        // Index expression is a wildcard-ed expression but the indices options are lenient. We do not expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getLenientIndicesOptions(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
+        assertNull(e);
+    }
+
+    public void testMissingResponseFromLinkedProjectsForQualifiedExpressionWithStrictIgnoreUnavailable() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+        );
+
+        // Mimic no response from P1 project.
+        var remote = Map.of(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "not-logs*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("not-logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        // logs does not exist in the remote responses and indices options are strict. We expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getStrictIgnoreUnavailable(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
+    }
+
+    public void testMissingResponseFromLinkedProjectsForQualifiedExpressionWithLenientIgnoreUnavailable() {
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
+        );
+
+        // Mimic no response from P1 project.
+        var remote = Map.of(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "not-logs*",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("not-logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        // logs does not exist in the remote responses and indices options are lenient. We do not expect an error.
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getLenientIndicesOptions(),
+            useProjectRouting ? "_alias:P1" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
+        assertNull(e);
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailable() {
@@ -168,16 +395,91 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             )
         );
 
-        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        var e = CrossProjectIndexResolutionValidator.validate(
+            getStrictIgnoreUnavailable(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
         assertNotNull(e);
         assertThat(e.getMessage(), equalTo("authorization errors while resolving [logs]"));
+    }
+
+    public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailableAndProjectRouting() {
+        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [logs]");
+        final String projectRouting = "_alias:P1";
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    ResolvedIndexExpression.LocalExpressions.NONE, // no local resolution since it is excluded by project routing
+                    Set.of("P1:logs")
+                )
+            )
+        );
+
+        var remote = Map.of(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                            exception
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), projectRouting, local, remote);
+        assertNotNull(e);
+        assertThat(e, is(exception));
+    }
+
+    public void testNotFoundFlatExpressionWithStrictIgnoreUnavailableAndProjectRouting() {
+        final String projectRouting = "_alias:P1";
+        ResolvedIndexExpressions local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    ResolvedIndexExpression.LocalExpressions.NONE, // no local resolution since it is excluded by project routing
+                    Set.of("P1:logs")
+                )
+            )
+        );
+
+        var remote = Map.of(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), projectRouting, local, remote);
+        assertNotNull(e);
+        assertThat(e, instanceOf(IndexNotFoundException.class));
+        assertThat(e.getMessage(), containsString("no such index [P1:logs]"));
     }
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInOriginProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
-                    useProjectRouting ? "logs" : "_origin:logs",
+                    "_origin:logs",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs"),
                         ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
@@ -192,7 +494,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNull(
             CrossProjectIndexResolutionValidator.validate(
                 getStrictIgnoreUnavailable(),
-                useProjectRouting ? "_alias:_origin" : null,
+                useProjectRouting ? "_alias:_origin" : null, // a redundant project routing has no impact
                 local,
                 null
             )
@@ -200,7 +502,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testQualifiedOriginExpressionWithStrictIgnoreUnavailableNotMatching() {
-        final String original = useProjectRouting ? "logs" : "_origin:logs";
+        final String original = "_origin:logs";
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -217,7 +519,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictIgnoreUnavailable(),
-            useProjectRouting ? "_alias:_origin" : null,
+            useProjectRouting ? "_alias:_origin" : null, // a redundant project routing has no impact
             local,
             null
         );
@@ -228,13 +530,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testQualifiedExpressionWithStrictIgnoreUnavailableMatchingInLinkedProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(
-                new ResolvedIndexExpression(
-                    useProjectRouting ? "logs" : "P1:logs",
-                    ResolvedIndexExpression.LocalExpressions.NONE,
-                    Set.of("P1:logs")
-                )
-            )
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
         );
 
         var remote = Map.of(
@@ -258,7 +554,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNull(
             CrossProjectIndexResolutionValidator.validate(
                 getStrictIgnoreUnavailable(),
-                useProjectRouting ? "_alias:P1" : null,
+                useProjectRouting ? "_alias:P1" : null, // a redundant project routing has no impact
                 local,
                 remote
             )
@@ -266,7 +562,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testMissingQualifiedExpressionWithStrictIgnoreUnavailable() {
-        final String original = useProjectRouting ? "logs" : "P1:logs";
+        final String original = "P1:logs";
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -296,7 +592,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictIgnoreUnavailable(),
-            useProjectRouting ? "_alias:P1" : null,
+            useProjectRouting ? "_alias:P1" : null, // a redundant project routing has no impact
             local,
             remote
         );
@@ -307,13 +603,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testUnauthorizedQualifiedExpressionWithStrictIgnoreUnavailable() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(
-                new ResolvedIndexExpression(
-                    useProjectRouting ? "logs" : "P1:logs",
-                    ResolvedIndexExpression.LocalExpressions.NONE,
-                    Set.of("P1:logs")
-                )
-            )
+            List.of(new ResolvedIndexExpression("P1:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs")))
         );
 
         final var exception = new ElasticsearchSecurityException("action is unauthorized for indices [-*]");
@@ -336,7 +626,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictIgnoreUnavailable(),
-            useProjectRouting ? "_alias:P1" : null,
+            useProjectRouting ? "_alias:P1" : null, // a redundant project routing has no impact
             local,
             remote
         );
@@ -516,7 +806,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
-                    useProjectRouting ? "logs*" : "_origin:logs*",
+                    "_origin:logs*",
                     new ResolvedIndexExpression.LocalExpressions(
                         Set.of("logs-es"),
                         ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
@@ -531,7 +821,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertNull(
             CrossProjectIndexResolutionValidator.validate(
                 getStrictAllowNoIndices(),
-                useProjectRouting ? "_alias:_origin" : null,
+                useProjectRouting ? "_alias:_origin" : null, // a redundant project routing has no impact
                 local,
                 null
             )
@@ -539,7 +829,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testQualifiedOriginExpressionWithStrictAllowNoIndicesNotMatching() {
-        final String original = useProjectRouting ? "logs*" : "_origin:logs*";
+        final String original = "_origin:logs*";
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -555,7 +845,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictAllowNoIndices(),
-            useProjectRouting ? "_alias:_origin" : null,
+            useProjectRouting ? "_alias:_origin" : null, // a redundant project routing has no impact
             local,
             null
         );
@@ -569,7 +859,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             ResolvedIndexExpressions local = new ResolvedIndexExpressions(
                 List.of(
                     new ResolvedIndexExpression(
-                        useProjectRouting ? indexExpression : ("_origin:" + indexExpression),
+                        "_origin:" + indexExpression,
                         new ResolvedIndexExpression.LocalExpressions(
                             Set.of("local-index-1", "local-index-2"),
                             ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
@@ -582,7 +872,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             assertNull(
                 CrossProjectIndexResolutionValidator.validate(
                     getIndicesOptions(randomBoolean(), randomBoolean()),
-                    useProjectRouting ? "_alias:_origin" : null,
+                    useProjectRouting ? "_alias:_origin" : null, // a redundant project routing has no impact
                     local,
                     Map.of()
                 )
@@ -592,13 +882,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
     public void testQualifiedExpressionWithStrictAllowNoIndicesMatchingInLinkedProject() {
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
-            List.of(
-                new ResolvedIndexExpression(
-                    useProjectRouting ? "logs*" : "P1:logs*",
-                    ResolvedIndexExpression.LocalExpressions.NONE,
-                    Set.of("P1:logs*")
-                )
-            )
+            List.of(new ResolvedIndexExpression("P1:logs*", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs*")))
         );
 
         var remote = Map.of(
@@ -620,12 +904,17 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         // we matched the flat resource in a linked project thus no error
         assertNull(
-            CrossProjectIndexResolutionValidator.validate(getStrictAllowNoIndices(), useProjectRouting ? "_alias:P1" : null, local, remote)
+            CrossProjectIndexResolutionValidator.validate(
+                getStrictAllowNoIndices(),
+                useProjectRouting ? "_alias:P1" : null,  // a redundant project routing has no impact
+                local,
+                remote
+            )
         );
     }
 
     public void testMissingQualifiedExpressionWithStrictAllowNoIndices() {
-        final String original = useProjectRouting ? "logs*" : "P1:logs*";
+        final String original = "P1:logs*";
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -659,7 +948,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictAllowNoIndices(),
-            useProjectRouting ? "_alias:P1" : null,
+            useProjectRouting ? "_alias:P1" : null, // a redundant project routing has no impact
             local,
             remote
         );
@@ -669,7 +958,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testUnauthorizedQualifiedExpressionWithStrictAllowNoIndices() {
-        final String original = useProjectRouting ? "logs*" : "P1:logs*";
+        final String original = "P1:logs*";
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -698,7 +987,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         var e = CrossProjectIndexResolutionValidator.validate(
             getStrictAllowNoIndices(),
-            useProjectRouting ? "_alias:P1" : null,
+            useProjectRouting ? "_alias:P1" : null, // a redundant project routing has no impact
             local,
             remote
         );

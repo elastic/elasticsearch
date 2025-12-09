@@ -105,8 +105,8 @@ public class CrossProjectIndexResolutionValidator {
             String originalExpression = localResolvedIndices.original();
             logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
 
-            // Check if this is a qualified resource (project:index pattern) or has project routing
-            boolean isQualifiedExpression = hasProjectRouting || RemoteClusterAware.isRemoteIndexName(originalExpression);
+            // Check if this is a qualified resource (project:index pattern)
+            boolean isQualifiedExpression = RemoteClusterAware.isRemoteIndexName(originalExpression);
 
             Set<String> remoteExpressions = localResolvedIndices.remoteExpressions();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
@@ -152,11 +152,16 @@ public class CrossProjectIndexResolutionValidator {
                     }
                 }
             } else {
-                if (localException == null) {
+                if (localException == null && localExpressions != ResolvedIndexExpression.LocalExpressions.NONE) {
                     // found locally, continue to next expression
                     continue;
                 }
-                boolean isUnauthorized = localException instanceof ElasticsearchSecurityException;
+                ElasticsearchSecurityException unauthorizedException = null;
+                if (localException instanceof ElasticsearchSecurityException securityException) {
+                    unauthorizedException = securityException;
+                }
+                assert localExpressions != ResolvedIndexExpression.LocalExpressions.NONE || false == remoteExpressions.isEmpty()
+                    : "both local expression and remote expressions are empty which should have errored earlier at index rewriting time";
                 boolean foundFlat = false;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
@@ -180,8 +185,8 @@ public class CrossProjectIndexResolutionValidator {
                         }
                         break;
                     }
-                    if (false == isUnauthorized && remoteException instanceof ElasticsearchSecurityException securityException) {
-                        isUnauthorized = true;
+                    if (unauthorizedException == null && remoteException instanceof ElasticsearchSecurityException securityException) {
+                        unauthorizedException = securityException;
                         if (remoteAuthorizationExceptions == null) {
                             remoteAuthorizationExceptions = new HashMap<>();
                             remoteUnauthorizedIndices = new HashMap<>();
@@ -193,14 +198,19 @@ public class CrossProjectIndexResolutionValidator {
                 if (foundFlat) {
                     continue;
                 }
-                if (isUnauthorized && localException instanceof ElasticsearchSecurityException securityException) {
+                if (unauthorizedException != null) {
                     if (localAuthorizationException == null) {
-                        localAuthorizationException = securityException;
+                        localAuthorizationException = unauthorizedException;
                         localUnauthorizedIndices = new ArrayList<>();
                     }
                     localUnauthorizedIndices.add(originalExpression);
+                } else if (localException != null) {
+                    assert localException instanceof IndexNotFoundException
+                        : "Expected local exception to be IndexNotFoundException, but found: " + localException;
+                    notFoundException = (IndexNotFoundException) localException;
                 } else {
-                    notFoundException = new IndexNotFoundException(originalExpression);
+                    assert false == remoteExpressions.isEmpty() : "expected remote expressions to be non-empty";
+                    notFoundException = new IndexNotFoundException(remoteExpressions.iterator().next());
                 }
             }
         }
@@ -253,7 +263,16 @@ public class CrossProjectIndexResolutionValidator {
         IndicesOptions indicesOptions
     ) {
         ResolvedIndexExpressions resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
-        assert resolvedExpressionsInProject != null : "We should always have resolved expressions from linked project";
+        /*
+         * We look for an index in the linked projects only after we've ascertained that it does not exist
+         * on the origin. However, if we couldn't find a valid entry for the same index in the resolved
+         * expressions `Map<K,V>` from the linked projects, it could mean that we did not hear back from
+         * the linked project due to some error that occurred on it. In such case, the scenario effectively
+         * is identical to the one where we could not find an index anywhere.
+         */
+        if (resolvedExpressionsInProject == null) {
+            return new IndexNotFoundException(remoteExpression);
+        }
 
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
@@ -269,7 +288,7 @@ public class CrossProjectIndexResolutionValidator {
         );
     }
 
-    private static String[] splitQualifiedResource(String resource) {
+    public static String[] splitQualifiedResource(String resource) {
         String[] splitResource = RemoteClusterAware.splitIndexName(resource);
         assert splitResource.length == 2
             : "Expected two strings (project and indexExpression) for a qualified resource ["

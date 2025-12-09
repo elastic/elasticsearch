@@ -37,17 +37,17 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class HistogramMerge extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "Merge",
+        "HistogramMerge",
         HistogramMerge::new
     );
 
     @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.AGGREGATE)
     public HistogramMerge(Source source, @Param(name = "histogram", type = { "exponential_histogram" }) Expression field) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public HistogramMerge(Source source, Expression field, Expression filter) {
-        super(source, field, filter, NO_WINDOW, emptyList());
+    public HistogramMerge(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private HistogramMerge(StreamInput in) throws IOException {
@@ -71,16 +71,16 @@ public class HistogramMerge extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<HistogramMerge> info() {
-        return NodeInfo.create(this, HistogramMerge::new, field(), filter());
+        return NodeInfo.create(this, HistogramMerge::new, field(), filter(), window());
     }
 
     @Override
     public HistogramMerge replaceChildren(List<Expression> newChildren) {
-        return new HistogramMerge(source(), newChildren.get(0), newChildren.get(1));
+        return new HistogramMerge(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     public HistogramMerge withFilter(Expression filter) {
-        return new HistogramMerge(source(), field(), filter);
+        return new HistogramMerge(source(), field(), filter, window());
     }
 
     @Override

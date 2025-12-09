@@ -144,9 +144,8 @@ public class PlannerUtils {
             return SimplePlanReduction.NO_REDUCTION;
         }
         final LogicalPlan pipelineBreaker = pipelineBreakers.getFirst();
-        final LocalMapper mapper = new LocalMapper();
         int estimatedRowSize = fragment.estimatedRowSize();
-        return switch (mapper.map(pipelineBreaker)) {
+        return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
@@ -218,7 +217,6 @@ public class PlannerUtils {
         LocalLogicalPlanOptimizer logicalOptimizer,
         LocalPhysicalPlanOptimizer physicalOptimizer
     ) {
-        final LocalMapper localMapper = new LocalMapper();
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -234,7 +232,7 @@ public class PlannerUtils {
             }
             isCoordPlan.set(Boolean.FALSE);
             LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
-            PhysicalPlan physicalFragment = localMapper.map(optimizedFragment);
+            PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
             QueryBuilder filter = f.esFilter();
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
@@ -352,7 +350,6 @@ public class PlannerUtils {
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
-            case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case DENSE_VECTOR -> ElementType.FLOAT;

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleField
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,20 +47,16 @@ import static org.mockito.Mockito.when;
 public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
 
     protected AggregateMetricDoubleFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
-        AggregateMetricDoubleFieldType fieldType = new AggregateMetricDoubleFieldType(name, meta, null);
-        for (AggregateMetricDoubleFieldMapper.Metric m : List.of(
-            AggregateMetricDoubleFieldMapper.Metric.min,
-            AggregateMetricDoubleFieldMapper.Metric.max
-        )) {
-            String subfieldName = subfieldName(fieldType.name(), m);
+        EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = new EnumMap<>(Metric.class);
+        for (Metric m : List.of(Metric.min, Metric.max)) {
+            String subfieldName = subfieldName(name, m);
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(
                 subfieldName,
                 NumberFieldMapper.NumberType.DOUBLE
             );
-            fieldType.addMetricField(m, subfield);
+            metricFields.put(m, subfield);
         }
-        fieldType.setDefaultMetric(defaultMetric);
-        return fieldType;
+        return new AggregateMetricDoubleFieldType(name, null, defaultMetric, metricFields, meta);
     }
 
     public void testTermQuery() {

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
@@ -24,12 +23,9 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.BytesRefLongBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -38,7 +34,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -228,53 +223,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 super.evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
             }
         }
-    }
-
-    /**
-     * Normalizes ordinals so that each unique tsid uses the first ordinal encountered for that tsid.
-     * Example:
-     * tsids:      [tsid-1, tsid-2, tsid-1, tsid-3, tsid-2]
-     * ordinals:   [1,      2,      5,      3,      7]
-     * new ordina: [1,      2,      1,      3,      2]
-     * sorted:     [1,      1,      2,      2,      3]
-     */
-    private OrdinalBytesRefBlock normalizeOrdinalsForTsId(OrdinalBytesRefBlock tsidBlock) {
-        BlockFactory blockFactory = driverContext.blockFactory();
-        IntBlock ordinalsBlock = tsidBlock.getOrdinalsBlock();
-        BytesRefVector dictionary = tsidBlock.getDictionaryVector();
-        int positionCount = ordinalsBlock.getPositionCount();
-
-        IntBlock newOrdinalsBlock = null;
-        HashMap<BytesRef, Integer> tsidToFirstOrdinal = new HashMap<>();
-        OrdinalBytesRefBlock result;
-
-        try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(positionCount)) {
-            for (int pos = 0; pos < positionCount; pos++) {
-                if (ordinalsBlock.isNull(pos)) {
-                    ordinalsBuilder.appendNull();
-                    continue;
-                }
-
-                int firstValueIndex = ordinalsBlock.getFirstValueIndex(pos);
-                int originalOrdinal = ordinalsBlock.getInt(firstValueIndex);
-
-                BytesRef tsIdKey = dictionary.getBytesRef(originalOrdinal, new BytesRef());
-                int normalizedOrdinal = tsidToFirstOrdinal.computeIfAbsent(tsIdKey, k -> originalOrdinal);
-
-                ordinalsBuilder.appendInt(normalizedOrdinal);
-            }
-            newOrdinalsBlock = ordinalsBuilder.build();
-
-            result = new OrdinalBytesRefBlock(newOrdinalsBlock, dictionary);
-            dictionary.incRef();
-            newOrdinalsBlock = null;
-        } finally {
-            if (newOrdinalsBlock != null) {
-                newOrdinalsBlock.close();
-            }
-        }
-
-        return result;
     }
 
     /*

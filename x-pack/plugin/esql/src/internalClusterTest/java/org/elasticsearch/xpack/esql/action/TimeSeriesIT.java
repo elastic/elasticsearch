@@ -932,6 +932,58 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testBareAvgOverTimeByTBucket() {
+        record TimeSeries(String cluster, String host, String tbucket) {
+            // Cluster and host are dimensions so grouping here by both of them is equal to grouping by _tsid (group by all)
+        }
+        record Sample(int count, double sum) {
+
+        }
+        // Build expected values per (cluster, host, tbucket) - each time series in each time bucket
+        Map<TimeSeries, Sample> buckets = new HashMap<>();
+        var rounding = new Rounding.Builder(TimeValue.timeValueMillis(TimeValue.timeValueMinutes(1).millis())).build().prepareForUnknown();
+        for (Doc doc : docs) {
+            var tbucket = DEFAULT_DATE_TIME_FORMATTER.formatMillis(rounding.round(doc.timestamp));
+            TimeSeries timeSeries = new TimeSeries(doc.cluster, doc.host, tbucket);
+            buckets.compute(timeSeries, (k, v) -> {
+                if (v == null) {
+                    return new Sample(1, doc.cpu);
+                } else {
+                    return new Sample(v.count + 1, v.sum + doc.cpu);
+                }
+            });
+        }
+        try (var resp = run("TS host* | STATS avg_over_time(cpu) BY tbucket(1minute)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(buckets.size()));
+
+            Map<String, Double> sumOfAvgPerTBucket = new HashMap<>();
+            Map<String, Integer> countPerTBucket = new HashMap<>();
+            for (List<Object> r : rows) {
+                double avgValue = (Double) r.get(0);
+                String tbucket = (String) r.get(2);
+                sumOfAvgPerTBucket.merge(tbucket, avgValue, Double::sum);
+                countPerTBucket.merge(tbucket, 1, Integer::sum);
+            }
+
+            Map<String, Double> expectedSumOfAvgPerTBucket = new HashMap<>();
+            Map<String, Integer> expectedCountPerTBucket = new HashMap<>();
+            for (var e : buckets.entrySet()) {
+                Sample sample = e.getValue();
+                String tbucket = e.getKey().tbucket;
+                double avg = sample.sum / sample.count;
+                expectedSumOfAvgPerTBucket.merge(tbucket, avg, Double::sum);
+                expectedCountPerTBucket.merge(tbucket, 1, Integer::sum);
+            }
+
+            assertThat(countPerTBucket, equalTo(expectedCountPerTBucket));
+
+            for (String tbucket : sumOfAvgPerTBucket.keySet()) {
+                assertThat(sumOfAvgPerTBucket.get(tbucket), closeTo(expectedSumOfAvgPerTBucket.get(tbucket), 0.5));
+            }
+        }
+    }
+
     private static double round(double value) {
         return new BigDecimal(value).setScale(6, RoundingMode.HALF_UP).doubleValue();
     }

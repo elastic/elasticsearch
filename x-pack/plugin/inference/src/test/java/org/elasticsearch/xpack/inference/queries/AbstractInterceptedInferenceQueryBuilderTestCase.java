@@ -258,7 +258,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             inferenceFieldQuery,
             preCcsRemoteClusterContext,
             new IllegalArgumentException(
-                "One or more remote clusters does not support "
+                "One or more remote clusters do not support "
                     + queryName
                     + " query cross-cluster search when"
                     + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "

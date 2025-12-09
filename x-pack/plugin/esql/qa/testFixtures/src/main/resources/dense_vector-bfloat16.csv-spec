@@ -1,9 +1,10 @@
-retrieveBFLOAT16VectorData
+retrieveDenseBfloat16VectorData
 required_capability: dense_vector_field_type_released
 required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
+required_capability: generic_vector_format
 
-FROM dense_vector
+FROM dense_vector_bfloat16
 | KEEP id, bfloat16_vector
 | SORT id
 ;
@@ -15,11 +16,12 @@ id:l | bfloat16_vector:dense_vector
 3    | [0.053955078, 0.031982422, 0.012023926]
 ;
 
-denseVectorWithEval
+denseBfloat16VectorWithEval
 required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
+required_capability: generic_vector_format
 
-FROM dense_vector
+FROM dense_vector_bfloat16
 | EVAL v = bfloat16_vector
 | KEEP id, v
 | SORT id
@@ -32,14 +34,15 @@ id:l | v:dense_vector
 3    | [0.053955078, 0.031982422, 0.012023926]
 ;
 
-denseVectorWithRenameAndDrop
+denseBfloat16VectorWithRenameAndDrop
 required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
+required_capability: generic_vector_format
 
-FROM dense_vector 
+FROM dense_vector_bfloat16
 | EVAL v = bfloat16_vector 
 | RENAME v AS new_vector 
-| DROP bfloat16_vector, float_vector, byte_vector, bit_vector
+| DROP bfloat16_vector
 | SORT id
 ;
 

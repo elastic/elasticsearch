@@ -909,8 +909,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
                 // TODO(b/133393): Once we remove the feature-flag of the exp-histo field type (!= ES|QL type),
                 // replace this with a capability check
-                EXPONENTIAL_HISTOGRAM,
-                TDIGEST,
+                EXPONENTIAL_HISTOGRAM, TDIGEST,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
             default -> true;

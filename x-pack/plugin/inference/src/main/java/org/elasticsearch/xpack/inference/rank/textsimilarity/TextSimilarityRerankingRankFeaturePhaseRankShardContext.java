@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 import org.elasticsearch.xpack.inference.common.chunks.SemanticChunkScorer;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.DEFAULT_SIZE;
@@ -97,11 +98,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
         List<String> chunks = chunkOffsets.stream().map(offset -> { return value.substring(offset.start(), offset.end()); }).toList();
 
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
-        try {
-            return scorer.scoreChunks(chunks, chunkScorerConfig.inferenceText(), size, true);
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not generate chunks for input to reranker", e);
-        }
+        return scorer.scoreChunks(chunks, chunkScorerConfig.inferenceText(), size, true);
     }
 
     private List<ScoredChunk> scoreSemanticTextChunks(

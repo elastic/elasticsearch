@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
@@ -98,6 +99,7 @@ import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -266,7 +268,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
             settings.add(ViewService.MAX_VIEW_DEPTH_SETTING);
         }
-        return settings;
+
+        // Inference command settings
+        settings.addAll(InferenceSettings.getSettings());
+
+        return Collections.unmodifiableList(settings);
     }
 
     @Override

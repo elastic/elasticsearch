@@ -32,6 +32,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -50,6 +51,7 @@ import java.util.function.Function;
 
 public class ViewService {
     private static final Logger logger = LogManager.getLogger(ViewService.class);
+    private static final InferenceSettings EMPTY_INFERENCE_SETTINGS = new InferenceSettings(Settings.EMPTY);
 
     private final PlanTelemetry telemetry;
     private final ClusterService clusterService;
@@ -214,7 +216,7 @@ public class ViewService {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry);
+        EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry, EMPTY_INFERENCE_SETTINGS);
     }
 
     /**

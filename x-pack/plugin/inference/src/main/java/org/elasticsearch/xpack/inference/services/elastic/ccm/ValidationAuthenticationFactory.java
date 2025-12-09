@@ -20,6 +20,7 @@ public class ValidationAuthenticationFactory implements AuthenticationFactory {
         this.apiKey = Objects.requireNonNull(apiKey);
     }
 
+    @Override
     public void getAuthenticationApplier(ActionListener<CCMAuthenticationApplierFactory.AuthApplier> listener) {
         listener.onResponse(new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(apiKey));
     }

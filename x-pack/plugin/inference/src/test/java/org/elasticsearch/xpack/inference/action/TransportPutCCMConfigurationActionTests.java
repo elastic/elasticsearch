@@ -29,7 +29,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
@@ -70,22 +69,20 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private CCMFeature ccmFeature;
-    private ElasticInferenceServiceSettings settings;
     private HttpClientManager clientManager;
-    private HttpRequestSender.Factory senderFactory;
     private CCMService ccmService;
     private FeatureService featureService;
     private TransportPutCCMConfigurationAction action;
 
     @Before
-    public void setup() throws Exception {
+    public void setUp() throws Exception {
         super.setUp();
         webServer.start();
         var webServerUrl = getUrl(webServer);
 
         threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         ccmFeature = mock(CCMFeature.class);
 
         ccmService = mock(CCMService.class);
@@ -95,7 +92,7 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(ccmService).storeConfiguration(any(), any());
 
-        settings = mock(ElasticInferenceServiceSettings.class);
+        var settings = mock(ElasticInferenceServiceSettings.class);
         when(settings.getElasticInferenceServiceUrl()).thenReturn(webServerUrl);
 
         featureService = mock(FeatureService.class);

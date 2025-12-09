@@ -130,10 +130,11 @@ public class RetryingHttpSender implements RequestSender {
                                     InferenceServiceResults inferenceResults = responseHandler.parseResult(request, httpResult);
                                     ll.onResponse(inferenceResults);
                                 } catch (Exception e) {
-                                    // A failure here typically happens when validateResponse() throws an exception for when we get a
-                                    // failure
-                                    // status code. We pass it back to the original listener so shouldRetry() can determine if we need to
-                                    // retry.
+                                    /*
+                                     * Entering this exception block typically happens when validateResponse() throws an exception
+                                     * for when we get a failure status code. We pass it back to the original listener so
+                                     * shouldRetry() can determine if we need to retry.
+                                     */
                                     logException(logger, request, httpResult, responseHandler.getRequestType(), e);
                                     listener.onFailure(e);
                                 }
@@ -148,8 +149,11 @@ public class RetryingHttpSender implements RequestSender {
 
                             l.onResponse(inferenceResults);
                         } catch (Exception e) {
-                            // A failure here typically happens when validateResponse() throws an exception for when we get a failure
-                            // status code. We pass it back to the original listener so shouldRetry() can determine if we need to retry.
+                            /*
+                             * Entering this exception block typically happens when validateResponse() throws an exception
+                             * for when we get a failure status code. We pass it back to the original listener so
+                             * shouldRetry() can determine if we need to retry.
+                             */
                             logException(logger, request, r, responseHandler.getRequestType(), e);
                             listener.onFailure(e);
                         }

@@ -81,11 +81,16 @@ public class RequestExecutorServiceSettings {
     private volatile Duration rateLimitGroupStaleDuration;
     private final ConcurrentMap<String, Consumer<Integer>> queueCapacityCallbacks = new ConcurrentHashMap<>();
 
-    public RequestExecutorServiceSettings(Settings settings, ClusterService clusterService) {
+    public RequestExecutorServiceSettings(Settings settings) {
         queueCapacity = TASK_QUEUE_CAPACITY_SETTING.get(settings);
         taskPollFrequency = TASK_POLL_FREQUENCY_SETTING.get(settings);
         setRateLimitGroupStaleDuration(RATE_LIMIT_GROUP_STALE_DURATION_SETTING.get(settings));
+    }
 
+    /**
+     * The purpose of this method is to avoid a this-escape if done in the constructor.
+     */
+    public void init(ClusterService clusterService) {
         addSettingsUpdateConsumers(clusterService);
     }
 

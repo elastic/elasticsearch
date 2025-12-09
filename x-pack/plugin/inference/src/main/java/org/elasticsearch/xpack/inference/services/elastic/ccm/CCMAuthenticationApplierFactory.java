@@ -41,6 +41,7 @@ public class CCMAuthenticationApplierFactory implements AuthenticationFactory {
 
     public interface AuthApplier extends Function<HttpRequestBase, HttpRequestBase> {}
 
+    @Override
     public void getAuthenticationApplier(ActionListener<AuthApplier> listener) {
         if (ccmFeature.isCcmSupportedEnvironment() == false) {
             listener.onResponse(NOOP_APPLIER);

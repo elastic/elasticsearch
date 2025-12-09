@@ -121,14 +121,10 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
 
                 logger.atWarn().withThrowable(unwrappedException).log(FAILED_VALIDATION_LOG_MESSAGE);
 
-                if (unwrappedException instanceof ElasticsearchStatusException statusException) {
-                    delegate.onFailure(
-                        new ElasticsearchStatusException(FAILED_VALIDATION_MESSAGE, statusException.status(), statusException)
-                    );
-                    return;
-                }
-
-                delegate.onFailure(new ElasticsearchStatusException(FAILED_VALIDATION_MESSAGE, RestStatus.BAD_REQUEST, unwrappedException));
+                var restStatus = unwrappedException instanceof ElasticsearchStatusException statusException
+                    ? statusException.status()
+                    : RestStatus.BAD_REQUEST;
+                delegate.onFailure(new ElasticsearchStatusException(FAILED_VALIDATION_MESSAGE, restStatus, unwrappedException));
             });
 
             authRequestHandler.getAuthorization(errorListener, eisSender);

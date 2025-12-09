@@ -52,7 +52,7 @@
           "name" : "window",
           "type" : "time_duration",
           "optional" : true,
-          "description" : "the time window over which to compute the standard deviation"
+          "description" : "the time window over which to compute the sum over time"
         }
       ],
       "variadic" : false,

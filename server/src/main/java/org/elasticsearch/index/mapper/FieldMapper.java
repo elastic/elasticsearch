@@ -1441,36 +1441,16 @@ public abstract class FieldMapper extends Mapper {
 
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
-            final Supplier<IllegalArgumentException> parsingFailureExceptionProvider = () -> new IllegalArgumentException(
-                "Illegal value [" + value + "] for parameter [" + name + "]"
-            );
-
-            if (value instanceof Boolean valueBool) {
-                if (valueBool) {
-                    setValue(getDefaultValue());
-                } else {
-                    setValue(Values.DISABLED);
-                }
-            } else if (value instanceof String) {
-                if (value.equals("true")) {
-                    setValue(getDefaultValue());
-                } else if (value.equals("false")) {
-                    setValue(Values.DISABLED);
-                } else {
-                    throw parsingFailureExceptionProvider.get();
-                }
-            } else if (value instanceof Map) {
-                if (EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-                    throw parsingFailureExceptionProvider.get();
-                }
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> valueMap = (Map<String, Object>) value;
+            if (value instanceof Map<?, ?> valueMap && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
                 cardinalityParameter.parse(field, context, valueMap.get(cardinalityParameter.name));
 
                 setValue(new Values(true, cardinalityParameter.getValue()));
             } else {
-                throw parsingFailureExceptionProvider.get();
+                if (XContentMapValues.nodeBooleanValue(value, name)) {
+                    setValue(getDefaultValue());
+                } else {
+                    setValue(Values.DISABLED);
+                }
             }
         }
 

@@ -306,6 +306,10 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
         return boolQueryBuilder;
     }
 
+    protected static String getExpectedLocalClusterAlias(boolean ccsMinimizeRoundTrips) {
+        return ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;
+    }
+
     protected record TestIndexInfo(
         String name,
         Map<String, MinimalServiceSettings> inferenceEndpoints,

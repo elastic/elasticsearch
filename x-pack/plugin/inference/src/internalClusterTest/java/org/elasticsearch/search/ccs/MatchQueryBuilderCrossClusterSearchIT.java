@@ -49,9 +49,57 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
         matchQueryBaseTestCases(false);
     }
 
+    public void testBlankQueryHandling() throws Exception {
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+
+            assertSearchResponse(
+                new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new MatchQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new MatchQueryBuilder(MIXED_TYPE_FIELD_1, "   "),
+                QUERY_INDICES,
+                List.of(new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new MatchQueryBuilder(MIXED_TYPE_FIELD_2, "   "),
+                QUERY_INDICES,
+                List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(new MatchQueryBuilder(TEXT_FIELD, "   "), QUERY_INDICES, List.of(), null, searchRequestModifier);
+        }
+    }
+
     private void matchQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
-        final String expectedLocalClusterAlias = ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;
+        final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(

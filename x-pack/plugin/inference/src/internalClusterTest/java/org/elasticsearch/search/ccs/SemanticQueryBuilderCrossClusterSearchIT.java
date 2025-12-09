@@ -62,6 +62,36 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
         );
     }
 
+    public void testBlankQueryHandling() throws Exception {
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+
+            assertSearchResponse(
+                new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new SemanticQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+        }
+    }
+
     private void semanticQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
         final String expectedLocalClusterAlias = ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;

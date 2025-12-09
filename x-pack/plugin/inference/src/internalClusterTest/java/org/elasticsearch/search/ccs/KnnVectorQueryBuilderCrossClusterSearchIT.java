@@ -94,11 +94,84 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         );
     }
 
+    public void testBlankQueryHandling() throws Exception {
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "   "), 10, 100, 10f, null),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    MIXED_TYPE_FIELD_1,
+                    new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "   "),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    MIXED_TYPE_FIELD_2,
+                    new TextEmbeddingQueryVectorBuilder(LOCAL_INFERENCE_ID, "   "),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    DENSE_VECTOR_FIELD,
+                    new TextEmbeddingQueryVectorBuilder(COMMON_INFERENCE_ID, "   "),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+        }
+    }
+
     private void knnQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
-        final String expectedLocalClusterAlias = ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;
+        final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
 
-        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        // Query a field that has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new KnnVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, new TextEmbeddingQueryVectorBuilder(null, "a"), 10, 100, 10f, null),
             QUERY_INDICES,

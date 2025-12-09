@@ -88,6 +88,58 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         );
     }
 
+    public void testBlankQueryHandling() throws Exception {
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+
+            assertSearchResponse(
+                new SparseVectorQueryBuilder(COMMON_INFERENCE_ID_FIELD, null, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_1, COMMON_INFERENCE_ID, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_2, COMMON_INFERENCE_ID, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
+                new SparseVectorQueryBuilder(SPARSE_VECTOR_FIELD, COMMON_INFERENCE_ID, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SPARSE_VECTOR_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+        }
+    }
+
     private void sparseVectorQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
         final String expectedLocalClusterAlias = ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;

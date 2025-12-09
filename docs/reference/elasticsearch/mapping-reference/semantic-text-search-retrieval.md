@@ -9,7 +9,7 @@ applies_to:
 
 # Search and retrieval guides for the `semantic_text` field type [set-up-configuration-semantic-text]
 
-This page provides instructions for searching and retrieving data from `semantic_text` fields. Learn how to query `semantic_text` fields, retrieve indexed chunks, return field embeddings, and highlight the most relevant fragments from search results.
+This page provides instructions for searching and retrieving data from `semantic_text` fields. Learn how to query `semantic_text` fields, retrieve indexed chunks, retrieve field embeddings, and highlight the most relevant fragments from search results.
 
 ## Query `semantic_text` fields [querying-semantic-text-fields]
 
@@ -52,7 +52,7 @@ POST test-index/_search
 
 1. Use `"format": "chunks"` to return the field's text as the original text chunks that were indexed.
 
-## Return `semantic_text` field embeddings [returning-semantic-field-embeddings]
+## Retrieve `semantic_text` field embeddings [returning-semantic-field-embeddings]
 
 By default, embeddings generated for `semantic_text` fields are stored internally and not included in the response when retrieving documents. Retrieving embeddings is useful when you want to:
 
@@ -65,7 +65,7 @@ The method for retrieving embeddings depends on your {{es}} version:
 - If you use {{es}} 9.2 and later, or {{serverless-short}}, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`. 
 - If you use {{es}} versions earlier than 9.2, use the [`fields` parameter](#returning-semantic-field-embeddings-using-fields) with `_inference_fields` to retrieve embeddings.
 
-### Return semantic field embeddings in `_source` [returning-semantic-field-embeddings-in-_source]
+### Include embeddings in `_source` [returning-semantic-field-embeddings-in-_source]
 
 ```{applies_to}
 stack: ga 9.2
@@ -213,7 +213,7 @@ semantic search for `semantic_text` fields:
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
 
-### Return semantic field embeddings using `fields` [returning-semantic-field-embeddings-using-fields]
+### Retrieve embeddings using `fields` [returning-semantic-field-embeddings-using-fields]
 
 :::{important}
 This method for returning semantic field embeddings is recommended only for {{es}} versions earlier than 9.2.
@@ -333,7 +333,7 @@ POST test-index/_search
 
 :::::
 
-## Performing {{ccs}} (CCS) for `semantic_text` [cross-cluster-search]
+## Performing {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
 
 ```{applies_to}
 stack: ga 9.2

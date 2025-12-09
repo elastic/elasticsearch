@@ -315,7 +315,7 @@ public class TDigestState implements Releasable, Accountable {
 
     /**
      * An {@link Iterator} that lets you go through the centroids deduplicated and in ascending order by mean.
-     * @return The centroids in the form of a Collection.
+     * @return An iterator over deduplicated centroids.
      */
     public final Iterator<Centroid> uniqueCentroids() {
         Iterator<Centroid> centroids = centroids().iterator();

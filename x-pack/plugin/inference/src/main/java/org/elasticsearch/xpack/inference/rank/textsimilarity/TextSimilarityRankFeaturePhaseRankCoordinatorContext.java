@@ -194,10 +194,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
-        List<RankedDocsResults.RankedDoc> sortedRankedDocs =
-            rankedDocs.stream()
-                .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
-                .toList();
+        List<RankedDocsResults.RankedDoc> sortedRankedDocs = rankedDocs.stream()
+            .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
+            .toList();
 
         float[] scores = new float[sortedRankedDocs.size()];
         for (int i = 0; i < sortedRankedDocs.size(); i++) {

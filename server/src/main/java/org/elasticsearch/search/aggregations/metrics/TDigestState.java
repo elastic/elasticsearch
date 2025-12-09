@@ -338,6 +338,7 @@ public class TDigestState implements Releasable, Accountable {
                 weight = centroid.count();
             }
         }
+        uniqueCentroids.add(new Centroid(previous, weight));
         return uniqueCentroids;
     }
 

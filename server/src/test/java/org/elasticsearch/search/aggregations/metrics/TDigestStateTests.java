@@ -177,6 +177,7 @@ public class TDigestStateTests extends ESTestCase {
     public void testUniqueCentroids() {
         assertUniqueCentroids(new double[0], new long[0], new HashMap<>(), 100);
         assertUniqueCentroids(new double[] { 4 }, new long[] { 6 }, Map.of(4.0, 6L), 100);
+        assertUniqueCentroids(new double[] { -2.0, -1.0, -1.0, 0.0 }, new long[] { 3, 3, 2, 5 }, Map.of(-2.0, 3L, -1.0, 5L, 0.0, 5L), 100);
         assertUniqueCentroids(new double[] { 1, 1, 1, 1 }, new long[] { 1, 1, 1, 1 }, Map.of(1.0, 4L), 100);
         assertUniqueCentroids(new double[] { 1, 1, 1, 2 }, new long[] { 1, 1, 1, 1 }, Map.of(1.0, 3L, 2.0, 1L), 100);
         assertUniqueCentroids(new double[] { 1, 2, 2, 2 }, new long[] { 1, 1, 1, 1 }, Map.of(1.0, 1L, 2.0, 3L), 100);
@@ -203,8 +204,7 @@ public class TDigestStateTests extends ESTestCase {
     }
 
     private void assertUniqueCentroids(double[] mean, long[] count, Map<Double, Long> expected, long compression) {
-        // We use the most accurate algorithm to ensure predictable centroids
-        try (TDigestState digest = TDigestState.createOfType(breaker(), TDigestState.Type.AVL_TREE, compression)) {
+        try (TDigestState digest = TDigestState.create(breaker(), compression)) {
             for (int i = 0; i < mean.length; ++i) {
                 digest.add(mean[i], count[i]);
             }
@@ -222,6 +222,7 @@ public class TDigestStateTests extends ESTestCase {
                     previous = centroid.mean();
                     seen.add(centroid.mean());
                 }
+                assertThat(seen.size(), equalTo(expected.size()));
             }
         }
     }

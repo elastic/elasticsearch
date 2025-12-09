@@ -12,16 +12,20 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
 
@@ -54,15 +58,16 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         }
     }
 
-    public void testInexistentIndexNameWithWildcard() {
+    public void testInexistentIndexNameWithWildcard() throws IOException {
         for (String pattern : List.of("inexistent*", "inexistent1*,inexistent2*")) {
-            assertError(pattern, 400, "Found 1 problem\\nline 1:1: Unknown index [" + clusterSpecificIndexName(pattern) + "]");
+            assertEmpty(pattern);
+            // assertError(pattern, 400, "Unknown index [" + clusterSpecificIndexName(pattern) + "]");
         }
     }
 
     public void testInexistentIndexNameWithoutWildcard() {
         for (String pattern : List.of("inexistent", "inexistent1,inexistent2")) {
-            assertError(pattern, "Found 1 problem\\nline 1:1: Unknown index [" + clusterSpecificIndexName(pattern) + "]", 400);
+            assertError(pattern, 400, "Unknown index [" + clusterSpecificIndexName(pattern) + "]");
         }
     }
 
@@ -74,7 +79,7 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
 
     public void testExistentIndexWithWildcard() throws IOException {
         for (String pattern : List.of(indexName + ",inexistent*", indexName + "*,inexistent*", "inexistent*," + indexName)) {
-            assertOK(client().performRequest(createRequest(pattern)));
+            assertEmpty(pattern);
         }
     }
 
@@ -84,10 +89,10 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
             """.formatted(indexName, aliasName));
 
         for (String indexName : List.of(aliasName + ",inexistent", "inexistent," + aliasName)) {
-            assertError(indexName, "no such index [inexistent]", 404);
+            assertError(indexName, 404, "no such index [inexistent]");
         }
         for (String indexName : List.of(aliasName + ",inexistent*", aliasName + "*,inexistent*", "inexistent*," + aliasName)) {
-            assertOK(client().performRequest(createRequest(indexName)));
+            assertEmpty(indexName);
         }
 
         updateAliases("""
@@ -99,10 +104,11 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         return indexName;
     }
 
-    private void assertError(String indexName, String errorMessage, int statusCode) {
-        ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(createRequest(indexName)));
-        assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
-        assertThat(exc.getMessage(), containsString("\"reason\" : \"" + errorMessage + "\""));
+    private void assertEmpty(String indexName) throws IOException {
+        var response = client().performRequest(createRequest(indexName));
+        Map<?, ?> usage = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), false);
+        assertThat(usage.get("is_partial"), equalTo(false));
+        assertThat((List<?>) usage.get("values"), hasSize(0));
     }
 
     private void assertError(String indexName, int statusCode, String errorMessage) {

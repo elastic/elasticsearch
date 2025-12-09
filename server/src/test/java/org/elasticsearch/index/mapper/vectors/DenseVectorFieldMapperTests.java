@@ -2260,7 +2260,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         private ExecutorService passedMergingExecutorService;
         private int passedNumMergeWorkers = -1;
 
-        public TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
+        TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
             super(inner.type);
             this.inner = inner;
         }

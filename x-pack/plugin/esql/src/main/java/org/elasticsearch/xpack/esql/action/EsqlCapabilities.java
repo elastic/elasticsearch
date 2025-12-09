@@ -984,6 +984,11 @@ public class EsqlCapabilities {
         INLINE_STATS,
 
         /**
+         * Added support for having INLINE STATS preceded by a SORT clause, now executable in certain cases.
+         */
+        INLINE_STATS_PRECEEDED_BY_SORT,
+
+        /**
          * Support partial_results
          */
         SUPPORT_PARTIAL_RESULTS,

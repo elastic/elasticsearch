@@ -3205,8 +3205,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
      */
     public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat, IndexSettings indexSettings) {
         final KnnVectorsFormat format;
+        ElementType elementType = fieldType().element.elementType();
         if (indexOptions == null) {
-            format = fieldType().element.elementType() == ElementType.BIT ? new ES93HnswVectorsFormat(ElementType.BIT) : defaultFormat;
+            format = switch (elementType) {
+                case BYTE, FLOAT -> defaultFormat;
+                case BIT, BFLOAT16 -> new ES93HnswVectorsFormat(elementType);
+            };
         } else {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
             KnnVectorsFormat extraKnnFormat = null;
@@ -3215,13 +3219,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    fieldType().element.elementType()
+                    elementType
                 );
                 if (extraKnnFormat != null) {
                     break;
                 }
             }
-            format = extraKnnFormat != null ? extraKnnFormat : indexOptions.getVectorsFormat(fieldType().element.elementType());
+            format = extraKnnFormat != null ? extraKnnFormat : indexOptions.getVectorsFormat(elementType);
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

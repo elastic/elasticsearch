@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.TaskExecutor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,7 +46,7 @@ public class HierarchicalKMeans {
     }
 
     /**
-     * clusters or moreso partitions the set of vectors by starting with a rough number of partitions and then recursively refining those
+     * clusters the set of vectors by starting with a rough number of partitions and then recursively refining those
      * lastly a pass is made to adjust nearby neighborhoods and add an extra assignment per vector to nearby neighborhoods
      *
      * @param vectors the vectors to cluster
@@ -54,6 +55,20 @@ public class HierarchicalKMeans {
      * @throws IOException is thrown if vectors is inaccessible
      */
     public KMeansResult cluster(FloatVectorValues vectors, int targetSize) throws IOException {
+        return cluster(vectors, targetSize, null, 1);
+    }
+
+    /**
+     * Similar to {@link #cluster(FloatVectorValues, int)} but allows to specify a custom executor to use for parallelism.
+     *
+     * @param vectors the vectors to cluster
+     * @param targetSize the rough number of vectors that should be attached to a cluster
+     * @param executor the executor to use for parallelism, or null to use a single thread.
+     * @param numWorkers the number of workers to use for parallelism. This parameter is ignored if executor is null.
+     * @return the centroids and the vectors assignments and SOAR (spilled from nearby neighborhoods) assignments
+     * @throws IOException is thrown if vectors is inaccessible
+     */
+    public KMeansResult cluster(FloatVectorValues vectors, int targetSize, TaskExecutor executor, int numWorkers) throws IOException {
 
         if (vectors.size() == 0) {
             return new KMeansIntermediate();
@@ -77,17 +92,17 @@ public class HierarchicalKMeans {
         }
 
         // partition the space
-        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize, executor, numWorkers);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
-            KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations);
+            KMeansLocal kMeansLocal = buildKmeansLocal(executor, numWorkers, localSampleSize, maxIterations, vectors.size());
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
-
         return kMeansIntermediate;
     }
 
-    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize) throws IOException {
+    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize, TaskExecutor executor, int numWorkers)
+        throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
@@ -99,10 +114,10 @@ public class HierarchicalKMeans {
         int[] assignments = new int[vectors.size()];
         // ensure we don't over assign to cluster 0 without adjusting it
         Arrays.fill(assignments, -1);
-        KMeansLocal kmeans = new KMeansLocal(m, maxIterations);
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
-        kmeans.cluster(vectors, kMeansIntermediate);
+        KMeansLocal kMeansLocal = buildKmeansLocal(executor, numWorkers, m, maxIterations, vectors.size());
+        kMeansLocal.cluster(vectors, kMeansIntermediate);
 
         // TODO: consider adding cluster size counts to the kmeans algo
         // handle assignment here so we can track distance and cluster size
@@ -137,7 +152,11 @@ public class HierarchicalKMeans {
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, clusterAndSplit(sample, targetSize));
+                updateAssignmentsWithRecursiveSplit(
+                    kMeansIntermediate,
+                    adjustedCentroid,
+                    clusterAndSplit(sample, targetSize, executor, numWorkers)
+                );
             } else if (count == 0) {
                 // remove empty clusters
                 final int newSize = kMeansIntermediate.centroids().length - 1;
@@ -162,6 +181,13 @@ public class HierarchicalKMeans {
         }
 
         return kMeansIntermediate;
+    }
+
+    private static KMeansLocal buildKmeansLocal(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations, int numVectors) {
+        // if there is no executor or the number of vectors is small use a serial implementation
+        return executor == null || numVectors < numVectors * 4
+            ? new KMeansLocalSerial(sampleSize, maxIterations)
+            : new KMeansLocalConcurrent(executor, numWorkers, sampleSize, maxIterations);
     }
 
     static FloatVectorValues createClusterSlice(int clusterSize, int cluster, FloatVectorValues vectors, int[] assignments) {

@@ -9,11 +9,14 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 
@@ -54,6 +57,15 @@ public class HierarchicalKMeansTests extends ESTestCase {
             }
         } else {
             assertEquals(0, soarAssignments.length);
+        }
+
+        int numWorker = randomIntBetween(2, 8);
+        try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
+            TaskExecutor executor = new TaskExecutor(service);
+            KMeansResult resultConcurrency = hkmeans.cluster(vectors, targetSize, executor, numWorker);
+            assertArrayEquals(result.centroids(), resultConcurrency.centroids());
+            assertArrayEquals(result.assignments(), resultConcurrency.assignments());
+            assertArrayEquals(result.soarAssignments(), resultConcurrency.soarAssignments());
         }
     }
 

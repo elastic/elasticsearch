@@ -302,7 +302,7 @@ POST test-index/_search
 
 1. Use `"format": "chunks"` to return the field's text as the original text chunks that were indexed.
 
-## Return `semantic_text` field embeddings [returning-semantic-field-embeddings]
+## Retrieve `semantic_text` field embeddings [returning-semantic-field-embeddings]
 
 By default, embeddings generated for `semantic_text` fields are stored internally and not included in the response when retrieving documents. Retrieving embeddings is useful when you want to:
 

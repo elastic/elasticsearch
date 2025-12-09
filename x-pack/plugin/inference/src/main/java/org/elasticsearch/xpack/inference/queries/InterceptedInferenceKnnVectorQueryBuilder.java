@@ -94,7 +94,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> customDoRewriteGetInferenceResults(
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> customDoRewriteWaitForInferenceResults(
         QueryRewriteContext queryRewriteContext
     ) throws IOException {
         // knn query may contain filters that are also intercepted.

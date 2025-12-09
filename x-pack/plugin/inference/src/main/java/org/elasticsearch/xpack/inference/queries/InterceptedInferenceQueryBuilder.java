@@ -220,7 +220,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
      * An example usage is {@link InterceptedInferenceKnnVectorQueryBuilder} which needs to rewrite the knn queries filters.
      */
-    protected InterceptedInferenceQueryBuilder<T> customDoRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext)
+    protected InterceptedInferenceQueryBuilder<T> customDoRewriteWaitForInferenceResults(QueryRewriteContext queryRewriteContext)
         throws IOException {
         return this;
     }
@@ -321,7 +321,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         }
 
         boolean alwaysSkipRemotes = preInferenceCoordinatorNodeValidate(queryRewriteContext.getResolvedIndices());
-        InterceptedInferenceQueryBuilder<T> rewritten = customDoRewriteGetInferenceResults(queryRewriteContext);
+        InterceptedInferenceQueryBuilder<T> rewritten = customDoRewriteWaitForInferenceResults(queryRewriteContext);
         return rewritten.doRewriteWaitForInferenceResults(queryRewriteContext, alwaysSkipRemotes);
     }
 

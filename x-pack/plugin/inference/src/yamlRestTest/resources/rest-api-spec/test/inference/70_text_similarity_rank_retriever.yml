@@ -687,11 +687,8 @@ setup:
   - requires:
       cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
-      test_runner_features: [ "allowed_warnings" ]
 
   - do:
-      allowed_warnings:
-        - "chunking_settings specified for semantic_text field will use BM25 for scoring instead of indexed embeddings"
       search:
         index: test-index
         body:
@@ -797,11 +794,8 @@ setup:
   - requires:
       cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
-      test_runner_features: [ "allowed_warnings" ]
 
   - do:
-      allowed_warnings:
-        - "chunking_settings specified for semantic_text field will use BM25 for scoring instead of indexed embeddings"
       search:
         index: test-index
         body:
@@ -838,11 +832,8 @@ setup:
   - requires:
       cluster_features: "text_similarity_reranker_snippets"
       reason: rescore_chunks introduced in 9.2.0
-      test_runner_features: [ "allowed_warnings" ]
 
   - do:
-      allowed_warnings:
-        - "chunking_settings specified for semantic_text field will use BM25 for scoring instead of indexed embeddings"
       search:
         index: test-index
         body:

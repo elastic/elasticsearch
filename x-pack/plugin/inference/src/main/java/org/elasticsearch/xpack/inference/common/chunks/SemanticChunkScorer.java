@@ -113,7 +113,6 @@ public class SemanticChunkScorer {
                     if (nestedSources.size() <= offsetAndScore.index()) {
                         throw new IllegalStateException("Invalid chunk index: " + offsetAndScore.index());
                     }
-                    // String content = (String) nestedSources.get(offsetAndScore.index()).get(SemanticTextField.CHUNKED_TEXT_FIELD);
                     String content = getContentFromLegacyNestedSources(fieldType.name(), offsetAndScore, nestedSources);
                     scoredChunks.add(new ScoredChunk(content, offsetAndScore.score()));
                 }

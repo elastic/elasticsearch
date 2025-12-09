@@ -69,6 +69,7 @@ import java.util.stream.Collectors;
 public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
     public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = TransportVersions.V_8_15_0;
+    public static final TransportVersion V_8_16_0 = TransportVersion.fromId(8772001);
     public static final TransportVersion ROLE_MONITOR_STATS = TransportVersion.fromId(8797002);
 
     public static final String NAME = "remote_cluster_permissions";

@@ -92,7 +92,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
-    public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final String FAILURE_STORE_PREFIX = ".fs-";
@@ -302,9 +301,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var allowCustomRouting = in.readBoolean();
         var indexMode = in.readOptionalEnum(IndexMode.class);
         var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-        // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
-        var failureStoreEnabled = in.getTransportVersion()
-            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
         var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
             ? readIndices(in)
             : List.<Index>of();
@@ -324,14 +320,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             boolean failureStoreRolloverOnWrite = replicated == false && failureIndices.isEmpty();
             failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite);
         }
-        DataStreamOptions dataStreamOptions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
-        } else {
-            // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
-            // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-            dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
-        }
+        DataStreamOptions dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
         final Settings settings;
         if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings = Settings.readSettingsFromStream(in);
@@ -1482,11 +1471,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(allowCustomRouting);
         out.writeOptionalEnum(indexMode);
         out.writeOptionalWriteable(lifecycle);
-        if (out.getTransportVersion()
-            .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
-            // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
-            out.writeBoolean(isFailureStoreExplicitlyEnabled());
-        }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
             out.writeCollection(failureIndices.indices);
         }
@@ -1500,9 +1484,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeBoolean(failureIndices.rolloverOnWrite);
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         }
-        if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
-            out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
-        }
+        out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings.writeTo(out);
         }

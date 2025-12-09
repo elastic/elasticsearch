@@ -245,7 +245,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
                 randomQueryUsage(QUERY_TYPES.size()),
                 version.onOrAfter(TransportVersions.V_8_12_0) ? randomRescorerUsage(RESCORER_TYPES.size()) : Map.of(),
                 randomSectionsUsage(SECTIONS.size()),
-                version.onOrAfter(TransportVersions.V_8_16_0) ? randomRetrieversUsage(RETRIEVERS.size()) : Map.of(),
+                randomRetrieversUsage(RETRIEVERS.size()),
                 version.supports(EXTENDED_SEARCH_USAGE_TELEMETRY) ? randomExtendedSearchUsage() : EMPTY,
                 randomLongBetween(0, Long.MAX_VALUE)
             );

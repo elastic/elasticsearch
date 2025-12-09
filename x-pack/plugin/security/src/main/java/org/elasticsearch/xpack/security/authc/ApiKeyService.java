@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
@@ -151,6 +150,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.V_8_16_0;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
@@ -455,11 +455,11 @@ public class ApiKeyService implements Closeable {
             );
             return false;
         }
-        if (transportVersion.before(TransportVersions.V_8_16_0) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
+        if (transportVersion.before(V_8_16_0) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + TransportVersions.V_8_16_0.toReleaseVersion()
+                        + V_8_16_0.toReleaseVersion()
                         + "] or higher to support the manage roles privilege for API keys"
                 )
             );

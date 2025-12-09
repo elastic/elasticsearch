@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.XContentTestUtils;
@@ -26,6 +25,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomManageRolesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.V_8_16_0;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -148,10 +148,6 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRolesWithManageRoles() throws Exception {
-        assumeTrue(
-            "The manage roles privilege is supported after transport version: " + TransportVersions.V_8_16_0,
-            minimumTransportVersion().before(TransportVersions.V_8_16_0)
-        );
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 // Creating role in "old" cluster should succeed when manage roles is not provided
@@ -181,7 +177,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, TransportVersions.V_8_16_0));
+                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, V_8_16_0));
                     // succeed when role manage roles is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);
@@ -223,7 +219,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.V_8_16_0.toReleaseVersion()
+                                    + V_8_16_0.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );
@@ -237,7 +233,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.V_8_16_0.toReleaseVersion()
+                                    + V_8_16_0.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );

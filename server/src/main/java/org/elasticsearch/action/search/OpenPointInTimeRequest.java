@@ -68,9 +68,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.allowPartialSearchResults = in.readBoolean();
-        }
+        this.allowPartialSearchResults = in.readBoolean();
     }
 
     @Override
@@ -85,11 +83,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(indexFilter);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        } else if (allowPartialSearchResults) {
-            throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());
-        }
+        out.writeBoolean(allowPartialSearchResults);
     }
 
     @Override

@@ -29,10 +29,12 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceString.toStringList;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1112,6 +1114,31 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var expectedOutput = List.of(imageString, new InferenceString("text", TEXT), new InferenceString(" chunks", TEXT));
         assertThat(batches.getFirst().batch().inputs().get(), is(expectedOutput));
         assertThat(batches.getFirst().batch().inputs().get().getFirst(), is(sameInstance(imageString)));
+    }
+
+    public void testUsesDefaultChunkingSettingsWhenNoneAreSpecified() {
+        String input = IntStream.range(0, DEFAULT_SETTINGS.maxChunkSize + 1)
+            .mapToObj(i -> "Sentence" + i + ".")
+            .collect(Collectors.joining(" "));
+
+        var chunkedInputsWithNullSettings = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput(input)), 100, null)
+            .batchRequestsWithListeners(testListener())
+            .getFirst()
+            .batch()
+            .inputs()
+            .get();
+
+        var chunkedInputsWithDefaultSettings = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput(input)), 100, DEFAULT_SETTINGS)
+            .batchRequestsWithListeners(testListener())
+            .getFirst()
+            .batch()
+            .inputs()
+            .get();
+
+        // Make sure that chunking actually happened
+        assertThat(chunkedInputsWithNullSettings.size(), greaterThan(1));
+        // Confirm that the default chunking settings were used
+        assertThat(chunkedInputsWithNullSettings, is(chunkedInputsWithDefaultSettings));
     }
 
     private ChunkedResultsListener testListener() {

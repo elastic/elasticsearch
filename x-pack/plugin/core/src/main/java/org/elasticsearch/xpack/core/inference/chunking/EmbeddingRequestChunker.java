@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.inference.chunking;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -81,7 +82,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
     public EmbeddingRequestChunker(
         List<ChunkInferenceInput> inputs,
         int maxNumberOfInputsPerBatch,
-        ChunkingSettings defaultChunkingSettings
+        @Nullable ChunkingSettings defaultChunkingSettings
     ) {
         this(inputs, maxNumberOfInputsPerBatch, true, defaultChunkingSettings);
     }
@@ -90,7 +91,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         List<ChunkInferenceInput> inputs,
         int maxNumberOfInputsPerBatch,
         boolean batchChunksAcrossInputs,
-        ChunkingSettings defaultChunkingSettings
+        @Nullable ChunkingSettings defaultChunkingSettings
     ) {
         this.resultEmbeddings = new ArrayList<>(inputs.size());
         this.resultOffsetStarts = new ArrayList<>(inputs.size());

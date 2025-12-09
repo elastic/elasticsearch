@@ -176,6 +176,10 @@ toc:
             children:
               - file: mapping-reference/semantic-text-reference.md
               - file: mapping-reference/semantic-text-how-tos.md
+                children:
+                  - file: mapping-reference/semantic-text-setup-configuration.md
+                  - file: mapping-reference/semantic-text-ingestions.md
+                  - file: mapping-reference/semantic-text-search-retrieval.md
           - file: mapping-reference/shape.md
           - file: mapping-reference/sparse-vector.md
           - file: mapping-reference/text-type-family.md

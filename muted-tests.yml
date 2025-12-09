@@ -78,9 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/122755
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testSourceThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/123680
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
@@ -388,15 +385,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
   method: test_Embedding_ChunkedInfer_LateChunkingEnabled
   issue: https://github.com/elastic/elasticsearch/issues/138451
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search/160_exists_query/Test exists query on mapped byte field with no doc values}
-  issue: https://github.com/elastic/elasticsearch/issues/138452
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search/160_exists_query/Test exists query on geo_point field in empty index}
-  issue: https://github.com/elastic/elasticsearch/issues/138461
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/171_knn_index_base64_encoded_vectors/Retrieve Base64 encoded vectors when exclude vectors from source is false}
-  issue: https://github.com/elastic/elasticsearch/issues/138462
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/138471

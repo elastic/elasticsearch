@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 
 public class TestPlannerOptimizer {
-    private final EsqlParser parser;
     private final Analyzer analyzer;
     private final LogicalPlanOptimizer logicalOptimizer;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
@@ -46,7 +45,6 @@ public class TestPlannerOptimizer {
         this.config = config;
         this.logicalOptimizer = logicalOptimizer;
 
-        parser = new EsqlParser();
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
         mapper = new Mapper();
 
@@ -102,7 +100,7 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
     }

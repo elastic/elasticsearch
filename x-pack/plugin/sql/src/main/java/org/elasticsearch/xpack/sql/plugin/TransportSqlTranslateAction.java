@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +37,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
+    private final CrossProjectModeDecider cpsDecider;
 
     @Inject
     public TransportSqlTranslateAction(
@@ -55,6 +57,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
+        this.cpsDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -79,6 +82,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             null,
             null,
             Protocol.ALLOW_PARTIAL_SEARCH_RESULTS,
+            cpsDecider.crossProjectEnabled(),
             request.projectRouting()
         );
 

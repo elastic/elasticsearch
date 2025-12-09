@@ -984,6 +984,11 @@ public class EsqlCapabilities {
         INLINE_STATS,
 
         /**
+         * Added support for having INLINE STATS preceded by a SORT clause, now executable in certain cases.
+         */
+        INLINE_STATS_PRECEEDED_BY_SORT,
+
+        /**
          * Support partial_results
          */
         SUPPORT_PARTIAL_RESULTS,
@@ -1525,6 +1530,7 @@ public class EsqlCapabilities {
         VARIANCE_STDDEV_OVER_TIME,
         TS_LINREG_DERIVATIVE,
         TS_RATE_DATENANOS,
+        TS_RATE_DATENANOS_2,
         TS_DERIV_DATENANOS,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1727,6 +1733,11 @@ public class EsqlCapabilities {
          * with all the dimensions.
          */
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
+
+        /**
+         * Returns the top snippets for given text content and associated query.
+         */
+        TOP_SNIPPETS_FUNCTION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

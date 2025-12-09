@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -31,6 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class InMemoryViewServiceTests extends AbstractStatementParserTests {
+    private static final InferenceSettings EMPTY_INFERENCE_SETTINGS = new InferenceSettings(Settings.EMPTY);
+
     static InMemoryViewService viewService;
 
     @BeforeClass
@@ -210,6 +213,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan parse(String query) {
-        return parser.parseQuery(query, queryParams, telemetry);
+        return parser.parseQuery(query, queryParams, telemetry, EMPTY_INFERENCE_SETTINGS);
     }
 }

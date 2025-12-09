@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -218,26 +220,33 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE,
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
-            QUERY_ALLOW_PARTIAL_RESULTS,
-            ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
-            ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-            PlannerSettings.DEFAULT_DATA_PARTITIONING,
-            PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
-            PlannerSettings.LUCENE_TOPN_LIMIT,
-            PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
-            PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
-            STORED_FIELDS_SEQUENTIAL_PROPORTION,
-            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-            EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+        List<Setting<?>> settings = new ArrayList<>(
+            List.of(
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
+                AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE,
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+                AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
+                QUERY_ALLOW_PARTIAL_RESULTS,
+                ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+                ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+                ESQL_QUERYLOG_INCLUDE_USER_SETTING,
+                PlannerSettings.DEFAULT_DATA_PARTITIONING,
+                PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
+                PlannerSettings.LUCENE_TOPN_LIMIT,
+                PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+                PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
+                STORED_FIELDS_SEQUENTIAL_PROPORTION,
+                EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+            )
         );
+
+        // Inference command settings
+        settings.addAll(InferenceSettings.getSettings());
+
+        return Collections.unmodifiableList(settings);
     }
 
     @Override

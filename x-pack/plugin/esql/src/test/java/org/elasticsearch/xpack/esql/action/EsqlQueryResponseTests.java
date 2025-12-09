@@ -1041,7 +1041,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             DriverSleeps.empty()
                         )
                     ),
-                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree")),
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree", null)),
                     minimumVersion
                 ),
                 false,

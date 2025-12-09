@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
@@ -363,6 +364,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
                         .item("OutputOperator")
                 );
                 default -> throw new IllegalArgumentException("can't match " + description);
+            }
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> plans = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("plans");
+        for (Map<String, Object> plan : plans) {
+            assertThat(plan.get("cluster_name"), equalTo("test-cluster"));
+            assertThat(plan.get("node_name"), notNullValue());
+            assertThat(plan.get("plan"), notNullValue());
+            String description = (String) plan.get("description");
+            assertTrue("Unexpected plan description " + description, Set.of("final", "node_reduce", "data").contains(description));
+            switch (description) {
+                case "final", "data" -> {
+                    assertThat((int) plan.get("logical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertThat((int) plan.get("physical_optimization_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("reduction_nanos"));
+                }
+                case "node_reduce" -> {
+                    assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
+                    assertFalse(plan.containsKey("logical_optimization_nanos"));
+                    assertFalse(plan.containsKey("physical_optimization_nanos"));
+                }
+                default -> {
+                }
             }
         }
     }
@@ -703,7 +727,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String operators = p.get("operators").toString();
             MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
                 .entry("sleep_millis", greaterThan(0L))
-                .entry("thread_name", Matchers.containsString("[esql_worker]")) // NB: this doesn't run in the test thread
+                .entry("thread_name", containsString("[esql_worker]")) // NB: this doesn't run in the test thread
                 .entry("wake_millis", greaterThan(0L));
             String description = p.get("description").toString();
             switch (description) {

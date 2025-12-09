@@ -23,32 +23,58 @@ By default, all thresholds default to `-1`, which disables slow logging.
 Search slow logs emit per shard. They must be enabled separately for the shard’s [query and fetch search phases](https://www.elastic.co/blog/understanding-query-then-fetch-vs-dfs-query-then-fetch).
 
 
-`index.search.slowlog.threshold.query.warn`
-:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
+`index.search.slowlog.threshold.query.<level>`
+:   Sets the minimum threshold for logging slow query-phase operations. `<level>` can be `warn`, `info`, `debug`, and `trace`. When a query takes longer than the configured value, a slow log entry is emitted. 
+:::{dropdown} For example, the following request enables slow logs by configuring thresholds:
 
-`index.search.slowlog.threshold.query.info`
-:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
+  ```console
+  PUT /my-index-000001/_settings
+  {
+    "index.search.slowlog.threshold.query.warn": "10s",
+    "index.search.slowlog.threshold.query.info": "5s",
+    "index.search.slowlog.threshold.query.debug": "2s",
+    "index.search.slowlog.threshold.query.trace": "500ms",
+  }
+  ```
+:::
 
-`index.search.slowlog.threshold.query.debug`
-:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
 
-`index.search.slowlog.threshold.query.trace`
-:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
 
-`index.search.slowlog.threshold.fetch.warn`
-:   Threshold for the **fetch** phase (retrieving documents after query hits).
+`index.search.slowlog.threshold.fetch.<level>`
+:    Sets the minimum threshold for logging slow fetch-phase operations (retrieving documents after query hits). `<level>` can be `warn`, `info`, `debug`, and `trace`. When fetching takes longer than the configured value, a slow log entry is emitted.
+:::{dropdown} For example, the following request enables slow logs by configuring thresholds:
 
-`index.search.slowlog.threshold.fetch.info`
-:   Threshold for the **fetch** phase (retrieving documents after query hits).
+  ```console
+  PUT /my-index-000001/_settings
+  {
+    "index.search.slowlog.threshold.fetch.warn": "1s",
+    "index.search.slowlog.threshold.fetch.info": "800ms",
+    "index.search.slowlog.threshold.fetch.debug": "500ms",
+    "index.search.slowlog.threshold.fetch.trace": "200ms",
+  }
+  ```
+:::
 
-`index.search.slowlog.threshold.fetch.debug`
-:   Threshold for the **fetch** phase (retrieving documents after query hits).
-
-`index.search.slowlog.threshold.fetch.trace`
-:   Threshold for the **fetch** phase (retrieving documents after query hits).
 
 `index.search.slowlog.include.user`
-:   This setting is a boolean. If set to `true`, it includes `user.*` and `auth.type` metadata in the log entries (who triggered the request).
+:   This setting is a boolean. If set to `true`, it includes `user.*` and `auth.type` metadata in the log entries. These fields contain information about the user who triggered the request.
+:::{dropdown} For example, the following request enables slow logs and includes information about who triggered the request:
+
+  ```console
+  PUT /my-index-000001/_settings
+  {
+   "index.search.slowlog.threshold.query.warn": "10s",
+  "index.search.slowlog.threshold.query.info": "5s",
+  "index.search.slowlog.threshold.query.debug": "2s",
+  "index.search.slowlog.threshold.query.trace": "500ms",
+  "index.search.slowlog.threshold.fetch.warn": "1s",
+  "index.search.slowlog.threshold.fetch.info": "800ms",
+  "index.search.slowlog.threshold.fetch.debug": "500ms",
+  "index.search.slowlog.threshold.fetch.trace": "200ms",
+  "index.search.slowlog.include.user": true
+  }
+  ```
+:::
 
 
 

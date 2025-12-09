@@ -124,11 +124,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                this.includeDefaults = in.readBoolean();
-            } else {
-                this.includeDefaults = false;
-            }
+            this.includeDefaults = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.verbose = in.readBoolean();
             } else {
@@ -339,15 +335,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
-                if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                    out.writeBoolean(failureStoreEffectivelyEnabled);
-                }
+                out.writeBoolean(failureStoreEffectivelyEnabled);
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                    out.writeOptionalWriteable(timeSeries);
-                }
+                out.writeOptionalWriteable(timeSeries);
                 if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
@@ -665,9 +657,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeOptionalWriteable(rolloverConfiguration);
-            }
+            out.writeOptionalWriteable(rolloverConfiguration);
             // A version 9.x cluster will never read this, so we only need to include the patch version here.
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION_PATCH)) {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());

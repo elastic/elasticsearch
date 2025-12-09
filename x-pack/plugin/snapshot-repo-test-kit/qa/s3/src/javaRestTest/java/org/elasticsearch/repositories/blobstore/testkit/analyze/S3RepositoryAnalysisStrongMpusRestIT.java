@@ -17,14 +17,9 @@ import org.junit.rules.TestRule;
 
 public class S3RepositoryAnalysisStrongMpusRestIT extends AbstractS3RepositoryAnalysisRestTestCase {
 
-    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture(true) {
-        @Override
-        protected S3ConsistencyModel consistencyModel() {
-            return S3ConsistencyModel.STRONG_MPUS;
-        }
-    };
+    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture(S3ConsistencyModel.STRONG_MPUS);
 
-    public static final ElasticsearchCluster cluster = buildCluster(s3Fixture, true);
+    public static final ElasticsearchCluster cluster = buildCluster(s3Fixture);
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);
@@ -34,4 +29,10 @@ public class S3RepositoryAnalysisStrongMpusRestIT extends AbstractS3RepositoryAn
         return cluster.getHttpAddresses();
     }
 
+    @Override
+    public void testRepositoryAnalysis() throws Exception {
+        if (USE_FIXTURE) {
+            super.testRepositoryAnalysis();
+        } // else we're running against a real AWS S3 which has a different consistency model, so this test isn't meaningful
+    }
 }

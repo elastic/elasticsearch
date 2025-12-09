@@ -174,19 +174,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                this.inferenceTimeout = in.readTimeValue();
-            } else {
-                this.inferenceTimeout = TimeValue.MAX_VALUE;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                textInput = in.readOptionalStringCollectionAsList();
-            } else {
-                textInput = null;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                highPriority = in.readBoolean();
-            }
+            this.inferenceTimeout = in.readTimeValue();
+            this.textInput = in.readOptionalStringCollectionAsList();
+            this.highPriority = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             } else {
@@ -267,15 +257,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                out.writeTimeValue(inferenceTimeout);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                out.writeOptionalStringCollection(textInput);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeBoolean(highPriority);
-            }
+            out.writeTimeValue(inferenceTimeout);
+            out.writeOptionalStringCollection(textInput);
+            out.writeBoolean(highPriority);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
             }

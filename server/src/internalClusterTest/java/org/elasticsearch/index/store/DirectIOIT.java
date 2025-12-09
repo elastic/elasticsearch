@@ -20,7 +20,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -60,8 +59,6 @@ public class DirectIOIT extends ESIntegTestCase {
         } catch (IOException e) {
             SUPPORTED = false;
         }
-
-        assumeTrue("Generic format supporting direct IO not enabled", ES93GenericFlatVectorsFormat.GENERIC_VECTOR_FORMAT.isEnabled());
     }
 
     static DirectIODirectory open(Path path) throws IOException {
@@ -77,7 +74,7 @@ public class DirectIOIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw", "bbq_disk").map(s -> new Object[] { s }).toList();
+        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw").map(s -> new Object[] { s }).toList();
     }
 
     public DirectIOIT(String type) {

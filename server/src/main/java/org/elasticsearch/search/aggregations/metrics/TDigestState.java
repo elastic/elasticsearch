@@ -323,19 +323,21 @@ public class TDigestState implements Releasable, Accountable {
             double value = Double.NaN;
             long count = 0;
 
+            {
+                if (centroids.hasNext()) {
+                    setNext(centroids.next());
+                }
+            }
+
             @Override
             public boolean hasNext() {
-                return centroids.hasNext() || Double.isNaN(value) == false;
+                return Double.isNaN(value) == false;
             }
 
             @Override
             public Centroid next() {
-                // Initialize state
-                if (centroids.hasNext() && Double.isNaN(value)) {
-                    setNext(centroids.next());
-                }
                 // Return the last value
-                if (centroids.hasNext() == false && Double.isNaN(value) == false) {
+                if (centroids.hasNext() == false) {
                     return getLast();
                 }
                 Centroid centroid = centroids.next();
@@ -356,9 +358,9 @@ public class TDigestState implements Releasable, Accountable {
             }
 
             private Centroid getAndSetNext(Centroid centroid) {
-                Centroid next = new Centroid(value, count);
+                Centroid current = new Centroid(value, count);
                 setNext(centroid);
-                return next;
+                return current;
             }
 
             private void setNext(Centroid centroid) {

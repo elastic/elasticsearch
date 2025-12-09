@@ -991,14 +991,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private IndexFieldData.Builder fieldDataFromDocValues() {
-            return switch (docValuesParameters.cardinality()) {
-                case LOW -> new SortedSetOrdinalsIndexFieldData.Builder(
+            if (storedInBinaryDocValues()) {
+                return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, KeywordDocValuesField::new);
+            } else {
+                return new SortedSetOrdinalsIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.KEYWORD,
                     (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
                 );
-                case HIGH -> new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, KeywordDocValuesField::new);
-            };
+            }
         }
 
         @Override
@@ -1080,14 +1081,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                     value = indexedValueForSearch(value).utf8ToString();
                 }
 
-                if (caseInsensitive == false && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
+                if (caseInsensitive == false && storedInBinaryDocValues() == false) {
                     Term term = new Term(name(), value);
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
-                StringFieldScript.LeafFactory leafFactory = docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW
-                    ? ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx)
-                    : ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx);
+                StringFieldScript.LeafFactory leafFactory = storedInBinaryDocValues()
+                    ? ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx)
+                    : ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
 
                 return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
             }
@@ -1449,7 +1450,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return SyntheticSourceSupport.FALLBACK;
         }
 
-        boolean docValuesSupportNativeSyntheticSource = docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW
+        boolean docValuesSupportNativeSyntheticSource = fieldType().storedInBinaryDocValues() == false
             || indexSettings.sourceKeepMode() == SourceKeepMode.NONE;
 
         if (fieldType.stored() || (docValuesParameters.enabled() && docValuesSupportNativeSyntheticSource)) {
@@ -1472,7 +1473,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             });
         } else if (docValuesParameters.enabled()) {
-            if (docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
+            if (fieldType().storedInBinaryDocValues() == false) {
                 if (offsetsFieldName != null) {
                     layers.add(new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
                 } else {

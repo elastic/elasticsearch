@@ -47,6 +47,11 @@ public class EsqlFeatures implements FeatureSpecification {
     }
 
     @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(METRICS_SYNTAX, ESQL_VIEWS_NODE_FEATURE);
+    }
+
+    @Override
     public Set<NodeFeature> getFeatures() {
         Set<NodeFeature> features = Set.of();
         if (Build.current().isSnapshot()) {

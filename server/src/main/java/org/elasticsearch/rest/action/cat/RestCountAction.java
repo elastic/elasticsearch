@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends AbstractCatAction {
@@ -44,7 +45,12 @@ public class RestCountAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cat/count"), new Route(GET, "/_cat/count/{index}"));
+        return List.of(
+            new Route(GET, "/_cat/count"),
+            new Route(POST, "/_cat/count"),
+            new Route(GET, "/_cat/count/{index}"),
+            new Route(POST, "/_cat/count/{index}")
+        );
     }
 
     @Override
@@ -65,17 +71,16 @@ public class RestCountAction extends AbstractCatAction {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         if (crossProjectModeDecider.crossProjectEnabled() && countRequest.allowsCrossProject()) {
-            // MP TODO: check with Pawan about these additional if checks - needed here?
-            IndicesOptions indicesOptions = IndicesOptions.builder()
-                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                .build();
-            countRequest.indicesOptions(indicesOptions);
+            countRequest.indicesOptions(
+                IndicesOptions.builder().crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build()
+            );
         }
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {
                 if (parser == null) {
                     QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                     if (queryBuilder != null) {
+                        // since there is no request body, no need to pass in countRequest to handle project_routing param
                         searchSourceBuilder.query(queryBuilder);
                     }
                 } else {

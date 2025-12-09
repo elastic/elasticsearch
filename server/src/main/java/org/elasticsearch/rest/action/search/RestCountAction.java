@@ -47,7 +47,7 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, "/_count"),   // MP TODO: make sure to also test this with project_routing
+            new Route(GET, "/_count"),
             new Route(POST, "/_count"),
             new Route(GET, "/{index}/_count"),
             new Route(POST, "/{index}/_count")
@@ -73,9 +73,10 @@ public class RestCountAction extends BaseRestHandler {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {
-            if (parser == null) {  // MP TODO: this means there is no request body right?
+            if (parser == null) {
                 QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                 if (queryBuilder != null) {
+                    // since there is no request body, no need to pass in countRequest to handle project_routing param
                     searchSourceBuilder.query(queryBuilder);
                 }
             } else {

@@ -1,13 +1,9 @@
 ---
 setup:
   - requires:
-      capabilities:
-        - method: PUT
-          path: /_query
-          parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ views_in_cluster_state ]
-      reason: "Views not yet supported in cluster state"
-      test_runner_features: [ capabilities, allowed_warnings_regex, warnings_regex ]
+      cluster_features: [ "esql.esql_views" ]
+      reason: requires esql views to be enabled
+
   - do:
       indices.create:
         index: test
@@ -41,7 +37,11 @@ setup:
           - { "content": "The quick brown fox jumps over the lazy dog", "color": "brown", "animal": "dog", "id": 6 }
 
 ---
-crud:
+"crud":
+  - requires:
+      cluster_features: [ "esql.esql_views" ]
+      reason: requires esql views to be enabled
+
   - do:
       esql.put_view:
         name: dogs
@@ -64,15 +64,39 @@ crud:
   - match: { views: { } }
 
 ---
-basic:
+"invalid-views":
   - requires:
-      capabilities:
-        - method: PUT
-          path: /_query
-          parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ views_with_branching ]
-      reason: "Views not yet supported"
-      test_runner_features: [ capabilities, allowed_warnings_regex, warnings_regex ]
+      cluster_features: [ "esql.esql_views" ]
+      reason: requires esql views to be enabled
+
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FRO test'
+
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views: { dogs: { query: 'FRO test' } } }
+
+  - do:
+      esql.delete_view:
+        name: dogs
+
+  - do:
+      esql.get_view: { }
+
+  - match: { views: { } }
+
+---
+"basic":
+  - requires:
+      cluster_features: [ "esql.esql_views" ]
+      reason: requires esql views to be enabled
+      test_runner_features: [ allowed_warnings_regex ]
+
   - do:
       esql.put_view:
         name: dogs

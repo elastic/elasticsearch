@@ -39,10 +39,11 @@ public class EsqlFeatures implements FeatureSpecification {
      * A feature flag to enable ESQL views REST API functionality.
      */
     public static final FeatureFlag ESQL_VIEWS_FEATURE_FLAG = new FeatureFlag("esql_views");
+    public static final NodeFeature ESQL_VIEWS_NODE_FEATURE = new NodeFeature("esql.esql_views");
 
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
-        return Set.of(METRICS_SYNTAX);
+        return Set.of(METRICS_SYNTAX, ESQL_VIEWS_NODE_FEATURE);
     }
 
     @Override

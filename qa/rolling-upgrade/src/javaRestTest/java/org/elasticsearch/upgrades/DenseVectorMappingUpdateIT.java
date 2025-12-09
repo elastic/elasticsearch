@@ -21,8 +21,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -33,101 +36,32 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  */
 public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
 
-    private static final String SYNTHETIC_SOURCE_FEATURE = "gte_v8.12.0";
+    private static String generateBulkData(int upgradedNodes, int dimensions) {
+        StringBuilder sb = new StringBuilder();
 
-    private static final String BULK1 = """
-                    {"index": {"_id": "1"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 1]}
-                    {"index": {"_id": "2"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 2]}
-                    {"index": {"_id": "3"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 3]}
-                    {"index": {"_id": "4"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 4]}
-                    {"index": {"_id": "5"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 5]}
-                    {"index": {"_id": "6"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 6]}
-                    {"index": {"_id": "7"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 7]}
-                    {"index": {"_id": "8"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 8]}
-                    {"index": {"_id": "9"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 9]}
-                    {"index": {"_id": "10"}}
-                    {"embedding": [1, 1, 1, 1, 1, 1, 1, 10]}
-        """;
+        int[] vals = new int[dimensions];
+        Arrays.fill(vals, 1);
 
-    private static final String BULK1_BIT = """
-                    {"index": {"_id": "1"}}
-                    {"embedding": [1]}
-                    {"index": {"_id": "2"}}
-                    {"embedding": [2]}
-                    {"index": {"_id": "3"}}
-                    {"embedding": [3]}
-                    {"index": {"_id": "4"}}
-                    {"embedding": [4]}
-                    {"index": {"_id": "5"}}
-                    {"embedding": [5]}
-                    {"index": {"_id": "6"}}
-                    {"embedding": [6]}
-                    {"index": {"_id": "7"}}
-                    {"embedding": [7]}
-                    {"index": {"_id": "8"}}
-                    {"embedding": [8]}
-                    {"index": {"_id": "9"}}
-                    {"embedding": [9]}
-                    {"index": {"_id": "10"}}
-                    {"embedding": [10]}
-        """;
+        // 1-10, 11-20, 21-30...
+        IntStream docs = IntStream.rangeClosed(1 + (upgradedNodes * 10), (upgradedNodes + 1) * 10);
 
-    private static final String BULK2 = """
-                    {"index": {"_id": "11"}}
-                    {"embedding": [1, 1, 1, 1, 1, 0, 1, 1]}
-                    {"index": {"_id": "12"}}
-                    {"embedding": [1, 1, 1, 1, 1, 2, 1, 1]}
-                    {"index": {"_id": "13"}}
-                    {"embedding": [1, 1, 1, 1, 1, 3, 1, 1]}
-                    {"index": {"_id": "14"}}
-                    {"embedding": [1, 1, 1, 1, 1, 4, 1, 1]}
-                    {"index": {"_id": "15"}}
-                    {"embedding": [1, 1, 1, 1, 1, 5, 1, 1]}
-                    {"index": {"_id": "16"}}
-                    {"embedding": [1, 1, 1, 1, 1, 6, 1, 1]}
-                    {"index": {"_id": "17"}}
-                    {"embedding": [1, 1, 1, 1, 1, 7, 1, 1]}
-                    {"index": {"_id": "18"}}
-                    {"embedding": [1, 1, 1, 1, 1, 8, 1, 1]}
-                    {"index": {"_id": "19"}}
-                    {"embedding": [1, 1, 1, 1, 1, 9, 1, 1]}
-                    {"index": {"_id": "20"}}
-                    {"embedding": [1, 1, 1, 1, 1, 10, 1, 1]}
-        """;
-    private static final String BULK2_BIT = """
-                    {"index": {"_id": "11"}}
-                    {"embedding": [101]}
-                    {"index": {"_id": "12"}}
-                    {"embedding": [102]}
-                    {"index": {"_id": "13"}}
-                    {"embedding": [103]}
-                    {"index": {"_id": "14"}}
-                    {"embedding": [104]}
-                    {"index": {"_id": "15"}}
-                    {"embedding": [105]}
-                    {"index": {"_id": "16"}}
-                    {"embedding": [106]}
-                    {"index": {"_id": "17"}}
-                    {"embedding": [107]}
-                    {"index": {"_id": "18"}}
-                    {"embedding": [108]}
-                    {"index": {"_id": "19"}}
-                    {"embedding": [109]}
-                    {"index": {"_id": "20"}}
-                    {"embedding": [110]}
-        """;
+        for (var it = docs.iterator(); it.hasNext();) {
+            vals[upgradedNodes]++;
+
+            sb.append("{\"index\": {\"_id\": \"").append(it.nextInt()).append("\"}}");
+            sb.append(System.lineSeparator());
+            sb.append("{\"embedding\": ").append(Arrays.toString(vals)).append("}");
+            sb.append(System.lineSeparator());
+        }
+
+        return sb.toString();
+    }
+
+    private final int upgradedNodes;
 
     public DenseVectorMappingUpdateIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+        this.upgradedNodes = upgradedNodes;
     }
 
     public void testDenseVectorMappingUpdateOnOldCluster() throws IOException {
@@ -160,7 +94,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
             client().performRequest(createIndex);
             Request index = new Request("POST", "/" + indexName + "/_bulk/");
             index.addParameter("refresh", "true");
-            index.setJsonEntity(BULK1);
+            index.setJsonEntity(generateBulkData(upgradedNodes, 8));
             client().performRequest(index);
         }
 
@@ -190,7 +124,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
             assertOK(client().performRequest(updateMapping));
             Request index = new Request("POST", "/" + indexName + "/_bulk/");
             index.addParameter("refresh", "true");
-            index.setJsonEntity(BULK2);
+            index.setJsonEntity(generateBulkData(upgradedNodes, 8));
             assertOK(client().performRequest(index));
             expectedCount = 20;
             assertCount(indexName, expectedCount);
@@ -209,9 +143,9 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         new Index("int4_hnsw", Set.of("float", "bfloat16")),
         new Index("flat", ALL_ELEMENT_TYPES),
         new Index("int8_flat", Set.of("float", "bfloat16")),
-        new Index("int4_flat", Set.of("float", "bfloat16"))
-        // new Index("bbq_hnsw", Set.of("float", "bfloat16")),
-        // new Index("bbq_flat", Set.of("float", "bfloat16"))
+        new Index("int4_flat", Set.of("float", "bfloat16")),
+        new Index("bbq_hnsw", Set.of("float", "bfloat16")),
+        new Index("bbq_flat", Set.of("float", "bfloat16"))
     );
 
     public void testDenseVectorIndexOverUpgrade() throws IOException {
@@ -220,10 +154,10 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
 
             for (Index i : INDEXES) {
                 for (String elementType : i.elementTypes()) {
-                    if (clusterSupportsIndex(i.type(), elementType) == false) {
+                    var dims = getDimensions(i.type(), elementType);
+                    if (dims.isEmpty()) {
                         continue;
                     }
-
                     String indexName = "test_index_" + i.type() + "_" + elementType;
                     Request createIndex = new Request("PUT", "/" + indexName);
 
@@ -237,7 +171,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                         .field("type", "dense_vector")
                         .field("element_type", elementType)
                         .field("index", "true")
-                        .field("dims", 8)
+                        .field("dims", elementType.equals("bit") ? dims.getAsInt() * 8 : dims.getAsInt())
                         .field("similarity", "l2_norm");
                     if (i.type() != null) {
                         payload.startObject("index_options").field("type", i.type()).endObject();
@@ -245,33 +179,36 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                     payload.endObject().endObject().endObject().endObject();
                     createIndex.setJsonEntity(Strings.toString(payload));
                     client().performRequest(createIndex);
-                    Request index = new Request("POST", "/" + indexName + "/_bulk/");
-                    index.addParameter("refresh", "true");
-                    index.setJsonEntity(elementType.equals("bit") ? BULK1_BIT : BULK1);
-                    client().performRequest(index);
-
-                    assertCount(indexName, 10);
                 }
             }
         }
 
-        if (isUpgradedCluster()) {
-            for (Index i : INDEXES) {
-                for (String elementType : i.elementTypes()) {
-                    if (clusterSupportsIndex(i.type(), elementType) == false) {
-                        continue;
-                    }
-                    String indexName = "test_index_" + i.type() + "_" + elementType;
-
-                    Request index = new Request("POST", "/" + indexName + "/_bulk/");
-                    index.addParameter("refresh", "true");
-                    index.setJsonEntity(elementType.equals("bit") ? BULK2_BIT : BULK2);
-                    assertOK(client().performRequest(index));
-
-                    assertCount(indexName, 20);
+        for (Index i : INDEXES) {
+            for (String elementType : i.elementTypes()) {
+                var dims = getDimensions(i.type(), elementType);
+                if (dims.isEmpty()) {
+                    continue;
                 }
+                String indexName = "test_index_" + i.type() + "_" + elementType;
+
+                Request index = new Request("POST", "/" + indexName + "/_bulk/");
+                index.addParameter("refresh", "true");
+                index.setJsonEntity(generateBulkData(upgradedNodes, dims.getAsInt()));
+                assertOK(client().performRequest(index));
+
+                assertCount(indexName, (upgradedNodes + 1) * 10);
             }
         }
+    }
+
+    private OptionalInt getDimensions(String type, String elementType) {
+        if (elementType.equals("bfloat16") && oldClusterHasFeature(MapperFeatures.GENERIC_VECTOR_FORMAT) == false) {
+            return OptionalInt.empty();
+        }
+        if (type != null && type.startsWith("bbq_")) {
+            return OptionalInt.of(64);
+        }
+        return OptionalInt.of(8);
     }
 
     private void assertCount(String index, int count) throws IOException {
@@ -283,12 +220,5 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
             "{\"hits\":{\"total\":" + count + "}}",
             EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
         );
-    }
-
-    private static boolean clusterSupportsIndex(String type, String elementType) {
-        if (elementType.equals("bfloat16") && oldClusterHasFeature(MapperFeatures.GENERIC_VECTOR_FORMAT) == false) {
-            return false;
-        }
-        return true;
     }
 }

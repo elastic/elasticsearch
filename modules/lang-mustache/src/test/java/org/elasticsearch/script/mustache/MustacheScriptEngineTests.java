@@ -298,7 +298,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     /**
      * BWC test for some odd reflection edge-cases. It's not really expected that customer code would be exercising this,
      * but maybe it's out there! Who knows!?
-     *
+     * <p>
      * If we change this, we should *know* that we're changing it.
      */
     public void testReflection() {
@@ -342,7 +342,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
-    public void testEscapeJson() throws IOException {
+    public void testEscapeJson() {
         {
             StringWriter writer = new StringWriter();
             factory.encode("hello \n world", writer);
@@ -440,7 +440,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     /**
      * From https://www.ietf.org/rfc/rfc4627.txt:
-     *
+     * <p>
      * All Unicode characters may be placed within the
      * quotation marks except for the characters that must be escaped:
      * quotation mark, reverse solidus, and the control characters (U+0000

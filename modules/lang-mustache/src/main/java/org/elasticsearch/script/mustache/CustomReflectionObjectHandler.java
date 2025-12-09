@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
+
     private final boolean detectMissingParams;
 
     CustomReflectionObjectHandler(boolean detectMissingParams) {
@@ -43,9 +44,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
     public Object coerce(Object object) {
         if (object == null) {
             return null;
-        }
-
-        if (object.getClass().isArray()) {
+        } else if (object.getClass().isArray()) {
             return new ArrayMap(object);
         } else if (object instanceof Collection) {
             @SuppressWarnings("unchecked")
@@ -138,7 +137,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
         @Override
         public Iterator<Object> iterator() {
-            return new Iterator<Object>() {
+            return new Iterator<>() {
 
                 int index = 0;
 

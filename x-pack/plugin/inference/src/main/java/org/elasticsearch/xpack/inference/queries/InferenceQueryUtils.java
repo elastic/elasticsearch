@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
@@ -52,6 +53,17 @@ import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAc
 import static org.elasticsearch.xpack.core.ml.action.InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API;
 
 public final class InferenceQueryUtils {
+    /**
+     * Inference info aggregated across queried local and remote indices. All info provided is guaranteed to be
+     * complete when {@link InferenceInfoRequest#alwaysSkipRemotes()} is {@code false}.
+     * When {@link InferenceInfoRequest#alwaysSkipRemotes()} is {@code true}, then only {@code minTransportVersion} is
+     * guaranteed to be complete.
+     *
+     * @param inferenceFieldCount The number of inference fields queried across all concrete indices
+     * @param indexCount The number of concrete indices queried
+     * @param inferenceResultsMap The inference results map
+     * @param minTransportVersion The global min transport version
+     */
     public record InferenceInfo(
         int inferenceFieldCount,
         int indexCount,
@@ -59,6 +71,27 @@ public final class InferenceQueryUtils {
         TransportVersion minTransportVersion
     ) {}
 
+    /**
+     * <p>
+     * Inference info request args.
+     * </p>
+     * <p>
+     * If {@code query} is {@code null}, then no additional inference results will be generated.
+     * </p>
+     * <p>
+     * If {@code useDefaultFields} is true and {@code fields} is empty, then the field pattern map will be derived
+     * from the value of {@link IndexSettings#DEFAULT_FIELD_SETTING} for the index.
+     * </p>
+     *
+     * @param fields The field pattern map, where the key is the field pattern and the value is the pattern weight.
+     * @param query The query string
+     * @param inferenceResultsMap The current inference results map
+     * @param inferenceIdOverride The inference ID override
+     * @param resolveWildcards If {@code true}, wildcards in field patterns will be resolved. Otherwise, only explicit
+     *                         field name matches will be used.
+     * @param useDefaultFields If {@code true}, default fields will be used if {@code fields} is empty.
+     * @param alwaysSkipRemotes If {@code true}, roundtrips to remote clusters will always be skipped
+     */
     public record InferenceInfoRequest(
         Map<String, Float> fields,
         @Nullable String query,
@@ -71,7 +104,38 @@ public final class InferenceQueryUtils {
 
     private InferenceQueryUtils() {}
 
-    // TODO: Add javadoc
+    /**
+     * <p>
+     * Get inference info for the queried local and remote indices.
+     * </p>
+     * <p>
+     * Gets the inference info for the indices resolved in {@link QueryRewriteContext#getResolvedIndices()}. If
+     * {@link QueryRewriteContext#isCcsMinimizeRoundTrips()} is {@code false}, a roundtrip to remote cluster(s) is
+     * performed to get inference info for them. Otherwise, inference info is gathered only for local indices.
+     * </p>
+     * <p>
+     * Inference info is returned in the form of an {@link InferenceInfo} listener. The listener is called by this
+     * method once all requested inference info has been gathered and aggregated into a single {@link InferenceInfo}
+     * instance.
+     * </p>
+     * <p>
+     * If {@link InferenceInfoRequest#alwaysSkipRemotes()} is {@code true}, then no roundtrips to remote cluster(s)
+     * will be performed, regardless of the value of {@link QueryRewriteContext#isCcsMinimizeRoundTrips()}. In this
+     * case, the returned {@link InferenceInfo} may be incomplete, as it will only contain info for local indices.
+     * This can be useful when calling the method with a-priori knowledge that remote cluster inference info is not
+     * necessary.
+     * </p>
+     * <p>
+     * NOTE: {@link InferenceInfo#minTransportVersion()} is an exception to the above statement. Min transport versions
+     * for remote clusters will always be gathered when {@link QueryRewriteContext#isCcsMinimizeRoundTrips()} is
+     * {@code false}. This can be determined using only the connection(s) to the remote cluster(s), so no roundtrip is
+     * necessary.
+     * </p>
+     *
+     * @param queryRewriteContext The query rewrite context
+     * @param inferenceInfoRequest The inference info request args
+     * @param inferenceInfoListener The inference info listener
+     */
     public static void getInferenceInfo(
         QueryRewriteContext queryRewriteContext,
         InferenceInfoRequest inferenceInfoRequest,
@@ -331,7 +395,7 @@ public final class InferenceQueryUtils {
         int totalIndexCount = localInferenceInfo.indexCount;
         Map<FullyQualifiedInferenceId, InferenceResults> completeInferenceResultsMap = new HashMap<>(
             localInferenceInfo.inferenceResultsMap
-        );  // TODO: Use a copy-on-write map implementation here?
+        );
         TransportVersion minTransportVersion = localInferenceInfo.minTransportVersion;
 
         if (remoteInferenceInfo != null) {

@@ -155,6 +155,9 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
 
         private LogicalPlan transformRelation(EsRelation rel) {
             // Add the pushed attribute
+            if (rel.indexMode() == IndexMode.LOOKUP) {
+                return rel;
+            }
             AttributeSet updatedOutput = rel.outputSet().combine(AttributeSet.of(addedAttrs.values()));
             return rel.withAttributes(updatedOutput.stream().toList());
         }

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -951,10 +952,10 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> INTRA_MERGE_PARALLELISM_ENABLED_SETTING = Setting.boolSetting(
         "index.merge.intra_merge_parallelism_enabled",
-        false,
+        // default to true with snapshot for now, false otherwise.
+        Build.current().isSnapshot(),
         Property.IndexScope,
-        Property.Dynamic,
-        Property.ServerlessPublic
+        Property.Dynamic
     );
 
     private final Index index;

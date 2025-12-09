@@ -123,9 +123,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
 
-        // Determine filtering mode
+        // determine filtering mode
         boolean isLazyEvaluation = acceptDocs instanceof ESAcceptDocs.LazyFilterEsAcceptDocs;
-        boolean isTruePostFilter = acceptDocs instanceof ESAcceptDocs.TruePostFilterEsAcceptDocs;
+        boolean isTruePostFilter = acceptDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
         boolean skipCentroidFiltering = isLazyEvaluation || isTruePostFilter;
 
         float approximateDocsPerCentroid = approximateCost / numCentroids;
@@ -138,14 +138,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
         if (skipCentroidFiltering || approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
-            // Skip centroid filtering for:
-            // - True post-filtering (search is unfiltered, filter applied afterward)
-            // - Lazy evaluation (to avoid materializing the expensive filter)
-            // - Many docs per centroid (filtering won't help much)
-            // - Single centroid (nothing to filter)
             acceptCentroids = null;
         } else {
-            // Eager evaluation: build centroid filter by materializing matching docs
+            // eager evaluation: build centroid filter by materializing matching docs
             acceptCentroids = new FixedBitSet(numCentroids);
             final KnnVectorValues.DocIndexIterator docIndexIterator = values.iterator();
             final DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(List.of(acceptDocs.iterator(), docIndexIterator));
@@ -717,19 +712,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
 
-            // Determine filtering mode
+            // determine filtering mode
             boolean isLazyEvaluation = filterDocs instanceof ESAcceptDocs.LazyFilterEsAcceptDocs;
             DocIdSetIterator filterIterator = null;
             Bits filteredBits = null;
 
             if (isLazyEvaluation) {
-                // Lazy evaluation: use fresh iterator with advance()
+                // for lazy evaluation fetch a new iterator and call advance
                 filterIterator = filterDocs.iterator();
-                // Assert that the iterator is unpositioned (fresh)
+                // assert that the iterator is unpositioned
                 assert filterIterator == null || filterIterator.docID() == -1 : "Filter iterator must be unpositioned";
             } else {
-                // Eager evaluation or true post-filter: use bits()
-                // For true post-filter, bits() returns only liveDocs (no filter applied)
+                // for eager evaluation or true post-filter: we materialize the bitset
+                // while this could be generally expensive, for PostFilterEsAcceptDocs
+                // this will return only liveDocs (no filter is applied)
                 filteredBits = filterDocs == null ? null : filterDocs.bits();
             }
 
@@ -739,10 +735,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
 
                 final int docsToBulkScore;
                 if (isLazyEvaluation) {
-                    // Lazy evaluation: check each doc with advance()
                     docsToBulkScore = docToBulkScoreLazy(docIdsScratch, filterIterator);
                 } else {
-                    // Eager or true post-filter: use bits
                     docsToBulkScore = filteredBits == null ? BULK_SIZE : docToBulkScore(docIdsScratch, filteredBits);
                 }
 
@@ -781,10 +775,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                 int doc = docIdsScratch[count++];
                 boolean accepted;
                 if (isLazyEvaluation && filterIterator != null) {
-                    // Lazy evaluation: check with iterator
                     int currentDoc = filterIterator.docID();
                     if (currentDoc == NO_MORE_DOCS) {
-                        // Iterator exhausted, all remaining docs are filtered out
                         accepted = false;
                     } else if (currentDoc == doc) {
                         accepted = true;
@@ -792,7 +784,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
                         accepted = filterIterator.advance(doc) == doc;
                     }
                 } else {
-                    // Eager or true post-filter: check bits
                     accepted = filteredBits == null || filteredBits.get(doc);
                 }
 
@@ -832,19 +823,14 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             for (int i = 0; i < BULK_SIZE; i++) {
                 int doc = docIds[i];
                 int currentDoc = filterIterator.docID();
-
-                // Check if we need to advance the iterator
                 if (currentDoc != doc) {
                     if (currentDoc == NO_MORE_DOCS) {
-                        // Iterator exhausted, filter out this and all remaining docs
                         docIds[i] = -1;
                         docToScore--;
                         continue;
                     }
                     currentDoc = filterIterator.advance(doc);
                 }
-
-                // Check if doc matches the filter
                 if (currentDoc != doc) {
                     docIds[i] = -1;
                     docToScore--;

@@ -115,7 +115,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         assert filterDocs instanceof ESAcceptDocs;
 
         // Check if we should apply true post-filtering
-        boolean applyPostFilter = filterDocs instanceof ESAcceptDocs.TruePostFilterEsAcceptDocs;
+        boolean applyPostFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
 
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
         // for post-filtering oversample
@@ -136,13 +136,13 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
         // Apply post-filtering if needed
         if (applyPostFilter && results != null && results.scoreDocs.length > 0) {
-            results = applyPostFilter(results, (ESAcceptDocs.TruePostFilterEsAcceptDocs) filterDocs);
+            results = applyPostFilter(results, (ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs);
         }
 
         return results != null ? results : NO_RESULTS;
     }
 
-    private TopDocs applyPostFilter(TopDocs results, ESAcceptDocs.TruePostFilterEsAcceptDocs filterDocs) throws IOException {
+    private TopDocs applyPostFilter(TopDocs results, ESAcceptDocs.PostFilterEsAcceptDocs filterDocs) throws IOException {
         if (results.scoreDocs.length == 0) {
             return results;
         }

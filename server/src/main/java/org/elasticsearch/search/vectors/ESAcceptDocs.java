@@ -243,7 +243,9 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    /** An AcceptDocs that uses lazy evaluation with iterator advance(). Used for medium-high selectivity filters (40-90%). */
+    /**
+     * An {@code ESAcceptDocs} implementation that uses lazy evaluation with iterator advance()
+     */
     public static final class LazyFilterEsAcceptDocs extends ESAcceptDocs {
         private final Weight weight;
         private final LeafReaderContext ctx;
@@ -306,13 +308,15 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    /** An AcceptDocs that defers all filtering until after vector search. Used for very high selectivity filters (≥90%). */
-    public static final class TruePostFilterEsAcceptDocs extends ESAcceptDocs {
+    /**
+     * An {code ESAcceptDocs} implementation that defers all filtering until after the search.
+     */
+    public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
         private final Weight weight;
         private final LeafReaderContext ctx;
         private final Bits liveDocs;
 
-        TruePostFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
+        PostFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
             this.weight = weight;
             this.ctx = ctx;
             this.liveDocs = liveDocs;
@@ -320,19 +324,20 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public Bits bits() throws IOException {
-            // Return just live docs - no filter during search
+            // return just live docs - no filter during search
             return liveDocs;
         }
 
         @Override
         public DocIdSetIterator iterator() throws IOException {
-            // Return null to indicate all docs accepted (except deletions handled by bits())
+            // return null to indicate all docs accepted (except deletions handled by bits())
             return null;
         }
 
         @Override
         public int cost() throws IOException {
-            throw new UnsupportedOperationException("[TruePostFilterEsAcceptDocs] does not support computing exact cost");
+            // TODO: should we return 0 or maxDoc ?
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support computing exact cost");
         }
 
         @Override
@@ -342,7 +347,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public Optional<BitSet> getBitSet() throws IOException {
-            throw new UnsupportedOperationException("[TruePostFilterEsAcceptDocs] does not support BitSet creation");
+            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support BitSet creation");
         }
 
         public Weight weight() {

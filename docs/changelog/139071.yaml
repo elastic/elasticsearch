@@ -1,0 +1,5 @@
+pr: 139071
+summary: Change FUSE KEY BY to receive a list of `qualifiedName`
+area: ES|QL
+type: bug
+issues: []

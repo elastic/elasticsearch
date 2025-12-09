@@ -463,7 +463,7 @@ semantic search for `semantic_text` fields:
 2. Lists details about the model used to generate embeddings, such as the service name and task type.
 3. The embeddings generated for this chunk.
 
-### Return semantic field embeddings using `fields` [returning-semantic-field-embeddings-using-fields]
+### Retrieve embeddings using `fields` [returning-semantic-field-embeddings-using-fields]
 
 :::{important}
 This method for returning semantic field embeddings is recommended only for {{es}} versions earlier than 9.2.

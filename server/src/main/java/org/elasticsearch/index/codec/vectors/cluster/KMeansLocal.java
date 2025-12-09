@@ -56,7 +56,7 @@ abstract class KMeansLocal {
     ) throws IOException;
 
     /** assign to each vector the soar assignment **/
-    protected abstract void assignSpilledSlice(
+    protected abstract void assignSpilled(
         FloatVectorValues vectors,
         KMeansIntermediate kmeansIntermediate,
         NeighborHood[] neighborhoods,
@@ -384,7 +384,7 @@ abstract class KMeansLocal {
         if (neighborAware && soarLambda >= 0) {
             assert kMeansIntermediate.soarAssignments().length == 0;
             kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
-            assignSpilledSlice(vectors, kMeansIntermediate, neighborhoods, soarLambda);
+            assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);
         }
     }
 

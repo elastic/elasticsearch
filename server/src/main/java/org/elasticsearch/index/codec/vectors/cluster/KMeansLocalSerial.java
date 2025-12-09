@@ -43,7 +43,7 @@ class KMeansLocalSerial extends KMeansLocal {
     }
 
     @Override
-    protected void assignSpilledSlice(
+    protected void assignSpilled(
         FloatVectorValues vectors,
         KMeansIntermediate kmeansIntermediate,
         NeighborHood[] neighborhoods,

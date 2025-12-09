@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -581,10 +582,7 @@ public final class EsqlTestUtils {
         doReturn(Settings.EMPTY).when(service).getSettings();
 
         // Create ClusterSettings with the required inference settings
-        var clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            new java.util.HashSet<>(org.elasticsearch.xpack.esql.inference.InferenceSettings.getSettings())
-        );
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, new java.util.HashSet<>(InferenceSettings.getSettings()));
         doReturn(clusterSettings).when(service).getClusterSettings();
 
         return service;

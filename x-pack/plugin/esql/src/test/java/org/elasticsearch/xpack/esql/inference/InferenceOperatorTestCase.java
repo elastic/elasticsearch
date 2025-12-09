@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -43,6 +45,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends AsyncOperatorTestCase {
     protected ThreadPool threadPool;
@@ -142,7 +145,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
         };
 
-        return new InferenceService(mockClient, mock(ClusterService.class));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(mock(ClusterSettings.class));
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+
+        return new InferenceService(mockClient, clusterService);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

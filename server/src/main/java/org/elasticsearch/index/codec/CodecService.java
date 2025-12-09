@@ -46,11 +46,6 @@ public class CodecService implements CodecProvider {
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    // HACKIT
-    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
-        this(mapperService, bigArrays, null);
-    }
-
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 

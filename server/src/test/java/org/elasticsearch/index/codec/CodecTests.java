@@ -145,7 +145,7 @@ public class CodecTests extends ESTestCase {
             bitsetFilterCache::getBitSetProducer,
             MapperMetrics.NOOP
         );
-        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
 }

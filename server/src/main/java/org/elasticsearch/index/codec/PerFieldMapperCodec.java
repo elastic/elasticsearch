@@ -31,10 +31,6 @@ public final class PerFieldMapperCodec extends Elasticsearch92Lucene103Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 
-    public PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
-        this(compressionMode, mapperService, bigArrays, null);
-    }
-
     public PerFieldMapperCodec(
         Zstd814StoredFieldsFormat.Mode compressionMode,
         MapperService mapperService,

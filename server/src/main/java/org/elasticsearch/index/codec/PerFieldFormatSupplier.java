@@ -77,10 +77,6 @@ public class PerFieldFormatSupplier {
 
     private final PostingsFormat defaultPostingsFormat;
 
-    public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays) {
-        this(mapperService, bigArrays, null);
-    }
-
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);

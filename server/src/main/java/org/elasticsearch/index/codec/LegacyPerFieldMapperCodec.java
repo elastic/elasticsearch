@@ -27,10 +27,6 @@ public final class LegacyPerFieldMapperCodec extends Lucene103Codec {
 
     private final PerFieldFormatSupplier formatSupplier;
 
-    public LegacyPerFieldMapperCodec(Lucene103Codec.Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
-        this(compressionMode, mapperService, bigArrays, null);
-    }
-
     public LegacyPerFieldMapperCodec(
         Lucene103Codec.Mode compressionMode,
         MapperService mapperService,

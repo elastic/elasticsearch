@@ -415,9 +415,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=scroll/20_keep_alive/Max keep alive}
   issue: https://github.com/elastic/elasticsearch/issues/138680
-- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
-  method: testSynthesizeArrayRandom
-  issue: https://github.com/elastic/elasticsearch/issues/138684
 - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
   method: testAggregateMetricDoubleInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/138620
@@ -448,9 +445,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/138793
-- class: org.elasticsearch.index.mapper.LongSyntheticSourceNativeArrayIntegrationTests
-  method: testSynthesizeArrayRandom
-  issue: https://github.com/elastic/elasticsearch/issues/138819
+- class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
+  method: testILMWaitsForTimeSeriesEndTimeToLapse
+  issue: https://github.com/elastic/elasticsearch/issues/138843
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/610_function_score/formulating a function score query with a negative number returns bad request}
   issue: https://github.com/elastic/elasticsearch/issues/138908

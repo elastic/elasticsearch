@@ -41,10 +41,8 @@ import static java.util.stream.Collectors.toMap;
  * interact with in some way. This includes fully representable types (e.g.
  * {@link DataType#LONG}, numeric types which we promote (e.g. {@link DataType#SHORT})
  * or fold into other types (e.g. {@link DataType#DATE_PERIOD}) early in the
- * processing pipeline, types for internal use
- * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
- * doesn't support, but require special handling anyway (e.g.
- * {@link DataType#OBJECT})
+ * processing pipeline, and types which the language doesn't support, but require
+ * special handling anyway (e.g. {@link DataType#OBJECT})
  *
  * <h2>Process for adding a new data type</h2>
  * We assume that the data type is already supported in ES indices, but not in
@@ -359,12 +357,6 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
-    /**
-     * Fields with this type are the partial result of running a non-time-series aggregation
-     * inside alongside time-series aggregations. These fields are not parsable from the
-     * mapping and should be hidden from users.
-     */
-    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).supportedOnAllNodes()),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
@@ -378,7 +370,7 @@ public enum DataType implements Writeable {
         builder().esType("exponential_histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.RESOLVE_FIELDS_RESPONSE_USED_TV)
+            .underConstruction(DataTypesTransportVersions.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION)
     ),
 
     /*
@@ -665,7 +657,6 @@ public enum DataType implements Writeable {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
-            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 
@@ -1052,10 +1043,11 @@ public enum DataType implements Writeable {
         );
 
         /**
-         * First transport version after the PR that introduced the exponential histogram data type.
+         * First transport version after the PR that introduced the exponential histogram data type which was NOT also backported to 9.2.
+         * (Exp. histogram was added as SNAPSHOT-only to 9.3.)
          */
-        public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName(
-            "esql_resolve_fields_response_used"
+        public static final TransportVersion TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION = TransportVersion.fromName(
+            "text_similarity_rank_docs_explain_chunks"
         );
     }
 }

@@ -208,17 +208,17 @@ public class ElasticInferenceServiceAuthorizationModel {
         );
 
         var configElementType = config.elementType().toLowerCase(Locale.ROOT);
-        var supportedElementType = getSupportedElementType();
+        var supportedElementTypes = getSupportedElementTypes();
 
-        if (configElementType.equals(supportedElementType) == false) {
+        if (supportedElementTypes.contains(configElementType) == false) {
             throw new IllegalArgumentException(
-                Strings.format("Unsupported element type encountered [%s], only [%s] is supported", configElementType, supportedElementType)
+                Strings.format("Unsupported element type encountered [%s], only %s are supported", configElementType, supportedElementTypes)
             );
         }
     }
 
-    private static String getSupportedElementType() {
-        return ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT);
+    private static Set<String> getSupportedElementTypes() {
+        return Set.of(ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
     }
 
     private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {

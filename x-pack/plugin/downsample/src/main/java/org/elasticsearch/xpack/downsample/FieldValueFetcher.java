@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -75,16 +77,24 @@ class FieldValueFetcher {
         return fieldProducer;
     }
 
+    public HistogramValues getHistogramLeaf(LeafReaderContext context) throws IOException {
+        LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
+        return histogramFieldData.getHistogramValues();
+    }
+
     private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         assert "aggregate_metric_double".equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
+        if ("histogram".equals(fieldType.typeName())) {
+            return TDigestHistogramFieldProducer.create(name(), samplingMethod);
+        }
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> NumericMetricFieldProducer.createFieldProducerForGauge(name(), samplingMethod);
                 case COUNTER -> LastValueFieldProducer.createForMetric(name());
                 case HISTOGRAM -> {
                     if ("exponential_histogram".equals(fieldType.typeName())) {
-                        yield ExponentialHistogramMetricFieldProducer.createMetricProducerForExponentialHistogram(name(), samplingMethod);
+                        yield ExponentialHistogramMetricFieldProducer.create(name(), samplingMethod);
                     }
                     throw new IllegalArgumentException("Time series metrics supports only exponential histogram");
                 }

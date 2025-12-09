@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
@@ -44,9 +43,8 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
     static LastValueFieldProducer createForLabel(String name, String fieldType) {
         assert "aggregate_metric_double".equals(fieldType) == false
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
-        if ("histogram".equals(fieldType)) {
-            return new LastValueFieldProducer.HistogramFieldProducer(name, true);
-        } else if ("exponential_histogram".equals(fieldType)) {
+        assert "histogram".equals(fieldType) == false : "field type cannot be histogram: " + fieldType + " for field " + name;
+        if ("exponential_histogram".equals(fieldType)) {
             return new LastValueFieldProducer.ExponentialHistogramFieldProducer(name);
         } else if ("flattened".equals(fieldType)) {
             return new LastValueFieldProducer.FlattenedFieldProducer(name, true);
@@ -145,26 +143,6 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
 
         public String subMetric() {
             return metric.name();
-        }
-    }
-
-    static final class HistogramFieldProducer extends LastValueFieldProducer {
-        private HistogramFieldProducer(String name, boolean producesMultiValue) {
-            super(name, producesMultiValue);
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                final HistogramValue histogramValue = (HistogramValue) lastValue();
-                final List<Double> values = new ArrayList<>();
-                final List<Long> counts = new ArrayList<>();
-                while (histogramValue.next()) {
-                    values.add(histogramValue.value());
-                    counts.add(histogramValue.count());
-                }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
-            }
         }
     }
 

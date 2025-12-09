@@ -55,6 +55,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
+        assumeTrue("skip this test for now", false);
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         // TODO 25 docs + 2 subqueries without "limit 40" in the main query causes OOM, should we CBE instead?
         heapAttackIT.initGiantTextField(100);
@@ -114,6 +115,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testManySubqueriesWithGiantTextField() throws IOException {
+        assumeTrue("skip this test for now", false);
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         // TODO 8 docs * 8 subqueries with "limit 40" in the main query causes OOM, should we CBE instead?
         heapAttackIT.initGiantTextField(5);

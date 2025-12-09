@@ -301,8 +301,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var allowCustomRouting = in.readBoolean();
         var indexMode = in.readOptionalEnum(IndexMode.class);
         var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-        // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
-        var failureStoreEnabled = false;
         var failureIndices = readIndices(in);
         var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
         backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
@@ -326,7 +324,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } else {
             // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
             // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-            dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
+            dataStreamOptions = null;
         }
         final Settings settings;
         if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {

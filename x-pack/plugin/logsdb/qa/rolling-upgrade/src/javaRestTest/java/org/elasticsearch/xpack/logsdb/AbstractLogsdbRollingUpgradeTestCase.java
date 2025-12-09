@@ -36,9 +36,13 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
     protected void upgradeNode(int n) throws IOException {
         closeClients();
-        var upgradeVersion = System.getProperty("tests.new_cluster_version") != null
-            ? Version.fromString(System.getProperty("tests.new_cluster_version"))
-            : Version.CURRENT;
+
+        var serverlessBwcStackVersion = System.getProperty("tests.serverless.bwc_stack_version");
+        var bwcTag = System.getProperty("tests.bwc.tag");
+        var newClusterVersion = System.getProperty("tests.new_cluster_version");
+        logger.info("serverlessBwcStackVersion={}, bwcTag={}, newClusterVersion={}", serverlessBwcStackVersion, bwcTag, newClusterVersion);
+
+        var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
         logger.info("Upgrading node {} to version {}", n, upgradeVersion);
         cluster.upgradeNodeToVersion(n, upgradeVersion);
         initClient();

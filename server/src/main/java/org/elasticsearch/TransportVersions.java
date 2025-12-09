@@ -65,13 +65,6 @@ public class TransportVersions {
     public static final TransportVersion V_8_15_0 = def(8_702_0_02);
     public static final TransportVersion V_8_15_2 = def(8_702_0_03);
     public static final TransportVersion V_8_16_0 = def(8_772_0_01);
-    public static final TransportVersion V_8_16_1 = def(8_772_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
-    public static final TransportVersion V_8_17_0 = def(8_797_0_02);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
 
     /*
      * STOP! READ THIS FIRST! No, really,

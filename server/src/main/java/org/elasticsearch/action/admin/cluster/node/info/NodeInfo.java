@@ -66,11 +66,7 @@ public class NodeInfo extends BaseNodeResponse {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             version = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-                compatibilityVersions = CompatibilityVersions.readVersion(in);
-            } else {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
-            }
+            compatibilityVersions = CompatibilityVersions.readVersion(in);
             indexVersion = IndexVersion.readVersion(in);
         } else {
             Version legacyVersion = Version.readVersion(in);
@@ -237,9 +233,7 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             Version.writeVersion(Version.fromString(version), out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            compatibilityVersions.writeTo(out);
-        }
+        compatibilityVersions.writeTo(out);
         IndexVersion.writeVersion(indexVersion, out);
         out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
         Build.writeBuild(build, out);

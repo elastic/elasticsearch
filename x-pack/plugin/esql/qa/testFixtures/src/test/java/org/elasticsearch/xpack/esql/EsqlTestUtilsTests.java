@@ -55,6 +55,23 @@ public class EsqlTestUtilsTests extends ESTestCase {
         );
     }
 
+    public void testSetMultiline() {
+        assertThat(
+            EsqlTestUtils.addRemoteIndices("""
+                SET a=b;
+                SET c=d;
+                FROM foo
+                | SORT bar
+                """, Set.of(), false),
+            equalTo("""
+                SET a=b;
+                SET c=d;
+                FROM *:foo,foo
+                | SORT bar
+                """)
+        );
+    }
+
     public void testMetadata() {
         assertThat(
             EsqlTestUtils.addRemoteIndices("FROM foo METADATA _source | SORT bar", Set.of(), false),
@@ -96,6 +113,22 @@ public class EsqlTestUtilsTests extends ESTestCase {
             | WHERE emp_no >= 10091 AND emp_no < 10094
             | SORT _index, emp_no
             | KEEP _index,  emp_no, languages, language_name"""));
+    }
+
+    public void testSubqueryWithSet() {
+        assertThat(EsqlTestUtils.addRemoteIndices("""
+            SET a = b;
+            SET x = y; FROM employees, (FROM employees_incompatible
+                             | ENRICH languages_policy on languages with language_name )
+                       metadata _index
+            | EVAL emp_no = emp_no::long
+            """, Set.of(), false), equalTo("""
+            SET a = b;
+            SET x = y; FROM *:employees,employees, (FROM employees_incompatible
+                             | ENRICH languages_policy on languages with language_name )
+                       metadata _index
+            | EVAL emp_no = emp_no::long
+            """));
     }
 
     public void testTripleQuotes() {

@@ -1347,7 +1347,7 @@ public final class EsqlTestUtils {
                     i += newIndex.length();
                 }
                 String newFirstCommand = command + " " + commandArgs;
-                String finalQuery = (setStatements + " " + newFirstCommand.trim() + query.substring(first.length())).trim();
+                String finalQuery = (setStatements + newFirstCommand.trim() + query.substring(first.length()));
                 assert query.split("\n").length == finalQuery.split("\n").length
                     : "the final query should have the same lines for warnings to work";
                 return finalQuery;

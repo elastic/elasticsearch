@@ -25,32 +25,29 @@ import java.util.Arrays;
 
 /**
  * Assigns {@code int} ids to {@code long}s, vending the ids in order they are added.
- * <p>
- *     At it's core there are two hash table implementations, a "small core" and
- *     a "big core". The "small core" is a simple
- *     <a href="https://en.wikipedia.org/wiki/Open_addressing">open addressed</a>
- *     hash table with a fixed 60% load factor and a table of 2048. It quite quick
- *     because it has a fixed size and never grows.
- * </p>
- * <p>
- *     When the "small core" has more entries than it's load factor the "small core"
- *     is replaced with a "big core". The "big core" functions quite similarly to
- *     a <a href="https://faultlore.com/blah/hashbrown-tldr/">Swisstable</a>, Google's
- *     fancy SIMD hash table. In this table there's a contiguous array of "control"
- *     bytes that are either {@code 0b1111_1111} for empty entries or
- *     {@code 0b0aaa_aaaa} for populated entries, where {@code aaa_aaaa} are the top
- *     7 bytes of the hash. To find an entry by key you hash it, grab the top 7 bytes
- *     or it, and perform a SIMD read of the control array starting at the expected
- *     slot. We use the widest SIMD instruction the CPU supports, meaning 64 or 32
- *     bytes. If any of those match we check the actual key. So instead of scanning
- *     one slot at a time "small core", we effectively scan a whole bunch at once.
- *     This allows us to run a much higher load factor (85%) without any performance
- *     penalty so the extra byte feels super worth it.
- * </p>
- * <p>
- *     When a "big core" fills it's table to the fill factor, we build a new "big core"
- *     and read all values in the old "big core" into the new one.
- * </p>
+ *
+ * <p> At it's core there are two hash table implementations, a "small core" and
+ * a "big core". The "small core" is a simple
+ * <a href="https://en.wikipedia.org/wiki/Open_addressing">open addressed</a>
+ * hash table with a fixed 60% load factor and a table of 2048. It's quite quick
+ * because it has a fixed size and never grows.
+ *
+ * <p> When the "small core" has more entries than it's load factor the "small core"
+ * is replaced with a "big core". The "big core" functions quite similarly to
+ * a <a href="https://faultlore.com/blah/hashbrown-tldr/">Swisstable</a>, Google's
+ * fancy SIMD hash table. In this table there's a contiguous array of "control"
+ * bytes that are either {@code 0b1111_1111} for empty entries or
+ * {@code 0b0aaa_aaaa} for populated entries, where {@code aaa_aaaa} are the top
+ * 7 bytes of the hash. To find an entry by key you hash it, grab the top 7 bytes
+ * or it, and perform a SIMD read of the control array starting at the expected
+ * slot. We use the widest SIMD instruction the CPU supports, meaning 64 or 32
+ * bytes. If any of those match we check the actual key. So instead of scanning
+ * one slot at a time "small core", we effectively scan a whole bunch at once.
+ * This allows us to run a much higher load factor (85%) without any performance
+ * penalty so the extra byte feels super worth it.
+ *
+ * <p> When a "big core" fills it's table to the fill factor, we build a new
+ * "big core" and read all values in the old "big core" into the new one.
  */
 public final class Ordinator64 extends Ordinator implements Releasable {
     private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
@@ -65,7 +62,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
     private static final int ID_SIZE = Integer.BYTES;
 
-    public static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / KEY_SIZE;
+    static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / KEY_SIZE;
 
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
@@ -85,8 +82,8 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         }
     }
 
-    private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
-    private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+    private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+    private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
     SmallCore smallCore;
     BigCore bigCore;
@@ -264,22 +261,22 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         }
 
         int add(long key, int hash) {
-            int slotIncrement = 0;
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
-                int keyOffset = keyOffset(slot);
-                int idOffset = idOffset(slot);
-                long slotKey = (long) longHandle.get(keyPage, keyOffset);
-                int slotId = (int) intHandle.get(idPage, idOffset);
+                final int keyOffset = keyOffset(slot);
+                final int idOffset = idOffset(slot);
+                final long slotKey = (long) LONG_HANDLE.get(keyPage, keyOffset);
+                final int slotId = (int) INT_HANDLE.get(idPage, idOffset);
                 if (slotId >= 0) {
                     if (slotKey == key) {
                         return slotId;
                     }
                 } else {
                     size++;
-                    longHandle.set(keyPage, keyOffset, key);
+                    LONG_HANDLE.set(keyPage, keyOffset, key);
                     int id = idSpace.next();
-                    intHandle.set(idPage, idOffset, id);
+                    INT_HANDLE.set(idPage, idOffset, id);
                     return id;
                 }
 
@@ -290,7 +287,6 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
         void transitionToBigCore() {
             int oldCapacity = growTracking();
-
             try {
                 bigCore = new BigCore();
                 rehash(oldCapacity);
@@ -330,27 +326,27 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
         private void rehash(int oldCapacity) {
             for (int slot = 0; slot < oldCapacity; slot++) {
-                int id = (int) intHandle.get(idPage, idOffset(slot));
+                int id = (int) INT_HANDLE.get(idPage, idOffset(slot));
                 if (id < 0) {
                     continue;
                 }
-                long key = (long) longHandle.get(keyPage, keyOffset(slot));
+                long key = (long) LONG_HANDLE.get(keyPage, keyOffset(slot));
                 int hash = hash(key);
                 bigCore.insert(key, hash, control(hash), id);
             }
         }
 
         private long key(int slot) {
-            return (long) longHandle.get(keyPage, keyOffset(slot));
+            return (long) LONG_HANDLE.get(keyPage, keyOffset(slot));
         }
 
         private int id(int slot) {
-            return (int) intHandle.get(idPage, idOffset(slot));
+            return (int) INT_HANDLE.get(idPage, idOffset(slot));
         }
     }
 
     /**
-     * A Swisstable inspired hashtable. This differs from the normal swisstable
+     * A SwissTable inspired hashtable. This differs from the normal SwissTable
      * in because it's adapted to Elasticsearch's {@link PageCacheRecycler}.
      * The keys and ids are stored many {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES}
      * arrays, with the keys separated from the values. This is mostly so that we
@@ -363,21 +359,20 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         private static final byte CONTROL_EMPTY = (byte) 0b1111_1111;
 
         /**
-         * The "control" bytes from the Swisstable algorithm. This'll contain
+         * The "control" bytes from the Swisstable algorithm. This will contain
          * {@link #CONTROL_EMPTY} for empty entries and {@code 0b0aaa_aaaa} for
          * filled entries, where {@code aaa_aaaa} are the top seven bits of the
          * hash. These are tests by SIMD instructions as a quick first pass to
          * check many entries at once.
-         * <p>
-         *     This array has to be contiguous or we loose too much speed so it
-         *     isn't managed by the {@link PageCacheRecycler}, instead we
-         *     allocate it directly.
-         * </p>
-         * <p>
-         *     This array contains {@code capacity + SIMD_LANES} entries with the
-         *     first {@code SIMD_LANES} bytes cloned to the end of the array so
-         *     the simd probes for possible matches never had to worry about
-         *     "wrapping" around the array.
+         *
+         * <p> This array has to be contiguous otherwise we lose too much speed
+         * so it isn't managed by the {@link PageCacheRecycler}, instead we
+         * allocate it directly.
+         *
+         * <p> This array contains {@code capacity + SIMD_LANES} entries with the
+         * first {@code SIMD_LANES} bytes cloned to the end of the array so the
+         * simd probes for possible matches never had to worry about "wrapping"
+         * around the array.
          */
         private final byte[] controlData;
 
@@ -438,46 +433,42 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         }
 
         /**
-         * Probe chunks for the value.
-         * <p>
-         *     Each probe is:
-         * </p>
+         * Probes chunks for the value.
+         *
+         * <p> Each probe is:
          * <ol>
-         *     <li>Build a bit mask of all matching control values.</li>
-         *     <li>If any match, check if the actual values. If any of those match, return them.</li>
-         *     <li>No values matched, so check the control values for EMPTY flags. If there are any then the value isn't in the hash.</li>
-         *     <li>There aren't any EMPTY flags, meaning this chunk is full. So we should continue probing.</li>
+         *   <li>Build a bit mask of all matching control values.</li>
+         *   <li>If any match, check if the actual values. If any of those match,
+         *       return them.</li>
+         *   <li>No values matched, so check the control values for EMPTY flags.
+         *       If there are any empty flags, then the value isn't in the hash.</li>
+         *   <li>There aren't any EMPTY flags, meaning this chunk is full. So we should
+         *       continue probing.</li>
          * </ol>
-         * <p>
-         *     We probe via triangle numbers, adding 1, then 2, then 3, then 4, etc. That'll
-         *     help protect us from chunky hashes. And it's simple math. And it'll hit all the
-         *     buckets (<a href="https://fgiesen.wordpress.com/2015/02/22/triangular-numbers-mod-2n/">proof</a>).
-         *     The probe loop doesn't stop if it never finds an EMPTY flag. But it'll always
-         *     find one because we keep a load factor lower than 100%.
-         * </p>
+         *
+         * <p> We probe via triangle numbers, adding 1, then 2, then 3, then 4, etc.
+         * That'll help protect us from chunky hashes. And it's simple math. And it'll
+         * hit all the buckets (<a href="https://fgiesen.wordpress.com/2015/02/22/triangular-numbers-mod-2n/">proof</a>).
+         * The probe loop doesn't stop if it never finds an EMPTY flag. But it'll always
+         * find one because we keep a load factor lower than 100%.
          */
         private int find(long key, int hash, byte control) {
-            int slotIncrement = 0;
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 long candidateMatches = controlMatches(slot, control);
-                // TODO the double checking could be vectorized for some key types. Longs, probably.
-
                 int first;
                 while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
-                    int checkSlot = slot(slot + first);
-
+                    final int checkSlot = slot(slot + first);
                     if (key(checkSlot) == key) {
                         return id(checkSlot);
                     }
                     // Clear the first set bit and try again
                     candidateMatches &= ~(1L << first);
                 }
-
                 if (controlMatches(slot, CONTROL_EMPTY) != 0) {
                     return -1;
                 }
-
                 slotIncrement += BYTE_VECTOR_LANES;
                 slot = slot(slot + slotIncrement);
             }
@@ -502,7 +493,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         }
 
         /**
-         * Insert the key into the first empty slot that allows it. Used by {@link #add}
+         * Inserts the key into the first empty slot that allows it. Used by {@link #add}
          * after we verify that the key isn't in the index. And used by {@link #rehash}
          * because we know all keys are unique.
          */
@@ -512,17 +503,15 @@ public final class Ordinator64 extends Ordinator implements Releasable {
             while (true) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
                 if (VectorComparisonUtils.anyTrue(empty)) {
-                    slot = slot(slot + VectorComparisonUtils.firstSet(empty));
-                    int keyOffset = keyOffset(slot);
-                    int idOffset = idOffset(slot);
-
-                    longHandle.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, key);
-                    intHandle.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
-                    controlData[slot] = control;
-                    // mirror only if slot is within the first group size, to handle wraparound loads
-                    if (slot < BYTE_VECTOR_LANES) {
-                        controlData[slot + capacity] = control;
-                    }
+                    final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
+                    final int keyOffset = keyOffset(slot);
+                    final int idOffset = idOffset(slot);
+                    LONG_HANDLE.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, key);
+                    INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
+                    controlData[insertSlot] = control;
+                    // Mirror the first group bytes to the end of the array to handle wraparound loads.
+                    // Benign writes: all other positions are just written twice.
+                    controlData[((slot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
                     return;
                 }
                 slotIncrement += BYTE_VECTOR_LANES;
@@ -577,12 +566,11 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                     if ((empty & (1L << i)) != 0) {
                         continue;
                     }
-                    int actualSlot = slot + i;
-                    long key = key(actualSlot);
-                    int id = id(actualSlot);
-                    int hash = hash(key);
-                    byte control = control(hash);
-                    bigCore.insert(key, hash, control, id);
+                    final int actualSlot = slot + i;
+                    final long key = key(actualSlot);
+                    final int id = id(actualSlot);
+                    final int hash = hash(key);
+                    bigCore.insert(key, hash, control(hash), id);
                 }
                 slot += BYTE_VECTOR_LANES;
             }
@@ -596,17 +584,16 @@ public final class Ordinator64 extends Ordinator implements Releasable {
          */
         private long controlMatches(int slot, byte control) {
             return VECTOR_UTILS.equalMask(controlData, slot, control);
-            // return ByteVector.fromArray(BS, controlData, slot).eq(control).toLong();
         }
 
         private long key(int slot) {
             int keyOffset = keyOffset(slot);
-            return (long) longHandle.get(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK);
+            return (long) LONG_HANDLE.get(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK);
         }
 
         private int id(int slot) {
             int idOffset = idOffset(slot);
-            return (int) intHandle.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
+            return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
         }
     }
 

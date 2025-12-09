@@ -28,8 +28,6 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.concurrent.ThreadLocalRandom;
 
-import static org.elasticsearch.swisshash.Ordinator64.INITIAL_CAPACITY;
-
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 2)
 @Measurement(iterations = 5, time = 3)
@@ -52,9 +50,6 @@ public class SwissTablesBenchmark {
     @Param({ "insert", "lookup", "mixed" })
     public String mode;
 
-//    @Param({ "smallCore", "bigCore" })
-//    public String coreMode;
-
     // -----------------------
     // Bench state
     // -----------------------
@@ -63,7 +58,7 @@ public class SwissTablesBenchmark {
     int[] ids;
 
     Ordinator64 ord;
-    LongHash longHash ;
+    LongHash longHash;
 
     @Setup(Level.Trial)
     public void setup() {
@@ -71,23 +66,10 @@ public class SwissTablesBenchmark {
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
 
         ord = new Ordinator64(recycler, breaker, new Ordinator.IdSpace());
-        longHash = new LongHash(INITIAL_CAPACITY, BigArrays.NON_RECYCLING_INSTANCE);
+        longHash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         keys = generateKeys(uniqueKeys);
         lookupKeys = keys.clone();
         ids = new int[uniqueKeys];
-
-//        switch (coreMode) {
-//            case "smallCore":
-//                // smallCore stays active, avoid transition
-//                break;
-//            case "bigCore":
-//                // Pre-fill enough keys to guarantee BigCore is active
-//                int required = (int) (INITIAL_CAPACITY * Ordinator64.SmallCore.FILL_FACTOR) + 10;
-//                for (int i = 0; i < required; i++) {
-//                    ord.add(i);
-//                }
-//                break;
-//        }
 
         // For lookup-mode, we must pre-insert the benchmark keys
         if (mode.equals("lookup") || mode.equals("mixed")) {
@@ -154,7 +136,7 @@ public class SwissTablesBenchmark {
         return sum;
     }
 
-    // --  LongHash
+    // -- LongHash
     @Benchmark
     public long longHashBenchmark() {
         return switch (mode) {

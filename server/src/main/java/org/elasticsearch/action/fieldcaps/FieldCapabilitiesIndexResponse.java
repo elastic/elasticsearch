@@ -84,11 +84,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             responses.add(new FieldCapabilitiesIndexResponse(input));
         }
         final int groups = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            collectCompressedResponses(input, groups, responses);
-        } else {
-            collectResponsesLegacyFormat(input, groups, responses);
-        }
+        collectCompressedResponses(input, groups, responses);
         return responses;
     }
 
@@ -139,11 +135,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         }
 
         output.writeCollection(ungroupedResponses);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            writeCompressedResponses(output, groupedResponsesMap);
-        } else {
-            writeResponsesLegacyFormat(output, groupedResponsesMap);
-        }
+        writeCompressedResponses(output, groupedResponsesMap);
     }
 
     private static void writeResponsesLegacyFormat(

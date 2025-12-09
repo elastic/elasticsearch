@@ -150,7 +150,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testRolesWithManageRoles() throws Exception {
         assumeTrue(
             "The manage roles privilege is supported after transport version: " + V_8_16_0,
-            minimumTransportVersion().before(V_8_16_0));
+            minimumTransportVersion().before(V_8_16_0)
+        );
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 // Creating role in "old" cluster should succeed when manage roles is not provided

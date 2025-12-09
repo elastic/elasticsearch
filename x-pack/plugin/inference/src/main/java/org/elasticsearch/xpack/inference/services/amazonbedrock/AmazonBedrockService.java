@@ -138,11 +138,9 @@ public class AmazonBedrockService extends SenderService {
 
         AmazonBedrockChatCompletionModel amazonBedrockChatCompletionModel = (AmazonBedrockChatCompletionModel) model;
 
-        var manager = new AmazonBedrockChatCompletionRequestManager(
-            amazonBedrockChatCompletionModel,
-            this.getServiceComponents().threadPool(),
-            timeout
-        );
+        var overriddenModel = AmazonBedrockChatCompletionModel.of(amazonBedrockChatCompletionModel, inputs.getRequest());
+
+        var manager = new AmazonBedrockChatCompletionRequestManager(overriddenModel, this.getServiceComponents().threadPool(), timeout);
         var errorMessage = constructFailedToSendRequestMessage(AmazonBedrockService.CHAT_COMPLETION_ERROR_PREFIX);
         var action = new SenderExecutableAction(amazonBedrockSender, manager, errorMessage);
         action.execute(inputs, timeout, listener);
@@ -324,11 +322,11 @@ public class AmazonBedrockService extends SenderService {
                     secretSettings,
                     context
                 );
-                checkProviderForTask(TaskType.TEXT_EMBEDDING, model.provider());
+                checkProviderForTask(taskType, model.provider());
                 checkTaskSettingsForTextEmbeddingModel(model);
                 return model;
             }
-            case CHAT_COMPLETION -> {
+            case COMPLETION, CHAT_COMPLETION -> {
                 var model = new AmazonBedrockChatCompletionModel(
                     inferenceEntityId,
                     taskType,
@@ -338,20 +336,7 @@ public class AmazonBedrockService extends SenderService {
                     secretSettings,
                     context
                 );
-                checkProviderForTask(TaskType.CHAT_COMPLETION, model.provider());
-                return model;
-            }
-            case COMPLETION -> {
-                var model = new AmazonBedrockChatCompletionModel(
-                    inferenceEntityId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    secretSettings,
-                    context
-                );
-                checkProviderForTask(TaskType.COMPLETION, model.provider());
+                checkProviderForTask(taskType, model.provider());
                 checkChatCompletionProviderForTopKParameter(model);
                 return model;
             }

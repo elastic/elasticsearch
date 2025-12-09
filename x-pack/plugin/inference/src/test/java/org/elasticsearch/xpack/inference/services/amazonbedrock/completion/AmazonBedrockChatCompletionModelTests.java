@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URISyntaxException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
@@ -206,7 +205,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().modelId(), is("different_model"));
     }
 
-    public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() throws URISyntaxException {
+    public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.ANTHROPIC, "access_key", "secret_key");
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),

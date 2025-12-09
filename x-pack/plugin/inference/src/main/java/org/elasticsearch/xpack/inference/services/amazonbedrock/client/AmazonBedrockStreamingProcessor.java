@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.logging.LogManager;
@@ -33,12 +35,50 @@ public class AmazonBedrockStreamingProcessor<T> {
 
     volatile Flow.Subscriber<? super T> downstream;
 
+    public void onSubscribe(Flow.Subscription subscription) {
+        if (upstream == null) {
+            upstream = subscription;
+            var currentRequestCount = demand.getAndUpdate(i -> 0);
+            if (currentRequestCount > 0) {
+                upstream.request(currentRequestCount);
+            }
+        } else {
+            subscription.cancel();
+        }
+    }
+
     public void subscribe(Flow.Subscriber<? super T> subscriber) {
         if (downstream == null) {
             downstream = subscriber;
             downstream.onSubscribe(new StreamSubscription());
         } else {
             subscriber.onError(new IllegalStateException("Subscriber already set."));
+        }
+    }
+
+    public void onError(Throwable amazonBedrockRuntimeException) {
+        ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
+        error.set(
+            new ElasticsearchException(
+                org.elasticsearch.core.Strings.format(
+                    "AmazonBedrock StreamingChatProcessor failure: [%s]",
+                    amazonBedrockRuntimeException.getMessage()
+                ),
+                amazonBedrockRuntimeException
+            )
+        );
+        if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onErrorCalled.compareAndSet(false, true)) {
+            runOnUtilityThreadPool(() -> downstream.onError(amazonBedrockRuntimeException));
+        }
+    }
+
+    private boolean checkAndResetDemand() {
+        return demand.getAndUpdate(i -> 0L) > 0L;
+    }
+
+    public void onComplete() {
+        if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onCompleteCalled.compareAndSet(false, true)) {
+            downstream.onComplete();
         }
     }
 

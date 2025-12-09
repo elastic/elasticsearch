@@ -19,9 +19,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.StopReason;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,19 +37,6 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
     protected AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool) {
         super(threadPool);
-    }
-
-    @Override
-    public void onSubscribe(Flow.Subscription subscription) {
-        if (upstream == null) {
-            upstream = subscription;
-            var currentRequestCount = demand.getAndUpdate(i -> 0);
-            if (currentRequestCount > 0) {
-                upstream.request(currentRequestCount);
-            }
-        } else {
-            subscription.cancel();
-        }
     }
 
     @Override
@@ -213,31 +197,6 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
         }
         if (upstream != null) {
             upstream.request(1);
-        }
-    }
-
-    @Override
-    public void onError(Throwable amazonBedrockRuntimeException) {
-        ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
-        error.set(
-            new ElasticsearchException(
-                Strings.format("AmazonBedrock StreamingChatProcessor failure: [%s]", amazonBedrockRuntimeException.getMessage()),
-                amazonBedrockRuntimeException
-            )
-        );
-        if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onErrorCalled.compareAndSet(false, true)) {
-            runOnUtilityThreadPool(() -> downstream.onError(amazonBedrockRuntimeException));
-        }
-    }
-
-    private boolean checkAndResetDemand() {
-        return demand.getAndUpdate(i -> 0L) > 0L;
-    }
-
-    @Override
-    public void onComplete() {
-        if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onCompleteCalled.compareAndSet(false, true)) {
-            downstream.onComplete();
         }
     }
 

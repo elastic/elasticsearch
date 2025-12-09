@@ -356,17 +356,16 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         }
 
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
-        getInferenceInfo(
-            queryRewriteContext,
+        InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             getFields(),
-            resolveWildcards(),
-            useDefaultFields(),
-            alwaysSkipRemotes,
             getQuery(),
             inferenceResultsMap,
             getInferenceIdOverride(),
-            newInferenceInfoFuture
+            resolveWildcards(),
+            useDefaultFields(),
+            alwaysSkipRemotes
         );
+        getInferenceInfo(queryRewriteContext, inferenceInfoRequest, newInferenceInfoFuture);
 
         return copy(inferenceResultsMap, newInferenceInfoFuture, interceptedCcsRequest);
     }

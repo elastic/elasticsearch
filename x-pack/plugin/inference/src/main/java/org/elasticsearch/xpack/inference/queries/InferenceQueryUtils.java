@@ -59,18 +59,22 @@ public final class InferenceQueryUtils {
         TransportVersion minTransportVersion
     ) {}
 
+    public record InferenceInfoRequest(
+        Map<String, Float> fields,
+        @Nullable String query,
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        @Nullable FullyQualifiedInferenceId inferenceIdOverride,
+        boolean resolveWildcards,
+        boolean useDefaultFields,
+        boolean alwaysSkipRemotes
+    ) {}
+
     private InferenceQueryUtils() {}
 
     // TODO: Add javadoc
     public static void getInferenceInfo(
         QueryRewriteContext queryRewriteContext,
-        Map<String, Float> fields,
-        boolean resolveWildcards,
-        boolean useDefaultFields,
-        boolean alwaysSkipRemotes,
-        @Nullable String query,
-        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        @Nullable FullyQualifiedInferenceId inferenceIdOverride,
+        InferenceInfoRequest inferenceInfoRequest,
         ActionListener<InferenceInfo> inferenceInfoListener
     ) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
@@ -87,28 +91,28 @@ public final class InferenceQueryUtils {
             ActionListener<InferenceInfo> localInferenceInfoListener = refs.acquire(localInferenceInfoSupplier::set);
             getLocalInferenceInfo(
                 queryRewriteContext,
-                fields,
-                resolveWildcards,
-                useDefaultFields,
+                inferenceInfoRequest.fields(),
+                inferenceInfoRequest.resolveWildcards(),
+                inferenceInfoRequest.useDefaultFields(),
                 localInferenceInfoListener,
-                query,
-                inferenceResultsMap,
-                inferenceIdOverride
+                inferenceInfoRequest.query(),
+                inferenceInfoRequest.inferenceResultsMap(),
+                inferenceInfoRequest.inferenceIdOverride()
             );
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
                 ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener = refs
                     .acquire(remoteInferenceInfoSupplier::set);
 
-                if (alwaysSkipRemotes == false) {
+                if (inferenceInfoRequest.alwaysSkipRemotes() == false) {
                     getRemoteInferenceInfo(
                         queryRewriteContext,
-                        fields,
-                        resolveWildcards,
-                        useDefaultFields,
+                        inferenceInfoRequest.fields(),
+                        inferenceInfoRequest.resolveWildcards(),
+                        inferenceInfoRequest.useDefaultFields(),
                         remoteInferenceInfoListener,
-                        query,
-                        inferenceIdOverride
+                        inferenceInfoRequest.query(),
+                        inferenceInfoRequest.inferenceIdOverride()
                     );
                 } else {
                     // Even if we are skipping remotes, we still need to collect the remote cluster transport versions

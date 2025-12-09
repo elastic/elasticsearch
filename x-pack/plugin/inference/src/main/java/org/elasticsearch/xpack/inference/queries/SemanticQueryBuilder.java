@@ -369,17 +369,16 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> newInferenceInfoFuture = new PlainActionFuture<>();
-        getInferenceInfo(
-            queryRewriteContext,
+        InferenceQueryUtils.InferenceInfoRequest inferenceInfoRequest = new InferenceQueryUtils.InferenceInfoRequest(
             Map.of(fieldName, 1.0f),
-            false,
-            false,
-            false,
             query,
             inferenceResultsMap,
             null,
-            newInferenceInfoFuture
+            false,
+            false,
+            false
         );
+        getInferenceInfo(queryRewriteContext, inferenceInfoRequest, newInferenceInfoFuture);
 
         return new SemanticQueryBuilder(this, inferenceResultsMap, newInferenceInfoFuture, ccsRequest);
     }

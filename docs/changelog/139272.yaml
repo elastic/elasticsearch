@@ -1,0 +1,5 @@
+pr: 139272
+summary: Take TOP_SNIPPETS out of snapshot
+area: ES|QL
+type: enhancement
+issues: []

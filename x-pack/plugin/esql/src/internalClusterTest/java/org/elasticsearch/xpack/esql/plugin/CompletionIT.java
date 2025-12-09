@@ -17,6 +17,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
@@ -50,7 +51,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testCompletionBasic() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | COMPLETION title WITH { "inference_id": "%s" }
             | KEEP id, completion
@@ -72,7 +73,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
     }
 
     public void testCompletionWithCustomFieldName() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | COMPLETION generated_text = title WITH { "inference_id": "%s" }
             | KEEP id, generated_text
@@ -89,7 +90,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
     }
 
     public void testCompletionConcatenatedPrompt() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | COMPLETION summary = CONCAT(title, ": ", content) WITH { "inference_id": "%s" }
             | KEEP id, summary
@@ -114,7 +115,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testCompletionRowLimitEnforcement() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | COMPLETION title WITH { "inference_id": "%s" }
             | KEEP id, completion
@@ -133,7 +134,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
         updateClusterSettings(Settings.builder().put(InferenceSettings.COMPLETION_ROW_LIMIT_SETTING.getKey(), customLimit));
 
         try {
-            var query = String.format("""
+            var query = String.format(Locale.ROOT, """
                 FROM %s
                 | COMPLETION title WITH { "inference_id": "%s" }
                 | KEEP id, completion
@@ -154,7 +155,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testCompletionWithFilter() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | WHERE id <= 3
             | COMPLETION title WITH { "inference_id": "%s" }
@@ -181,7 +182,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testCompletionInvalidPromptType() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | COMPLETION id WITH { "inference_id": "%s" }
             """, TEST_INDEX, COMPLETION_MODEL_ID);
@@ -199,7 +200,7 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
         updateClusterSettings(Settings.builder().put(InferenceSettings.COMPLETION_ENABLED_SETTING.getKey(), false));
 
         try {
-            var query = String.format("""
+            var query = String.format(Locale.ROOT, """
                 FROM %s
                 | COMPLETION title WITH { "inference_id": "%s" }
                 """, TEST_INDEX, COMPLETION_MODEL_ID);

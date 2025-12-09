@@ -16,6 +16,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
@@ -50,7 +51,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testRerankBasic() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK "search query" ON title WITH { "inference_id": "%s" }
             | KEEP id, _score
@@ -79,7 +80,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     public void testRerankWithDefaultInferenceId() {
         // Note: The default inference ID (.rerank-v1-elasticsearch) requires actual ML infrastructure
         // which is not available in test environments. We test the syntax by using a regular test endpoint.
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK "search query" ON title WITH { "inference_id": "%s" }
             | KEEP id, _score
@@ -96,7 +97,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     }
 
     public void testRerankMultipleFields() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK "search query" ON title, content WITH { "inference_id": "%s" }
             | KEEP id, _score
@@ -114,7 +115,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     }
 
     public void testRerankWithCustomScoreField() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK rerank_score="search query" ON title WITH { "inference_id": "%s" }
             | KEEP id, rerank_score
@@ -136,7 +137,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testRerankRowLimitEnforcement() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK "search query" ON title WITH { "inference_id": "%s" }
             | KEEP id, _score
@@ -155,7 +156,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
         updateClusterSettings(Settings.builder().put(InferenceSettings.RERANK_ROW_LIMIT_SETTING.getKey(), customLimit));
 
         try {
-            var query = String.format("""
+            var query = String.format(Locale.ROOT, """
                 FROM %s
                 | RERANK "search query" ON title WITH { "inference_id": "%s" }
                 | KEEP id, _score
@@ -176,7 +177,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testRerankAfterFilter() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | WHERE id > 2
             | RERANK "search query" ON title WITH { "inference_id": "%s" }
@@ -198,7 +199,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     }
 
     public void testRerankWithStats() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK "search query" ON title WITH { "inference_id": "%s" }
             | STATS avg_score = AVG(_score)
@@ -219,7 +220,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     // ============================================
 
     public void testRerankInvalidQueryType() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK id ON title WITH { "inference_id": "%s" }
             """, TEST_INDEX, RERANK_MODEL_ID);
@@ -229,7 +230,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     }
 
     public void testRerankNonConstantQuery() {
-        var query = String.format("""
+        var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK content ON title WITH { "inference_id": "%s" }
             """, TEST_INDEX, RERANK_MODEL_ID);
@@ -247,7 +248,7 @@ public class RerankIT extends InferenceCommandIntegTestCase {
         updateClusterSettings(Settings.builder().put(InferenceSettings.RERANK_ENABLED_SETTING.getKey(), false));
 
         try {
-            var query = String.format("""
+            var query = String.format(Locale.ROOT, """
                 FROM %s
                 | RERANK "search query" ON title WITH { "inference_id": "%s" }
                 """, TEST_INDEX, RERANK_MODEL_ID);

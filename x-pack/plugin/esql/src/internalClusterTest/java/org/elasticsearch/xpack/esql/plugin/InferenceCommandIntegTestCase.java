@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -96,7 +97,7 @@ public abstract class InferenceCommandIntegTestCase extends AbstractEsqlIntegTes
      * @throws IOException if endpoint creation fails
      */
     protected void createTestInferenceEndpoint(String modelId, TaskType taskType, String serviceName) throws IOException {
-        String config = String.format("""
+        String config = String.format(Locale.ROOT, """
             {
               "service": "%s",
               "service_settings": {
@@ -104,7 +105,7 @@ public abstract class InferenceCommandIntegTestCase extends AbstractEsqlIntegTes
                 "api_key": "test-key"
               }
             }
-            """, serviceName, taskType.toString().toLowerCase());
+            """, serviceName, taskType.toString().toLowerCase(Locale.ROOT));
 
         try {
             client().execute(
@@ -113,7 +114,7 @@ public abstract class InferenceCommandIntegTestCase extends AbstractEsqlIntegTes
             ).actionGet();
         } catch (Exception e) {
             // May already exist or test service not available
-            logger.warn("Could not create {} inference endpoint: {}", taskType.toString().toLowerCase(), e.getMessage());
+            logger.warn("Could not create {} inference endpoint: {}", taskType.toString().toLowerCase(Locale.ROOT), e.getMessage());
         }
     }
 

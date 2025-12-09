@@ -19,7 +19,11 @@ You can configure {{infer}} endpoints for `semantic_text` fields in the followin
 - [Use default and preconfigured endpoints](#default-and-preconfigured-endpoints)
 - [Use a custom {{infer}} endpoint](#using-custom-endpoint)
 
-The recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search).
+:::{note}
+If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search). 
+
+{applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
+:::
 
 ### Use default and preconfigured endpoints [default-and-preconfigured-endpoints]
 
@@ -189,12 +193,10 @@ PUT my-index-000002
 
 ### Use dedicated endpoints for ingestion and search [dedicated-endpoints-for-ingestion-and-search]
 
-The recommended way to use `semantic_text` is by having dedicated {{infer}}
-endpoints for ingestion and search. This ensures that search speed remains
-unaffected by ingestion workloads, and vice versa. After creating dedicated
-{{infer}} endpoints for both, you can reference them using the `inference_id`
-and `search_inference_id` parameters when setting up the index mapping for an
-index that uses the `semantic_text` field.
+If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service, the recommended way to use `semantic_text` is by having dedicated {{infer}} endpoints for ingestion and search. 
+
+This ensures that search speed remains unaffected by ingestion workloads, and vice versa. After creating dedicated {{infer}} endpoints for both, you can reference them using the `inference_id`
+and `search_inference_id` parameters when setting up the index mapping for an index that uses the `semantic_text` field.
 
 ```console
 PUT my-index-000003

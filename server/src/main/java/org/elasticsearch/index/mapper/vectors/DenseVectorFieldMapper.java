@@ -41,6 +41,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -79,6 +80,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoad
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
@@ -1730,7 +1732,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector);
+                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion);
             }
 
             @Override
@@ -2349,21 +2351,37 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     }
 
-    static class BBQIVFIndexOptions extends QuantizedIndexOptions {
+    public static class BBQIVFIndexOptions extends QuantizedIndexOptions {
         final int clusterSize;
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
+        final IndexVersion indexVersionCreated;
 
-        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, boolean onDiskRescore, RescoreVector rescoreVector) {
+        BBQIVFIndexOptions(
+            int clusterSize,
+            double defaultVisitPercentage,
+            boolean onDiskRescore,
+            RescoreVector rescoreVector,
+            IndexVersion indexVersionCreated
+        ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
             this.onDiskRescore = onDiskRescore;
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
+            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)) {
+                // if we got here, this means we didn't get the plugin installed, so we should throw an exception
+                throw new ElasticsearchSecurityException(
+                    "current license is non-compliant for [{}]",
+                    RestStatus.FORBIDDEN,
+                    VectorIndexType.BBQ_DISK.name
+                );
+            }
             if (Build.current().isSnapshot()) {
                 return new ESNextDiskBBQVectorsFormat(
                     ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
@@ -2419,6 +2437,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             builder.endObject();
             return builder;
+        }
+
+        public int getClusterSize() {
+            return clusterSize;
+        }
+
+        public double getDefaultVisitPercentage() {
+            return defaultVisitPercentage;
+        }
+
+        public boolean isOnDiskRescore() {
+            return onDiskRescore;
         }
     }
 

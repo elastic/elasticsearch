@@ -2170,9 +2170,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType) {
-            if (elementType == ElementType.BIT) {
-                return new ES815HnswBitVectorsFormat(m, efConstruction);
-            }
             return new ES93HnswVectorsFormat(m, efConstruction, elementType);
         }
 

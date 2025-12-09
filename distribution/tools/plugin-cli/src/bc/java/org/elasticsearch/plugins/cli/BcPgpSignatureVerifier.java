@@ -28,17 +28,26 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
  * A PGP signature verifier that uses Bouncy Castle implementation.
- * This implementation was lifted from {@link InstallPluginAction} to isolate Bouncy Castle usage.
+ * <p>
+ * This implementation was lifted from <code>InstallPluginAction</code> to isolate Bouncy Castle usage.
+ * </p>
  */
-public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
+public class BcPgpSignatureVerifier implements BiConsumer<Path, InputStream> {
 
+    private final String urlString;
     private final Consumer<String> terminal;
 
-    public BcPgpSignatureVerifier(Consumer<String> terminal) {
+    /**
+     * @param urlString the URL source of the downloaded plugin ZIP
+     * @param terminal a terminal consumer for reporting messages
+     */
+    public BcPgpSignatureVerifier(String urlString, Consumer<String> terminal) {
+        this.urlString = urlString;
         this.terminal = terminal;
     }
 
@@ -47,13 +56,11 @@ public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
      * ".asc" to the URL. It is expected that the plugin is signed with the Elastic signing key with ID D27D666CD88E42B4.
      *
      * @param zip       the path to the downloaded plugin ZIP
-     * @param urlString the URL source of the downloaded plugin ZIP
      * @param ascInputStream the URL source of the PGP signature for the downloaded plugin ZIP
-     * @throws IOException  if an I/O exception occurs reading from various input streams or if the PGP implementation throws an
      * internal exception during verification
      */
     @Override
-    public void verifySignature(final Path zip, final String urlString, final InputStream ascInputStream) throws IOException {
+    public void accept(final Path zip, final InputStream ascInputStream) {
 
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
@@ -80,7 +87,9 @@ public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
                 throw new IllegalStateException("signature verification for [" + urlString + "] failed");
             }
         } catch (PGPException e) {
-            throw new IOException("PGP exception during signature verification for [" + urlString + "]", e);
+            throw new RuntimeException("PGP exception during signature verification for [" + urlString + "]", e);
+        } catch (IOException e) {
+            throw new RuntimeException("I/O exception during signature verification for [" + urlString + "]", e);
         }
     }
 
@@ -157,7 +166,7 @@ public class BcPgpSignatureVerifier implements PgpSignatureVerifier {
      * @return an input stream to the public key
      */
     InputStream getPublicKey() {
-        return InstallPluginAction.class.getResourceAsStream("/public_key.asc");
+        return getClass().getResourceAsStream("/public_key.asc");
     }
 
 }

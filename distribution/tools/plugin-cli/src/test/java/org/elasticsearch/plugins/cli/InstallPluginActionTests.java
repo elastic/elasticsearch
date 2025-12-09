@@ -98,8 +98,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -492,7 +494,7 @@ public class InstallPluginActionTests extends ESTestCase {
             true
         );
 
-        final BcPgpSignatureVerifier spied = (BcPgpSignatureVerifier) action.pgpSignatureVerifier(terminal);
+        final BcPgpSignatureVerifier spied = (BcPgpSignatureVerifier) action.pgpSignatureVerifier(url, terminal).get();
 
         // Control for timeout on waiting for signature verification to complete
         CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -1042,7 +1044,7 @@ public class InstallPluginActionTests extends ESTestCase {
     ) throws Exception {
         InstallablePlugin pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getLocation()));
-        PgpSignatureVerifier psv = new BcPgpSignatureVerifier(terminal::println) {
+        BcPgpSignatureVerifier psv = new BcPgpSignatureVerifier(url, terminal::println) {
             @Override
             InputStream pluginZipInputStream(Path zip) throws IOException {
                 return new ByteArrayInputStream(Files.readAllBytes(zip));
@@ -1066,7 +1068,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 }
             }
         };
-        PgpSignatureVerifier verifier = spyVerifier ? spy(psv) : psv;
+        BcPgpSignatureVerifier verifier = spyVerifier ? spy(psv) : psv;
         InstallPluginAction action = new InstallPluginAction(terminal, env.v2(), false) {
             @Override
             Path downloadZip(String urlString, Path tmpDir) throws IOException {
@@ -1105,8 +1107,8 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            PgpSignatureVerifier pgpSignatureVerifier(Terminal terminal) {
-                return verifier;
+            Supplier<BiConsumer<Path, InputStream>> pgpSignatureVerifier(String urlString, Terminal terminal) {
+                return () -> verifier;
             }
 
             @Override

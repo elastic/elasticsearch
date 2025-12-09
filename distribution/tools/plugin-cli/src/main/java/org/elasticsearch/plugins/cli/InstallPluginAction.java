@@ -71,6 +71,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -654,12 +656,12 @@ public class InstallPluginAction implements Closeable {
             throw new IOException("Plugin signature missing: " + ascUrl);
         }
         try (InputStream ascInputStream = urlOpenStream(url)) {
-            pgpSignatureVerifier(terminal).verifySignature(zip, urlString, ascInputStream);
+            pgpSignatureVerifier(urlString, terminal).get().accept(zip, ascInputStream);
         }
     }
 
-    PgpSignatureVerifier pgpSignatureVerifier(Terminal terminal) {
-        return new IsolatedBcPgpSignatureVerifier(terminal::println);
+    Supplier<BiConsumer<Path, InputStream>> pgpSignatureVerifier(String urlString, Terminal terminal) {
+        return new BcPgpSignatureVerifierLoader(urlString, terminal::println);
     }
 
     /**

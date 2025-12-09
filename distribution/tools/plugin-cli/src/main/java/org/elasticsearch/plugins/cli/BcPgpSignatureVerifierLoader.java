@@ -12,32 +12,40 @@ package org.elasticsearch.plugins.cli;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * A PGP signature verifier that delegates to Bouncy Castle implementation loaded in an isolated classloader.
  */
-public class IsolatedBcPgpSignatureVerifier implements PgpSignatureVerifier {
+class BcPgpSignatureVerifierLoader implements Supplier<BiConsumer<Path, InputStream>> {
 
+    private final String urlString;
     private final Consumer<String> terminal;
 
-    public IsolatedBcPgpSignatureVerifier(Consumer<String> terminal) {
+    BcPgpSignatureVerifierLoader(String urlString, Consumer<String> terminal) {
+        this.urlString = urlString;
         this.terminal = terminal;
     }
 
     @Override
-    public void verifySignature(Path zip, String urlString, InputStream ascInputStream) throws IOException {
+    public BiConsumer<Path, InputStream> get() {
+        return this::verifySignature;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void verifySignature(Path zip, InputStream ascInputStream) {
         try (URLClassLoader classLoader = classLoader()) {
             Class<?> clazz = Class.forName("org.elasticsearch.plugins.cli.BcPgpSignatureVerifier", true, classLoader);
-            Constructor<?> constructor = clazz.getConstructor(Consumer.class);
-            Method method = clazz.getMethod("verifySignature", Path.class, String.class, InputStream.class);
-            method.invoke(constructor.newInstance(terminal), zip, urlString, ascInputStream);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+            Constructor<?> constructor = clazz.getConstructor(String.class, Consumer.class);
+            BiConsumer<Path, InputStream> bc = (BiConsumer<Path, InputStream>) constructor.newInstance(urlString, terminal);
+            bc.accept(zip, ascInputStream);
+        } catch (ReflectiveOperationException | IOException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -46,7 +54,7 @@ public class IsolatedBcPgpSignatureVerifier implements PgpSignatureVerifier {
     }
 
     private static URL[] urls() {
-        if (IsolatedBcPgpSignatureVerifier.class.getClassLoader() instanceof URLClassLoader ucl) {
+        if (BcPgpSignatureVerifierLoader.class.getClassLoader() instanceof URLClassLoader ucl) {
             return ucl.getURLs();
         }
         throw new IllegalStateException("URLClassLoader required");

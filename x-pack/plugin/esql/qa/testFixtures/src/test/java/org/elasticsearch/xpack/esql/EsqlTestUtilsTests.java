@@ -56,20 +56,17 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testSetMultiline() {
-        assertThat(
-            EsqlTestUtils.addRemoteIndices("""
-                SET a=b;
-                SET c=d;
-                FROM foo
-                | SORT bar
-                """, Set.of(), false),
-            equalTo("""
-                SET a=b;
-                SET c=d;
-                FROM *:foo,foo
-                | SORT bar
-                """)
-        );
+        assertThat(EsqlTestUtils.addRemoteIndices("""
+            SET a=b;
+            SET c=d;
+            FROM foo
+            | SORT bar
+            """, Set.of(), false), equalTo("""
+            SET a=b;
+            SET c=d;
+            FROM *:foo,foo
+            | SORT bar
+            """));
     }
 
     public void testMetadata() {

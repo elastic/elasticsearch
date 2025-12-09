@@ -4,9 +4,5 @@
 Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the simplified shape are removed. Note that the resulting geometry may be invalid, even if the original input was valid.
 
 ```esql
-FROM airports
-| SORT name
-| LIMIT 5
-| EVAL result = ST_SIMPLIFY(location, 0.0)
-| KEEP location, result
+null
 ```

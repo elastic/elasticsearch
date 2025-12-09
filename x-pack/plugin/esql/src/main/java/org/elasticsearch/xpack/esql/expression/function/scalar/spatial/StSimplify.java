@@ -30,6 +30,7 @@ import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
@@ -156,7 +157,21 @@ public class StSimplify extends EsqlScalarFunction {
     public Object fold(FoldContext foldCtx) {
         var toleranceExpression = tolerance.fold(foldCtx);
         double inputTolerance = getInputTolerance(toleranceExpression);
-        BytesRef inputGeometry = (BytesRef) geometry.fold(foldCtx);
-        return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+        Object input = geometry.fold(foldCtx);
+        if (input instanceof List<?> list) {
+            ArrayList<BytesRef> results = new ArrayList<>(list.size());
+            for (Object o : list) {
+                if (o instanceof BytesRef inputGeometry) {
+                    results.add(geoSourceAndConstantTolerance(inputGeometry, inputTolerance));
+                } else {
+                    throw new IllegalArgumentException("unsupported list element type: " + o.getClass().getSimpleName());
+                }
+            }
+            return results;
+        } else if (input instanceof BytesRef inputGeometry) {
+            return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+        } else {
+            throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
+        }
     }
 }

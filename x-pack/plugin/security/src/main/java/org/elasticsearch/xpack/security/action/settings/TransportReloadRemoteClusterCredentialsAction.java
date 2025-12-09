@@ -116,23 +116,23 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(ActionResponse.Empty.INSTANCE))) {
             final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
             for (var clusterAlias : result.addedClusterAliases()) {
-                if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings)) {
-                    maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, mergedSettings), connectionRefs);
-                }
+                maybeRebuildConnectionOnCredentialsChange(projectId, clusterAlias, mergedSettings, connectionRefs);
             }
             for (var clusterAlias : result.removedClusterAliases()) {
-                if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings)) {
-                    maybeRebuildConnectionOnCredentialsChange(toConfig(projectId, clusterAlias, mergedSettings), connectionRefs);
-                }
+                maybeRebuildConnectionOnCredentialsChange(projectId, clusterAlias, mergedSettings, connectionRefs);
             }
         }
     }
 
-    private void maybeRebuildConnectionOnCredentialsChange(LinkedProjectConfig config, RefCountingRunnable connectionRefs) {
-        final var projectId = config.originProjectId();
-        final var clusterAlias = config.linkedProjectAlias();
-        if (false == remoteClusterService.getRegisteredRemoteClusterNames(projectId).contains(clusterAlias)) {
-            // A credential was added or removed before a remote connection was configured.
+    private void maybeRebuildConnectionOnCredentialsChange(
+        ProjectId projectId,
+        String clusterAlias,
+        Settings mergedSettings,
+        RefCountingRunnable connectionRefs
+    ) {
+        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings) == false
+            || false == remoteClusterService.getRegisteredRemoteClusterNames(projectId).contains(clusterAlias)) {
+            // The connection has been disabled or a credential was added or removed before a remote connection was configured.
             // Without an existing connection, there is nothing to rebuild.
             logger.info(
                 "project [{}] no connection rebuild required for remote cluster [{}] after credentials change",
@@ -142,6 +142,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
             return;
         }
 
+        final var config = toConfig(projectId, clusterAlias, mergedSettings);
         remoteClusterService.updateRemoteCluster(config, true, ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(RemoteClusterService.RemoteClusterConnectionStatus status) {

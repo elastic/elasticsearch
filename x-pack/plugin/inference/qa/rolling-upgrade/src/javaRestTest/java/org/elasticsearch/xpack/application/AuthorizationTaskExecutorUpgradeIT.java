@@ -34,15 +34,9 @@ import static org.hamcrest.Matchers.is;
 
 public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    private static final MockElasticInferenceServiceAuthorizationServer mockEISServer =
-        new MockElasticInferenceServiceAuthorizationServer();
-
-    static {
-        // Ensure that the mock EIS server has an authorized response for each node that will be upgraded prior to the cluster starting
-        for (int i = 0; i < NODE_NUM; i++) {
-            mockEISServer.enqueueAuthorizeAllModelsResponse();
-        }
-    }
+    private static final MockElasticInferenceServiceAuthorizationServer mockEISServer = new MockElasticInferenceServiceAuthorizationServer(
+        NODE_NUM
+    );
 
     private static final Logger logger = LogManager.getLogger(AuthorizationTaskExecutorUpgradeIT.class);
     private static final String BEFORE_AUTHORIZATION_TASK_FEATURE = "gte_v9.1.0";

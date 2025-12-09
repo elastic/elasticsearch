@@ -24,6 +24,22 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     private static final Logger logger = LogManager.getLogger(MockElasticInferenceServiceAuthorizationServer.class);
     private final MockWebServer webServer = new MockWebServer();
 
+    /**
+     * The internal mock EIS server will not have any authorized responses queued up by default.
+     */
+    public MockElasticInferenceServiceAuthorizationServer() {}
+
+    /**
+     * Ensure that the mock EIS server the initial number of authorized responses queued up. This is particularly useful when
+     * authorization requests are made during a node bootup.
+     * @param numInitialResponses the number of authorized responses to enqueue upon construction
+     */
+    public MockElasticInferenceServiceAuthorizationServer(int numInitialResponses) {
+        for (int i = 0; i < numInitialResponses; i++) {
+            enqueueAuthorizeAllModelsResponse();
+        }
+    }
+
     public void enqueueAuthorizeAllModelsResponse() {
         var authResponseBody = getEisAuthorizationResponseWithMultipleEndpoints("ignored").responseJson();
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(authResponseBody));

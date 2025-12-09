@@ -406,7 +406,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     }
 
     public void testUnauthorizedFlatExpressionWithStrictIgnoreUnavailableAndProjectRouting() {
-        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [logs]");
+        final var exception = new ElasticsearchSecurityException("authorization errors while resolving [-*]");
         final String projectRouting = "_alias:P1";
         ResolvedIndexExpressions local = new ResolvedIndexExpressions(
             List.of(
@@ -437,7 +437,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
 
         var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), projectRouting, local, remote);
         assertNotNull(e);
-        assertThat(e, is(exception));
+        assertThat(e.getMessage(), equalTo("authorization errors while resolving [logs]"));
     }
 
     public void testNotFoundFlatExpressionWithStrictIgnoreUnavailableAndProjectRouting() {

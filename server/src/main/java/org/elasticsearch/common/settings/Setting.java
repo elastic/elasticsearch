@@ -26,7 +26,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -672,10 +671,8 @@ public class Setting<T> implements ToXContentObject {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
             if (this.isDeprecatedWarningOnly()) {
-                LogManager.getLogger(Setting.class).warn("Emitting deprecation warning", new Exception());
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, DEPRECATED_WARN_MESSAGE, key);
             } else if (this.isDeprecatedAndRemoved()) {
-                LogManager.getLogger(Setting.class).warn("Emitting deprecation error", new Exception());
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
                     key,
@@ -683,7 +680,6 @@ public class Setting<T> implements ToXContentObject {
                     key
                 );
             } else {
-                LogManager.getLogger(Setting.class).warn("Emitting deprecation error", new Exception());
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
                     key,

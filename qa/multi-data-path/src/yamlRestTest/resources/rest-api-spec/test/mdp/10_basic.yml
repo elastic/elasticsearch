@@ -31,5 +31,7 @@
   - match:   { result: updated }
 
   - do:
+      allowed_warnings:
+        - "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. See the deprecation documentation for the next major version."
       indices.delete:
         index: test_index

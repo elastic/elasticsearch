@@ -53,12 +53,11 @@ public class EsqlBaseParser extends ParserConfig {
     LOOKUP_FIELD_LINE_COMMENT=132, LOOKUP_FIELD_MULTILINE_COMMENT=133, LOOKUP_FIELD_WS=134, 
     MVEXPAND_LINE_COMMENT=135, MVEXPAND_MULTILINE_COMMENT=136, MVEXPAND_WS=137, 
     ID_PATTERN=138, PROJECT_LINE_COMMENT=139, PROJECT_MULTILINE_COMMENT=140, 
-    PROJECT_WS=141, PROMQL_UNQUOTED_IDENTIFIER=142, PROMQL_PARAMS_LINE_COMMENT=143, 
-    PROMQL_PARAMS_MULTILINE_COMMENT=144, PROMQL_PARAMS_WS=145, PROMQL_QUERY_COMMENT=146, 
-    PROMQL_SINGLE_QUOTED_STRING=147, PROMQL_OTHER_QUERY_CONTENT=148, AS=149, 
-    RENAME_LINE_COMMENT=150, RENAME_MULTILINE_COMMENT=151, RENAME_WS=152, 
-    SET_LINE_COMMENT=153, SET_MULTILINE_COMMENT=154, SET_WS=155, INFO=156, 
-    SHOW_LINE_COMMENT=157, SHOW_MULTILINE_COMMENT=158, SHOW_WS=159;
+    PROJECT_WS=141, PROMQL_PARAMS_LINE_COMMENT=142, PROMQL_PARAMS_MULTILINE_COMMENT=143, 
+    PROMQL_PARAMS_WS=144, PROMQL_QUERY_COMMENT=145, PROMQL_SINGLE_QUOTED_STRING=146, 
+    PROMQL_OTHER_QUERY_CONTENT=147, AS=148, RENAME_LINE_COMMENT=149, RENAME_MULTILINE_COMMENT=150, 
+    RENAME_WS=151, SET_LINE_COMMENT=152, SET_MULTILINE_COMMENT=153, SET_WS=154, 
+    INFO=155, SHOW_LINE_COMMENT=156, SHOW_MULTILINE_COMMENT=157, SHOW_WS=158;
   public static final int
     RULE_statements = 0, RULE_singleStatement = 1, RULE_query = 2, RULE_sourceCommand = 3, 
     RULE_processingCommand = 4, RULE_whereCommand = 5, RULE_dataType = 6, 
@@ -142,8 +141,8 @@ public class EsqlBaseParser extends ParserConfig {
       null, null, null, null, null, null, null, "'group'", "'score'", "'key'", 
       null, null, null, null, null, null, null, "'join'", "'USING'", null, 
       null, null, null, null, null, null, null, null, null, null, null, null, 
-      null, null, null, null, null, null, null, null, null, null, "'as'", null, 
-      null, null, null, null, null, "'info'"
+      null, null, null, null, null, null, null, null, null, "'as'", null, null, 
+      null, null, null, null, "'info'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -175,12 +174,11 @@ public class EsqlBaseParser extends ParserConfig {
       "LOOKUP_MULTILINE_COMMENT", "LOOKUP_WS", "LOOKUP_FIELD_LINE_COMMENT", 
       "LOOKUP_FIELD_MULTILINE_COMMENT", "LOOKUP_FIELD_WS", "MVEXPAND_LINE_COMMENT", 
       "MVEXPAND_MULTILINE_COMMENT", "MVEXPAND_WS", "ID_PATTERN", "PROJECT_LINE_COMMENT", 
-      "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "PROMQL_UNQUOTED_IDENTIFIER", 
-      "PROMQL_PARAMS_LINE_COMMENT", "PROMQL_PARAMS_MULTILINE_COMMENT", "PROMQL_PARAMS_WS", 
-      "PROMQL_QUERY_COMMENT", "PROMQL_SINGLE_QUOTED_STRING", "PROMQL_OTHER_QUERY_CONTENT", 
-      "AS", "RENAME_LINE_COMMENT", "RENAME_MULTILINE_COMMENT", "RENAME_WS", 
-      "SET_LINE_COMMENT", "SET_MULTILINE_COMMENT", "SET_WS", "INFO", "SHOW_LINE_COMMENT", 
-      "SHOW_MULTILINE_COMMENT", "SHOW_WS"
+      "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "PROMQL_PARAMS_LINE_COMMENT", 
+      "PROMQL_PARAMS_MULTILINE_COMMENT", "PROMQL_PARAMS_WS", "PROMQL_QUERY_COMMENT", 
+      "PROMQL_SINGLE_QUOTED_STRING", "PROMQL_OTHER_QUERY_CONTENT", "AS", "RENAME_LINE_COMMENT", 
+      "RENAME_MULTILINE_COMMENT", "RENAME_WS", "SET_LINE_COMMENT", "SET_MULTILINE_COMMENT", 
+      "SET_WS", "INFO", "SHOW_LINE_COMMENT", "SHOW_MULTILINE_COMMENT", "SHOW_WS"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -8155,7 +8153,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(982);
         _errHandler.sync(this);
         _la = _input.LA(1);
-        if (_la==QUOTED_IDENTIFIER || _la==PROMQL_UNQUOTED_IDENTIFIER) {
+        if (_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) {
           {
           setState(979);
           valueName();
@@ -8179,7 +8177,7 @@ public class EsqlBaseParser extends ParserConfig {
           setState(988); 
           _errHandler.sync(this);
           _la = _input.LA(1);
-        } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 6489687063040884736L) != 0) || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 15903336184156305L) != 0) );
+        } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 6489687063040884736L) != 0) || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 7881299347902673L) != 0) );
         setState(990);
         match(RP);
         }
@@ -8242,7 +8240,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class ValueNameContext extends ParserRuleContext {
-    public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
     @SuppressWarnings("this-escape")
     public ValueNameContext(ParserRuleContext parent, int invokingState) {
@@ -8273,7 +8271,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(1006);
       _la = _input.LA(1);
-      if ( !(_la==QUOTED_IDENTIFIER || _la==PROMQL_UNQUOTED_IDENTIFIER) ) {
+      if ( !(_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -8352,7 +8350,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class PromqlParamNameContext extends ParserRuleContext {
-    public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     public TerminalNode NAMED_OR_POSITIONAL_PARAM() { return getToken(EsqlBaseParser.NAMED_OR_POSITIONAL_PARAM, 0); }
@@ -8385,7 +8383,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(1012);
       _la = _input.LA(1);
-      if ( !(_la==QUOTED_STRING || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 140737488355457L) != 0)) ) {
+      if ( !(((((_la - 52)) & ~0x3f) == 0 && ((1L << (_la - 52)) & 1697645953286145L) != 0)) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -8449,8 +8447,8 @@ public class EsqlBaseParser extends ParserConfig {
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case QUOTED_STRING:
+      case UNQUOTED_IDENTIFIER:
       case UNQUOTED_SOURCE:
-      case PROMQL_UNQUOTED_IDENTIFIER:
         enterOuterAlt(_localctx, 1);
         {
         setState(1014);
@@ -8507,7 +8505,7 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class PromqlQueryContentContext extends ParserRuleContext {
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
-    public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
     public TerminalNode NAMED_OR_POSITIONAL_PARAM() { return getToken(EsqlBaseParser.NAMED_OR_POSITIONAL_PARAM, 0); }
@@ -8547,7 +8545,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(1026);
       _la = _input.LA(1);
-      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 6489687063040884736L) != 0) || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 15903336184156289L) != 0)) ) {
+      if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 6489687063040884736L) != 0) || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 7881299347902657L) != 0)) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -8619,9 +8617,9 @@ public class EsqlBaseParser extends ParserConfig {
       case COLON:
       case COMMA:
       case NAMED_OR_POSITIONAL_PARAM:
+      case UNQUOTED_IDENTIFIER:
       case QUOTED_IDENTIFIER:
       case UNQUOTED_SOURCE:
-      case PROMQL_UNQUOTED_IDENTIFIER:
       case PROMQL_QUERY_COMMENT:
       case PROMQL_SINGLE_QUOTED_STRING:
       case PROMQL_OTHER_QUERY_CONTENT:
@@ -8657,7 +8655,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(1037);
         _errHandler.sync(this);
         _la = _input.LA(1);
-        while ((((_la) & ~0x3f) == 0 && ((1L << _la) & 6489687063040884736L) != 0) || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 15903336184156305L) != 0)) {
+        while ((((_la) & ~0x3f) == 0 && ((1L << _la) & 6489687063040884736L) != 0) || ((((_la - 95)) & ~0x3f) == 0 && ((1L << (_la - 95)) & 7881299347902673L) != 0)) {
           {
           {
           setState(1034);
@@ -8774,7 +8772,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class PromqlClusterStringContext extends ParserRuleContext {
-    public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
     @SuppressWarnings("this-escape")
     public PromqlClusterStringContext(ParserRuleContext parent, int invokingState) {
@@ -8805,7 +8803,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(1054);
       _la = _input.LA(1);
-      if ( !(_la==UNQUOTED_SOURCE || _la==PROMQL_UNQUOTED_IDENTIFIER) ) {
+      if ( !(_la==UNQUOTED_IDENTIFIER || _la==UNQUOTED_SOURCE) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -8828,7 +8826,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class PromqlSelectorStringContext extends ParserRuleContext {
-    public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
     @SuppressWarnings("this-escape")
     public PromqlSelectorStringContext(ParserRuleContext parent, int invokingState) {
@@ -8859,7 +8857,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(1056);
       _la = _input.LA(1);
-      if ( !(_la==UNQUOTED_SOURCE || _la==PROMQL_UNQUOTED_IDENTIFIER) ) {
+      if ( !(_la==UNQUOTED_IDENTIFIER || _la==UNQUOTED_SOURCE) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -8882,7 +8880,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class PromqlUnquotedIndexStringContext extends ParserRuleContext {
-    public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
     @SuppressWarnings("this-escape")
     public PromqlUnquotedIndexStringContext(ParserRuleContext parent, int invokingState) {
@@ -8913,7 +8911,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(1058);
       _la = _input.LA(1);
-      if ( !(_la==UNQUOTED_SOURCE || _la==PROMQL_UNQUOTED_IDENTIFIER) ) {
+      if ( !(_la==UNQUOTED_IDENTIFIER || _la==UNQUOTED_SOURCE) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -8936,7 +8934,7 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class PromqlIndexStringContext extends ParserRuleContext {
-    public TerminalNode PROMQL_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.PROMQL_UNQUOTED_IDENTIFIER, 0); }
+    public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
     public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     @SuppressWarnings("this-escape")
@@ -8968,7 +8966,7 @@ public class EsqlBaseParser extends ParserConfig {
       {
       setState(1060);
       _la = _input.LA(1);
-      if ( !(_la==QUOTED_STRING || _la==UNQUOTED_SOURCE || _la==PROMQL_UNQUOTED_IDENTIFIER) ) {
+      if ( !(((((_la - 52)) & ~0x3f) == 0 && ((1L << (_la - 52)) & 36591746972385281L) != 0)) ) {
       _errHandler.recoverInline(this);
       }
       else {
@@ -9103,7 +9101,7 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001\u009f\u0427\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
+    "\u0004\u0001\u009e\u0427\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
     "\u0002\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004"+
     "\u0002\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007"+
     "\u0002\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b"+
@@ -9231,12 +9229,11 @@ public class EsqlBaseParser extends ParserConfig {
     "TVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0084\u0086\u0088\u008a\u008c\u008e"+
     "\u0090\u0092\u0094\u0096\u0098\u009a\u009c\u009e\u00a0\u00a2\u00a4\u00a6"+
     "\u00a8\u00aa\u00ac\u00ae\u00b0\u00b2\u00b4\u00b6\u00b8\u00ba\u00bc\u00be"+
-    "\u00c0\u00c2\u00c4\u00c6\u00c8\u00ca\u00cc\u00ce\u00d0\u00d2\u0000\u000f"+
+    "\u00c0\u00c2\u00c4\u00c6\u00c8\u00ca\u00cc\u00ce\u00d0\u00d2\u0000\u000e"+
     "\u0002\u000044kk\u0001\u0000ef\u0002\u000088??\u0002\u0000BBEE\u0002\u0000"+
     "))44\u0001\u0000WX\u0001\u0000Y[\u0002\u0000AANN\u0002\u0000PPRV\u0002"+
-    "\u0000\u0018\u0018\u001a\u001b\u0002\u0000ff\u008e\u008e\u0004\u00004"+
-    "4__ff\u008e\u008e\t\u00004499;<>>__ffkk\u008e\u008e\u0092\u0094\u0002"+
-    "\u0000kk\u008e\u008e\u0003\u000044kk\u008e\u008e\u0455\u0000\u00d7\u0001"+
+    "\u0000\u0018\u0018\u001a\u001b\u0003\u000044__ef\b\u00004499;<>>__efk"+
+    "k\u0091\u0093\u0002\u0000eekk\u0003\u000044eekk\u0455\u0000\u00d7\u0001"+
     "\u0000\u0000\u0000\u0002\u00dd\u0001\u0000\u0000\u0000\u0004\u00e0\u0001"+
     "\u0000\u0000\u0000\u0006\u00f3\u0001\u0000\u0000\u0000\b\u010d\u0001\u0000"+
     "\u0000\u0000\n\u010f\u0001\u0000\u0000\u0000\f\u0112\u0001\u0000\u0000"+
@@ -9449,7 +9446,7 @@ public class EsqlBaseParser extends ParserConfig {
     "X,\u0000\u01f2\u01f0\u0001\u0000\u0000\u0000\u01f3\u01f6\u0001\u0000\u0000"+
     "\u0000\u01f4\u01f2\u0001\u0000\u0000\u0000\u01f4\u01f5\u0001\u0000\u0000"+
     "\u0000\u01f5W\u0001\u0000\u0000\u0000\u01f6\u01f4\u0001\u0000\u0000\u0000"+
-    "\u01f7\u01f8\u0003:\u001d\u0000\u01f8\u01f9\u0005\u0095\u0000\u0000\u01f9"+
+    "\u01f7\u01f8\u0003:\u001d\u0000\u01f8\u01f9\u0005\u0094\u0000\u0000\u01f9"+
     "\u01fa\u0003:\u001d\u0000\u01fa\u0200\u0001\u0000\u0000\u0000\u01fb\u01fc"+
     "\u0003:\u001d\u0000\u01fc\u01fd\u00059\u0000\u0000\u01fd\u01fe\u0003:"+
     "\u001d\u0000\u01fe\u0200\u0001\u0000\u0000\u0000\u01ff\u01f7\u0001\u0000"+
@@ -9475,7 +9472,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u0225\u0226\u0003h4\u0000\u0226g\u0001\u0000\u0000\u0000"+
     "\u0227\u0228\u0005c\u0000\u0000\u0228\u0229\u0003\u0004\u0002\u0000\u0229"+
     "\u022a\u0005d\u0000\u0000\u022ai\u0001\u0000\u0000\u0000\u022b\u022c\u0005"+
-    "$\u0000\u0000\u022c\u022d\u0005\u009c\u0000\u0000\u022dk\u0001\u0000\u0000"+
+    "$\u0000\u0000\u022c\u022d\u0005\u009b\u0000\u0000\u022dk\u0001\u0000\u0000"+
     "\u0000\u022e\u022f\u0005\u0005\u0000\u0000\u022f\u0232\u0003n7\u0000\u0230"+
     "\u0231\u0005J\u0000\u0000\u0231\u0233\u0003:\u001d\u0000\u0232\u0230\u0001"+
     "\u0000\u0000\u0000\u0232\u0233\u0001\u0000\u0000\u0000\u0233\u023d\u0001"+
@@ -9494,7 +9491,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u0000\u024b\u024c\u0005\u0004\u0000\u0000\u024c\u024f\u0003"+
     "6\u001b\u0000\u024d\u024e\u0005J\u0000\u0000\u024e\u0250\u00036\u001b"+
     "\u0000\u024f\u024d\u0001\u0000\u0000\u0000\u024f\u0250\u0001\u0000\u0000"+
-    "\u0000\u0250\u0256\u0001\u0000\u0000\u0000\u0251\u0252\u0005\u0095\u0000"+
+    "\u0000\u0250\u0256\u0001\u0000\u0000\u0000\u0251\u0252\u0005\u0094\u0000"+
     "\u0000\u0252\u0253\u00036\u001b\u0000\u0253\u0254\u0005>\u0000\u0000\u0254"+
     "\u0255\u00036\u001b\u0000\u0255\u0257\u0001\u0000\u0000\u0000\u0256\u0251"+
     "\u0001\u0000\u0000\u0000\u0256\u0257\u0001\u0000\u0000\u0000\u0257u\u0001"+
@@ -9693,7 +9690,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u03b4\u03b5\u0007\t\u0000\u0000\u03b5\u03b6\u0005|\u0000"+
     "\u0000\u03b6\u03b7\u0003\u00b8\\\u0000\u03b7\u03b8\u0003\u00ba]\u0000"+
     "\u03b8\u00b7\u0001\u0000\u0000\u0000\u03b9\u03ba\u0004\\\u000e\u0000\u03ba"+
-    "\u03bc\u0003\"\u0011\u0000\u03bb\u03bd\u0005\u0095\u0000\u0000\u03bc\u03bb"+
+    "\u03bc\u0003\"\u0011\u0000\u03bb\u03bd\u0005\u0094\u0000\u0000\u03bc\u03bb"+
     "\u0001\u0000\u0000\u0000\u03bc\u03bd\u0001\u0000\u0000\u0000\u03bd\u03be"+
     "\u0001\u0000\u0000\u0000\u03be\u03bf\u0005k\u0000\u0000\u03bf\u03c2\u0001"+
     "\u0000\u0000\u0000\u03c0\u03c2\u0003\"\u0011\u0000\u03c1\u03b9\u0001\u0000"+
@@ -9722,10 +9719,10 @@ public class EsqlBaseParser extends ParserConfig {
     "\u03ea\u03e8\u0001\u0000\u0000\u0000\u03ea\u03eb\u0001\u0000\u0000\u0000"+
     "\u03eb\u03ed\u0001\u0000\u0000\u0000\u03ec\u03cc\u0001\u0000\u0000\u0000"+
     "\u03ec\u03e0\u0001\u0000\u0000\u0000\u03ed\u00bd\u0001\u0000\u0000\u0000"+
-    "\u03ee\u03ef\u0007\n\u0000\u0000\u03ef\u00bf\u0001\u0000\u0000\u0000\u03f0"+
-    "\u03f1\u0003\u00c2a\u0000\u03f1\u03f2\u00059\u0000\u0000\u03f2\u03f3\u0003"+
-    "\u00c4b\u0000\u03f3\u00c1\u0001\u0000\u0000\u0000\u03f4\u03f5\u0007\u000b"+
-    "\u0000\u0000\u03f5\u00c3\u0001\u0000\u0000\u0000\u03f6\u03fb\u0003\u00ca"+
+    "\u03ee\u03ef\u0007\u0001\u0000\u0000\u03ef\u00bf\u0001\u0000\u0000\u0000"+
+    "\u03f0\u03f1\u0003\u00c2a\u0000\u03f1\u03f2\u00059\u0000\u0000\u03f2\u03f3"+
+    "\u0003\u00c4b\u0000\u03f3\u00c1\u0001\u0000\u0000\u0000\u03f4\u03f5\u0007"+
+    "\n\u0000\u0000\u03f5\u00c3\u0001\u0000\u0000\u0000\u03f6\u03fb\u0003\u00ca"+
     "e\u0000\u03f7\u03f8\u0005>\u0000\u0000\u03f8\u03fa\u0003\u00cae\u0000"+
     "\u03f9\u03f7\u0001\u0000\u0000\u0000\u03fa\u03fd\u0001\u0000\u0000\u0000"+
     "\u03fb\u03f9\u0001\u0000\u0000\u0000\u03fb\u03fc\u0001\u0000\u0000\u0000"+
@@ -9733,25 +9730,25 @@ public class EsqlBaseParser extends ParserConfig {
     "\u03fe\u0401\u0005f\u0000\u0000\u03ff\u0401\u0005_\u0000\u0000\u0400\u03f6"+
     "\u0001\u0000\u0000\u0000\u0400\u03fe\u0001\u0000\u0000\u0000\u0400\u03ff"+
     "\u0001\u0000\u0000\u0000\u0401\u00c5\u0001\u0000\u0000\u0000\u0402\u0403"+
-    "\u0007\f\u0000\u0000\u0403\u00c7\u0001\u0000\u0000\u0000\u0404\u0406\u0003"+
-    "\u00c6c\u0000\u0405\u0404\u0001\u0000\u0000\u0000\u0406\u0407\u0001\u0000"+
-    "\u0000\u0000\u0407\u0405\u0001\u0000\u0000\u0000\u0407\u0408\u0001\u0000"+
-    "\u0000\u0000\u0408\u0412\u0001\u0000\u0000\u0000\u0409\u040d\u0005c\u0000"+
-    "\u0000\u040a\u040c\u0003\u00c8d\u0000\u040b\u040a\u0001\u0000\u0000\u0000"+
-    "\u040c\u040f\u0001\u0000\u0000\u0000\u040d\u040b\u0001\u0000\u0000\u0000"+
-    "\u040d\u040e\u0001\u0000\u0000\u0000\u040e\u0410\u0001\u0000\u0000\u0000"+
-    "\u040f\u040d\u0001\u0000\u0000\u0000\u0410\u0412\u0005d\u0000\u0000\u0411"+
-    "\u0405\u0001\u0000\u0000\u0000\u0411\u0409\u0001\u0000\u0000\u0000\u0412"+
-    "\u00c9\u0001\u0000\u0000\u0000\u0413\u0414\u0003\u00ccf\u0000\u0414\u0415"+
-    "\u0005<\u0000\u0000\u0415\u0416\u0003\u00d0h\u0000\u0416\u041d\u0001\u0000"+
-    "\u0000\u0000\u0417\u0418\u0003\u00d0h\u0000\u0418\u0419\u0005;\u0000\u0000"+
-    "\u0419\u041a\u0003\u00ceg\u0000\u041a\u041d\u0001\u0000\u0000\u0000\u041b"+
-    "\u041d\u0003\u00d2i\u0000\u041c\u0413\u0001\u0000\u0000\u0000\u041c\u0417"+
-    "\u0001\u0000\u0000\u0000\u041c\u041b\u0001\u0000\u0000\u0000\u041d\u00cb"+
-    "\u0001\u0000\u0000\u0000\u041e\u041f\u0007\r\u0000\u0000\u041f\u00cd\u0001"+
-    "\u0000\u0000\u0000\u0420\u0421\u0007\r\u0000\u0000\u0421\u00cf\u0001\u0000"+
-    "\u0000\u0000\u0422\u0423\u0007\r\u0000\u0000\u0423\u00d1\u0001\u0000\u0000"+
-    "\u0000\u0424\u0425\u0007\u000e\u0000\u0000\u0425\u00d3\u0001\u0000\u0000"+
+    "\u0007\u000b\u0000\u0000\u0403\u00c7\u0001\u0000\u0000\u0000\u0404\u0406"+
+    "\u0003\u00c6c\u0000\u0405\u0404\u0001\u0000\u0000\u0000\u0406\u0407\u0001"+
+    "\u0000\u0000\u0000\u0407\u0405\u0001\u0000\u0000\u0000\u0407\u0408\u0001"+
+    "\u0000\u0000\u0000\u0408\u0412\u0001\u0000\u0000\u0000\u0409\u040d\u0005"+
+    "c\u0000\u0000\u040a\u040c\u0003\u00c8d\u0000\u040b\u040a\u0001\u0000\u0000"+
+    "\u0000\u040c\u040f\u0001\u0000\u0000\u0000\u040d\u040b\u0001\u0000\u0000"+
+    "\u0000\u040d\u040e\u0001\u0000\u0000\u0000\u040e\u0410\u0001\u0000\u0000"+
+    "\u0000\u040f\u040d\u0001\u0000\u0000\u0000\u0410\u0412\u0005d\u0000\u0000"+
+    "\u0411\u0405\u0001\u0000\u0000\u0000\u0411\u0409\u0001\u0000\u0000\u0000"+
+    "\u0412\u00c9\u0001\u0000\u0000\u0000\u0413\u0414\u0003\u00ccf\u0000\u0414"+
+    "\u0415\u0005<\u0000\u0000\u0415\u0416\u0003\u00d0h\u0000\u0416\u041d\u0001"+
+    "\u0000\u0000\u0000\u0417\u0418\u0003\u00d0h\u0000\u0418\u0419\u0005;\u0000"+
+    "\u0000\u0419\u041a\u0003\u00ceg\u0000\u041a\u041d\u0001\u0000\u0000\u0000"+
+    "\u041b\u041d\u0003\u00d2i\u0000\u041c\u0413\u0001\u0000\u0000\u0000\u041c"+
+    "\u0417\u0001\u0000\u0000\u0000\u041c\u041b\u0001\u0000\u0000\u0000\u041d"+
+    "\u00cb\u0001\u0000\u0000\u0000\u041e\u041f\u0007\f\u0000\u0000\u041f\u00cd"+
+    "\u0001\u0000\u0000\u0000\u0420\u0421\u0007\f\u0000\u0000\u0421\u00cf\u0001"+
+    "\u0000\u0000\u0000\u0422\u0423\u0007\f\u0000\u0000\u0423\u00d1\u0001\u0000"+
+    "\u0000\u0000\u0424\u0425\u0007\r\u0000\u0000\u0425\u00d3\u0001\u0000\u0000"+
     "\u0000h\u00d7\u00e8\u00f3\u010d\u011c\u0122\u012b\u0131\u013e\u0142\u0147"+
     "\u014f\u015d\u016d\u0175\u0179\u0180\u0186\u018b\u0194\u019b\u01a1\u01aa"+
     "\u01b1\u01b9\u01c1\u01c5\u01c9\u01ce\u01d2\u01dd\u01e2\u01e6\u01f4\u01ff"+

@@ -95,7 +95,7 @@ public final class ShardBulkSplitHelper {
         Map<ShardId, BulkShardRequest> splitRequests,
         Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
     ) {
-        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalRequest.items().length];
+        Map<Integer, BulkItemResponse> bulkItemResponses = new HashMap<>();
         for (Map.Entry<ShardId, Tuple<BulkShardResponse, Exception>> entry : responses.entrySet()) {
             ShardId shardId = entry.getKey();
             Tuple<BulkShardResponse, Exception> value = entry.getValue();
@@ -105,15 +105,19 @@ public final class ShardBulkSplitHelper {
                 for (BulkItemRequest item : bulkShardRequest.items()) {
                     DocWriteRequest<?> request = item.request();
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), request.id(), exception);
-                    bulkItemResponses[item.id()] = BulkItemResponse.failure(item.id(), request.opType(), failure);
+                    bulkItemResponses.put(item.id(), BulkItemResponse.failure(item.id(), request.opType(), failure));
                 }
             } else {
                 for (BulkItemResponse bulkItemResponse : value.v1().getResponses()) {
-                    bulkItemResponses[bulkItemResponse.getItemId()] = bulkItemResponse;
+                    bulkItemResponses.put(bulkItemResponse.getItemId(), bulkItemResponse);
                 }
             }
         }
-        BulkShardResponse bulkShardResponse = new BulkShardResponse(originalRequest.shardId(), bulkItemResponses);
+        assert bulkItemResponses.size() == originalRequest.items().length;
+        BulkShardResponse bulkShardResponse = new BulkShardResponse(
+            originalRequest.shardId(),
+            bulkItemResponses.values().toArray(new BulkItemResponse[0])
+        );
         // TODO: Decide how to handle
         bulkShardResponse.setShardInfo(responses.get(originalRequest.shardId()).v1().getShardInfo());
         return new Tuple<>(bulkShardResponse, null);

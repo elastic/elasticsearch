@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureFlag;
@@ -89,8 +90,10 @@ public class CCMCrudIT extends CCMRestBaseIT {
 
     public void testEnablesCCM_Succeeds() throws IOException {
         mockEISServer.enqueueAuthorizeAllModelsResponse();
-        var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
+        assertCCMEnabled(putCCMConfiguration(ENABLE_CCM_REQUEST));
+    }
 
+    private static void assertCCMEnabled(CCMEnabledActionResponse response) {
         assertTrue(response.isEnabled());
     }
 
@@ -102,7 +105,11 @@ public class CCMCrudIT extends CCMRestBaseIT {
         assertThat(exception.getMessage(), containsString(Strings.format(ERROR_MESSAGE)));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.UNAUTHORIZED.getStatus()));
 
-        assertFalse(getCCMConfiguration().isEnabled());
+        assertCCMDisabled(getCCMConfiguration());
+    }
+
+    private static void assertCCMDisabled(CCMEnabledActionResponse response) {
+        assertFalse(response.isEnabled());
     }
 
     public void testEnablesCCM_Fails_IfAuthValidationFails400() throws IOException {
@@ -113,7 +120,7 @@ public class CCMCrudIT extends CCMRestBaseIT {
         assertThat(exception.getMessage(), containsString(Strings.format(ERROR_MESSAGE)));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.BAD_REQUEST.getStatus()));
 
-        assertFalse(getCCMConfiguration().isEnabled());
+        assertCCMDisabled(getCCMConfiguration());
     }
 
     public void testEnablesCCM_Fails_IfAuthValidationFails500() throws IOException {
@@ -127,7 +134,7 @@ public class CCMCrudIT extends CCMRestBaseIT {
         // 5xx errors are transformed by the response handler to a 400 error to avoid triggering alerts
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.BAD_REQUEST.getStatus()));
 
-        assertFalse(getCCMConfiguration().isEnabled());
+        assertCCMDisabled(getCCMConfiguration());
     }
 
     private void queueResponsesToHandleRetries(MockResponse response) {
@@ -138,16 +145,14 @@ public class CCMCrudIT extends CCMRestBaseIT {
 
     public void testEnablesCCMTwice_Succeeds() throws IOException {
         mockEISServer.enqueueAuthorizeAllModelsResponse();
-        var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
-
-        assertTrue(response.isEnabled());
+        assertCCMEnabled(putCCMConfiguration(ENABLE_CCM_REQUEST));
 
         mockEISServer.enqueueAuthorizeAllModelsResponse();
-        response = putCCMConfiguration(
-            PutCCMConfigurationAction.Request.createEnabled("other_key", TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+        assertCCMEnabled(
+            putCCMConfiguration(
+                PutCCMConfigurationAction.Request.createEnabled("other_key", TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+            )
         );
-
-        assertTrue(response.isEnabled());
     }
 
     public void testEnablesCCM_WithExtraFields_Fails() {
@@ -179,24 +184,21 @@ public class CCMCrudIT extends CCMRestBaseIT {
     }
 
     public void testDisableCCM_Succeeds() throws IOException {
-        var response = deleteCCMConfiguration();
-        assertFalse(response.isEnabled());
+        assertCCMDisabled(deleteCCMConfiguration());
     }
 
     public void testGetCCMConfiguration_WhenCCMDisabled_ReturnsDisabled() throws IOException {
-        assertFalse(getCCMConfiguration().isEnabled());
+        assertCCMDisabled(getCCMConfiguration());
     }
 
     public void testEnablesCCM_ThenDisable() throws IOException {
         mockEISServer.enqueueAuthorizeAllModelsResponse();
-        var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
+        assertCCMEnabled(putCCMConfiguration(ENABLE_CCM_REQUEST));
 
-        assertTrue(response.isEnabled());
-        assertTrue(getCCMConfiguration().isEnabled());
+        assertCCMEnabled(getCCMConfiguration());
 
-        response = deleteCCMConfiguration();
+        assertCCMDisabled(deleteCCMConfiguration());
 
-        assertFalse(response.isEnabled());
-        assertFalse(getCCMConfiguration().isEnabled());
+        assertCCMDisabled(getCCMConfiguration());
     }
 }

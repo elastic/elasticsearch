@@ -48,8 +48,10 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
     PutCCMConfigurationAction.Request,
     CCMEnabledActionResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutCCMConfigurationAction.class);
     static final String FAILED_VALIDATION_MESSAGE = "Failed to validate the Cloud Connected Mode API key";
+
+    private static final Logger logger = LogManager.getLogger(TransportPutCCMConfigurationAction.class);
+    private static final String FAILED_VALIDATION_LOG_MESSAGE = "Failed to validate the CCM API key";
 
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
@@ -117,7 +119,7 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
                 // The exception will likely be a RetryException, so unwrap it to get to the real cause
                 var unwrappedException = ExceptionsHelper.unwrapCause(exception);
 
-                logger.atWarn().withThrowable(unwrappedException).log(FAILED_VALIDATION_MESSAGE);
+                logger.atWarn().withThrowable(unwrappedException).log(FAILED_VALIDATION_LOG_MESSAGE);
 
                 if (unwrappedException instanceof ElasticsearchStatusException statusException) {
                     delegate.onFailure(

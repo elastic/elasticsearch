@@ -6,5 +6,5 @@
 :   
 
 `window`
-:   the time window over which to compute the standard deviation
+:   the time window over which to compute the sum over time
 

@@ -242,25 +242,23 @@ public final class Ordinator64 extends Ordinator implements Releasable {
             }
         }
 
-        int find(long key, int hash) {
-            int slotIncrement = 0;
+        int find(final long key, final int hash) {
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 int id = id(slot);
                 if (id < 0) {
-                    // Empty
-                    return -1;
+                    return -1; // empty
                 }
                 if (key(slot) == key) {
                     return id;
                 }
-
                 slotIncrement++;
                 slot = slot(slot + slotIncrement);
             }
         }
 
-        int add(long key, int hash) {
+        int add(final long key, final int hash) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
@@ -273,13 +271,12 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                         return slotId;
                     }
                 } else {
-                    size++;
                     LONG_HANDLE.set(keyPage, keyOffset, key);
                     int id = idSpace.next();
                     INT_HANDLE.set(idPage, idOffset, id);
+                    size++;
                     return id;
                 }
-
                 slotIncrement++;
                 slot = slot(slot + slotIncrement);
             }
@@ -402,7 +399,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
         BigCore() {
             int controlLength = capacity + BYTE_VECTOR_LANES;
-            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinator");
+            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinator64");
             toClose.add(() -> breaker.addWithoutBreaking(-controlLength));
             controlData = new byte[controlLength];
             Arrays.fill(controlData, (byte) 0xFF);
@@ -452,7 +449,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
          * The probe loop doesn't stop if it never finds an EMPTY flag. But it'll always
          * find one because we keep a load factor lower than 100%.
          */
-        private int find(long key, int hash, byte control) {
+        private int find(final long key, final int hash, final byte control) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
@@ -474,7 +471,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
             }
         }
 
-        int add(long key, int hash) {
+        private int add(final long key, final int hash) {
             final byte control = control(hash);
             final int found = find(key, hash, control);
             if (found >= 0) {
@@ -497,8 +494,8 @@ public final class Ordinator64 extends Ordinator implements Releasable {
          * after we verify that the key isn't in the index. And used by {@link #rehash}
          * because we know all keys are unique.
          */
-        void insert(final long key, final int hash, final byte control, final int id) {
-            int slotIncrement = 0;
+        private void insert(final long key, final int hash, final byte control, final int id) {
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
@@ -511,7 +508,11 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                     controlData[insertSlot] = control;
                     // Mirror the first group bytes to the end of the array to handle wraparound loads.
                     // Benign writes: all other positions are just written twice.
-                    controlData[((insertSlot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
+                    // controlData[((insertSlot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
+                    // mirror only if slot is within the first group size, to handle wraparound loads
+                    if (insertSlot < BYTE_VECTOR_LANES) {
+                        controlData[insertSlot + capacity] = control;
+                    }
                     return;
                 }
                 slotIncrement += BYTE_VECTOR_LANES;
@@ -558,7 +559,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
             }
         }
 
-        private void rehash(int oldCapacity) {
+        private void rehash(final int oldCapacity) {
             int slot = 0;
             while (slot < oldCapacity) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
@@ -582,17 +583,17 @@ public final class Ordinator64 extends Ordinator implements Releasable {
          * many as will fit in your widest simd instruction. So, 32 or 64 will
          * be common.
          */
-        private long controlMatches(int slot, byte control) {
+        private long controlMatches(final int slot, final byte control) {
             return VECTOR_UTILS.equalMask(controlData, slot, control);
         }
 
-        private long key(int slot) {
-            int keyOffset = keyOffset(slot);
+        private long key(final int slot) {
+            final int keyOffset = keyOffset(slot);
             return (long) LONG_HANDLE.get(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK);
         }
 
-        private int id(int slot) {
-            int idOffset = idOffset(slot);
+        private int id(final int slot) {
+            final int idOffset = idOffset(slot);
             return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
         }
     }
@@ -603,33 +604,33 @@ public final class Ordinator64 extends Ordinator implements Releasable {
     // access-by-slot has the equivalent behavior. If this ever changes, we'll likely need to look into unpairing keys:ids in the slots in
     // favour of accessing slot -> id -> key lookup array via id.
 
-    public long key(int slot) {
+    public long key(final int slot) {
         if (this.bigCore == null) {
             return this.smallCore.key(slot);
         }
         return bigCore.key(slot);
     }
 
-    int id(int slot) {
+    int id(final int slot) {
         if (this.bigCore == null) {
             return this.smallCore.id(slot);
         }
         return bigCore.id(slot);
     }
 
-    int keyOffset(int slot) {
+    private int keyOffset(final int slot) {
         return slot * KEY_SIZE;
     }
 
-    int idOffset(int slot) {
+    private int idOffset(final int slot) {
         return slot * ID_SIZE;
     }
 
-    int hash(long v) {
+    private int hash(final long v) {
         return BitMixer.mix(v);
     }
 
-    int slot(int hash) {
+    private int slot(final int hash) {
         return hash & mask;
     }
 }

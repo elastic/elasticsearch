@@ -60,7 +60,7 @@ import java.util.Arrays;
  *     slots store the {@code id} which indexes into the {@link BytesRefArray}.
  * </p>
  */
-public class OrdinatorBytes extends Ordinator implements Releasable {
+public final class OrdinatorBytes extends Ordinator implements Releasable {
     private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
 
     private static final int BYTE_VECTOR_LANES = VECTOR_UTILS.byteVectorLanes();
@@ -88,7 +88,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
         }
     }
 
-    private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+    private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
     private final BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
@@ -137,7 +137,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
      * Find an {@code id} by a {@code key}.
      */
     public int find(BytesRef key) {
-        int hash = hash(key);
+        final int hash = hash(key);
         if (smallCore != null) {
             return smallCore.find(key, hash);
         } else {
@@ -151,7 +151,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
      * it'll be assigned a new {@code id}.
      */
     public int add(BytesRef key) {
-        int hash = hash(key);
+        final int hash = hash(key);
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
@@ -215,9 +215,8 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
      * Open addressed hash table the probes by triangle numbers. Empty
      * {@code id}s are encoded as {@code -1}. This hash table can't
      * grow, and is instead replaced by a {@link BigCore}.
-     * <p>
-     *     This uses one page from the {@link PageCacheRecycler} for the {@code ids}.
-     * </p>
+     *
+     * <p> This uses one page from the {@link PageCacheRecycler} for the {@code ids}.
      */
     final class SmallCore extends Core {
         static final float FILL_FACTOR = 0.6F;
@@ -237,30 +236,28 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
             }
         }
 
-        int find(BytesRef key, int hash) {
-            int slotIncrement = 0;
+        int find(final BytesRef key, final int hash) {
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 int id = id(slot);
                 if (id < 0) {
-                    // Empty
-                    return -1;
+                    return -1; // empty
                 }
                 if (matches(key, id)) {
                     return id;
                 }
-
                 slotIncrement++;
                 slot = slot(slot + slotIncrement);
             }
         }
 
-        int add(BytesRef key, int hash) {
-            int slotIncrement = 0;
+        int add(final BytesRef key, final int hash) {
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 int idOffset = idOffset(slot);
-                int slotId = (int) intHandle.get(idPage, idOffset);
+                int slotId = (int) INT_HANDLE.get(idPage, idOffset);
                 if (slotId >= 0) {
                     if (matches(key, slotId)) {
                         return slotId;
@@ -269,19 +266,17 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
                     // We don't use idSpace.next() because BytesRefArray manages IDs
                     int id = (int) bytesRefs.size();
                     bytesRefs.append(key);
+                    INT_HANDLE.set(idPage, idOffset, id);
                     size++;
-                    intHandle.set(idPage, idOffset, id);
                     return id;
                 }
-
-                slotIncrement += BYTE_VECTOR_LANES;
+                slotIncrement++;
                 slot = slot(slot + slotIncrement);
             }
         }
 
         void transitionToBigCore() {
             int oldCapacity = growTracking();
-
             try {
                 bigCore = new BigCore();
                 rehash(oldCapacity);
@@ -321,7 +316,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
 
         private void rehash(int oldCapacity) {
             for (int slot = 0; slot < oldCapacity; slot++) {
-                int id = (int) intHandle.get(idPage, idOffset(slot));
+                int id = (int) INT_HANDLE.get(idPage, idOffset(slot));
                 if (id < 0) {
                     continue;
                 }
@@ -333,12 +328,12 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
         }
 
         private int id(int slot) {
-            return (int) intHandle.get(idPage, idOffset(slot));
+            return (int) INT_HANDLE.get(idPage, idOffset(slot));
         }
     }
 
     /**
-     * A Swisstable inspired hashtable. This differs from the normal swisstable
+     * A SwissTable inspired hashtable. This differs from the normal SwissTable
      * in because it's adapted to Elasticsearch's {@link PageCacheRecycler}.
      * The ids are stored many {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES}
      * arrays.
@@ -364,7 +359,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
 
         BigCore() {
             int controlLength = capacity + BYTE_VECTOR_LANES;
-            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinator");
+            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinatorBytes");
             toClose.add(() -> breaker.addWithoutBreaking(-controlLength));
             controlData = new byte[controlLength];
             Arrays.fill(controlData, (byte) 0xFF);
@@ -386,35 +381,32 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
             }
         }
 
-        private int find(BytesRef key, int hash, byte control) {
-            int slotIncrement = 0;
+        private int find(final BytesRef key, final int hash, final byte control) {
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 long candidateMatches = controlMatches(slot, control);
-
                 int first;
                 while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
-                    int checkSlot = slot(slot + first);
-                    int id = id(checkSlot);
+                    final int checkSlot = slot(slot + first);
+                    final int id = id(checkSlot);
                     if (matches(key, id)) {
                         return id;
                     }
                     // Clear the first set bit and try again
                     candidateMatches &= ~(1L << first);
                 }
-
-                if (VectorComparisonUtils.anyTrue(controlMatches(slot, CONTROL_EMPTY))) {
+                if (controlMatches(slot, CONTROL_EMPTY) != 0) {
                     return -1;
                 }
-
                 slotIncrement += BYTE_VECTOR_LANES;
                 slot = slot(slot + slotIncrement);
             }
         }
 
-        int add(BytesRef key, int hash) {
-            byte control = control(hash);
-            int found = find(key, hash, control);
+        private int add(final BytesRef key, final int hash) {
+            final byte control = control(hash);
+            final int found = find(key, hash, control);
             if (found >= 0) {
                 return found;
             }
@@ -424,7 +416,7 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
                 grow();
             }
 
-            int id = (int) bytesRefs.size();
+            final int id = (int) bytesRefs.size();
             bytesRefs.append(key);
             size++;
             bigCore.insert(hash, control, id);
@@ -436,25 +428,22 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
          * after we verify that the key isn't in the index. And used by {@link #rehash}
          * because we know all keys are unique.
          */
-        void insert(int hash, byte control, int id) {
-            int slotIncrement = 0;
+        private void insert(final int hash, final byte control, final int id) {
+            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
                 if (VectorComparisonUtils.anyTrue(empty)) {
-                    slot = slot(slot + VectorComparisonUtils.firstSet(empty));
-                    int idOffset = idOffset(slot);
-
-                    intHandle.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
-                    controlData[slot] = control;
-                    /*
-                     * Mirror the first VECTOR_UTILS.vectorLength() bytes to the end of the array. All
-                     * other positions are just written twice.
-                     */
-                    controlData[((slot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
+                    final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
+                    final int idOffset = idOffset(insertSlot);
+                    INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
+                    controlData[insertSlot] = control;
+                    // mirror only if slot is within the first group size, to handle wraparound loads
+                    if (insertSlot < BYTE_VECTOR_LANES) {
+                        controlData[insertSlot + capacity] = control;
+                    }
                     return;
                 }
-
                 slotIncrement += BYTE_VECTOR_LANES;
                 slot = slot(slot + slotIncrement);
                 insertProbes++;
@@ -499,23 +488,22 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
             }
         }
 
-        private void rehash(int oldCapacity) {
+        private void rehash(final int oldCapacity) {
             int slot = 0;
             while (slot < oldCapacity) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
-                // TODO iterate like in find - it's faster.
                 for (int i = 0; i < BYTE_VECTOR_LANES && slot + i < oldCapacity; i++) {
                     if ((empty & (1L << i)) != 0L) {
-                        slot++;
                         continue;
                     }
-                    int id = id(slot);
+                    final int actualSlot = slot + i;
+                    final int id = id(actualSlot);
                     // Retrieve key to rehash
                     bytesRefs.get(id, scratch);
-                    int hash = hash(scratch);
+                    final int hash = hash(scratch);
                     bigCore.insert(hash, control(hash), id);
-                    slot++;
                 }
+                slot += BYTE_VECTOR_LANES;
             }
         }
 
@@ -525,13 +513,13 @@ public class OrdinatorBytes extends Ordinator implements Releasable {
          * many as will fit in your widest simd instruction. So, 32 or 64 will
          * be common.
          */
-        private long controlMatches(int slot, byte control) {
+        private long controlMatches(final int slot, final byte control) {
             return VECTOR_UTILS.equalMask(controlData, slot, control);
         }
 
-        private int id(int slot) {
-            int idOffset = idOffset(slot);
-            return (int) intHandle.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
+        private int id(final int slot) {
+            final int idOffset = idOffset(slot);
+            return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
         }
     }
 

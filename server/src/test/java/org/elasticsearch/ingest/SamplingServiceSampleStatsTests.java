@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotSame;
 
 public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTestCase<SampleStats> {
@@ -148,13 +149,19 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
                     parserMap.get("samples_rejected_for_max_samples_exceeded"),
                     equalTo(sampleStats.getSamplesRejectedForMaxSamplesExceeded())
                 );
-                assertThat(parserMap.get("samples_rejected_for_condition"), equalTo(sampleStats.getSamplesRejectedForCondition()));
-                assertThat(parserMap.get("samples_rejected_for_rate"), equalTo(sampleStats.getSamplesRejectedForRate()));
-                assertThat(parserMap.get("samples_rejected_for_exception"), equalTo(sampleStats.getSamplesRejectedForException()));
-                assertThat(parserMap.get("samples_rejected_for_size"), equalTo(sampleStats.getSamplesRejectedForSize()));
-                assertThat(parserMap.get("samples_accepted"), equalTo(sampleStats.getSamples()));
-                assertThat(parserMap.get("time_sampling_millis"), equalTo(sampleStats.getTimeSampling().millis()));
-                assertThat(parserMap.get("time_compiling_condition_millis"), equalTo(sampleStats.getTimeCompilingCondition().millis()));
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_condition"), sampleStats.getSamplesRejectedForCondition());
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_rate"), sampleStats.getSamplesRejectedForRate());
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_exception"), sampleStats.getSamplesRejectedForException());
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_size"), sampleStats.getSamplesRejectedForSize());
+                assertNumberEqualsLong(parserMap.get("samples_accepted"), sampleStats.getSamples());
+                assertNumberEqualsLong(
+                    ((Number) parserMap.get("time_sampling_millis")).longValue(),
+                    sampleStats.getTimeSampling().millis()
+                );
+                assertNumberEqualsLong(
+                    ((Number) parserMap.get("time_compiling_condition_millis")).longValue(),
+                    sampleStats.getTimeCompilingCondition().millis()
+                );
                 if (humanReadable) {
                     assertThat(parserMap.get("time_sampling"), equalTo(sampleStats.getTimeSampling().toHumanReadableString(1)));
                     assertThat(
@@ -173,5 +180,14 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
                 }
             }
         }
+    }
+
+    /*
+     * The XContentParser::map will return numbers as Integers if they are small enough. In that case, the actual and expected will not be
+     * equal if the expected is a long. This method gets the long value of the actual result before asserting that they are equal.
+     */
+    private void assertNumberEqualsLong(Object actual, long expected) {
+        assertThat(actual, instanceOf(Number.class));
+        assertThat(((Number) actual).longValue(), equalTo(expected));
     }
 }

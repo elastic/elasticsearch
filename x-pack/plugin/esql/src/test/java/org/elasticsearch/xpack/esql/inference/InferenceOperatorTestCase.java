@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -146,7 +147,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         };
 
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(mock(ClusterSettings.class));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(InferenceSettings.getSettings()));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         return new InferenceService(mockClient, clusterService);

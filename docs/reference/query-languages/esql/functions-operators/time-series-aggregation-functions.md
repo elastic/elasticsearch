@@ -46,6 +46,9 @@ The following time series aggregation functions are supported:
 :::{include} ../_snippets/functions/layout/delta.md
 :::
 
+:::{include} ../_snippets/functions/layout/deriv.md
+:::
+
 :::{include} ../_snippets/functions/layout/first_over_time.md
 :::
 
@@ -67,6 +70,9 @@ The following time series aggregation functions are supported:
 :::{include} ../_snippets/functions/layout/min_over_time.md
 :::
 
+:::{include} ../_snippets/functions/layout/percentile_over_time.md
+:::
+
 :::{include} ../_snippets/functions/layout/present_over_time.md
 :::
 
@@ -80,7 +86,4 @@ The following time series aggregation functions are supported:
 :::
 
 :::{include} ../_snippets/functions/layout/sum_over_time.md
-:::
-
-:::{include} ../_snippets/functions/layout/deriv.md
 :::

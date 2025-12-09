@@ -246,6 +246,24 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> params = Map.of();
             assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
         }
+
+        // works as expected when nested params are specified and the DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{query.string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of("query", Map.of("string", "foo"));
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"foo\" }"));
+        }
+
+        // fails when nested param is null and the DETECT_MISSING_PARAMS_OPTION option is set to true.
+        {
+            String source = "{\"match\": { \"field\": \"{{query.string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of("query", Map.of());
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query.string] is missing"));
+        }
     }
 
     public void testMissingParam() {

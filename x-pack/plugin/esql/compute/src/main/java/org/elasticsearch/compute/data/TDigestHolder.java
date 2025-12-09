@@ -78,6 +78,15 @@ public class TDigestHolder implements GenericNamedWriteable {
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBytesRef(encodedDigest);
+        out.writeDouble(min);
+        out.writeDouble(max);
+        out.writeDouble(sum);
+        out.writeVLong(valueCount);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if ((o instanceof TDigestHolder that)) {
             return Double.compare(min, that.min) == 0
@@ -186,14 +195,5 @@ public class TDigestHolder implements GenericNamedWriteable {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return ESQL_SERIALIZEABLE_TDIGEST;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBytesRef(encodedDigest);
-        out.writeDouble(min);
-        out.writeDouble(max);
-        out.writeDouble(sum);
-        out.writeVLong(valueCount);
     }
 }

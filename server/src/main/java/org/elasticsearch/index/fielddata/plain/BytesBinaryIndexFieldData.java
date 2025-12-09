@@ -56,6 +56,8 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        // TODO: support sorts on binary fields (keyword fields can be stored in binary fields as of #138548,
+        // and we should support sorts on keyword fields)
         throw new IllegalArgumentException("can't sort on binary field");
     }
 

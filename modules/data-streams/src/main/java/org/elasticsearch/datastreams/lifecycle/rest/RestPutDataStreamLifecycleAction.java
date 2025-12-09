@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,11 +32,9 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
 
-    private static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
-    private static final String SUPPORTS_FROZEN_AFTER = "dlm.frozen_after";
     private static final Set<String> CAPABILITIES = Set.of(
-        SUPPORTS_DOWNSAMPLING_METHOD,
-        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? SUPPORTS_FROZEN_AFTER : ""
+        RestPutComponentTemplateAction.SUPPORTS_DOWNSAMPLING_METHOD,
+        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? RestPutComponentTemplateAction.SUPPORTS_FROZEN_AFTER : ""
     );
 
     @Override

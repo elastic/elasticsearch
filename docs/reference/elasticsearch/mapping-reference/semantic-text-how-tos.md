@@ -315,7 +315,7 @@ The method for retrieving embeddings depends on your {{es}} version:
 - If you use {{es}} 9.2 and later, or {{serverless-short}}, use the [`_source.exclude_vectors`](#returning-semantic-field-embeddings-in-_source) parameter to include embeddings in `_source`. 
 - If you use {{es}} versions earlier than 9.2, use the [`fields` parameter](#returning-semantic-field-embeddings-using-fields) with `_inference_fields` to retrieve embeddings.
 
-### Return semantic field embeddings in `_source` [returning-semantic-field-embeddings-in-_source]
+### Include embeddings in `_source` [returning-semantic-field-embeddings-in-_source]
 
 ```{applies_to}
 stack: ga 9.2

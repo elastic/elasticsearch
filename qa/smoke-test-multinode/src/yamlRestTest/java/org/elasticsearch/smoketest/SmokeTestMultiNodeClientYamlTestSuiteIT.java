@@ -38,7 +38,6 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
-        .feature(FeatureFlag.GENERIC_VECTOR_FORMAT)
         .feature(FeatureFlag.RERANK_SEMANTIC_TEXT_CHUNKS)
         .build();
 

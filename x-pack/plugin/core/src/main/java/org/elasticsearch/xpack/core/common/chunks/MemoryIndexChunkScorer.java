@@ -22,13 +22,14 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Scores pre-determined chunks using an in-memory Lucene index and BM25 scoring.
+ * Utility class for scoring pre-determined chunks using an in-memory Lucene index.
  */
 public class MemoryIndexChunkScorer {
 
@@ -47,10 +48,11 @@ public class MemoryIndexChunkScorer {
      * @param chunks the list of text chunks to score
      * @param inferenceText the query text to compare against
      * @param maxResults maximum number of results to return
+     * @param backfillResults If true, backfills no matches with the first chunks in the list with scores of 0.
      * @return list of scored chunks ordered by relevance
-     * @throws IOException on failure scoring chunks
+     * @throws ElasticsearchException on failure scoring chunks
      */
-    public List<ScoredChunk> scoreChunks(List<String> chunks, String inferenceText, int maxResults) throws IOException {
+    public List<ScoredChunk> scoreChunks(List<String> chunks, String inferenceText, int maxResults, boolean backfillResults) {
         if (chunks == null || chunks.isEmpty() || inferenceText == null || inferenceText.trim().isEmpty()) {
             return new ArrayList<>();
         }
@@ -81,13 +83,22 @@ public class MemoryIndexChunkScorer {
                     scoredChunks.add(new ScoredChunk(content, scoreDoc.score));
                 }
 
-                // It's possible that no chunks were scorable (for example, a semantic match that does not have a lexical match).
-                // In this case, we'll return the first N chunks with a score of 0.
-                // TODO: consider parameterizing this
-                return scoredChunks.isEmpty() == false
-                    ? scoredChunks
-                    : chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList();
+                return backfillResults && scoredChunks.isEmpty()
+                    ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
+                    : scoredChunks;
             }
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to score chunks", e);
         }
+    }
+
+    /**
+     * Represents a chunk with its relevance score.
+     */
+    public record ScoredChunk(String content, float score) {}
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName();
     }
 }

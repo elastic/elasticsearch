@@ -178,11 +178,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.modelType = in.readOptionalString();
         this.tags = in.readOptionalCollectionAsList(StreamInput::readString);
         this.vocabularyFile = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            this.platformArchitecture = in.readOptionalString();
-        } else {
-            platformArchitecture = null;
-        }
+        this.platformArchitecture = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         } else {
@@ -312,9 +308,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(modelType);
         out.writeOptionalStringCollection(tags);
         out.writeOptionalString(vocabularyFile);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeOptionalString(platformArchitecture);
-        }
+        out.writeOptionalString(platformArchitecture);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(prefixStrings);
         }

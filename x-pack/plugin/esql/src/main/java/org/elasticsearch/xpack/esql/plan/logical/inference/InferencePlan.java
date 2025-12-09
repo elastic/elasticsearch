@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
+import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -27,6 +28,7 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     implements
         Streaming,
         SortAgnostic,
+        SortPreserving,
         GeneratingPlan<InferencePlan<PlanType>>,
         ExecutesOn.Coordinator {
 

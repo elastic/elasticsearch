@@ -83,7 +83,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     @Override
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         try {
-            // Validate the way
+            // Validate the way we would normally validate in ViewService
             validatePutView(null, request.view());
             Map<String, View> existingViews = new HashMap<>(metadata.views());
             existingViews.put(request.view().name(), request.view());

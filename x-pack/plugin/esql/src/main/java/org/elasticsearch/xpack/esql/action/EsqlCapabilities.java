@@ -1729,6 +1729,11 @@ public class EsqlCapabilities {
          */
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
 
+        /**
+         * Returns the top snippets for given text content and associated query.
+         */
+        TOP_SNIPPETS_FUNCTION(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

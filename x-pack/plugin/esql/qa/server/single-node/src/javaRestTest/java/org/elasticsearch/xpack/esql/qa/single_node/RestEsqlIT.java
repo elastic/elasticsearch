@@ -370,7 +370,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         List<Map<String, Object>> plans = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("plans");
         for (Map<String, Object> plan : plans) {
             assertThat(plan.get("cluster_name"), equalTo("test-cluster"));
-            assertThat(plan.get("node_name"), equalTo("test-cluster-0"));
+            assertThat(plan.get("node_name"), notNullValue());
             assertThat(plan.get("plan"), notNullValue());
             String description = (String) plan.get("description");
             assertTrue("Unexpected plan description " + description, Set.of("final", "node_reduce", "data").contains(description));

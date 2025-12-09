@@ -175,7 +175,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         }
     }
 
-    public void testCcsSerialization() throws Exception {
+    public void testCcsSerializationWithMinimizeRoundTripsTrue() throws Exception {
         final String inferenceField = "semantic_field";
         final T inferenceFieldQuery = createQueryBuilder(inferenceField);
         final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");

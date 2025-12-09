@@ -1,4 +1,4 @@
-retrieveDenseVectorData
+retrieveBFLOAT16VectorData
 required_capability: dense_vector_field_type_released
 required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function

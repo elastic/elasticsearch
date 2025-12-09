@@ -4023,25 +4023,37 @@ public class StatementParserTests extends AbstractStatementParserTests {
         options = fuse.options();
         assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
 
-        plan = query("""
+        var prefix = """
                 FROM foo* METADATA _id, _index, _score
                 | EVAL ??p = my_group
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
-                | FUSE GROUP BY ??p KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
-            """, new QueryParams(List.of(paramAsConstant("p", "a.b"))));
+            """;
+        // this does not test all permutations, just a few
+        var fuseCommands = List.of(
+            "| FUSE GROUP BY ??p KEY BY my_key1,my_key2 SCORE BY my_score WITH {\"rank_constant\": 15 }",
+            "| FUSE GROUP BY ??p KEY BY my_key1,my_key2 WITH {\"rank_constant\": 15 } SCORE BY my_score",
+            "| FUSE GROUP BY ??p SCORE BY my_score KEY BY my_key1,my_key2 WITH {\"rank_constant\": 15 }",
+            "| FUSE GROUP BY ??p SCORE BY my_score WITH {\"rank_constant\": 15 } KEY BY my_key1,my_key2",
+            "| FUSE GROUP BY ??p WITH {\"rank_constant\": 15 } KEY BY my_key1,my_key2 SCORE BY my_score",
+            "| FUSE GROUP BY ??p WITH {\"rank_constant\": 15 } SCORE BY my_score KEY BY my_key1,my_key2"
+        );
 
-        fuse = as(plan, Fuse.class);
-        assertThat(fuse.keys().size(), equalTo(2));
-        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
-        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
-        assertThat(fuse.discriminator().name(), equalTo("a.b"));
-        assertThat(fuse.score().name(), equalTo("my_score"));
-        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
-        options = fuse.options();
-        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+        for (var fuseCommand : fuseCommands) {
+            plan = query(prefix + fuseCommand, new QueryParams(List.of(paramAsConstant("p", "a.b"))));
+
+            fuse = as(plan, Fuse.class);
+            assertThat(fuse.keys().size(), equalTo(2));
+            assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+            assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+            assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+            assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+            assertThat(fuse.discriminator().name(), equalTo("a.b"));
+            assertThat(fuse.score().name(), equalTo("my_score"));
+            assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+            options = fuse.options();
+            assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+        }
     }
 
     public void testInvalidFuse() {
@@ -4067,7 +4079,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score LINEAR", "line 1:111: extraneous input 'LINEAR' expecting <EOF>");
 
-        expectError(queryPrefix + " | FUSE KEY BY CONCAT(key1, key2)", "line 1:93: token recognition error at: '('");
+        expectError(
+            queryPrefix + " | FUSE KEY BY CONCAT(key1, key2)",
+            "line 1:93: mismatched input '(' expecting {<EOF>, '|', ',', '.', 'group', 'key', 'score', 'with'}"
+        );
     }
 
     public void testUnclosedParenthesis() {

@@ -9,20 +9,20 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
 
-class EsqlConfig {
+public class EsqlConfig {
 
     // versioning information
-    boolean devVersion = Build.current().isSnapshot();
+    private final boolean isDevVersion;
+
+    public EsqlConfig(boolean isDevVersion) {
+        this.isDevVersion = isDevVersion;
+    }
+
+    public EsqlConfig() {
+        this(Build.current().isSnapshot());
+    }
 
     public boolean isDevVersion() {
-        return devVersion;
-    }
-
-    boolean isReleaseVersion() {
-        return isDevVersion() == false;
-    }
-
-    public void setDevVersion(boolean dev) {
-        this.devVersion = dev;
+        return isDevVersion;
     }
 }

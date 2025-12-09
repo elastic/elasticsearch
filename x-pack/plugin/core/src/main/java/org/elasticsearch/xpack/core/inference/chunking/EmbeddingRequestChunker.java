@@ -17,6 +17,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.Chunker.ChunkOffset;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
@@ -51,14 +52,14 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             if (chunk.start() == 0 && chunk.end() == input.value().length()) {
                 return input;
             } else {
-                return new InferenceString(input.value().substring(chunk.start(), chunk.end()), input.dataType());
+                return new InferenceString(input.dataType(), input.dataFormat(), input.value().substring(chunk.start(), chunk.end()));
             }
         }
     }
 
     public record BatchRequest(List<Request> requests) {
-        public Supplier<List<InferenceString>> inputs() {
-            return () -> requests.stream().map(Request::chunkText).collect(Collectors.toList());
+        public Supplier<List<InferenceStringGroup>> inputs() {
+            return () -> requests.stream().map(request -> new InferenceStringGroup(request.chunkText())).collect(Collectors.toList());
         }
     }
 
@@ -118,15 +119,16 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                 chunkingSettings = defaultChunkingSettings;
             }
             Chunker chunker;
-            if (chunkInferenceInput.input().isText()) {
+            // TODO: Do not always assume a single InferenceString per InferenceStringGroup
+            InferenceString inferenceString = chunkInferenceInput.input().value();
+            if (inferenceString.isText()) {
                 chunker = chunkers.getOrDefault(chunkingSettings.getChunkingStrategy(), defaultChunker);
             } else {
                 // Do not chunk non-text inputs
                 chunker = NoopChunker.INSTANCE;
                 chunkingSettings = NoneChunkingSettings.INSTANCE;
             }
-            InferenceString inputString = chunkInferenceInput.input();
-            List<ChunkOffset> chunks = chunker.chunk(inputString.value(), chunkingSettings);
+            List<ChunkOffset> chunks = chunker.chunk(inferenceString.value(), chunkingSettings);
             int resultCount = Math.min(chunks.size(), MAX_CHUNKS);
             resultEmbeddings.add(new AtomicReferenceArray<>(resultCount));
             resultOffsetStarts.add(new ArrayList<>(resultCount));
@@ -143,7 +145,7 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
                 } else {
                     resultOffsetEnds.getLast().set(targetChunkIndex, chunks.get(chunkIndex).end());
                 }
-                allRequests.add(new Request(inputIndex, targetChunkIndex, chunks.get(chunkIndex), inputString));
+                allRequests.add(new Request(inputIndex, targetChunkIndex, chunks.get(chunkIndex), inferenceString));
             }
         }
 

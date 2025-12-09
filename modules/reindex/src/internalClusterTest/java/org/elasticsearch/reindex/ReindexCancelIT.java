@@ -77,7 +77,7 @@ public class ReindexCancelIT extends ReindexTestCase {
      */
     public void testCancelEndpointEndToEndSynchronously() throws Exception {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        final TaskId parentTaskId = startThrottledReindex();
+        final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);
         assertThat(running.description(), is("reindex from [" + SOURCE_INDEX + "] to [" + DEST_INDEX + "]"));
@@ -120,7 +120,7 @@ public class ReindexCancelIT extends ReindexTestCase {
     /** Same test as above but calling _cancel asynchronously and wrapping assertions after cancellation in assertBusy. */
     public void testCancelEndpointEndToEndAsynchronously() throws Exception {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        final TaskId parentTaskId = startThrottledReindex();
+        final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);
         assertThat(running.description(), is("reindex from [" + SOURCE_INDEX + "] to [" + DEST_INDEX + "]"));
@@ -168,25 +168,37 @@ public class ReindexCancelIT extends ReindexTestCase {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId nonExistingTaskOnExistingNode = new TaskId(clusterService().localNode().getId(), Long.MAX_VALUE);
 
-        final var notFoundException = expectThrows(
+        final String expectedExceptionMessage = Strings.format(
+            "reindex task [%s] either not found or completed",
+            nonExistingTaskOnExistingNode
+        );
+        final var synchronousException = expectThrows(
             ResourceNotFoundException.class,
             () -> cancelReindexSynchronously(nonExistingTaskOnExistingNode)
         );
-        assertThat(
-            notFoundException.getMessage(),
-            is(Strings.format("reindex task [%s] either not found or completed", nonExistingTaskOnExistingNode))
+        assertThat(synchronousException.getMessage(), is(expectedExceptionMessage));
+
+        final var asynchronousException = expectThrows(
+            ResourceNotFoundException.class,
+            () -> cancelReindexAsynchronously(nonExistingTaskOnExistingNode)
         );
+        assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
     }
 
     public void testCancellingTaskOnNonexistingNode() {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId taskId = new TaskId("non-existing-node-" + randomAlphaOfLength(8), randomLongBetween(1, 1_000_000L));
 
-        final var notFoundException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(taskId));
-        assertThat(notFoundException.getMessage(), is(Strings.format("reindex task [%s] either not found or completed", taskId)));
+        final String expectedExceptionMessage = Strings.format("reindex task [%s] either not found or completed", taskId);
+
+        final var synchronousException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexSynchronously(taskId));
+        assertThat(synchronousException.getMessage(), is(expectedExceptionMessage));
+
+        final var asynchronousException = expectThrows(ResourceNotFoundException.class, () -> cancelReindexAsynchronously(taskId));
+        assertThat(asynchronousException.getMessage(), is(expectedExceptionMessage));
     }
 
-    private TaskId startThrottledReindex() throws Exception {
+    private TaskId startAsyncThrottledReindex() throws Exception {
         final RestClient restClient = getRestClient();
         final Request request = new Request("POST", "/_reindex");
         request.addParameter("wait_for_completion", "false");

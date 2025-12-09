@@ -8,10 +8,12 @@ stack: preview 9.3.0
 
 ```esql
 ROW result = CHUNK("It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief.", {"strategy": "word", "max_chunk_size": 10, "overlap": 1})
+| MV_EXPAND result
 ```
 
 | result:keyword |
 | --- |
-| [It was the best of times\, it was the worst, worst of times\, it was the age of wisdom\, it, \, it was the age of foolishness\, it was the epoch, epoch of belief.] |
+| It was the best of times, it was the worst, worst of times, it was the age of wisdom, |
+| it, , it was the age of foolishness, it was the epoch, epoch of belief. |
 
 

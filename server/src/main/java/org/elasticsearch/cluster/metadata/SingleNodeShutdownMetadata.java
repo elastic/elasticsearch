@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,9 +32,6 @@ import static org.elasticsearch.core.Strings.format;
  * Contains data about a single node's shutdown readiness.
  */
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
-
-    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersions.V_8_9_X;
-    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_9_X;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField NODE_EPHEMERAL_ID_FIELD = new ParseField("node_ephemeral_id");
@@ -168,22 +163,14 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.nodeEphemeralId = in.readOptionalString();
-        } else {
-            this.nodeEphemeralId = null; // empty when talking to old nodes, meaning the persistent node id is the only differentiator
-        }
+        this.nodeEphemeralId = in.readOptionalString();
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
         this.nodeSeen = in.readBoolean();
         this.allocationDelay = in.readOptionalTimeValue();
         this.targetNodeName = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-            this.gracePeriod = in.readOptionalTimeValue();
-        } else {
-            this.gracePeriod = null;
-        }
+        this.gracePeriod = in.readOptionalTimeValue();
     }
 
     /**
@@ -262,22 +249,14 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalString(nodeEphemeralId);
-        }
-        if (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM) {
-            out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
-        } else {
-            out.writeEnum(type);
-        }
+        out.writeOptionalString(nodeEphemeralId);
+        out.writeEnum(type);
         out.writeString(reason);
         out.writeVLong(startedAtMillis);
         out.writeBoolean(nodeSeen);
         out.writeOptionalTimeValue(allocationDelay);
         out.writeOptionalString(targetNodeName);
-        if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-            out.writeOptionalTimeValue(gracePeriod);
-        }
+        out.writeOptionalTimeValue(gracePeriod);
     }
 
     @Override

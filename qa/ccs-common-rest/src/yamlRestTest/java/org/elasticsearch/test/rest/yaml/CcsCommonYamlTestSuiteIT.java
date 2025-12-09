@@ -66,6 +66,11 @@ import static java.util.Collections.unmodifiableList;
  * defined in CCS_APIS against the "search" cluster, while all other operations like indexing are performed
  * using the client running against the "write" cluster.
  *
+ * Running all the YAML tests in a single test suite can lead to the suite timing out.
+ * To avoid timeouts subsets of the tests are executed in specific test suites according
+ * to the logic in {@link TestSuiteApiCheck}. To further split the tests add another suite
+ * by subclassing this class then add an entry to {@link TestSuiteApiCheck} mapping the API
+ * name(s) to the new class.
  */
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -97,7 +102,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.GENERIC_VECTOR_FORMAT);
+        .feature(FeatureFlag.DOC_VALUES_SKIPPER);
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)
@@ -295,6 +300,17 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
+    }
+
+    @Override
+    public void test() throws IOException {
+        boolean shouldBeExecutedByThisSuite = TestSuiteApiCheck.shouldExecuteTest(this, getTestCandidate().getApi());
+        assumeTrue(
+            "Skipping test as the API [" + getTestCandidate().getApi() + "] is not covered by this suite",
+            shouldBeExecutedByThisSuite
+        );
+
+        super.test();
     }
 
     @Override

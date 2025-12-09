@@ -61,7 +61,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
 
         final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectModeDecider.crossProjectEnabled()) {
+        if (crossProjectEnabled) {
             fieldRequest.projectRouting(request.param("project_routing", null));
             // Setting includeResolvedTo to always include index resolution data structure in the linked project responses,
             // in order to allow the coordinating node to call CrossProjectIndexResolutionValidator#validate
@@ -107,6 +107,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
     private static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
 
@@ -114,5 +115,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         PARSER.declareObject(FieldCapabilitiesRequest::indexFilter, (p, c) -> parseTopLevelQuery(p), INDEX_FILTER_FIELD);
         PARSER.declareObject(FieldCapabilitiesRequest::runtimeFields, (p, c) -> p.map(), RUNTIME_MAPPINGS_FIELD);
         PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
+        PARSER.declareString(FieldCapabilitiesRequest::projectRouting, PROJECT_ROUTING);
     }
 }

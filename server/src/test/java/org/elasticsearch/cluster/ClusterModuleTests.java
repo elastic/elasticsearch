@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexBalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
@@ -286,7 +287,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             DiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
-            AwarenessAllocationDecider.class
+            AwarenessAllocationDecider.class,
+            IndexBalanceAllocationDecider.class
         );
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
             Settings.EMPTY,

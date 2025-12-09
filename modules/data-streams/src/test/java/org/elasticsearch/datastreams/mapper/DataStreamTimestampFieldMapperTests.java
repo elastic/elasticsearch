@@ -119,16 +119,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
     }
 
-    public void testValidateNotIndexed() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
-            b.startObject("@timestamp");
-            b.field("type", "date");
-            b.field("index", false);
-            b.endObject();
-        })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
-    }
-
     public void testValidateNotDocValues() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
             b.startObject("@timestamp");
@@ -561,6 +551,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
@@ -589,6 +580,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {}));
 
@@ -613,6 +605,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final MapperService mapperService = withMapping(
             new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
@@ -644,6 +637,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
@@ -697,6 +691,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         final MapperService mapperService = withMapping(
             new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),

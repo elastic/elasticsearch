@@ -431,8 +431,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.DataSource',
     'javax.activation.FileDataSource',
     'javax.activation.FileTypeMap',
-    // SLF4j
-    'org.slf4j.ext.EventData'
   )
 }
 

@@ -27,6 +27,7 @@ import org.junit.rules.TestRule;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Supplier;
@@ -91,7 +92,11 @@ public class RepositoryS3WireLoggingRestIT extends AbstractRepositoryS3RestTestC
     @Override
     public void testSnapshotAndRestore() throws Exception {
         super.testSnapshotAndRestore();
-        try (var logReader = new BufferedReader(new InputStreamReader(cluster.getNodeLog(0, LogType.SERVER_JSON)))) {
+        try (
+            var logReader = new BufferedReader(
+                new InputStreamReader(cluster.getNodeLog(0, LogType.SERVER_JSON), StandardCharsets.ISO_8859_1)
+            )
+        ) {
             final var neededLoggers = new HashSet<>(
                 List.of("org.apache.http.wire", "org.apache.http.headers", "software.amazon.awssdk.request")
             );

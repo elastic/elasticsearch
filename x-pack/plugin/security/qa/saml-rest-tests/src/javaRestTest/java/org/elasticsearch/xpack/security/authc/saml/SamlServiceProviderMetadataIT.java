@@ -30,14 +30,26 @@ public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
      */
     @Override
     protected void enableMetadataBeforeTestIfNeeded() {
+        logger.warn("[SAML INVESTIGATION] not making metadata available before test");
         // do not enable metadata
     }
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
         // initially, metadata in unavailable for all realms
+        logger.warn("[SAML INVESTIGATION] Starting testAuthenticationWhenMetadataIsUnreliable");
+        logger.warn(
+            "[SAML INVESTIGATION] Initial metadata availability: {}",
+            String.join(", ", metadataAvailable.keySet().stream().map(k -> k + "=" + metadataAvailable.get(k)).toList())
+        );
 
         final String username = randomAlphaOfLengthBetween(4, 12);
         for (int realmNumber : shuffledList(List.of(1, 2, 3))) {
+
+            logger.warn(
+                "[SAML INVESTIGATION] Current ({}) metadata availability: {}",
+                realmNumber,
+                String.join(", ", metadataAvailable.keySet().stream().map(k -> k + "=" + metadataAvailable.get(k)).toList())
+            );
             // Authc fails because metadata has never been loaded.
             var ex = expectThrows(ResponseException.class, () -> samlAuthUser(realmNumber, username));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(401));

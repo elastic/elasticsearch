@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.http.PemHttpsConfigurator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.model.User;
@@ -38,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,8 +50,10 @@ public class SamlRestTestCase extends ESRestTestCase {
     protected static final String SAML_SIGNING_CRT = "/saml/signing.crt";
     protected static final String SAML_SIGNING_KEY = "/saml/signing.key";
 
+    private static final Logger st_logger = LogManager.getLogger(SamlRestTestCase.class);
+
     private static HttpsServer httpsServer;
-    private static final Map<Integer, Boolean> metadataAvailable = new ConcurrentHashMap<>();
+    protected static final Map<Integer, Boolean> metadataAvailable = new ConcurrentHashMap<>();
     public static final ElasticsearchCluster cluster = initTestCluster();
     private static Path caPath;
 
@@ -56,6 +61,7 @@ public class SamlRestTestCase extends ESRestTestCase {
     public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver)).around(cluster);
 
     private static void initWebserver() {
+        st_logger.warn("[SAML INVESTIGATION] Initializing web server");
         try {
             final InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
             final Path cert = getDataResource("/ssl/http.crt");
@@ -82,6 +88,7 @@ public class SamlRestTestCase extends ESRestTestCase {
     }
 
     private static ElasticsearchCluster initTestCluster() {
+        st_logger.warn("[SAML INVESTIGATION] Initializing test cluster");
         return ElasticsearchCluster.local()
             .nodes(1)
             .module("analysis-common")
@@ -139,6 +146,10 @@ public class SamlRestTestCase extends ESRestTestCase {
     }
 
     protected static void makeMetadataAvailable(int... realms) {
+        st_logger.warn(
+            "[SAML INVESTIGATION] Making SAML metadata available for realms "
+                + String.join(", ", Arrays.stream(realms).mapToObj(String::valueOf).toList())
+        );
         for (int r : realms) {
             metadataAvailable.put(Integer.valueOf(r), true);
         }
@@ -162,6 +173,11 @@ public class SamlRestTestCase extends ESRestTestCase {
         var signingCert = getDataResource(SAML_SIGNING_CRT);
         var metadataBody = new SamlIdpMetadataBuilder().entityId(getIdpEntityId(realmNumber)).sign(signingCert).asString();
         httpsServer.createContext("/metadata/" + realmNumber + ".xml", http -> {
+            st_logger.warn(
+                "[SAML INVESTIGATION] Received metadata request for realm {}, Realm is {}",
+                realmNumber,
+                metadataAvailable.get(realmNumber) ? "AVAILABLE" : "UNAVAILABLE"
+            );
             if (metadataAvailable.get(realmNumber)) {
                 sendXmlContent(metadataBody, http);
             } else {
@@ -197,10 +213,12 @@ public class SamlRestTestCase extends ESRestTestCase {
      */
     @Before
     public void initMetadata() {
+        logger.warn("[SAML INVESTIGATION] Initializing SAML metadata availability before test / " + this.getClass().getSimpleName());
         enableMetadataBeforeTestIfNeeded();
     }
 
     protected void enableMetadataBeforeTestIfNeeded() {
+        logger.warn("[SAML INVESTIGATION] Enabling SAML metadata for all realms before test / " + this.getClass().getSimpleName());
         makeMetadataAvailable(1, 2, 3);
     }
 

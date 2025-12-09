@@ -13,6 +13,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +30,11 @@ import static org.hamcrest.Matchers.is;
 public class SamlInResponseToIT extends SamlRestTestCase {
 
     private static final int REALM_NUMBER = 1;
+
+    @Before
+    public void beforeEachSamlInResponseToIT() throws Exception {
+        logger.warn("[SAML INVESTIGATION] Before a test in SamlInResponseToIT");
+    }
 
     public void testInResponseTo_matchingValues() throws Exception {
         final String username = randomAlphaOfLengthBetween(4, 12);

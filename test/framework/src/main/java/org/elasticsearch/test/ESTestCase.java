@@ -1860,7 +1860,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Apply a unique function to a random generation function, by keeping track of past values and filtering out repeats.
      */
-    public static Supplier<T> randomUniqueOnline(Supplier<T> supplier) {
+    public static <T> Supplier<T> randomUniqueOnline(Supplier<T> supplier) {
         final Set<T> seenValues = new HashSet<T>();
         return () -> {
             T randomValue;

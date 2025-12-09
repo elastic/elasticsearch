@@ -20,8 +20,10 @@ import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.tdigest.TDigest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * Decorates {@link org.elasticsearch.tdigest.TDigest} with custom serialization. The underlying implementation for TDigest is selected
@@ -311,6 +313,32 @@ public class TDigestState implements Releasable, Accountable {
 
     public final Collection<Centroid> centroids() {
         return tdigest.centroids();
+    }
+
+    /**
+     * A {@link Collection} that lets you go through the centroids deduplicated and in ascending order by mean.
+     * @return The centroids in the form of a Collection.
+     */
+    public final Collection<Centroid> uniqueCentroids() {
+        if (centroids().isEmpty()) {
+            return List.of();
+        }
+        var uniqueCentroids = new ArrayList<Centroid>(centroids().size());
+        double previous = Double.NaN;
+        long weight = 0;
+        for (Centroid centroid : centroids()) {
+            if (Double.isNaN(previous)) {
+                previous = centroid.mean();
+                weight = centroid.count();
+            } else if (Double.compare(centroid.mean(), previous) == 0) {
+                weight += centroid.count();
+            } else {
+                uniqueCentroids.add(new Centroid(previous, weight));
+                previous = centroid.mean();
+                weight = centroid.count();
+            }
+        }
+        return uniqueCentroids;
     }
 
     public final int centroidCount() {

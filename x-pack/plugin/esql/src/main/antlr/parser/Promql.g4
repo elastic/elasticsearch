@@ -7,12 +7,12 @@
 parser grammar Promql;
 
 promqlCommand
-    : DEV_PROMQL promqlParam+ (valueName ASSIGN)? LP promqlQueryPart+ RP
-    | DEV_PROMQL promqlParam+ promqlQueryPart+
+    : DEV_PROMQL promqlParam* (valueName ASSIGN)? LP promqlQueryPart+ RP
+    | DEV_PROMQL promqlParam* promqlQueryPart+
     ;
 
 valueName
-    : PROMQL_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
     ;
 
@@ -21,7 +21,7 @@ promqlParam
     ;
 
 promqlParamName
-    : PROMQL_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
     | QUOTED_STRING
     | NAMED_OR_POSITIONAL_PARAM
@@ -35,7 +35,7 @@ promqlParamValue
 
 promqlQueryContent
     : UNQUOTED_SOURCE
-    | PROMQL_UNQUOTED_IDENTIFIER
+    | UNQUOTED_IDENTIFIER
     | QUOTED_STRING
     | QUOTED_IDENTIFIER
     | NAMED_OR_POSITIONAL_PARAM
@@ -55,7 +55,7 @@ promqlQueryPart
 
 //
 // An adaptation of the indexPattern rule from EsqlBaseParser.g4
-// We can't import that rule directly because the PROMQL_UNQUOTED_IDENTIFIER token would shadow the EsqlBaseLexer.UNQUOTED_SOURCE token
+// We can't import that rule directly because the UNQUOTED_IDENTIFIER token would shadow the EsqlBaseLexer.UNQUOTED_SOURCE token
 //
 promqlIndexPattern
     : promqlClusterString COLON promqlUnquotedIndexString
@@ -64,22 +64,22 @@ promqlIndexPattern
     ;
 
 promqlClusterString
-    : PROMQL_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER
     | UNQUOTED_SOURCE
     ;
 
 promqlSelectorString
-    : PROMQL_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER
     | UNQUOTED_SOURCE
     ;
 
 promqlUnquotedIndexString
-    : PROMQL_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER
     | UNQUOTED_SOURCE
     ;
 
 promqlIndexString
-    : PROMQL_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER
     | UNQUOTED_SOURCE
     | QUOTED_STRING
     ;

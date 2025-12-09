@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverRunner;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
@@ -200,7 +201,6 @@ public class CsvTests extends ESTestCase {
      */
     private Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-    private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper();
     private ThreadPool threadPool;
     private Executor executor;
@@ -666,7 +666,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        EsqlStatement statement = parser.createQuery(testCase.query);
+        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(testCase.query);
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
             testCase.query,
@@ -699,15 +699,17 @@ public class CsvTests extends ESTestCase {
             new LogicalPreOptimizerContext(foldCtx, mock(InferenceService.class), minimumVersion)
         );
         var logicalPlanOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx, minimumVersion));
-        session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, listener.delegateFailureAndWrap((l, preOptimized) -> {
+        PlanTimeProfile planTimeProfile = configuration.profile() ? new PlanTimeProfile() : null;
+        session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
                 new EsqlExecutionInfo(randomBoolean()),
                 planRunner(bigArrays, physicalOperationProviders),
-                session.optimizedPlan(preOptimized, logicalPlanOptimizer),
+                session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
                 configuration,
                 foldCtx,
                 minimumVersion,
+                planTimeProfile,
                 listener.delegateFailureAndWrap(
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
@@ -768,7 +770,7 @@ public class CsvTests extends ESTestCase {
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
-        return (physicalPlan, configuration, foldContext, listener) -> executeSubPlan(
+        return (physicalPlan, configuration, foldContext, planTimeProfile, listener) -> executeSubPlan(
             bigArrays,
             foldContext,
             physicalOperationProviders,
@@ -842,7 +844,7 @@ public class CsvTests extends ESTestCase {
                 new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, flags, configuration, foldCtx, searchStats)
             );
 
-            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+            var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, null);
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),

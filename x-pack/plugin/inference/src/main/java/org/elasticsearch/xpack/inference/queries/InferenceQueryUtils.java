@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
 import static org.elasticsearch.xpack.core.ml.action.InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API;
 
-public class InferenceQueryUtils {
+public final class InferenceQueryUtils {
     public record InferenceInfo(
         int inferenceFieldCount,
         int indexCount,

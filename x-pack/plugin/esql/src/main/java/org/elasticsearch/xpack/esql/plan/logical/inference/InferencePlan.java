@@ -50,12 +50,12 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(child());
-        out.writeNamedWriteable(inferenceId());
-        if (out.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT_TRANSPORT_VERSION)) {
-            out.writeNamedWriteable(rowLimit());
-        }
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
     }
 
     public Expression inferenceId() {

@@ -11,7 +11,69 @@ applies_to:
 :::{include} _snippets/serverless-availability.md
 :::
 
-The slow log records database searching and indexing events that have execution durations above specified thresholds. You can use these logs to investigate analyze or troubleshoot your cluster’s historical search and indexing performance.
+The slow log in {{es}} helps you capture search or indexing operations that exceed certain durations, which can be useful when diagnosing slow performance or indexing bottlenecks. For more information about slow log formats and how to enable slow logs, refer to [Slow query and index logging](docs-content://deploy-manage/monitor/logging-configuration.md).
+
+Slow logs are emitted under `fileset.name = "slowlog"`, logger names `index.search.slowlog` or `index.indexing.slowlog`.
+
+By default, all thresholds default to `-1`, which disables slow logging.
+
+
+## Settings for search operations
+
+Search slow logs emit per shard. They must be enabled separately for the shard’s [query and fetch search phases](https://www.elastic.co/blog/understanding-query-then-fetch-vs-dfs-query-then-fetch).
+
+
+`index.search.slowlog.threshold.query.warn`
+:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
+
+`index.search.slowlog.threshold.query.info`
+:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
+
+`index.search.slowlog.threshold.query.debug`
+:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
+
+`index.search.slowlog.threshold.query.trace`
+:   Threshold for the **query phase**. When a query takes longer than the configured value, a slow log entry in emitted.
+
+`index.search.slowlog.threshold.fetch.warn`
+:   Threshold for the **fetch** phase (retrieving documents after query hits).
+
+`index.search.slowlog.threshold.fetch.info`
+:   Threshold for the **fetch** phase (retrieving documents after query hits).
+
+`index.search.slowlog.threshold.fetch.debug`
+:   Threshold for the **fetch** phase (retrieving documents after query hits).
+
+`index.search.slowlog.threshold.fetch.trace`
+:   Threshold for the **fetch** phase (retrieving documents after query hits).
+
+`index.search.slowlog.include.user`
+:   This setting is a boolean. If set to `true`, it includes `user.*` and `auth.type` metadata in the log entries (who triggered the request).
+
+
+
+
+## Settings for indexing operations 
+
+Indexing slow logs emit per index document.
+
+`index.indexing.slowlog.threshold.index.warn/info/debug/trace`
+:   Threshold for indexing operations. Long indexing operations will be logged at the configuration level.
+
+`index.indexing.slowlog.include.user`
+:   (boolean) if `true`, includes `user.*` and `auth.type` metadata in the log entries (who initiated the indexing request)
+
+`index.indexing.slowlog.source`
+:   Number of `_source` characters to include. The default is 1000. Set to `false`or `0` to disable source logging. Set to `true` to log entire source (regardless of size).
+
+`index.indexing.slowlog.reformat`
+:   (boolean). If `true`, reformat `_source` into a single-line log entry. If `false`, log raw, multi-line original format.
+
+
+
+
+
+
 
 Slow logs report task duration at the shard level for searches, and at the index level for indexing, but might not encompass the full task execution time observed on the client. For example, slow logs don’t surface HTTP network delays or the impact of [task queues](docs-content://troubleshoot/elasticsearch/task-queue-backlog.md). For more information about the higher-level operations affecting response times, refer to [Reading and writing documents](docs-content://deploy-manage/distributed-architecture/reading-and-writing-documents.md).
 

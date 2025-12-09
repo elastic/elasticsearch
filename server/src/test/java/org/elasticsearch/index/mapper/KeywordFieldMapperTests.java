@@ -965,6 +965,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
 
+    public void testDocValuesInvalidCardinality() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "invalid").endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown value [invalid] for field [cardinality] - accepted values are [low, high]"));
+    }
+
     public void testFieldTypeWithSkipDocValues_LogsDbModeDisabledSetting() throws IOException {
         final MapperService mapperService = createMapperService(
             Settings.builder()

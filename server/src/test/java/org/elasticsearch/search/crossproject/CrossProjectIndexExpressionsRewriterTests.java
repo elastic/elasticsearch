@@ -326,6 +326,13 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
             final var requestedResources = new String[] { "*", "-:metrics*" };
             expectThrows(NoMatchingProjectException.class, () -> rewriteIndexExpressions(origin, linked, requestedResources));
         }
+
+        {
+            // Cannot apply exclusion for both the project and the index
+            expectThrows(IllegalArgumentException.class, () -> rewriteIndexExpressions(origin, linked, "-_origin:-metrics*"));
+            expectThrows(IllegalArgumentException.class, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
+            expectThrows(IllegalArgumentException.class, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
+        }
     }
 
     public void testRewritingShouldThrowOnIndexSelectors() {
@@ -392,7 +399,7 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
 
-        var actual = rewriteIndexExpressions(origin, linked, null);
+        var actual = rewriteIndexExpressions(origin, linked);
 
         assertThat(actual.keySet(), containsInAnyOrder("_all"));
         assertIndexRewriteResultsContains(actual.get("_all"), containsInAnyOrder("P1:_all", "P2:_all", "_all"));
@@ -503,7 +510,7 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
     private static Map<String, CrossProjectIndexExpressionsRewriter.IndexRewriteResult> rewriteIndexExpressions(
         ProjectRoutingInfo originProject,
         List<ProjectRoutingInfo> linkedProjects,
-        final String[] originalIndices
+        final String... originalIndices
     ) {
         final String[] indices;
         if (originalIndices == null || originalIndices.length == 0) { // handling of match all cases besides _all and `*`

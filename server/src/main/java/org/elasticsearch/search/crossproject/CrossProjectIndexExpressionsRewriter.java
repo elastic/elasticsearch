@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  */
 public class CrossProjectIndexExpressionsRewriter {
     public static TransportVersion NO_MATCHING_PROJECT_EXCEPTION_VERSION = TransportVersion.fromName("no_matching_project_exception");
-    private static final char EXCLUSION_PREFIX = '-';
+    public static final char EXCLUSION_PREFIX = '-';
 
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexExpressionsRewriter.class);
     static final String[] MATCH_ALL = new String[] { Metadata.ALL };
@@ -123,13 +123,17 @@ public class CrossProjectIndexExpressionsRewriter {
         String requestedProjectAlias = splitResource[0];
         assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
         boolean isExclusion = false;
-        if (requestedProjectAlias.charAt(0) == EXCLUSION_PREFIX) {
+        if (isExclusionExpression(requestedProjectAlias)) {
             // TODO: Throw exception on empty alias instead of relying on exception from resolveClusterNames?
             requestedProjectAlias = requestedProjectAlias.substring(1);
             isExclusion = true;
         }
 
-        String indexExpression = splitResource[1];
+        final String indexExpression = splitResource[1];
+        if (isExclusion && isExclusionExpression(indexExpression)) {
+            throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");
+        }
+
         maybeThrowOnUnsupportedResource(indexExpression);
 
         if (originProjectAlias != null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
@@ -174,6 +178,11 @@ public class CrossProjectIndexExpressionsRewriter {
             logger.debug(ex.getMessage(), ex);
             throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
         }
+    }
+
+    static boolean isExclusionExpression(String expression) {
+        assert expression != null && expression.isEmpty() == false : "expression must be a non-empty string";
+        return expression.charAt(0) == EXCLUSION_PREFIX;
     }
 
     private static void maybeThrowOnUnsupportedResource(String resource) {

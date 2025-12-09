@@ -185,7 +185,7 @@ public class HierarchicalKMeans {
 
     private static KMeansLocal buildKmeansLocal(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations, int numVectors) {
         // if there is no executor or the number of vectors is small use a serial implementation
-        return executor == null || numVectors < numVectors * 4
+        return executor == null || numVectors < numWorkers * 4
             ? new KMeansLocalSerial(sampleSize, maxIterations)
             : new KMeansLocalConcurrent(executor, numWorkers, sampleSize, maxIterations);
     }

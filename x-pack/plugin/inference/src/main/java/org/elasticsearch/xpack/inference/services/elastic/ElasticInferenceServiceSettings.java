@@ -43,6 +43,15 @@ public class ElasticInferenceServiceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * This setting is for testing only. It controls whether authorization is performed at all.
+     */
+    public static final Setting<Boolean> AUTHORIZATION_ENABLED = Setting.boolSetting(
+        "xpack.inference.elastic.authorization.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     private static final TimeValue DEFAULT_AUTH_REQUEST_INTERVAL = TimeValue.timeValueMinutes(10);
     static final Setting<TimeValue> AUTHORIZATION_REQUEST_INTERVAL = Setting.timeSetting(
         "xpack.inference.elastic.authorization_request_interval",
@@ -89,6 +98,7 @@ public class ElasticInferenceServiceSettings {
     private volatile TimeValue authRequestInterval;
     private volatile TimeValue maxAuthorizationRequestJitter;
     private final TimeValue connectionTtl;
+    private final boolean isAuthorizationEnabled;
 
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
@@ -97,6 +107,7 @@ public class ElasticInferenceServiceSettings {
         authRequestInterval = AUTHORIZATION_REQUEST_INTERVAL.get(settings);
         maxAuthorizationRequestJitter = MAX_AUTHORIZATION_REQUEST_JITTER.get(settings);
         connectionTtl = CONNECTION_TTL_SETTING.get(settings);
+        isAuthorizationEnabled = AUTHORIZATION_ENABLED.get(settings);
     }
 
     /**
@@ -132,6 +143,10 @@ public class ElasticInferenceServiceSettings {
         return connectionTtl;
     }
 
+    public boolean isAuthorizationEnabled() {
+        return isAuthorizationEnabled;
+    }
+
     public static List<Setting<?>> getSettingsDefinitions() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.add(EIS_GATEWAY_URL);
@@ -142,6 +157,7 @@ public class ElasticInferenceServiceSettings {
         settings.add(AUTHORIZATION_REQUEST_INTERVAL);
         settings.add(MAX_AUTHORIZATION_REQUEST_JITTER);
         settings.add(CONNECTION_TTL_SETTING);
+        settings.add(AUTHORIZATION_ENABLED);
         return settings;
     }
 

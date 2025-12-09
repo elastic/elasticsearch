@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -52,8 +53,18 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
         preview = true,
         examples = { @Example(file = "k8s-timeseries-idelta", tag = "idelta") }
     )
-    public Idelta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+    public Idelta(
+        Source source,
+        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the idelta over time",
+            optional = true
+        ) Expression window,
+        Expression timestamp
+    ) {
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
     public Idelta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {

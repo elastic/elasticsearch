@@ -75,7 +75,7 @@ class KMeansLocalConcurrent extends KMeansLocal {
             final int start = i * len;
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             runners.add(() -> {
-                assignSpilledSlice(vectors, kmeansIntermediate, neighborhoods, soarLambda, start, end);
+                assignSpilledSlice(vectors.copy(), kmeansIntermediate, neighborhoods, soarLambda, start, end);
                 return null;
             });
         }

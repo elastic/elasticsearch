@@ -583,7 +583,7 @@ POST test-index/_search
 
 :::::
 
-## Perform {{ccs}} (CCS) for `semantic_text` [cross-cluster-search]
+## Perform {{ccs}} (CCS) with `semantic_text` [cross-cluster-search]
 
 ```{applies_to}
 stack: ga 9.2

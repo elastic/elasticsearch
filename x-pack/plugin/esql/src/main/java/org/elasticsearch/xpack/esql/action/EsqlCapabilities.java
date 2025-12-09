@@ -1588,7 +1588,7 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
-        TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY(T_DIGEST_ESQL_SUPPORT),
+        TDIGEST_FIELD_TYPE_SUPPORT_V1(T_DIGEST_ESQL_SUPPORT),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1728,6 +1728,11 @@ public class EsqlCapabilities {
          * with all the dimensions.
          */
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
+
+        /**
+         * Returns the top snippets for given text content and associated query.
+         */
+        TOP_SNIPPETS_FUNCTION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -90,25 +90,60 @@ setup:
       reason: requires esql views to be enabled
 
   - do:
+      catch: /invalid view name/
+      esql.put_view:
+        name: " "
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /invalid view name/
+      esql.put_view:
+        name: "dogs#pants"
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /invalid view name/
+      esql.put_view:
+        name: "dogsPants"
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /Required \[query\]/
+      esql.put_view:
+        name: dogs
+        body: {}
+
+  - do:
+      catch: /view query is missing or empty/
+      esql.put_view:
+        name: dogs
+        body:
+          query: ' '
+
+  - do:
+      catch: /mismatched input 'FRO'/
       esql.put_view:
         name: dogs
         body:
           query: 'FRO test'
 
   - do:
+      esql.get_view: { }
+
+  - match: { views: [] }
+
+  - do:
+      catch: missing
       esql.get_view:
         name: dogs
 
-  - match: { views: { dogs: { query: 'FRO test' } } }
-
   - do:
+      catch: /view \[dogs\] not found/
       esql.delete_view:
         name: dogs
-
-  - do:
-      esql.get_view: { }
-
-  - match: { views: { } }
 
 ---
 "basic":

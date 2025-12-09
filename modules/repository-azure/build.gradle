@@ -103,6 +103,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /stax-.*/, to: 'stax'
   mapping from: /reactor-netty-.*/, to: 'reactor-netty'
   mapping from: /reactive-streams.*/, to: 'reactive-streams'
+  mapping from: /log4j.*/, to: 'log4j'
 }
 
 tasks.named("thirdPartyAudit").configure {

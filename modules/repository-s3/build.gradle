@@ -120,6 +120,7 @@ tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: 'sts',                      to: 'aws-sdk-2'
   mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
   mapping from: 'utils',                    to: 'aws-sdk-2'
+  mapping from: /log4j.*/,                  to: 'log4j'
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {

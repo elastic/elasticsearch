@@ -2,7 +2,7 @@
 "Index using shared data path":
 
   - requires:
-      test_runner_features: ["warnings"]
+      test_runner_features: ["warnings", "allowed_warnings"]
 
   - do:
       warnings:

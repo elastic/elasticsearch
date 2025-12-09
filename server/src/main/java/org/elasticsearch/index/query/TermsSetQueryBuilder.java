@@ -18,7 +18,6 @@ import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,8 +43,6 @@ import java.util.Objects;
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
     public static final String NAME = "terms_set";
-
-    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");
@@ -79,9 +76,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.values = (List<?>) in.readGenericValue();
         this.minimumShouldMatchField = in.readOptionalString();
         this.minimumShouldMatchScript = in.readOptionalWriteable(Script::new);
-        if (in.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
-            this.minimumShouldMatch = in.readOptionalString();
-        }
+        this.minimumShouldMatch = in.readOptionalString();
     }
 
     @Override
@@ -90,9 +85,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeGenericValue(values);
         out.writeOptionalString(minimumShouldMatchField);
         out.writeOptionalWriteable(minimumShouldMatchScript);
-        if (out.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
-            out.writeOptionalString(minimumShouldMatch);
-        }
+        out.writeOptionalString(minimumShouldMatch);
     }
 
     // package protected for testing purpose

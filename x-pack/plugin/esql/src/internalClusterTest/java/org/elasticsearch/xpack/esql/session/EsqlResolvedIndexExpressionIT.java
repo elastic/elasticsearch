@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.action.AbstractCrossClusterTestCase;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -42,7 +44,7 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
     // TODO test exclusion pattern
 
     public void testLocalDateMathExpression() {
-        var date = LocalDate.now();
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
         var index = "index-" + date.getYear() + "." + date.getMonthValue();
         createIndex(LOCAL_CLUSTER, index);
 
@@ -52,7 +54,7 @@ public class EsqlResolvedIndexExpressionIT extends AbstractCrossClusterTestCase 
                 equalTo(Map.of(LOCAL_CLUSTER, resolvedIndexExpression("<index-{now/M{yyyy.MM}}>", index)))
             );
         } catch (AssertionError e) {
-            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.now()));
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
             throw e;
         }
     }

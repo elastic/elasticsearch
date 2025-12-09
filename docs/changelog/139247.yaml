@@ -1,0 +1,5 @@
+pr: 139247
+summary: Add TDigest histogram as metric
+area: "Downsampling, TSDB"
+type: enhancement
+issues: []

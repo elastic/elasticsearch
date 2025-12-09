@@ -7,6 +7,7 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -14,6 +15,7 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
@@ -40,78 +42,27 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     public void testMatchQueryWithCcsMinimizeRoundTripsTrue() throws Exception {
-        // Query a field has the same inference ID value across clusters, but with different backing inference services
-        assertSearchResponse(
-            new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
-            )
-        );
-
-        // Query a field that has different inference ID values across clusters
-        assertSearchResponse(
-            new MatchQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
-            )
-        );
-
-        // Query a field that has mixed types across clusters
-        assertSearchResponse(
-            new MatchQueryBuilder(MIXED_TYPE_FIELD_1, "c"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
-            )
-        );
-        assertSearchResponse(
-            new MatchQueryBuilder(MIXED_TYPE_FIELD_2, "d"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
-            )
-        );
-
-        // Query an inference field on a remote cluster
-        assertSearchResponse(
-            new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
-            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)))
-        );
-
-        // Validate that a CCS match query functions when only text fields are queried
-        assertSearchResponse(
-            new MatchQueryBuilder(TEXT_FIELD, "e"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(TEXT_FIELD)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(TEXT_FIELD))
-            )
-        );
-        assertSearchResponse(
-            new MatchQueryBuilder(TEXT_FIELD, "e"),
-            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
-            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(TEXT_FIELD)))
-        );
+        matchQueryBaseTestCases(true);
     }
 
     public void testMatchQueryWithCcsMinimizeRoundTripsFalse() throws Exception {
+        matchQueryBaseTestCases(false);
+    }
+
+    private void matchQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
+        final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+        final String expectedLocalClusterAlias = ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;
+
         // Query a field has the same inference ID value across clusters, but with different backing inference services
         assertSearchResponse(
             new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
             ),
             null,
-            s -> s.setCcsMinimizeRoundtrips(false)
+            searchRequestModifier
         );
 
         // Query a field that has different inference ID values across clusters
@@ -119,11 +70,11 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             new MatchQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
             ),
             null,
-            s -> s.setCcsMinimizeRoundtrips(false)
+            searchRequestModifier
         );
 
         // Query a field that has mixed types across clusters
@@ -131,21 +82,21 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             new MatchQueryBuilder(MIXED_TYPE_FIELD_1, "c"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
             ),
             null,
-            s -> s.setCcsMinimizeRoundtrips(false)
+            searchRequestModifier
         );
         assertSearchResponse(
             new MatchQueryBuilder(MIXED_TYPE_FIELD_2, "d"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
             ),
             null,
-            s -> s.setCcsMinimizeRoundtrips(false)
+            searchRequestModifier
         );
 
         // Query an inference field on a remote cluster
@@ -154,7 +105,19 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
             null,
-            s -> s.setCcsMinimizeRoundtrips(false)
+            searchRequestModifier
+        );
+
+        // Query using index patterns
+        assertSearchResponse(
+            new MatchQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            List.of("local-*", fullyQualifiedIndexName("cluster_*", "remote-*")),
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
         );
 
         // Validate that a CCS match query functions when only text fields are queried
@@ -162,18 +125,18 @@ public class MatchQueryBuilderCrossClusterSearchIT extends AbstractSemanticCross
             new MatchQueryBuilder(TEXT_FIELD, "e"),
             QUERY_INDICES,
             List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(TEXT_FIELD)),
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(TEXT_FIELD)),
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(TEXT_FIELD))
             ),
             null,
-            s -> s.setCcsMinimizeRoundtrips(false)
+            searchRequestModifier
         );
         assertSearchResponse(
             new MatchQueryBuilder(TEXT_FIELD, "e"),
             List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(TEXT_FIELD))),
             null,
-            s -> s.setCcsMinimizeRoundtrips(false)
+            searchRequestModifier
         );
     }
 

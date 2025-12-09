@@ -85,15 +85,11 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             allOf(instanceOf(List.class), hasSize(docsTest1))
         );
 
-        // filter excludes both indices (no rows); the first analysis step fails because there are no columns, a second attempt succeeds
-        // after eliminating the index filter. All columns are returned.
+        // all indices are excluded by the filter. Empty result is returned
         builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
         assertQueryResult(
             runEsql(builder),
-            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            matchesList().item(matchesMap().entry("name", "<no-fields>").entry("type", "null")),
             allOf(instanceOf(List.class), hasSize(0))
         );
     }
@@ -210,18 +206,6 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                 containsString("Unknown index [foo]"),
                 containsString("Unknown index [*:foo]"),
                 containsString("Unknown index [remote_cluster:foo]")
-            )
-        );
-
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo*"))));
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("verification_exception"));
-        assertThat(
-            e.getMessage(),
-            anyOf(
-                containsString("Unknown index [foo*]"),
-                containsString("Unknown index [*:foo*]"),
-                containsString("Unknown index [remote_cluster:foo*]")
             )
         );
 

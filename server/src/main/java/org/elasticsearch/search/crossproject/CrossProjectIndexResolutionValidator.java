@@ -202,9 +202,6 @@ public class CrossProjectIndexResolutionValidator {
         String remoteExpression,
         IndicesOptions indicesOptions
     ) {
-        assert false == Strings.isNullOrEmpty(projectAlias) : projectAlias;
-        assert false == Strings.isNullOrEmpty(resource) : resource;
-
         if (isExclusionExpression(projectAlias) || isExclusionExpression(resource)) {
             logger.debug("Skipping check for excluded remote expression [{}:{}]", projectAlias, resource);
             return null;

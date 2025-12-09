@@ -506,7 +506,6 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
-    // TODO remove me: only used in tests
     private static Map<String, CrossProjectIndexExpressionsRewriter.IndexRewriteResult> rewriteIndexExpressions(
         ProjectRoutingInfo originProject,
         List<ProjectRoutingInfo> linkedProjects,

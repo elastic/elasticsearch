@@ -26,6 +26,7 @@ import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressions
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.getAllProjectAliases;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.rewriteIndexExpression;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
@@ -329,9 +330,14 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
 
         {
             // Cannot apply exclusion for both the project and the index
-            expectThrows(IllegalArgumentException.class, () -> rewriteIndexExpressions(origin, linked, "-_origin:-metrics*"));
-            expectThrows(IllegalArgumentException.class, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
-            expectThrows(IllegalArgumentException.class, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
+            final var messageMatcher = containsString("Cannot apply exclusion for both the project and the index expression");
+            expectThrows(
+                IllegalArgumentException.class,
+                messageMatcher,
+                () -> rewriteIndexExpressions(origin, linked, "-_origin:-metrics*")
+            );
+            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P0:-metrics*"));
+            expectThrows(IllegalArgumentException.class, messageMatcher, () -> rewriteIndexExpressions(origin, linked, "-P1:-metrics*"));
         }
     }
 

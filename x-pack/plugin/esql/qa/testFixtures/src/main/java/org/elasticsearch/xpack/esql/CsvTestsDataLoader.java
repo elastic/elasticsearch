@@ -170,6 +170,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
     private static final TestDataset LOGS = new TestDataset("logs");
+    private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset COLORS = new TestDataset("colors");
@@ -243,6 +244,7 @@ public class CsvTestsDataLoader {
         Map.entry(BOOKS.indexName, BOOKS),
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
         Map.entry(LOGS.indexName, LOGS),
+        Map.entry(DENSE_VECTOR_TEXT.indexName, DENSE_VECTOR_TEXT),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
         Map.entry(COLORS.indexName, COLORS),

@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
@@ -336,10 +335,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeOptionalWriteable(timeSeries);
-                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-                    out.writeMap(indexSettingsValues);
-                    out.writeBoolean(templatePreferIlmValue);
-                }
+                out.writeMap(indexSettingsValues);
+                out.writeBoolean(templatePreferIlmValue);
                 out.writeOptionalVLong(maximumTimestamp);
                 if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);

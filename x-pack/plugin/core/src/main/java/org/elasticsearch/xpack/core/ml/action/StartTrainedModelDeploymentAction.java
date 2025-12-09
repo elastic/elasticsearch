@@ -550,14 +550,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.priority = in.readEnum(Priority.class);
             this.deploymentId = in.readString();
 
-            if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-                // We store additional model usage per allocation in the task params.
-                this.perDeploymentMemoryBytes = in.readLong();
-                this.perAllocationMemoryBytes = in.readLong();
-            } else {
-                this.perDeploymentMemoryBytes = 0L;
-                this.perAllocationMemoryBytes = 0L;
-            }
+            // We store additional model usage per allocation in the task params.
+            this.perDeploymentMemoryBytes = in.readLong();
+            this.perAllocationMemoryBytes = in.readLong();
         }
 
         public String getModelId() {
@@ -605,10 +600,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeOptionalWriteable(cacheSize);
             out.writeEnum(priority);
             out.writeString(deploymentId);
-            if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-                out.writeLong(perDeploymentMemoryBytes);
-                out.writeLong(perAllocationMemoryBytes);
-            }
+            out.writeLong(perDeploymentMemoryBytes);
+            out.writeLong(perAllocationMemoryBytes);
         }
 
         @Override

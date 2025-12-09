@@ -50,7 +50,7 @@ embeddings at query time. Use the [Create {{infer}} API](https://www.elastic.co/
     You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).     
     
-    Learn how to [use dedicated endpoints for ingestion and search](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search).
+    Learn how to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 `index_options` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Specifies the index options to override default values
@@ -119,13 +119,13 @@ The `semantic_text` field type specifies an {{infer}} endpoint identifier (`infe
 
 The following {{infer}} endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./semantic-text-how-tos.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually. 
+- [Default and preconfigured endpoints](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually. 
 
-- [ELSER on EIS](./semantic-text-how-tos.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service. 
+- [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service. 
 
-- [Custom endpoints](./semantic-text-how-tos.md#using-custom-endpoint): Create your own {{infer}} endpoint using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
+- [Custom endpoints](./semantic-text-setup-configuration.md#using-custom-endpoint): Create your own {{infer}} endpoint using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
 
-The recommended method is to use [dedicated endpoints for ingestion and search](./semantic-text-how-tos.md#dedicated-endpoints-for-ingestion-and-search) with separate `inference_id` and `search_inference_id` parameters. This ensures optimal performance by isolating ingestion and search workloads.
+The recommended method is to use [dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search) with separate `inference_id` and `search_inference_id` parameters. This ensures optimal performance by isolating ingestion and search workloads.
 
 ::::{warning}
 Removing an {{infer}} endpoint will cause ingestion of documents and semantic
@@ -150,7 +150,7 @@ Chunks are stored as start and end character offsets rather than as separate
 text strings. These offsets point to the exact location of each chunk within the
 original input text.
 
-You can [pre-chunk content](./semantic-text-how-tos.md#pre-chunking) by providing text as arrays before indexing.
+You can [pre-chunk content](./semantic-text-ingestions.md#pre-chunking) by providing text as arrays before indexing.
 
 Refer to the [{{infer-cap}} API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for values for `chunking_settings` and to [Configuring chunking](docs-content://explore-analyze/elastic-inference/inference-api.md#infer-chunking-config) to learn about different chunking strategies.
 

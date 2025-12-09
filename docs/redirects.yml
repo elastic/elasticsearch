@@ -118,7 +118,11 @@ redirects:
     to: 'reference/elasticsearch/mapping-reference/semantic-text.md'
     anchors: {} # pass-through unlisted anchors in the `many` ruleset
     many:
-      - to: 'reference/elasticsearch/mapping-reference/semantic-text-how-tos.md'
-        anchors: { 'using-elser-on-eis' }
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md'
+        anchors: { 'using-elser-on-eis', 'default-and-preconfigured-endpoints', 'using-custom-endpoint', 'dedicated-endpoints-for-ingestion-and-search', 'configure-inference-endpoints' }
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-ingestions.md'
+        anchors: { 'pre-chunking', 'use-copy-to-with-semantic-text', 'updates-and-partial-updates', 'scripted-updates' }
+      - to: 'reference/elasticsearch/mapping-reference/semantic-text-search-retrieval.md'
+        anchors: { 'querying-semantic-text-fields', 'retrieving-indexed-chunks', 'returning-semantic-field-embeddings', 'returning-semantic-field-embeddings-in-_source', 'reindex-while-preserving-embeddings', 'troubleshooting-semantic-text-fields', 'returning-semantic-field-embeddings-using-fields', 'highlighting-fragments', 'cross-cluster-search' }
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-reference.md'
-        anchors: { 'querying-semantic-text-fields' }
+        anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }

@@ -45,11 +45,18 @@ The `semantic_text` field type documentation is organized into reference content
 
 ### Reference
 
-The [Reference](./semantic-text-reference.md) page provides technical reference content, including [parameter descriptions](./semantic-text-reference.md#semantic-text-params) for `semantic_text` fields, an overview of [{{infer}} endpoints](./semantic-text-reference.md#configuring-inference-endpoints) used with `semantic_text` fields, how [chunking](./semantic-text-reference.md#chunking-behavior) automatically processes long text passages, [supported query types](./semantic-text-reference.md#querying-semantic-text-fields), [limitations](./semantic-text-reference.md#limitations), and [document count discrepancies](./semantic-text-reference.md#document-count-discrepancy) in `_cat/indices`.
+The [Reference](./semantic-text-reference.md) section provides technical reference content:
+
+- [Parameters](./semantic-text-reference.md#semantic-text-params): Parameter descriptions for `semantic_text` fields.
+- [{{infer-cap}} endpoints](./semantic-text-reference.md#configuring-inference-endpoints): Overview of {{infer}} endpoints used with `semantic_text` fields.
+- [Chunking](./semantic-text-reference.md#chunking-behavior): How `semantic_text` automatically processes long text passages by generating smaller chunks.
+- [Limitations](./semantic-text-reference.md#limitations): Current limitations of `semantic_text` fields.
+- [Document count discrepancy](./semantic-text-reference.md#document-count-discrepancy): Understanding document counts in `_cat/indices` for indices with `semantic_text` fields.
+- [Querying `semantic_text` fields](./semantic-text-search-retrieval.md#querying-semantic-text-fields): Supported query types for `semantic_text` fields.
 
 ### How-to guides
 
-The [How-to guides](./semantic-text-how-tos.md) page organizes procedure descriptions and examples into the following guides:
+The [How-to guides](./semantic-text-how-tos.md) section organizes procedure descriptions and examples into the following guides:
 
 - [Setup and configuration](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
 

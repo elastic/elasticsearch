@@ -65,21 +65,31 @@ public abstract class InferenceCommandIntegTestCase extends AbstractEsqlIntegTes
      * @param indexName the name of the index to create
      */
     protected void createAndPopulateTestIndex(String indexName) {
+        createAndPopulateTestIndex(indexName, 6);
+    }
+
+    /**
+     * Creates and populates a test index with the specified number of documents for inference testing.
+     * Each document has: id (integer), title (text), and content (text).
+     *
+     * @param indexName the name of the index to create
+     * @param numDocs the number of documents to create
+     */
+    protected void createAndPopulateTestIndex(String indexName, int numDocs) {
         var client = client().admin().indices();
         var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping("id", "type=integer", "title", "type=text", "content", "type=text");
         assertAcked(createRequest);
 
-        client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "title", "Introduction to Elasticsearch", "content", "A guide"))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "title", "Advanced Search Techniques", "content", "Deep dive"))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "title", "Machine Learning Basics", "content", "ML overview"))
-            .add(new IndexRequest(indexName).id("4").source("id", 4, "title", "Vector Search with Elasticsearch", "content", "Vectors"))
-            .add(new IndexRequest(indexName).id("5").source("id", 5, "title", "Query DSL Reference", "content", "Reference"))
-            .add(new IndexRequest(indexName).id("6").source("id", 6, "title", "Aggregations Tutorial", "content", "Aggs"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        var bulkRequest = client().prepareBulk();
+        for (int i = 1; i <= numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(indexName).id(String.valueOf(i))
+                    .source("id", i, "title", "Document " + i + " title", "content", "Document " + i + " content")
+            );
+        }
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         ensureYellow(indexName);
     }

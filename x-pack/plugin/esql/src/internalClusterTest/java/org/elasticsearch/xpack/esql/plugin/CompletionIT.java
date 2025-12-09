@@ -114,17 +114,21 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
     // Row Limit Tests
     // ============================================
 
-    public void testCompletionRowLimitEnforcement() {
+    public void testCompletionRowLimitEnforcement() throws IOException {
+        // Create an index with more documents than the default limit (100)
+        final String testIndexLarge = "test_completion_large";
+        createAndPopulateTestIndex(testIndexLarge, 150);
+        
         var query = String.format(Locale.ROOT, """
             FROM %s
             | COMPLETION title WITH { "inference_id": "%s" }
             | KEEP id, completion
-            """, TEST_INDEX, COMPLETION_MODEL_ID);
+            """, testIndexLarge, COMPLETION_MODEL_ID);
 
         try (var resp = run(query)) {
             List<List<Object>> values = getValuesList(resp);
-            // Should be limited by the default row limit (100)
-            assertThat(values.size(), lessThanOrEqualTo(100));
+            // Should be limited to exactly the default row limit (100)
+            assertThat(values, hasSize(100));
         }
     }
 
@@ -134,15 +138,20 @@ public class CompletionIT extends InferenceCommandIntegTestCase {
         updateClusterSettings(Settings.builder().put(InferenceSettings.COMPLETION_ROW_LIMIT_SETTING.getKey(), customLimit));
 
         try {
+            // Create an index with more documents than the custom limit
+            final String testIndexLarge = "test_completion_custom_limit";
+            createAndPopulateTestIndex(testIndexLarge, customLimit + 10);
+            
             var query = String.format(Locale.ROOT, """
                 FROM %s
                 | COMPLETION title WITH { "inference_id": "%s" }
                 | KEEP id, completion
-                """, TEST_INDEX, COMPLETION_MODEL_ID);
+                """, testIndexLarge, COMPLETION_MODEL_ID);
 
             try (var resp = run(query)) {
                 List<List<Object>> values = getValuesList(resp);
-                assertThat(values.size(), lessThanOrEqualTo(customLimit));
+                // Should be limited to exactly the custom limit
+                assertThat(values, hasSize(customLimit));
             }
         } finally {
             // Reset to default

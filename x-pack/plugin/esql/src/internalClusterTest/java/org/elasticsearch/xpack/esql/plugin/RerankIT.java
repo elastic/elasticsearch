@@ -136,17 +136,21 @@ public class RerankIT extends InferenceCommandIntegTestCase {
     // Row Limit Tests
     // ============================================
 
-    public void testRerankRowLimitEnforcement() {
+    public void testRerankRowLimitEnforcement() throws IOException {
+        // Create an index with more documents than the default limit (1000)
+        final String testIndexLarge = "test_rerank_large";
+        createAndPopulateTestIndex(testIndexLarge, 1100);
+        
         var query = String.format(Locale.ROOT, """
             FROM %s
             | RERANK "search query" ON title WITH { "inference_id": "%s" }
             | KEEP id, _score
-            """, TEST_INDEX, RERANK_MODEL_ID);
+            """, testIndexLarge, RERANK_MODEL_ID);
 
         try (var resp = run(query)) {
             List<List<Object>> values = getValuesList(resp);
-            // Should be limited by the default row limit (1000)
-            assertThat(values.size(), lessThanOrEqualTo(1000));
+            // Should be limited to exactly the default row limit (1000)
+            assertThat(values, hasSize(1000));
         }
     }
 
@@ -156,15 +160,20 @@ public class RerankIT extends InferenceCommandIntegTestCase {
         updateClusterSettings(Settings.builder().put(InferenceSettings.RERANK_ROW_LIMIT_SETTING.getKey(), customLimit));
 
         try {
+            // Create an index with more documents than the custom limit
+            final String testIndexLarge = "test_rerank_custom_limit";
+            createAndPopulateTestIndex(testIndexLarge, customLimit + 10);
+            
             var query = String.format(Locale.ROOT, """
                 FROM %s
                 | RERANK "search query" ON title WITH { "inference_id": "%s" }
                 | KEEP id, _score
-                """, TEST_INDEX, RERANK_MODEL_ID);
+                """, testIndexLarge, RERANK_MODEL_ID);
 
             try (var resp = run(query)) {
                 List<List<Object>> values = getValuesList(resp);
-                assertThat(values.size(), lessThanOrEqualTo(customLimit));
+                // Should be limited to exactly the custom limit
+                assertThat(values, hasSize(customLimit));
             }
         } finally {
             // Reset to default

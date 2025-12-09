@@ -131,21 +131,24 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         }
     }
 
-    private record Index(String type, Set<String> elementTypes) {}
+    private record Index(boolean index, String type, Set<String> elementTypes) {}
 
     private static final Set<String> ALL_ELEMENT_TYPES = Stream.of(DenseVectorFieldMapper.ElementType.values())
         .map(Object::toString)
         .collect(Collectors.toUnmodifiableSet());
+    private static final Set<String> FLOAT_ELEMENT_TYPES = Set.of("float", "bfloat16");
     private static final Set<Index> INDEXES = Set.of(
-        new Index(null, ALL_ELEMENT_TYPES),
-        new Index("hnsw", ALL_ELEMENT_TYPES),
-        new Index("int8_hnsw", Set.of("float", "bfloat16")),
-        new Index("int4_hnsw", Set.of("float", "bfloat16")),
-        new Index("flat", ALL_ELEMENT_TYPES),
-        new Index("int8_flat", Set.of("float", "bfloat16")),
-        new Index("int4_flat", Set.of("float", "bfloat16")),
-        new Index("bbq_hnsw", Set.of("float", "bfloat16")),
-        new Index("bbq_flat", Set.of("float", "bfloat16"))
+        new Index(false, null, ALL_ELEMENT_TYPES),
+        new Index(true, null, ALL_ELEMENT_TYPES),
+        new Index(true, "hnsw", ALL_ELEMENT_TYPES),
+        new Index(true, "int8_hnsw", FLOAT_ELEMENT_TYPES),
+        new Index(true, "int4_hnsw", FLOAT_ELEMENT_TYPES),
+        new Index(true, "flat", ALL_ELEMENT_TYPES),
+        new Index(true, "int8_flat", FLOAT_ELEMENT_TYPES),
+        new Index(true, "int4_flat", FLOAT_ELEMENT_TYPES),
+        new Index(true, "bbq_hnsw", FLOAT_ELEMENT_TYPES),
+        new Index(true, "bbq_flat", FLOAT_ELEMENT_TYPES),
+        new Index(true, "bbq_disk", FLOAT_ELEMENT_TYPES)
     );
 
     public void testDenseVectorIndexOverUpgrade() throws IOException {
@@ -158,7 +161,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                     if (dims.isEmpty()) {
                         continue;
                     }
-                    String indexName = "test_index_" + i.type() + "_" + elementType;
+                    String indexName = i.index() ? "test_index_" + i.type() + "_" + elementType : "test_nonindexed_" + elementType;
                     Request createIndex = new Request("PUT", "/" + indexName);
 
                     XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
@@ -170,9 +173,11 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                         .startObject("embedding")
                         .field("type", "dense_vector")
                         .field("element_type", elementType)
-                        .field("index", "true")
-                        .field("dims", elementType.equals("bit") ? dims.getAsInt() * 8 : dims.getAsInt())
-                        .field("similarity", "l2_norm");
+                        .field("index", i.index())
+                        .field("dims", elementType.equals("bit") ? dims.getAsInt() * 8 : dims.getAsInt());
+                    if (i.index()) {
+                        payload.field("similarity", "l2_norm");
+                    }
                     if (i.type() != null) {
                         payload.startObject("index_options").field("type", i.type()).endObject();
                     }
@@ -189,7 +194,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                 if (dims.isEmpty()) {
                     continue;
                 }
-                String indexName = "test_index_" + i.type() + "_" + elementType;
+                String indexName = i.index() ? "test_index_" + i.type() + "_" + elementType : "test_nonindexed_" + elementType;
 
                 Request index = new Request("POST", "/" + indexName + "/_bulk/");
                 index.addParameter("refresh", "true");

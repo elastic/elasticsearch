@@ -175,7 +175,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assumeTrue("test clusters were broken", testClustersOk);
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
-            if (supportsInferenceTestService()) {
+            // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
+            if (supportsInferenceTestServiceOnLocalCluster()) {
                 createInferenceEndpoints(adminClient());
             }
             loadDataSetIntoEs(
@@ -239,6 +240,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (requiresInferenceEndpoint()) {
             assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
         }
+        if (requiresInferenceEndpointOnLocalCluster()) {
+            assumeTrue("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
+        }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (supportsSourceFieldMapping() == false) {
@@ -252,13 +256,22 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         String testName,
         CsvTestCase testCase
     ) {
-        if (hasCapabilities(client, testCase.requiredCapabilities)) {
+        checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilities);
+    }
+
+    protected static void checkCapabilities(
+        RestClient client,
+        TestFeatureService testFeatureService,
+        String testName,
+        List<String> requiredCapabilities
+    ) {
+        if (hasCapabilities(client, requiredCapabilities)) {
             return;
         }
 
         var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
 
-        for (String feature : testCase.requiredCapabilities) {
+        for (String feature : requiredCapabilities) {
             var esqlFeature = "esql." + feature;
             assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
             assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
@@ -269,9 +282,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
+    protected boolean supportsInferenceTestServiceOnLocalCluster() {
+        return supportsInferenceTestService();
+    }
+
     protected boolean requiresInferenceEndpoint() {
+        return testCase.requiredCapabilities.contains(SEMANTIC_TEXT_FIELD_CAPS.capabilityName());
+    }
+
+    protected boolean requiresInferenceEndpointOnLocalCluster() {
         return Stream.of(
-            SEMANTIC_TEXT_FIELD_CAPS.capabilityName(),
             RERANK.capabilityName(),
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),

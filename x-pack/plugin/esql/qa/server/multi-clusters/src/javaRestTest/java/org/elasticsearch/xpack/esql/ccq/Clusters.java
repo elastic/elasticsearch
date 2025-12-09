@@ -54,6 +54,9 @@ public class Clusters {
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
+        if (localClusterSupportsInferenceTestService()) {
+            cluster.plugin("inference-service-test");
+        }
         return cluster.build();
     }
 
@@ -71,6 +74,22 @@ public class Clusters {
         org.elasticsearch.Version local = localClusterVersion();
         org.elasticsearch.Version remote = remoteClusterVersion();
         return local.before(remote) ? local : remote;
+    }
+
+    public static boolean localClusterSupportsInferenceTestService() {
+        return isNewToOld() && localClusterVersion().onOrAfter(org.elasticsearch.Version.fromString("9.3.0"));
+    }
+
+    /**
+     * Returns true if the current task is a "newToOld" BWC test.
+     * Checks the tests.task system property to determine the task type.
+     */
+    public static boolean isNewToOld() {
+        String taskName = System.getProperty("tests.task");
+        if (taskName == null) {
+            return false;
+        }
+        return taskName.endsWith("#newToOld");
     }
 
     private static Version distributionVersion(String key) {

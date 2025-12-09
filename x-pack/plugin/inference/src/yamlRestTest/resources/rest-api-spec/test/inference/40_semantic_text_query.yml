@@ -450,8 +450,6 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: dense-inference-bfloat16-id
-              non_inference_field:
-                type: text
 
   - do:
       index:
@@ -459,7 +457,6 @@ setup:
         id: doc_1
         body:
           inference_field: [ "inference test", "another inference test" ]
-          non_inference_field: "non inference test"
         refresh: true
 
   - do:
@@ -470,9 +467,8 @@ setup:
         index: test-dense-bfloat16-index
         body:
           query:
-            semantic:
-              field: "inference_field"
-              query: "inference test"
+            match:
+              inference_field: "inference test"
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }

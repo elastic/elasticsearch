@@ -6,15 +6,19 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
 
@@ -46,6 +50,15 @@ public class DeleteViewAction extends ActionType<AcknowledgedResponse> {
 
         public String name() {
             return name;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            ActionRequestValidationException validationException = null;
+            if (Strings.hasText(name) == false) {
+                validationException = addValidationError("name cannot be null or missing", validationException);
+            }
+            return validationException;
         }
 
         @Override

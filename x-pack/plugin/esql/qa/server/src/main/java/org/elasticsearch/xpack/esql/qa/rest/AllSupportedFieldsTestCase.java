@@ -951,7 +951,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return switch (t) {
             // Enrich policies don't work with types that have mandatory fields in the mapping.
             // https://github.com/elastic/elasticsearch/issues/127350
-            case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT, EXPONENTIAL_HISTOGRAM,
+            case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
+                // https://github.com/elastic/elasticsearch/issues/139255
+                EXPONENTIAL_HISTOGRAM,
                 // https://github.com/elastic/elasticsearch/issues/137699
                 DENSE_VECTOR -> false;
             default -> true;

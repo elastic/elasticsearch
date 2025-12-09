@@ -5,7 +5,8 @@
       "description": "Creates a non-materialized VIEW for ESQL."
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "feature_flag",
+    "feature_flag": "esql_views",
     "headers": {
       "accept": [
         "application/json"

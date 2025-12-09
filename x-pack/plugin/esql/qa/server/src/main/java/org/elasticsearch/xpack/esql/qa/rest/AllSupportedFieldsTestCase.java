@@ -43,7 +43,6 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
-import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -899,12 +898,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo(List.of(0.5, 10.0, 5.9999995));
             }
             case DATE_RANGE -> {
-                // See expectedType for an explanation
-                if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
-                    || minimumVersion.supports(ESQL_LONG_RANGES) == false) {
-                    yield nullValue();
-                }
-                yield equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z");
+                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
+                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
+                // will always be null here.
+                yield nullValue();
             }
 
             default -> throw new AssertionError("unsupported field type [" + type + "]");
@@ -1027,6 +1024,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     yield equalTo("unsupported");
                 }
                 yield equalTo("dense_vector");
+            }
+            case DATE_RANGE -> {
+                // DATE_RANGE is underConstruction, so it's only supported on snapshot builds.
+                // This test only runs on non-snapshot builds (skipSnapshots()), so DATE_RANGE
+                // will always be "unsupported" here.
+                yield equalTo("unsupported");
             }
             default -> equalTo(type.esType());
         };

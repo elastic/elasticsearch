@@ -33,7 +33,7 @@ public class ViewTests extends AbstractXContentSerializingTestCase<View> {
 
     @Override
     protected View mutateInstance(View instance) {
-        return randomView(instance.name());
+        return randomValueOtherThan(instance, () -> randomView(instance.name()));
     }
 
     @Override

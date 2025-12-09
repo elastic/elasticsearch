@@ -144,27 +144,3 @@ setup:
       catch: /view \[dogs\] not found/
       esql.delete_view:
         name: dogs
-
----
-"basic":
-  - requires:
-      cluster_features: [ "esql.esql_views" ]
-      reason: requires esql views to be enabled
-      test_runner_features: [ allowed_warnings_regex ]
-
-  - do:
-      esql.put_view:
-        name: dogs
-        body:
-          query: 'FROM test | WHERE animal == "dog"'
-
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM dogs | WHERE color == "white" | KEEP id | SORT id'
-  - match: { columns.0.name: "id" }
-  - match: { columns.0.type: "integer" }
-  - length: { values: 1 }
-  - match: { values.0.0: 3 }

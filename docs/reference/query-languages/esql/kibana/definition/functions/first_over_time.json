@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "counter_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -28,7 +28,7 @@
           "name" : "field",
           "type" : "counter_integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -46,7 +46,7 @@
           "name" : "field",
           "type" : "counter_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -64,7 +64,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -82,7 +82,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -100,7 +100,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",

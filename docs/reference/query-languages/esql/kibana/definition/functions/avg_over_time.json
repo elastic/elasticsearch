@@ -7,10 +7,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : "Expression that outputs values to average."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -25,10 +25,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : "Expression that outputs values to average."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -43,10 +43,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : "Expression that outputs values to average."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -61,10 +61,10 @@
     {
       "params" : [
         {
-          "name" : "number",
+          "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : "Expression that outputs values to average."
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",

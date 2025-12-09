@@ -63,7 +63,8 @@ public class MinOverTime extends TimeSeriesAggregateFunction implements Optional
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" }
+                "exponential_histogram" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

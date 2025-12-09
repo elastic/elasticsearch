@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "aggregate_metric_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -28,7 +28,7 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -46,7 +46,7 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",
@@ -64,7 +64,7 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the value for"
         },
         {
           "name" : "window",

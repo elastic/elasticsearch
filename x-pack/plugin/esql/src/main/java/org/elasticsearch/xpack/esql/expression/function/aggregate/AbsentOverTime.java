@@ -67,7 +67,8 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" }
+                "exponential_histogram" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

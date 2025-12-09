@@ -69,7 +69,8 @@ public class CountOverTime extends TimeSeriesAggregateFunction implements Option
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version" },
+            description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
             name = "window",

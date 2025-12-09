@@ -30,7 +30,11 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 public class BaseMockEISAuthServerTest extends ESRestTestCase {
 
     protected static final MockElasticInferenceServiceAuthorizationServer mockEISServer =
-        new MockElasticInferenceServiceAuthorizationServer(1);
+        new MockElasticInferenceServiceAuthorizationServer();
+
+    static {
+        mockEISServer.init(1);
+    }
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

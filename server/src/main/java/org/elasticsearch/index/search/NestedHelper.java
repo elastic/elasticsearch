@@ -19,7 +19,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -164,28 +163,5 @@ public final class NestedHelper {
             return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
         }
         return true;
-    }
-
-    /**
-     * @return true if the query or any of its descendant queries contains a nested query {@link ESToParentBlockJoinQuery}
-     */
-    public static boolean containsNestedQuery(Query query) {
-        NestedQueryDetector nestedQueryDetector = new NestedQueryDetector();
-        query.visit(nestedQueryDetector);
-        return nestedQueryDetector.containsNested();
-    }
-
-    private static class NestedQueryDetector extends QueryVisitor {
-        private boolean containsNested = false;
-
-        @Override
-        public QueryVisitor getSubVisitor(Occur occur, Query parent) {
-            containsNested |= parent instanceof ESToParentBlockJoinQuery;
-            return super.getSubVisitor(occur, parent);
-        }
-
-        boolean containsNested() {
-            return containsNested;
-        }
     }
 }

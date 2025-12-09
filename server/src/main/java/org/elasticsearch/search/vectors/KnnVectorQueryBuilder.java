@@ -30,10 +30,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
+import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -45,6 +47,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
@@ -88,6 +92,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             (Float) args[5]
         )
     );
+
+    /**
+     * Semantic knn queries will be wrapped in a nested query as the target field is the nested embeddings vector.
+     * knn pre-filtering does not handle nested filters when the knn itself is in a nested query.
+     * (see <a href="https://github.com/elastic/elasticsearch/issues/138410">elasticsearch/#138410</a>)
+     */
+    public static final Set<Class<? extends QueryBuilder>> UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES = Set.of(NestedQueryBuilder.class);
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
@@ -148,6 +159,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
      * This is used to prevent infinite loops while applying auto pre-filtering as it is possible
      * to have two knn queries where the one is a prefilter to the other.
      */
+    // TODO remove
     private boolean isInTheMiddleOfAutoPrefiltering = false;
 
     public KnnVectorQueryBuilder(
@@ -676,8 +688,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             isInTheMiddleOfAutoPrefiltering = true;
             final List<Query> autoPrefilters = new ArrayList<>();
             for (QueryBuilder queryBuilder : context.autoPrefilteringScope().getPrefilters().stream().filter(f -> this != f).toList()) {
-                Query query = queryBuilder.toQuery(context);
-                if (NestedHelper.containsNestedQuery(query) == false) {
+                Optional<QueryBuilder> pruned = AutoPrefilteringUtils.pruneQuery(queryBuilder, UNSUPPORTED_AUTO_PREFILTERING_QUERY_TYPES);
+                if (pruned.isPresent()) {
+                    Query query = pruned.get().toQuery(context);
                     autoPrefilters.add(query);
                 }
             }

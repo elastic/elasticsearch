@@ -359,32 +359,4 @@ public class NestedHelperTests extends MapperServiceTestCase {
         assertTrue(NestedHelper.mightMatchNonNestedDocs(query, "nested3", searchExecutionContext));
         assertTrue(NestedHelper.mightMatchNonNestedDocs(query, "nested_missing", searchExecutionContext));
     }
-
-    public void testContainsNestedQuery_GivenTerm() {
-        Query query = new TermQuery(new Term("foo", "bar"));
-        assertFalse(NestedHelper.containsNestedQuery(query));
-    }
-
-    public void testContainsNestedQuery_GivenNested() throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext(mapperService);
-        NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
-        ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
-        assertTrue(NestedHelper.containsNestedQuery(query));
-    }
-
-    public void testContainsNestedQuery_GivenBoolWithTerm() throws IOException {
-        BooleanQuery query = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), requiredOccur()).build();
-        assertFalse(NestedHelper.containsNestedQuery(query));
-    }
-
-    public void testContainsNestedQuery_GivenBoolWithNested() throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext(mapperService);
-        ESToParentBlockJoinQuery nestedQuery = (ESToParentBlockJoinQuery) new NestedQueryBuilder(
-            "nested1",
-            new MatchAllQueryBuilder(),
-            ScoreMode.Avg
-        ).toQuery(context);
-        BooleanQuery query = new BooleanQuery.Builder().add(nestedQuery, requiredOccur()).build();
-        assertTrue(NestedHelper.containsNestedQuery(query));
-    }
 }

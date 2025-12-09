@@ -113,8 +113,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     ) {
         SemanticChunkScorer scorer = new SemanticChunkScorer(searchContext);
         try {
-            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(),
-                size);
+            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
             if (scoredChunks.isEmpty()) {
                 scoredChunks = chunkAndScoreBm25(hit.field(field).getValue().toString(), size);
             }

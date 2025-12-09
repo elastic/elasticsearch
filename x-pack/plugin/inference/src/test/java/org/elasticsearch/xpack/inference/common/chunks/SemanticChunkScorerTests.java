@@ -15,8 +15,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -25,6 +23,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -34,8 +33,6 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,6 +41,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -240,8 +238,13 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
             iw.addDocuments(doc.docs());
             try (DirectoryReader reader = wrapInMockESDirectoryReader(iw.getReader())) {
                 IndexSearcher searcher = newSearcher(reader);
-                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false);
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    false
+                );
                 iw.close();
                 TopDocs topDocs = searcher.search(Queries.newNonNestedFilter(IndexVersion.current()), 1, Sort.INDEXORDER);
                 assertThat(topDocs.totalHits.value(), equalTo(1L));
@@ -253,14 +256,9 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
                 hit.sourceRef(source.source());
                 if (useLegacyFormat == false) {
                     // Required for hit.field() to work without going through fetch phase
-                    String fullBodyText = (String) XContentHelper.convertToMap(
-                        source.source(),
-                        false,
-                        XContentType.JSON
-                    ).v2().get("body");
+                    String fullBodyText = (String) XContentHelper.convertToMap(source.source(), false, XContentType.JSON).v2().get("body");
                     hit.setDocumentField(new DocumentField("body", List.of(fullBodyText)));
                 }
-
 
                 try {
                     var searchContext = mock(org.elasticsearch.search.internal.SearchContext.class);

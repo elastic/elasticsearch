@@ -75,7 +75,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomAlphaOfLengthBetween(1, 10),
                 null,
                 blobSize,
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
@@ -96,7 +96,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 blobName,
                 new ByteArrayInputStream(new byte[0]),
                 ByteSizeUnit.MB.toBytes(2),
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Upload request size [2097152] can't be larger than buffer size", e.getMessage());
@@ -142,7 +142,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(client.putObject(requestCaptor.capture(), bodyCaptor.capture())).thenReturn(PutObjectResponse.builder().build());
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, failIfAlreadyExists);
+        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, randomCondition());
 
         final PutObjectRequest request = requestCaptor.getValue();
         assertEquals(bucketName, request.bucket());
@@ -185,7 +185,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomAlphaOfLengthBetween(1, 10),
                 null,
                 blobSize,
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be larger than 5tb", e.getMessage());
@@ -204,7 +204,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 randomAlphaOfLengthBetween(1, 10),
                 null,
                 blobSize,
-                randomBoolean()
+                randomCondition()
             )
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be smaller than 5mb", e.getMessage());
@@ -305,7 +305,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         if (doCopy) {
             blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize);
         } else {
-            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, failIfAlreadyExists);
+            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, randomCondition());
         }
 
         final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestCaptor.getValue();
@@ -461,7 +461,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
                 blobName,
                 new ByteArrayInputStream(new byte[0]),
                 blobSize,
-                randomBoolean()
+                randomCondition()
             );
         });
 
@@ -555,6 +555,14 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             });
         }
         return client;
+    }
+
+    private S3BlobContainer.ConditionalOperation randomCondition() {
+        return switch (between(0, 2)) {
+            case 0 -> S3BlobContainer.ConditionalOperation.NONE;
+            case 1 -> S3BlobContainer.ConditionalOperation.IF_NONE_MATCH;
+            default -> S3BlobContainer.ConditionalOperation.ifMatch(randomAlphanumericOfLength(128));
+        };
     }
 
     private static void closeMockClient(S3BlobStore blobStore) {

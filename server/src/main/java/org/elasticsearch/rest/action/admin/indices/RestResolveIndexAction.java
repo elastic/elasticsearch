@@ -59,6 +59,9 @@ public class RestResolveIndexAction extends BaseRestHandler {
         String modeParam = request.param("mode");
         final boolean crossProjectEnabled = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
         String projectRouting = null;
+        if (crossProjectEnabled) {
+            projectRouting = request.param("project_routing");
+        }
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS);
         if (crossProjectEnabled) {
             indicesOptions = IndicesOptions.builder(indicesOptions)

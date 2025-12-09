@@ -141,6 +141,11 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
+    public String nodeString() {
+        return docValuesAttributes.isEmpty() ? super.nodeString() : super.nodeString() + "<" + docValuesAttributes + ">";
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes);
     }

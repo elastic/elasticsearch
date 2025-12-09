@@ -13,11 +13,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.diversification.ResultDiversificationContext;
 import org.elasticsearch.search.vectors.VectorData;
 
+import java.util.function.Supplier;
+
 public class MMRResultDiversificationContext extends ResultDiversificationContext {
 
     private final float lambda;
 
-    public MMRResultDiversificationContext(String field, float lambda, int size, @Nullable VectorData queryVector) {
+    public MMRResultDiversificationContext(String field, float lambda, int size, @Nullable Supplier<VectorData> queryVector) {
         super(field, size, queryVector);
         this.lambda = lambda;
     }

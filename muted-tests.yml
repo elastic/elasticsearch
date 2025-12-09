@@ -475,6 +475,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/180_update_dense_vector_type/Test update flat --> bbq_flat --> bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/139253
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_half_byte_quantized_bfloat16/Knn search with mip}
+  issue: https://github.com/elastic/elasticsearch/issues/139254
+- class: org.elasticsearch.xpack.security.authc.saml.SamlServiceProviderMetadataIT
+  method: testAuthenticationWhenMetadataIsUnreliable
+  issue: https://github.com/elastic/elasticsearch/issues/139067
 
 # Examples:
 #

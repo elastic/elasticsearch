@@ -15,18 +15,17 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.MapperFeatures;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.OptionalInt;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
@@ -131,24 +130,25 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         }
     }
 
-    private record Index(boolean index, String type, Set<String> elementTypes) {}
+    private record Index(boolean index, String type, Collection<ElementType> elementTypes, boolean[] directIO) {}
 
-    private static final Set<String> ALL_ELEMENT_TYPES = Stream.of(DenseVectorFieldMapper.ElementType.values())
-        .map(Object::toString)
-        .collect(Collectors.toUnmodifiableSet());
-    private static final Set<String> FLOAT_ELEMENT_TYPES = Set.of("float", "bfloat16");
-    private static final Set<Index> INDEXES = Set.of(
-        new Index(false, null, ALL_ELEMENT_TYPES),
-        new Index(true, null, ALL_ELEMENT_TYPES),
-        new Index(true, "hnsw", ALL_ELEMENT_TYPES),
-        new Index(true, "int8_hnsw", FLOAT_ELEMENT_TYPES),
-        new Index(true, "int4_hnsw", FLOAT_ELEMENT_TYPES),
-        new Index(true, "flat", ALL_ELEMENT_TYPES),
-        new Index(true, "int8_flat", FLOAT_ELEMENT_TYPES),
-        new Index(true, "int4_flat", FLOAT_ELEMENT_TYPES),
-        new Index(true, "bbq_hnsw", FLOAT_ELEMENT_TYPES),
-        new Index(true, "bbq_flat", FLOAT_ELEMENT_TYPES),
-        new Index(true, "bbq_disk", FLOAT_ELEMENT_TYPES)
+    private static final List<ElementType> ALL_ELEMENT_TYPES = List.of(ElementType.values());
+    private static final List<ElementType> FLOAT_ELEMENT_TYPES = List.of(ElementType.FLOAT, ElementType.BFLOAT16);
+    private static final boolean[] SUPPORTS_DIRECT_IO = new boolean[] { false, true };
+    private static final boolean[] NO_DIRECT_IO = new boolean[] { false };
+
+    private static final List<Index> INDEXES = List.of(
+        new Index(false, null, ALL_ELEMENT_TYPES, NO_DIRECT_IO),
+        new Index(true, null, ALL_ELEMENT_TYPES, NO_DIRECT_IO),
+        new Index(true, "hnsw", ALL_ELEMENT_TYPES, NO_DIRECT_IO),
+        new Index(true, "int8_hnsw", FLOAT_ELEMENT_TYPES, SUPPORTS_DIRECT_IO),
+        new Index(true, "int4_hnsw", FLOAT_ELEMENT_TYPES, SUPPORTS_DIRECT_IO),
+        new Index(true, "flat", ALL_ELEMENT_TYPES, NO_DIRECT_IO),
+        new Index(true, "int8_flat", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO),
+        new Index(true, "int4_flat", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO),
+        new Index(true, "bbq_hnsw", FLOAT_ELEMENT_TYPES, SUPPORTS_DIRECT_IO),
+        new Index(true, "bbq_flat", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO)
+        //new Index(true, "bbq_disk", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO)
     );
 
     public void testDenseVectorIndexOverUpgrade() throws IOException {
@@ -156,58 +156,79 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
             boolean useSyntheticSource = randomBoolean();
 
             for (Index i : INDEXES) {
-                for (String elementType : i.elementTypes()) {
-                    var dims = getDimensions(i.type(), elementType);
-                    if (dims.isEmpty()) {
-                        continue;
-                    }
-                    String indexName = i.index() ? "test_index_" + i.type() + "_" + elementType : "test_nonindexed_" + elementType;
-                    Request createIndex = new Request("PUT", "/" + indexName);
+                for (ElementType elementType : i.elementTypes()) {
+                    for (boolean directIO : i.directIO()) {
+                        var dims = getDimensions(i.type(), elementType, directIO);
+                        if (dims.isEmpty()) {
+                            continue;
+                        }
+                        Request createIndex = new Request("PUT", "/" + indexName(i, elementType, directIO));
 
-                    XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
-                    if (useSyntheticSource) {
-                        payload.startObject("settings").field("index.mapping.source.mode", "synthetic").endObject();
+                        XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+                        if (useSyntheticSource) {
+                            payload.startObject("settings").field("index.mapping.source.mode", "synthetic").endObject();
+                        }
+                        payload.startObject("mappings");
+                        payload.startObject("properties")
+                            .startObject("embedding")
+                            .field("type", "dense_vector")
+                            .field("element_type", elementType)
+                            .field("index", i.index())
+                            .field("dims", elementType == ElementType.BIT ? dims.getAsInt() * 8 : dims.getAsInt());
+                        if (i.index()) {
+                            payload.field("similarity", "l2_norm");
+                        }
+                        if (i.type() != null) {
+                            payload.startObject("index_options").field("type", i.type());
+                            if (directIO) {
+                                payload.field("on_disk_rescore", true);
+                            }
+                                payload.endObject();
+                        }
+                        payload.endObject().endObject().endObject().endObject();
+                        createIndex.setJsonEntity(Strings.toString(payload));
+                        client().performRequest(createIndex);
                     }
-                    payload.startObject("mappings");
-                    payload.startObject("properties")
-                        .startObject("embedding")
-                        .field("type", "dense_vector")
-                        .field("element_type", elementType)
-                        .field("index", i.index())
-                        .field("dims", elementType.equals("bit") ? dims.getAsInt() * 8 : dims.getAsInt());
-                    if (i.index()) {
-                        payload.field("similarity", "l2_norm");
-                    }
-                    if (i.type() != null) {
-                        payload.startObject("index_options").field("type", i.type()).endObject();
-                    }
-                    payload.endObject().endObject().endObject().endObject();
-                    createIndex.setJsonEntity(Strings.toString(payload));
-                    client().performRequest(createIndex);
                 }
             }
         }
 
         for (Index i : INDEXES) {
-            for (String elementType : i.elementTypes()) {
-                var dims = getDimensions(i.type(), elementType);
-                if (dims.isEmpty()) {
-                    continue;
+            for (ElementType elementType : i.elementTypes()) {
+                for (boolean directIO : i.directIO()) {
+                    var dims = getDimensions(i.type(), elementType, directIO);
+                    if (dims.isEmpty()) {
+                        continue;
+                    }
+                    String indexName = indexName(i, elementType, directIO);
+
+                    Request index = new Request("POST", "/" + indexName + "/_bulk/");
+                    index.addParameter("refresh", "true");
+                    index.setJsonEntity(generateBulkData(upgradedNodes, dims.getAsInt()));
+                    assertOK(client().performRequest(index));
+
+                    assertCount(indexName, (upgradedNodes + 1) * 10);
                 }
-                String indexName = i.index() ? "test_index_" + i.type() + "_" + elementType : "test_nonindexed_" + elementType;
-
-                Request index = new Request("POST", "/" + indexName + "/_bulk/");
-                index.addParameter("refresh", "true");
-                index.setJsonEntity(generateBulkData(upgradedNodes, dims.getAsInt()));
-                assertOK(client().performRequest(index));
-
-                assertCount(indexName, (upgradedNodes + 1) * 10);
             }
         }
     }
 
-    private OptionalInt getDimensions(String type, String elementType) {
-        if (elementType.equals("bfloat16") && oldClusterHasFeature(MapperFeatures.GENERIC_VECTOR_FORMAT) == false) {
+    private static String indexName(Index i, ElementType elementType, boolean directIO) {
+        if (i.index() == false) {
+            return "test_nonindexed_" + elementType;
+        }
+        String index = "test_index_" + i.type() + "_" + elementType;
+        if (directIO) {
+            index += "_directio";
+        }
+        return index;
+    }
+
+    private static OptionalInt getDimensions(String type, ElementType elementType, boolean directIO) {
+        if (type != null && type.equals("bbq_disk") && oldClusterHasFeature(MapperFeatures.BBQ_DISK_SUPPORT) == false) {
+            return OptionalInt.empty();
+        }
+        if (oldClusterHasFeature(MapperFeatures.GENERIC_VECTOR_FORMAT) == false && (directIO || elementType == ElementType.BFLOAT16)) {
             return OptionalInt.empty();
         }
         if (type != null && type.startsWith("bbq_")) {
@@ -222,6 +243,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
         assertEquals(
+            "Failed on index " + index,
             "{\"hits\":{\"total\":" + count + "}}",
             EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
         );

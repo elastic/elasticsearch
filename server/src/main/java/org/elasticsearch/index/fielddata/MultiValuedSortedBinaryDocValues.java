@@ -40,6 +40,7 @@ public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
             scratch.bytes = bytes.bytes;
             return true;
         } else {
+            count = 0;
             return false;
         }
     }

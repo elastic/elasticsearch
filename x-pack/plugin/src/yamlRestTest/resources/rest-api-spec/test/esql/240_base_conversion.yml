@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ to_long_base ]
+          capabilities: [ base_conversion ]
       reason: "to_long base conversion enhancement"
 
   # Common types - https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/field-data-types#_core_datatypes
@@ -190,7 +190,19 @@ no index, to_long with 3 args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "function [to_long] expects one or two arguments but it received 3" }
+  - contains: { error.reason: "expects one or two arguments but it received 3" }
+
+---
+no index, to_integer with 3 args:
+  - do:
+      esql.query:
+        body:
+          query: 'row a = "123", b = 10, c = 999 | eval int1 = to_integer(a,b,c) | keep int1'
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: "expects one or two arguments but it received 3" }
 
 ---
 no index, to_long with no args:
@@ -202,10 +214,22 @@ no index, to_long with no args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "function [to_long] expects one or two arguments but it received 0" }
+  - contains: { error.reason: "expects one or two arguments but it received 0" }
 
 ---
-no index, literal second argument is not an integer:
+no index, to_integer with no args:
+  - do:
+      esql.query:
+        body:
+          query: 'row a = "123", b = 10, c = 999 | eval int1 = to_integer() | keep int1'
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: "expects one or two arguments but it received 0" }
+
+---
+no index, to_long literal second argument is not an integer:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -219,44 +243,32 @@ no index, literal second argument is not an integer:
   - match: { error.type: verification_exception }
   - contains: { error.reason: "Cannot convert string [ten] to [LONG], error [Cannot parse number [ten]]" }
 
+---
+no index, to_integer literal second argument is not an integer:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row unused = 0 | eval int1 = to_integer("101", "ten") | keep int1'
+
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "Cannot convert string [ten] to [LONG], error [Cannot parse number [ten]]" }
+
 
 # tests from indices
 #
-# TO_LONG(field, 10)    - types allowed in first argument
-# TO_LONG("101", field) - types allowed in second argument
+# TO_LONG(field, 10)       - types allowed in first argument
+# TO_INTEGER(field, 10)    - types allowed in first argument
+# TO_LONG("101", field)    - types allowed in second argument
+# TO_INTEGER("101", field) - types allowed in second argument
 #
 
 ---
-common_family, first argument, unsupported type binary:
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'from common_family | eval long1 = to_long(_binary, 10) | keep long1'
-      catch: "bad_request"
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "Cannot use field [_binary] with unsupported type [binary]" }
-
-
----
-common_family, second argument, unsupported type binary:
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'from common_family | eval long1 = to_long("101", _binary) | keep long1'
-      catch: "bad_request"
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "Cannot use field [_binary] with unsupported type [binary]" }
-
----
-common_family, first argument, boolean not a string:
+common_family, to_long first argument, boolean not a string:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -270,7 +282,21 @@ common_family, first argument, boolean not a string:
   - contains: { error.reason: "first argument of [to_long(_boolean, 10)] must be [string], found value [_boolean] type [boolean]" }
 
 ---
-common_family, second argument, boolean not an integer:
+common_family, to_integer first argument, boolean not a string:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from common_family | eval int1 = to_integer(_boolean, 10) | keep int1'
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "first argument of [to_integer(_boolean, 10)] must be [string], found value [_boolean] type [boolean]" }
+
+---
+common_family, to_long second argument, boolean not an integer:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -282,6 +308,20 @@ common_family, second argument, boolean not an integer:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: "second argument of [to_long(\"101\", _boolean)] must be [integer], found value [_boolean] type [boolean]" }
+
+---
+common_family, to_integer second argument, boolean not an integer:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from common_family | eval int1 = to_integer("101", _boolean) | keep int1'
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "second argument of [to_integer(\"101\", _boolean)] must be [integer], found value [_boolean] type [boolean]" }
 
 ---
 common_family, first argument, date not a string:
@@ -342,7 +382,7 @@ common_family, second argument, date_nanos not an integer:
 
 
 ---
-keyword_family, first argument, valid query works without error:
+keyword_family, to_long first argument, valid query works without error:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -364,7 +404,29 @@ keyword_family, first argument, valid query works without error:
 
 
 ---
-numeric_family, first argument, long not a string:
+keyword_family, to_integer first argument, valid query works without error:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from keyword_family | eval int1 = to_integer(_keyword, 10), int2 = to_integer(_constant_keyword, 10), int3 = to_integer(_wildcard, 10) | keep int1, int2, int3'
+
+  - length: { columns: 3 }
+  - match: { columns.0.name: int1 }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: int2 }
+  - match: { columns.1.type: integer }
+  - match: { columns.2.name: int3 }
+  - match: { columns.2.type: integer }
+  - length: { values: 1 }
+  - match: { values.0.0: 101 }
+  - match: { values.0.1: 101 }
+  - match: { values.0.2: 101 }
+
+
+---
+numeric_family, to_long first argument, long not a string:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -376,6 +438,20 @@ numeric_family, first argument, long not a string:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: "first argument of [to_long(_long, 10)] must be [string], found value [_long] type [long]" }
+
+---
+numeric_family, to_integer first argument, integer not a string:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from numeric_family | eval int1 = to_integer(_integer, 10) | keep int1'
+      catch: "bad_request"
+
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: "first argument of [to_integer(_integer, 10)] must be [string], found value [_integer] type [integer]" }
 
 ---
 numeric_family, second argument, invalid integer value -6:
@@ -606,34 +682,6 @@ numeric_family, second argument, invalid unsigned_long value 0:
           query: 'from numeric_family | eval long1 = to_long("101", _unsigned_long) | keep long1'
 
 ---
-range_family, first argument, unsupported type integer_range:
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'from range_family | eval long1 = to_long(_integer_range, 10) | keep long1'
-      catch: "bad_request"
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "Cannot use field [_integer_range] with unsupported type [integer_range]" }
-
----
-range_family, second argument, unsupported type integer_range:
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'from range_family | eval long1 = to_long(_integer_range, 10) | keep long1'
-      catch: "bad_request"
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "Cannot use field [_integer_range] with unsupported type [integer_range]" }
-
----
 aggregate_family, first argument, aggregate_metric_double not a string:
   - do:
       allowed_warnings_regex:
@@ -660,32 +708,3 @@ aggregate_family, second argument, aggregate_metric_double not an integer:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: "second argument of [to_long(\"101\", _aggregate_metric_double)] must be [integer], found value [_aggregate_metric_double] type [aggregate_metric_double]" }
-
----
-aggregate_family, first argument, unsupported type histogram:
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'from aggregate_family | eval long1 = to_long(_histogram, 10) | keep long1'
-      catch: "bad_request"
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "Cannot use field [_histogram] with unsupported type [histogram]" }
-
----
-aggregate_family, second argument, unsupported type histogram:
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'from aggregate_family | eval long1 = to_long("101", _histogram) | keep long1'
-      catch: "bad_request"
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - contains: { error.reason: "Cannot use field [_histogram] with unsupported type [histogram]" }
-

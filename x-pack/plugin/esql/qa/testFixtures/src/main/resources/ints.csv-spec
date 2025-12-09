@@ -168,8 +168,8 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // see comments for each group in base_conversion.csv
-convertStringToLongBase1
-required_capability: to_long_base
+convertStringToBaseLong1
+required_capability: base_conversion
 
 // tag::to_long_base-str1[]
 ROW str1 = "0x32", str2 = "31"
@@ -179,13 +179,13 @@ ROW str1 = "0x32", str2 = "31"
 ;
 
 // tag::to_long_base-str1-result[]
-str1:keyword | long1:long | str2:keyword | long2:long 
-0x32         | 50         | 31           | 40        
+str1:keyword | long1:long | str2:keyword | long2:long
+0x32         | 50         | 31           | 40
 // end::to_long_base-str1-result[]
 ;
 
-convertStringToLongBase2
-required_capability: to_long_base
+convertStringToBaseLong2
+required_capability: base_conversion
 
 // tag::to_long_base-str2[]
 ROW str1 = "Hazelnut"
@@ -196,177 +196,257 @@ warningRegex:Line 2:43: evaluation of \[TO_LONG\(str1, 10\)\] failed, treating r
 warningRegex:Line 2:43: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
 
 // tag::to_long_base-str2-result[]
-str1:keyword | long1:long     | fail1:long   
+str1:keyword | long1:long     | fail1:long
 Hazelnut     | 1356099454469  | null
 // end::to_long_base-str2-result[]
 ;
 
+convertStringToBaseInteger1
+required_capability: base_conversion
+
+// tag::to_integer_base-str1[]
+ROW str1 = "0x32", str2 = "31"
+| EVAL int1 = TO_INTEGER(str1, 16), int2 = TO_INTEGER(str2, 13)
+| KEEP str1, int1, str2, int2
+// end::to_integer_base-str1[]
+;
+
+// tag::to_integer_base-str1-result[]
+str1:keyword | int1:integer | str2:keyword | int2:integer
+0x32         | 50           | 31           | 40
+// end::to_integer_base-str1-result[]
+;
+
+convertStringToBaseInteger2
+required_capability: base_conversion
+
+// tag::to_integer_base-str2[]
+ROW str1 = "Kona"
+| EVAL int1 = TO_INTEGER(str1, 27), fail1 = TO_INTEGER(str1, 10)
+// end::to_integer_base-str2[]
+;
+warningRegex:Line 2:45: evaluation of \[TO_INTEGER\(str1, 10\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:45: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
+
+// tag::to_integer_base-str2-result[]
+str1:keyword | int1:integer   | fail1:integer
+Kona         | 411787         | null
+// end::to_integer_base-str2-result[]
+;
+
+
+
 // ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-convertStringToLongBaseIndexGroup0
-required_capability: to_long_base
+convertStringToBaseIndexGroup0
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 0
-| KEEP  string, base, expect_long
+| KEEP  string, base, expect_long, expect_integer
 ;
 ignoreOrder:true
 
-string:keyword | base:integer | expect_long:long
-0xff           | 16           | 255
-0xff           | null         | null
-null           | 16           | null
-null           | null         | null
+string:keyword | base:integer | expect_long:long | expect_integer:integer
+0xff           | 16           | 255              | 255
+0xff           | null         | null             | null
+null           | 16           | null             | null
+null           | null         | null             | null
 ;
 
-convertStringToLongBaseIndexGroup1
-required_capability: to_long_base
+convertStringToBaseIndexGroup1
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 1
-| EVAL  to_long = TO_LONG(string, base)
-| KEEP  string, base, to_long
+| EVAL  to_long = TO_LONG(string, base), to_integer = TO_INT(string, base)
+| KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
 
-string:keyword | base:integer | to_long:long
-0x32           | 16           | 50
-31             | 13           | 40
-5              | 10           | 5
+string:keyword | base:integer | to_long:long | to_integer:integer
+0x32           | 16           | 50           | 50
+31             | 13           | 40           | 40
+5              | 10           | 5            | 5
 ;
 
-convertStringToLongBaseIndexGroup2
-required_capability: to_long_base
+convertStringToBaseIndexGroup2
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 2
-| EVAL  to_long = TO_LONG(string, base)
-| KEEP  string, base, to_long
+| EVAL  to_long = TO_LONG(string, base), to_integer = TO_INT(string, base)
+| KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
 
-string:keyword | base:integer | to_long:long
-314            | 10           | 314
-314            | null         | null
--314           | 10           | -314
--314           | null         | null
-+314           | 10           | 314
-+314           | null         | null
+string:keyword | base:integer | to_long:long | to_integer:integer
+314            | 10           | 314          | 314
+314            | null         | null         | null
+-314           | 10           | -314         | -314
+-314           | null         | null         | null
++314           | 10           | 314          | 314
++314           | null         | null         | null
 ;
 
-convertStringToLongBaseIndexGroup3
-required_capability: to_long_base
+convertStringToBaseIndexGroup3
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 3
-| EVAL  to_long = TO_LONG(string, base)
-| KEEP  string, base, to_long
+| EVAL  to_long = TO_LONG(string, base), to_integer = TO_INTEGER(string, base)
+| KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
 warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0xf\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0xf\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[deadbeef\] to number of base \[16\]
 
-string:keyword | base:integer | to_long:long
-1337           | 10           | 1337
-1337           | 16           | 4919
-0x1337         | null         | null
-0x1337         | 10           | null
-0x1337         | 16           | 4919
-0xdeadbeef     | null         | null
-0xdeadbeef     | 16           | 3735928559
-deadbeef       | null         | null
-deadbeef       | 16           | 3735928559
-1              | 16           | 1
-0x1            | 16           | 1
--1             | 16           | -1
--0x1           | 16           | null
-0x-1           | 16           | -1
-f              | 16           | 15
-0xf            | 16           | 15
--f             | 16           | -15
--0xf           | 16           | null
-0x-f           | 16           | -15
+string:keyword | base:integer | to_long:long | to_integer:integer
+1337           | 10           | 1337         | 1337
+1337           | 16           | 4919         | 4919
+0x1337         | null         | null         | null
+0x1337         | 10           | null         | null
+0x1337         | 16           | 4919         | 4919
+0xdeadbeef     | null         | null         | null
+0xdeadbeef     | 16           | 3735928559   | null
+deadbeef       | null         | null         | null
+deadbeef       | 16           | 3735928559   | null
+1              | 16           | 1            | 1
+0x1            | 16           | 1            | 1
+-1             | 16           | -1           | -1
+-0x1           | 16           | null         | null
+0x-1           | 16           | -1           | -1
+f              | 16           | 15           | 15
+0xf            | 16           | 15           | 15
+-f             | 16           | -15          | -15
+-0xf           | 16           | null         | null
+0x-f           | 16           | -15          | -15
 ;
 
-convertStringToLongBaseIndexGroup4
-required_capability: to_long_base
+convertStringToBaseIndexGroup4
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 4
-| EVAL  to_long = TO_LONG(string, base)
-| KEEP  string, base, to_long
+| EVAL  to_long = TO_LONG(string, base), to_integer = TO_INTEGER(string, base)
+| KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
 
-string:keyword | base:integer | to_long:long
-52403          | null         | null
-52403          | 8            | 21763
-52403          | 7            | 12890
+string:keyword | base:integer | to_long:long | to_integer:integer
+52403          | null         | null         | null
+52403          | 8            | 21763        | 21763
+52403          | 7            | 12890        | 12890
 ;
 
-convertStringToLongBaseIndexGroup5
-required_capability: to_long_base
+convertStringToBaseIndexGroup5
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 5
-| EVAL  to_long = TO_LONG(string, base)
-| KEEP  string, base, to_long
+| EVAL  to_long = TO_LONG(string, base), to_integer = TO_INTEGER(string, base)
+| KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
 warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[7fffffff\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775807\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[80000000\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[7fffffffffffffff\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-2147483649\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-9223372036854775808\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-9223372036854775809\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-80000001\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-7fffffffffffffff\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000000\] to number of base \[16\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
 
-string:keyword       | base:integer | to_long:long
-9223372036854775807  | 10           | 9223372036854775807
-9223372036854775808  | 10           | 9223372036854775807
-7fffffffffffffff     | 16           | 9223372036854775807
-8000000000000000     | 16           | null
--9223372036854775808 | 10           | -9223372036854775808
--9223372036854775809 | 10           | -9223372036854775808
--7fffffffffffffff    | 16           | -9223372036854775807
--8000000000000000    | 16           | -9223372036854775808
--8000000000000001    | 16           | null
+string:keyword       | base:integer | to_long:long         | to_integer:integer
+2147483647           | 10           | 2147483647	   | 2147483647
+2147483648           | 10           | 2147483648	   | null
+9223372036854775807  | 10           | 9223372036854775807  | null
+9223372036854775808  | 10           | 9223372036854775807  | null
+7fffffff             | 16           | 2147483647	   | 2147483647
+7fffffffffffffff     | 16           | 9223372036854775807  | null
+80000000             | 16           | 2147483648	   | null
+8000000000000000     | 16           | null		   | null
+-2147483648          | 10           | -2147483648	   | -2147483648
+-2147483649          | 10           | -2147483649	   | null
+-9223372036854775808 | 10           | -9223372036854775808 | null
+-9223372036854775809 | 10           | -9223372036854775808 | null
+-7fffffff            | 16           | -2147483647	   | -2147483647
+-80000000            | 16           | -2147483648	   | -2147483648
+-80000001            | 16           | -2147483649	   | null
+-7fffffffffffffff    | 16           | -9223372036854775807 | null
+-8000000000000000    | 16           | -9223372036854775808 | null
+-8000000000000001    | 16           | null		   | null
 ;
 
-convertStringToLongBaseIndexGroup6
-required_capability: to_long_base
+
+convertStringToBaseIndexGroup6
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 6
 | EVAL  part1 = TO_LONG(string, base) + 2
 | EVAL  part2 = TO_LONG(string, part1)
-| KEEP  string, base, part1, part2
+| EVAL  part3 = TO_INTEGER(string, base) + 2
+| EVAL  part4 = TO_INTEGER(string, part3)
+| KEEP  string, base, part1, part2, part3, part4
 ;
 
-string:keyword | base:integer | part1:long | part2:long
-1000           | 2            | 10         | 1000
+string:keyword | base:integer | part1:long | part2:long | part3:integer | part4:integer
+1000           | 2            | 10         | 1000       | 10            | 1000
 ;
 
-convertStringToLongBaseIndexGroup7
-required_capability: to_long_base
+convertStringToBaseIndexGroup7
+required_capability: base_conversion
 
   FROM  base_conversion
 | WHERE group == 7
-| EVAL  to_long = TO_LONG(string, base)
-| KEEP  string, base, to_long
+| EVAL  to_long = TO_LONG(string, base), to_integer = TO_INTEGER(string, base)
+| KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
 warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[Hazelnut\] to number of base \[36\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[Hazelnut\] to number of base \[36\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
+warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
 
-string:keyword | base:integer | to_long:long
-0              | 10           | 0
-473            | 10           | 473
-+42            | 10           | 42
--0             | 10           | 0
--FF            | 16           | -255
-1100110        | 2            | 102
-99             | 8            | null
-Hazelnut       | 10           | null
-Hazelnut       | 36           | 1356099454469
+string:keyword | base:integer | to_long:long  | to_integer:integer
+0              | 10           | 0	      | 0
+473            | 10           | 473	      | 473
++42            | 10           | 42	      | 42
+-0             | 10           | 0	      | 0
+-FF            | 16           | -255	      | -255
+1100110        | 2            | 102	      | 102
+99             | 8            | null	      | null
+Hazelnut       | 10           | null	      | null
+Hazelnut       | 36           | 1356099454469 | null
+2147483647     | 10           | 2147483647    | 2147483647
+-2147483648    | 10           | -2147483648   | -2147483648
+2147483648     | 10           | 2147483648    | null
+Kona           | 10           | null	      | null
+Kona           | 27           | 411787	      | 411787
 ;
 
 
@@ -376,8 +456,8 @@ row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
 warningRegex:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:Line 1:51: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
 
-d:double       |d2l:long      |overflow:long     
-123.4          |123           |null    
+d:double       |d2l:long      |overflow:long
+123.4          |123           |null
 ;
 
 // conversions to INTEGER

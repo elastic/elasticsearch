@@ -7,6 +7,7 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -17,6 +18,7 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
@@ -40,67 +42,11 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
     }
 
     public void testSemanticQueryWithCcMinimizeRoundTripsTrue() throws Exception {
-        // Query a field has the same inference ID value across clusters, but with different backing inference services
-        assertSearchResponse(
-            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
-            )
-        );
-
-        // Query a field that has different inference ID values across clusters
-        assertSearchResponse(
-            new SemanticQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
-            )
-        );
-
-        // Query an inference field on a remote cluster
-        assertSearchResponse(
-            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
-            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)))
-        );
+        semanticQueryBaseTestCases(true);
     }
 
     public void testSemanticQueryWithCcMinimizeRoundTripsFalse() throws Exception {
-        // Query a field has the same inference ID value across clusters, but with different backing inference services
-        assertSearchResponse(
-            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
-            ),
-            null,
-            s -> s.setCcsMinimizeRoundtrips(false)
-        );
-
-        // Query a field that has different inference ID values across clusters
-        assertSearchResponse(
-            new SemanticQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
-            QUERY_INDICES,
-            List.of(
-                new SearchResult(null, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
-                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
-            ),
-            null,
-            s -> s.setCcsMinimizeRoundtrips(false)
-        );
-
-        // Query an inference field on a remote cluster
-        assertSearchResponse(
-            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
-            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
-            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
-            null,
-            s -> s.setCcsMinimizeRoundtrips(false)
-        );
+        semanticQueryBaseTestCases(false);
 
         // Use a point in time to implicitly set ccs_minimize_roundtrips=false
         BytesReference pitId = openPointInTime(QUERY_INDICES, TimeValue.timeValueMinutes(2));
@@ -113,6 +59,56 @@ public class SemanticQueryBuilderCrossClusterSearchIT extends AbstractSemanticCr
             ),
             null,
             s -> s.source().pointInTimeBuilder(new PointInTimeBuilder(pitId))
+        );
+    }
+
+    private void semanticQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
+        final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+        final String expectedLocalClusterAlias = ccsMinimizeRoundTrips ? LOCAL_CLUSTER : null;
+
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        assertSearchResponse(
+            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
+
+        // Query a field that has different inference ID values across clusters
+        assertSearchResponse(
+            new SemanticQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, "b"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
+
+        // Query an inference field on a remote cluster
+        assertSearchResponse(
+            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
+            List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
+            null,
+            searchRequestModifier
+        );
+
+        // Query using index patterns
+        assertSearchResponse(
+            new SemanticQueryBuilder(COMMON_INFERENCE_ID_FIELD, "a"),
+            List.of("local-*", fullyQualifiedIndexName("cluster_*", "remote-*")),
+            List.of(
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
         );
     }
 

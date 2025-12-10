@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -48,8 +49,18 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
         preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "deriv") }
     )
-    public Deriv(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+    public Deriv(
+        Source source,
+        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the derivative over time",
+            optional = true
+        ) Expression window,
+        Expression timestamp
+    ) {
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
     public Deriv(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {

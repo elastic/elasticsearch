@@ -74,6 +74,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 if (local != null) {
                     newRules.add(local);
                 }
+            } else {
+                newRules.add(r);
             }
         }
 

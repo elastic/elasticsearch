@@ -2284,7 +2284,6 @@ public class IndexNameExpressionResolver {
                 IndexComponentSelector selector = resolveAndValidateSelectorString(() -> expression, suffix);
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
-                ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
@@ -2330,22 +2329,6 @@ public class IndexNameExpressionResolver {
                     originalExpression,
                     "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
-            }
-        }
-
-        /**
-         * Checks the expression for remote cluster pattern and throws an exception if it is combined with :: selectors.
-         * @throws InvalidIndexNameException if remote cluster pattern is detected after parsing the selector expression
-         */
-        private static void ensureNotMixingRemoteClusterExpressionWithSelectorSeparator(
-            String expressionWithoutSelector,
-            IndexComponentSelector selector,
-            String originalExpression
-        ) {
-            if (selector != null) {
-                if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
-                    throw new InvalidIndexNameException(originalExpression, "Selectors are not yet supported on remote cluster patterns");
-                }
             }
         }
     }

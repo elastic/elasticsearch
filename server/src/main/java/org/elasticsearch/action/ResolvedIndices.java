@@ -177,18 +177,6 @@ public class ResolvedIndices {
             ? Index.EMPTY_ARRAY
             : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
 
-        // prevent using selectors with remote cluster patterns
-        for (final var indicesPerRemoteClusterAlias : remoteClusterIndices.entrySet()) {
-            final String[] indices = indicesPerRemoteClusterAlias.getValue().indices();
-            if (indices != null) {
-                for (final String index : indices) {
-                    if (IndexNameExpressionResolver.hasSelectorSuffix(index)) {
-                        throw new InvalidIndexNameException(index, "Selectors are not yet supported on remote cluster patterns");
-                    }
-                }
-            }
-        }
-
         return new ResolvedIndices(
             remoteClusterIndices,
             localIndices,

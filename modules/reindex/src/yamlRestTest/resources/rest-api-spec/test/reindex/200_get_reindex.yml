@@ -47,7 +47,7 @@ setup:
   - match: { response.failures: [ ] }
   - match: { response.timed_out: false }
 ---
-"Get reindex - invalid task id":
+"Invalid task id":
     - do:
         reindex.get:
             task_id: invalid_task_id
@@ -56,7 +56,7 @@ setup:
     - match: { error.type: 'illegal_argument_exception' }
     - match: { error.reason: 'malformed task id invalid_task_id' }
 ---
-"Get reindex - task does not exist":
+"Task does not exist":
   - do:
       reindex.get:
         task_id: "node0:123"
@@ -64,4 +64,28 @@ setup:
   - is_true: error
   - match: { error.type: 'resource_not_found_exception' }
   - match: { error.reason: 'Reindex operation [node0:123] not found' }
+---
+"Task exists but it is not a reindex":
+  # create a task that is not a reindex
+  - do:
+      delete_by_query:
+        wait_for_completion: false
+        index: source
+        body:
+          query:
+            match_all: {}
+  - set: {task: task}
 
+  # verify the task exists
+  - do:
+      tasks.get:
+        task_id: $task
+  - is_true: task
+
+  # verify the reindex does not exist
+  - do:
+      reindex.get:
+          task_id: $task
+      catch: missing
+  - is_true: error
+  - match: { error.type: 'resource_not_found_exception' }

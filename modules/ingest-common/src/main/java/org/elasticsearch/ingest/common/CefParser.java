@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -59,13 +58,6 @@ final class CefParser {
         this.timezone = timezone;
     }
 
-    // New patterns for extension parsing
-    private static final String EXTENSION_KEY_PATTERN = "(?:[\\w-]+(?:\\.[^\\.=\\s\\|\\\\\\[\\]]+)*(?:\\[[0-9]+\\])?(?==))";
-    private static final String EXTENSION_VALUE_PATTERN = "(?:[^\\s\\\\]|\\\\[^|]|\\s(?!" + EXTENSION_KEY_PATTERN + "=))*";
-    private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern.compile(
-        "(" + EXTENSION_KEY_PATTERN + ")=(" + EXTENSION_VALUE_PATTERN + ")(?:\\s+|$)"
-    );
-
     // Comprehensive regex pattern to match various MAC address formats
     private static final Pattern MAC_ADDRESS_PATTERN = Pattern.compile(
         String.join(
@@ -83,13 +75,6 @@ final class CefParser {
     private static final int EUI48_HEX_LENGTH = 48 / 4;
     private static final int EUI64_HEX_LENGTH = 64 / 4;
     private static final int EUI64_HEX_WITH_SEPARATOR_MAX_LENGTH = EUI64_HEX_LENGTH + EUI64_HEX_LENGTH / 2 - 1;
-    private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = Map.ofEntries(
-        entry("\\=", "="),
-        entry("\\n", "\n"),
-        entry("\\t", "\t"),
-        entry("\\r", "\r"),
-        entry("\\\\", "\\")
-    );
 
     private static final Map<String, ExtensionMapping> EXTENSION_MAPPINGS = Map.<String, ExtensionMapping>ofEntries(
         entry("agt", new ExtensionMapping("agentAddress", IPType, "agent.ip")),
@@ -309,6 +294,7 @@ final class CefParser {
         for (int i = 0; i < cefString.length(); i++) {
             char curr = cefString.charAt(i);
             char next = i < cefString.length() - 1 ? cefString.charAt(i + 1) : '\0';
+            // TODO we should probably handle illegal escapes here
             if (curr == '\\' && next == '\\') { // an escaped backslash
                 buffer.append('\\'); // emit a backslash
                 i++; // and skip the next character
@@ -372,36 +358,99 @@ final class CefParser {
 
     // visible for testing
     static Map<String, String> parseExtensions(String extensionString) {
-        Map<String, String> extensions = new HashMap<>();
-        Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
-        int lastEnd = 0;
+        // broadly speaking, start by splitting into chunks on un-escaped equals signs
+        // given ' foo=bar\\bar \= bar baz=quux ', we want to end up with 'foo', 'bar\bar = bar baz ', 'quux '
+        List<String> chunks = new ArrayList<>();
+        StringBuilder buffer = new StringBuilder();
 
-        List<MatchResult> allMatches = new ArrayList<>();
-        while (matcher.find()) {
-            allMatches.add(matcher.toMatchResult());
-        }
-        for (int i = 0; i < allMatches.size(); i++) {
-            MatchResult match = allMatches.get(i);
-            String key = match.group(1);
-            String value = match.group(2);
-            if (hasUnescapedEquals(value)) {
-                throw new IllegalArgumentException(UNESCAPED_EQUALS_SIGN);
+        int i = 0;
+        for (; i < extensionString.length(); i++) {
+            char curr = extensionString.charAt(i);
+            if (curr != ' ') {
+                break; // pre-walk the extension string, ignoring spaces
             }
-            // desanitize the value
-            value = unescapeExtensionValue(value);
-            // Only trim the last value
-            // Trimming after desanitization to unescape any trailing newline ,tab characters
-            if (i == allMatches.size() - 1) {
-                value = value.trim();
+        }
+        for (; i < extensionString.length(); i++) {
+            char curr = extensionString.charAt(i);
+            char next = i < extensionString.length() - 1 ? extensionString.charAt(i + 1) : '\0';
+
+            if (curr == '\\') {
+                if (next == '\\') { // an escaped backslash
+                    buffer.append('\\'); // emit a backslash
+                } else if (next == '=') { // an escaped equals
+                    buffer.append('='); // emit an equals
+                } else if (next == 'n') { // a 'newline'
+                    buffer.append('\n'); // emit a newline
+                } else if (next == 'r') { // a 'carriage return'
+                    buffer.append('\r'); // emit a carriage return
+                } else {
+                    throw new IllegalArgumentException("Illegal escape sequence '\\" + next + "'"); // TODO gross on \n, for example ugh
+                }
+                i++; // and skip the next character
+            } else if (curr == '=') { // an equals, it's the end of a chunk
+                chunks.add(buffer.toString()); // emit the chunk
+                buffer = new StringBuilder(); // and reset the buffer
+            } else { // any other character
+                buffer.append(curr); // is just added to the current thing
+            }
+        }
+        chunks.add(buffer.toString()); // don't forget the ragged-edge last chunk ;)
+
+        if (chunks.size() == 1) {
+            String chunk = chunks.getFirst();
+            if (chunk.isEmpty()) {
+                return Map.of();
+            } else {
+                throw new IllegalArgumentException("Invalid extensions in the CEF event: " + chunk);
+            }
+        }
+
+        // now turn chunks into pairs by splitting on the last space character
+        // given 'foo', 'bar\bar = bar baz ', 'quux ', we want to end up with { 'foo': 'bar\bar = bar ', 'baz': 'quux'}
+        Map<String, String> extensions = HashMap.newHashMap(chunks.size() - 1);
+        String key, value, chunk;
+        key = chunks.getFirst();
+        if (key.isEmpty() || containsWhitespace(key)) {
+            throw new IllegalArgumentException(UNESCAPED_EQUALS_SIGN); // TODO I'm not sure this error message is actually fair anymore
+        }
+        for (int j = 1; j < chunks.size() - 1; j++) {
+            chunk = chunks.get(j);
+            int idx = chunk.lastIndexOf(' ');
+            if (idx == -1) {
+                value = "";
+            } else {
+                value = chunk.substring(0, idx);
             }
             extensions.put(key, value);
-            lastEnd = match.end();
+            key = chunk.substring(idx + 1);
+            if (key.isEmpty() || containsWhitespace(key)) {
+                throw new IllegalArgumentException(UNESCAPED_EQUALS_SIGN); // TODO I'm not sure this error message is actually fair anymore
+            }
         }
-        // If there's any remaining unparsed content, throw an exception
-        if (lastEnd < extensionString.length()) {
-            throw new IllegalArgumentException("Invalid extensions in the CEF event: " + extensionString.substring(lastEnd));
-        }
+        // handle the last chunk
+        value = stripTrailingWhitespace(chunks.getLast());
+        extensions.put(key, value);
+
         return extensions;
+    }
+
+    private static String stripTrailingWhitespace(final String str) {
+        if (hasLength(str) == false) {
+            return str;
+        }
+        return str.stripTrailing();
+    }
+
+    private static boolean containsWhitespace(final String str) {
+        if (hasLength(str)) {
+            for (int i = 0; i < str.length(); i++) {
+                char c = str.charAt(i);
+                if (Character.isWhitespace(c)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void processExtensions(Map<String, String> parsedExtensions, CefEvent event) {
@@ -426,32 +475,6 @@ final class CefParser {
                 event.addCefMapping("extensions." + entry.getKey(), entry.getValue());
             }
         }
-    }
-
-    private static boolean hasUnescapedEquals(String value) {
-        if (value == null || value.isEmpty()) {
-            return false; // Empty or null strings have no unescaped equals signs
-        }
-
-        // If there are no equals signs at all, return false
-        if (value.indexOf('=') < 0) {
-            return false;
-        }
-
-        boolean escaped = true;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-
-            if (escaped == false) {
-                escaped = true; // Reset escape flag after processing an escaped character
-            } else if (c == '\\') {
-                escaped = false; // Set escape flag when a backslash is encountered
-            } else if (c == '=') {
-                return true; // Found an unescaped equals sign, so return immediately
-            }
-        }
-        // If we get here without finding an unescaped equals sign, return false
-        return false;
     }
 
     private Object convertValueToType(String value, DataType type) {
@@ -567,18 +590,6 @@ final class CefParser {
 
     private static void removeEmptyValues(Map<String, String> map) {
         map.values().removeIf(Strings::isEmpty);
-    }
-
-    private static String unescapeExtensionValue(String value) {
-        String unescaped = value;
-        // Protect escaped backslashes
-        unescaped = unescaped.replace("\\\\", "\u0000"); // Use null char as placeholder
-        for (Map.Entry<String, String> entry : EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.entrySet()) {
-            unescaped = unescaped.replace(entry.getKey(), entry.getValue());
-        }
-        // Restore single backslashes
-        unescaped = unescaped.replace("\u0000", "\\");
-        return unescaped;
     }
 
     static class CefEvent implements AutoCloseable {

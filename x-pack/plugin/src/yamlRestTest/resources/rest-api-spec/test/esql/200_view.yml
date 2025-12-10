@@ -38,10 +38,6 @@ setup:
 
 ---
 "crud":
-  - requires:
-      cluster_features: [ "esql.esql_views" ]
-      reason: requires esql views to be enabled
-
   - do:
       esql.put_view:
         name: dogs
@@ -85,10 +81,6 @@ setup:
 
 ---
 "invalid-views":
-  - requires:
-      cluster_features: [ "esql.esql_views" ]
-      reason: requires esql views to be enabled
-
   - do:
       catch: /invalid view name/
       esql.put_view:

@@ -510,6 +510,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         // this are small numbers so we run it wih all the centroids.
         final KMeansResult kMeansResult = new HierarchicalKMeans(
             fieldInfo.getVectorDimension(),
+            null,
+            -1,
             HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
             HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
             HierarchicalKMeans.MAXK,

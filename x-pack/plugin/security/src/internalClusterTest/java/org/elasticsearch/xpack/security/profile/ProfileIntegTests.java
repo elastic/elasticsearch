@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.profile;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -119,6 +120,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // This setting tests that the setting is registered
         builder.put("xpack.security.authc.domains.my_domain.realms", "file");
+        builder.put("xpack.security.profile.max_size", "1kb");
         // enable anonymous
         builder.putList(AnonymousUser.ROLES_SETTING.getKey(), ANONYMOUS_ROLE);
         return builder.build();
@@ -336,6 +338,37 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             DocumentMissingException.class,
             () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet()
         );
+    }
+
+    public void testUpdateProfileDataHitStorageQuota() {
+        Profile profile1 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+
+        char[] buf = new char[512]; // half of the 1,024 quota
+        Arrays.fill(buf, 'a');
+        String largeValue = new String(buf);
+
+        var repeatable = new UpdateProfileDataRequest(
+            profile1.uid(),
+            Map.of(),
+            Map.of("app1", Map.of("key1", largeValue)),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+
+        client().execute(UpdateProfileDataAction.INSTANCE, repeatable).actionGet(); // occupy half of the quota
+        client().execute(UpdateProfileDataAction.INSTANCE, repeatable).actionGet(); // in-place change, still half quota
+
+        var overflow = new UpdateProfileDataRequest(
+            profile1.uid(),
+            Map.of(),
+            Map.of("app1", Map.of("key2", largeValue)),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+
+        assertThrows(ElasticsearchException.class, () -> client().execute(UpdateProfileDataAction.INSTANCE, overflow).actionGet());
     }
 
     public void testSuggestProfilesWithName() {

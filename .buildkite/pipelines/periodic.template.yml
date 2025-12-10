@@ -30,9 +30,7 @@ steps:
 
   - label: example-plugins
     command: |-
-      cd $$WORKSPACE/plugins/examples
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh build
+      ./.ci/scripts/example-plugins.sh build
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -95,7 +93,7 @@ steps:
               - adoptopenjdk17
               - openjdk21
               - openjdk22
-              - openjdk23
+              - openjdk25
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -123,7 +121,7 @@ steps:
               - adoptopenjdk17
               - openjdk21
               - openjdk22
-              - openjdk23
+              - openjdk25
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp

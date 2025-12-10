@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -54,6 +55,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Answers;
@@ -169,11 +171,13 @@ public class TransportDownsampleActionTests extends ESTestCase {
         replicaShards = randomIntBetween(0, 3);
         task = new Task(1, "type", "action", "description", null, null);
 
+        // Initialise mocks for thread pool and cluster service
         var threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(clusterService.localNode()).thenReturn(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "node_name"));
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
+        // Mock refresh & force merge requests
         Answer<Void> mockBroadcastResponse = invocation -> {
             @SuppressWarnings("unchecked")
             var listener = (ActionListener<BroadcastResponse>) invocation.getArgument(1, ActionListener.class);
@@ -184,9 +188,9 @@ public class TransportDownsampleActionTests extends ESTestCase {
         doAnswer(mockBroadcastResponse).when(indicesAdminClient).forceMerge(any(), any());
         doAnswer(invocation -> {
             var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
-            updateTask.listener.onResponse(randomBoolean() ? AcknowledgedResponse.TRUE : AcknowledgedResponse.FALSE);
+            updateTask.listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(taskQueue).submitTask(startsWith("update-downsample-metadata"), any(), any());
+        }).when(taskQueue).submitTask(startsWith("create-downsample-index"), any(), any());
         when(indicesService.createIndexMapperServiceForValidation(any())).thenReturn(mapperService);
         MappedFieldType timestampFieldMock = mock(MappedFieldType.class);
         when(timestampFieldMock.meta()).thenReturn(Map.of());
@@ -224,11 +228,6 @@ public class TransportDownsampleActionTests extends ESTestCase {
             .blocks(ClusterBlocks.builder().addIndexBlock(sourceIndex, IndexMetadata.INDEX_WRITE_BLOCK))
             .build();
 
-        doAnswer(invocation -> {
-            var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
-            updateTask.listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(taskQueue).submitTask(startsWith("create-downsample-index"), any(), any());
         Function<Integer, Answer<Void>> mockPersistentTask = i -> invocation -> {
             ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = invocation.getArgument(i);
             PersistentTasksCustomMetadata.PersistentTask<?> task = mock(PersistentTasksCustomMetadata.PersistentTask.class);
@@ -248,6 +247,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(indicesAdminClient).updateSettings(any(), any());
+        assertSuccessfulUpdateDownsampleStatus(clusterState);
 
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         action.masterOperation(
@@ -283,6 +283,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             )
             .blocks(ClusterBlocks.builder().addIndexBlock(sourceIndex, IndexMetadata.INDEX_WRITE_BLOCK))
             .build();
+        assertSuccessfulUpdateDownsampleStatus(clusterState);
 
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         action.masterOperation(
@@ -338,6 +339,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
                 )
                 .build()
         );
+        assertSuccessfulUpdateDownsampleStatus(clusterService.state());
 
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         action.masterOperation(
@@ -354,6 +356,78 @@ public class TransportDownsampleActionTests extends ESTestCase {
         );
         safeGet(listener);
         verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+    }
+
+    public void testDownsamplingWhenTargetIndexGetsDeleted() throws IOException {
+        String mapping = switch (randomIntBetween(0, 2)) {
+            case 0 -> NO_METADATA_MAPPING;
+            case 1 -> OTHER_METADATA_MAPPING;
+            default -> FORCE_MERGE_ENABLED_MAPPING;
+        };
+        mockGetMapping(mapping);
+        mockMergedMapping(mapping);
+
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(createSourceIndexMetadata(sourceIndex, primaryShards, replicaShards)))
+            .blocks(ClusterBlocks.builder().addIndexBlock(sourceIndex, IndexMetadata.INDEX_WRITE_BLOCK))
+            .build();
+
+        Function<Integer, Answer<Void>> mockPersistentTask = i -> invocation -> {
+            ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = invocation.getArgument(i);
+            PersistentTasksCustomMetadata.PersistentTask<?> task = mock(PersistentTasksCustomMetadata.PersistentTask.class);
+            when(task.getId()).thenReturn(randomAlphaOfLength(10));
+            DownsampleShardPersistentTaskState runningTaskState = new DownsampleShardPersistentTaskState(
+                DownsampleShardIndexerStatus.COMPLETED,
+                null
+            );
+            when(task.getState()).thenReturn(runningTaskState);
+            listener.onResponse(task);
+            return null;
+        };
+        doAnswer(mockPersistentTask.apply(4)).when(persistentTaskService).sendStartRequest(anyString(), anyString(), any(), any(), any());
+        doAnswer(mockPersistentTask.apply(3)).when(persistentTaskService).waitForPersistentTaskCondition(anyString(), any(), any(), any());
+        doAnswer(invocation -> {
+            var listener = invocation.getArgument(1, TransportDownsampleAction.UpdateDownsampleIndexSettingsActionListener.class);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(indicesAdminClient).updateSettings(any(), any());
+
+        doAnswer(invocation -> {
+            var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
+            ClusterStateTaskExecutorUtils.executeHandlingResults(
+                clusterState,
+                TransportDownsampleAction.STATE_UPDATE_TASK_EXECUTOR,
+                List.of(updateTask),
+                task1 -> {},
+                TransportDownsampleAction.DownsampleClusterStateUpdateTask::onFailure
+            );
+            return null;
+        }).when(taskQueue).submitTask(startsWith("update-downsample-metadata"), any(), any());
+        IllegalStateException error = safeAwaitFailure(
+            IllegalStateException.class,
+            AcknowledgedResponse.class,
+            listener -> action.masterOperation(
+                task,
+                new DownsampleAction.Request(
+                    ESTestCase.TEST_REQUEST_TIMEOUT,
+                    sourceIndex,
+                    targetIndex,
+                    TimeValue.timeValueHours(1),
+                    new DownsampleConfig(new DateHistogramInterval("5m"))
+                ),
+                clusterState,
+                listener
+            )
+        );
+        assertThat(
+            error.getMessage(),
+            Matchers.startsWith("Failed to update downsample status because [" + targetIndex + "] does not exist")
+        );
+        verify(downsampleMetrics, never()).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.SUCCESS));
+        verify(downsampleMetrics).recordOperation(anyLong(), eq(DownsampleMetrics.ActionStatus.FAILED));
+        verify(indicesAdminClient).refresh(any(), any());
+        verify(indicesAdminClient, never()).flush(any(), any());
+        verify(indicesAdminClient, never()).forceMerge(any(), any());
     }
 
     private void mockGetMapping(String mapping) {
@@ -510,5 +584,22 @@ public class TransportDownsampleActionTests extends ESTestCase {
         supported = TransportDownsampleAction.getSupportedMetrics(metricType, fieldProperties);
         assertThat(supported.defaultMetric(), is("max"));
         assertThat(supported.supportedMetrics(), is(List.of(metricType.supportedAggs())));
+    }
+
+    private void assertSuccessfulUpdateDownsampleStatus(ClusterState clusterState) {
+        var metadata = Metadata.builder(clusterState.metadata())
+            .put(createSourceIndexMetadata(targetIndex, primaryShards, replicaShards))
+            .build();
+
+        var updatedClusterState = ClusterState.builder(clusterState).metadata(metadata).build();
+        doAnswer(invocation -> {
+            var updateTask = invocation.getArgument(1, TransportDownsampleAction.DownsampleClusterStateUpdateTask.class);
+            ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                updatedClusterState,
+                TransportDownsampleAction.STATE_UPDATE_TASK_EXECUTOR,
+                List.of(updateTask)
+            );
+            return null;
+        }).when(taskQueue).submitTask(startsWith("update-downsample-metadata"), any(), any());
     }
 }

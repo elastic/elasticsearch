@@ -70,7 +70,7 @@ dependencies {
   api 'commons-cli:commons-cli:1.5.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-io:commons-io:2.16.1'
-  api 'org.apache.commons:commons-lang3:3.11'
+  api 'org.apache.commons:commons-lang3:3.20.0'
   api 'javax.servlet:javax.servlet-api:3.1.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
@@ -138,7 +138,7 @@ tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
 }
 
 tasks.named('yamlRestTest').configure {
-  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
+  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture3
 }
 
 tasks.register("yamlRestTestHdfs2", RestIntegTestTask) {

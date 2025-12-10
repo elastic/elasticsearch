@@ -259,7 +259,7 @@
                     "type": "array",
                     "items": {
                         "type": "string",
-                        "pattern": "^[_a-zA-Z][_a-zA-Z0-9]*$"
+                        "pattern": "^[_a-zA-Z][_a-zA-Z0-9.]*$"
                     },
                     "title": "Valid options when type is an enum"
                 },

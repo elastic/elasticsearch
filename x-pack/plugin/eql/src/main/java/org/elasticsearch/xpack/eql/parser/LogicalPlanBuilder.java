@@ -330,6 +330,9 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         // until is already parsed through sequenceTerm() above
         if (ctx.until != null) {
+            if (queries.size() == 2) {
+                throw new ParsingException(source, "A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]");
+            }
             until = queries.remove(queries.size() - 1);
         } else {
             until = defaultUntil(source);

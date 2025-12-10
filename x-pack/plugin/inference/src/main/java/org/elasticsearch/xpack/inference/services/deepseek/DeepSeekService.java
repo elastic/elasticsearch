@@ -112,7 +112,13 @@ public class DeepSeekService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         listener.onFailure(new UnsupportedOperationException(Strings.format("The %s service only supports unified completion", NAME)));
+    }
+
+    @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override

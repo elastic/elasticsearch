@@ -1564,9 +1564,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public static List<TypedDataSupplier> tdigestCases() {
         return List.of(
             new TypedDataSupplier(
-                "<random exponential histogram>",
-                EsqlTestUtils::randomExponentialHistogram,
-                DataType.EXPONENTIAL_HISTOGRAM
+                "<random tdigest>",
+                EsqlTestUtils::randomTDigest,
+                DataType.TDIGEST
             ),
             new TypedDataSupplier("<empty t-digest>", TDigestHolder::empty, DataType.TDIGEST)
         );

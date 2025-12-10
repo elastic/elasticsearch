@@ -60,8 +60,7 @@ record CmdLineArgs(
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
-    boolean filterCached,
-    float postFilteringThreshold
+    boolean filterCached
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -223,7 +222,6 @@ record CmdLineArgs(
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
         private boolean filterCached = true;
-        private float postFilteringThreshold = 1f;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -424,14 +422,8 @@ record CmdLineArgs(
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
                 onDiskRescore,
-                filterCached,
-                postFilteringThreshold
+                filterCached
             );
-        }
-
-        public void setPostFilteringThreshold(Float postFilteringThreshold) {
-            // This is a no-op for builder pattern compatibility
-            this.postFilteringThreshold = postFilteringThreshold;
         }
     }
 }

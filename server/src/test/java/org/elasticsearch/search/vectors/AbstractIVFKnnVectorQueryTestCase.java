@@ -101,17 +101,10 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
         format = new ES920DiskBBQVectorsFormat(128, 4);
     }
 
-    abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        Query queryFilter,
-        float visitRatio,
-        float postFilteringThreshold
-    );
+    abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio);
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter) {
-        return getKnnVectorQuery(field, query, k, queryFilter, 0.05f, 0.8f);
+        return getKnnVectorQuery(field, query, k, queryFilter, 0.05f);
     }
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k) {
@@ -282,8 +275,8 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     /** Test bad parameters */
     public void testIllegalArguments() throws IOException {
         expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 0));
-        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, -1, -1));
-        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, 2, 10));
+        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, -1));
+        expectThrows(IllegalArgumentException.class, () -> getKnnVectorQuery("xx", new float[] { 1 }, 1, null, 2));
     }
 
     public void testDifferentReader() throws IOException {

@@ -117,8 +117,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         int k,
         int numCands,
         Float visitPercentage,
-        RescoreVectorBuilder rescoreVectorBuilder,
-        Float postFilteringThreshold
+        RescoreVectorBuilder rescoreVectorBuilder
     ) {
         public static TestParams generate() {
             int numDims = randomIntBetween(32, 512) * 2; // Ensure even dimensions
@@ -131,8 +130,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 k,
                 (int) (k * randomFloatBetween(1.0f, 10.0f, true)),
                 randomBoolean() ? null : randomFloatBetween(0.0f, 100.0f, true),
-                new RescoreVectorBuilder(randomFloatBetween(1.0f, 100f, true)),
-                randomBoolean() ? null : randomFloat()
+                new RescoreVectorBuilder(randomFloatBetween(1.0f, 100f, true))
             );
         }
     }
@@ -146,8 +144,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.numCands,
                 testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
-                null,
-                testParams.postFilteringThreshold
+                null
             );
             return requestBuilder.setKnnSearch(List.of(knnSearch));
         };
@@ -163,8 +160,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.numCands,
                 testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
-                null,
-                testParams.postFilteringThreshold
+                null
             );
             return requestBuilder.setQuery(knnQuery);
         };
@@ -181,8 +177,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 testParams.numCands,
                 testParams.visitPercentage,
                 testParams.rescoreVectorBuilder,
-                null,
-                testParams.postFilteringThreshold
+                null
             );
             return requestBuilder.setSource(new SearchSourceBuilder().retriever(knnRetriever));
         };

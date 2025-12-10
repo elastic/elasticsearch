@@ -619,7 +619,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         private float boost = DEFAULT_BOOST;
         private InnerHitBuilder innerHitBuilder;
         private RescoreVectorBuilder rescoreVectorBuilder;
-        private Float postFilteringThreshold;
 
         public Builder addFilterQueries(List<QueryBuilder> filterQueries) {
             Objects.requireNonNull(filterQueries);
@@ -679,11 +678,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
         public Builder rescoreVectorBuilder(RescoreVectorBuilder rescoreVectorBuilder) {
             this.rescoreVectorBuilder = rescoreVectorBuilder;
-            return this;
-        }
-
-        public Builder postFilteringThreshold(Float postFilteringThreshold) {
-            this.postFilteringThreshold = postFilteringThreshold;
             return this;
         }
 

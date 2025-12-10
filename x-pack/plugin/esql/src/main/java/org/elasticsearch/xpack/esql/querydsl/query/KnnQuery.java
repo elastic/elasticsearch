@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
-import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.POST_FILTERING_THRESHOLD_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 
@@ -57,7 +56,6 @@ public class KnnQuery extends Query {
         Integer minCandidates = (Integer) options.get(Knn.MIN_CANDIDATES_OPTION);
         Float visitPercentage = (Float) options.get(VISIT_PERCENTAGE_FIELD.getPreferredName());
         minCandidates = minCandidates == null ? null : Math.max(minCandidates, k);
-        Float postFilteringThreshold = (Float) options.get(POST_FILTERING_THRESHOLD_FIELD.getPreferredName());
 
         // TODO: expose visit_percentage in ESQL
         KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
@@ -67,8 +65,7 @@ public class KnnQuery extends Query {
             minCandidates,
             visitPercentage,
             rescoreVectorBuilder,
-            vectorSimilarity,
-            postFilteringThreshold
+            vectorSimilarity
         );
         for (QueryBuilder filter : filterQueries) {
             queryBuilder.addFilterQuery(filter);

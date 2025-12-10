@@ -188,7 +188,11 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
-    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
+    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege(
+        "read_cross_cluster",
+        READ_CROSS_CLUSTER_AUTOMATON,
+        IndexComponentSelectorPredicate.DATA_AND_FAILURES
+    );
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON);
     public static final IndexPrivilege DELETE = new IndexPrivilege("delete", DELETE_AUTOMATON);

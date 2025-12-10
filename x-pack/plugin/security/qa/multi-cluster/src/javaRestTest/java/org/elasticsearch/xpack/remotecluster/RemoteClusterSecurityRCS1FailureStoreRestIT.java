@@ -270,9 +270,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         final String otherBackingDataIndexName = otherBackingIndices.v1();
         final String otherBackingFailureIndexName = otherBackingIndices.v2();
 
-        testCcsWithDataSelectorNotSupported(ccsMinimizeRoundtrips);
-        testCcsWithFailuresSelectorNotSupported(ccsMinimizeRoundtrips);
         testCcsWithoutSelectorsSupported(backingDataIndexName, ccsMinimizeRoundtrips);
+        testCcsWithDataSelectorIsSupported(ccsMinimizeRoundtrips, backingDataIndexName);
+        testCcsWithFailuresSelectorIsSupported(ccsMinimizeRoundtrips, backingFailureIndexName);
         testSearchingUnauthorizedIndices(otherBackingFailureIndexName, otherBackingDataIndexName, ccsMinimizeRoundtrips, skipUnavailable);
         testSearchingWithAccessToAllIndices(ccsMinimizeRoundtrips, backingDataIndexName, otherBackingDataIndexName);
         testBackingFailureIndexAccess(ccsMinimizeRoundtrips, backingFailureIndexName, skipUnavailable);
@@ -418,7 +418,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
 
         // user with data only access should not be able to search the backing failure index
         {
-            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
+            final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:data/read/search[phase/query]";
             executeAndAssert(
                 () -> performRequestMaybeUsingApiKey(DATA_ACCESS, failureIndexSearchRequest),
                 exception -> assertActionUnauthorized(exception, DATA_ACCESS, action, backingFailureIndexName),
@@ -427,40 +427,11 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             );
         }
 
-        // for user with access to failure store, it depends on the underlying action that is being sent to the remote cluster
-        if (ccsMinimizeRoundtrips) {
-            // this is a special case where indices:data/read/search will be sent to a remote cluster
-            // and the request to backing failure store index will be authorized based on the datastream
-            // which grants access to backing failure store indices (granted by read_failure_store privilege)
-            // from a security perspective, this is a valid use case and there is no way to prevent this with RCS1 security model
-            // since from the fulfilling cluster perspective this request is no different from any other local search request
-            assertSearchResponseContainsIndices(
-                performRequestMaybeUsingApiKey(FAILURE_STORE_ACCESS, failureIndexSearchRequest),
-                backingFailureIndexName
-            );
-        } else {
-            // in this case, the user does not have the necessary permissions to search the backing failure index
-            // the request to failure store backing index is authorized based on the datastream
-            // which does not grant access to the indices:admin/search/search_shards action
-            // this action is granted by read_cross_cluster privilege which is currently
-            // not supporting the failure backing indices (only data backing indices)
-            executeAndAssert(
-                () -> performRequestMaybeUsingApiKey(FAILURE_STORE_ACCESS, failureIndexSearchRequest),
-                exception -> assertActionUnauthorized(
-                    exception,
-                    FAILURE_STORE_ACCESS,
-                    "indices:admin/search/search_shards",
-                    backingFailureIndexName
-                ),
-                response -> assertActionUnauthorized(
-                    response,
-                    FAILURE_STORE_ACCESS,
-                    "indices:admin/search/search_shards",
-                    backingFailureIndexName
-                ),
-                skipUnavailable
-            );
-        }
+        // user with failure store access should be able to search the backing failure index
+        assertSearchResponseContainsIndices(
+            performRequestMaybeUsingApiKey(FAILURE_STORE_ACCESS, failureIndexSearchRequest),
+            backingFailureIndexName
+        );
 
         // user with manage failure store access should be able to search the backing failure index
         assertSearchResponseContainsIndices(
@@ -497,56 +468,50 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         }
     }
 
-    private void testCcsWithDataSelectorNotSupported(boolean ccsMinimizeRoundtrips) throws IOException {
+    private void testCcsWithDataSelectorIsSupported(
+        boolean ccsMinimizeRoundtrips,
+        String backingDataIndexName
+    ) throws IOException {
         final String[] users = { FAILURE_STORE_ACCESS, DATA_ACCESS, ALL_ACCESS };
         for (String user : users) {
-            // query remote cluster using ::data selector should not succeed
+            // query remote cluster using ::data selector should succeed
             final boolean alsoSearchLocally = randomBoolean();
             final Request dataSearchRequest = new Request(
                 "GET",
                 String.format(
                     Locale.ROOT,
-                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    alsoSearchLocally ? "local_index," : "",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("test1::data", "test*::data", "*::data", "non-existing::data"),
+                    randomFrom("test1::data", "test*::data"),
                     ccsMinimizeRoundtrips
                 )
             );
-            final ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> performRequestMaybeUsingApiKey(user, dataSearchRequest)
-            );
-            assertSelectorsNotSupported(exception);
+            String[] expectedIndices = alsoSearchLocally
+                ? new String[] { "local_index", backingDataIndexName }
+                : new String[] { backingDataIndexName };
+            assertSearchResponseContainsIndices(performRequestMaybeUsingApiKey(user, dataSearchRequest), expectedIndices);
         }
     }
 
-    private void testCcsWithFailuresSelectorNotSupported(boolean ccsMinimizeRoundtrips) {
+    private void testCcsWithFailuresSelectorIsSupported(boolean ccsMinimizeRoundtrips, String backingDataIndexName) throws IOException {
         final String[] users = {
             FAILURE_STORE_ACCESS,
-            DATA_ACCESS,
             ALL_ACCESS,
-            MANAGE_FAILURE_STORE_ACCESS,
-            BACKING_DATA_INDEX_ACCESS,
-            BACKING_FAILURE_STORE_INDEX_ACCESS,
-            ONLY_READ_FAILURE_STORE_ACCESS };
+            MANAGE_FAILURE_STORE_ACCESS };
         for (String user : users) {
-            // query remote cluster using ::failures selector should fail (regardless of the user's permissions)
-            final ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> performRequestMaybeUsingApiKey(
-                    user,
-                    new Request(
-                        "GET",
-                        String.format(
-                            Locale.ROOT,
-                            "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=true",
-                            randomFrom("test1::failures", "test*::failures", "*::failures", "other1::failures", "non-existing::failures"),
-                            ccsMinimizeRoundtrips
-                        )
-                    )
+            // query remote cluster using ::failures selector should succeed
+            final Request dataSearchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=true",
+                    randomFrom("test1::failures", "test*::failures"),
+                    ccsMinimizeRoundtrips
                 )
             );
-            assertSelectorsNotSupported(exception);
+            final String[] expectedIndices = new String[] { backingDataIndexName };
+            assertSearchResponseContainsIndices(performRequestMaybeUsingApiKey(user, dataSearchRequest), expectedIndices);
         }
     }
 

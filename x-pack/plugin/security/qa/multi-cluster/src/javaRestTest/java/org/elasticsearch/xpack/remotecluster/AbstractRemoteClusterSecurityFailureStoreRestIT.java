@@ -25,7 +25,9 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -37,6 +39,16 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
                 .map(SearchHit::getIndex)
                 .collect(Collectors.toList());
             assertThat(actualIndices, containsInAnyOrder(expectedIndices));
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    protected void assertSearchResponseEmpty(Response response) throws IOException {
+        assertOK(response);
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+        try {
+            assertThat(searchResponse.getHits().getHits(), is(emptyArray()));
         } finally {
             searchResponse.decRef();
         }
@@ -168,10 +180,4 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
         assertThat(indices.v2().size(), equalTo(1));
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
     }
-
-    protected static void assertSelectorsNotSupported(ResponseException exception) {
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(exception.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
-    }
-
 }

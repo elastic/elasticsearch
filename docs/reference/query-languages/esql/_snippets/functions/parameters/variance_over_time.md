@@ -5,3 +5,6 @@
 `number`
 :   Expression for which to calculate the variance over time.
 
+`window`
+:   the time window over which to compute the variance over time
+

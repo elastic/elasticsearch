@@ -43,7 +43,8 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
     static LastValueFieldProducer createForLabel(String name, String fieldType) {
         assert "aggregate_metric_double".equals(fieldType) == false
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
-        assert "histogram".equals(fieldType) == false : "field type cannot be histogram: " + fieldType + " for field " + name;
+        assert TDigestHistogramFieldProducer.TYPE.equals(fieldType) == false
+            : "field type cannot be histogram: " + fieldType + " for field " + name;
         if ("exponential_histogram".equals(fieldType)) {
             return new LastValueFieldProducer.ExponentialHistogramFieldProducer(name);
         } else if ("flattened".equals(fieldType)) {

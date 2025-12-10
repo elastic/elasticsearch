@@ -27,6 +27,9 @@ import java.util.List;
  */
 abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer<HistogramValues> {
 
+    static final String TYPE = "histogram";
+    public static final int COMPRESSION = 100;
+
     TDigestHistogramFieldProducer(String name) {
         super(name);
     }
@@ -41,7 +44,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         };
     }
 
-    static class Aggregate extends TDigestHistogramFieldProducer {
+    private static class Aggregate extends TDigestHistogramFieldProducer {
 
         private TDigestState tDigestState = null;
 
@@ -58,7 +61,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 isEmpty = false;
                 if (tDigestState == null) {
                     // TODO: figure out what circuit breaker to use here and in the other histogram
-                    tDigestState = TDigestState.create(new NoopCircuitBreaker("downsampling-histograms"), 100);
+                    tDigestState = TDigestState.create(new NoopCircuitBreaker("downsampling-histograms"), COMPRESSION);
                 }
                 final HistogramValue sketch = docValues.histogram();
                 while (sketch.next()) {
@@ -90,7 +93,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         }
     }
 
-    static class LastValue extends TDigestHistogramFieldProducer {
+    private static class LastValue extends TDigestHistogramFieldProducer {
 
         private HistogramValue lastValue = null;
 

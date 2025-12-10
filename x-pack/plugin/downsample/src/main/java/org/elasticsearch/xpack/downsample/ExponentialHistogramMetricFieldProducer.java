@@ -23,7 +23,7 @@ import java.io.IOException;
  * values.
  */
 final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFieldProducer<ExponentialHistogramValuesReader> {
-
+    static final String TYPE = "exponential_histogram";
     private ExponentialHistogramMerger merger = null;
 
     ExponentialHistogramMetricFieldProducer(String name) {

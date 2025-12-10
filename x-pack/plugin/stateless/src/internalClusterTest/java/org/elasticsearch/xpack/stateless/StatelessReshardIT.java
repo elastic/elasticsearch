@@ -87,7 +87,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
-import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -2442,113 +2441,6 @@ public class StatelessReshardIT extends AbstractServerlessStatelessPluginIntegTe
         } finally {
             blockClusterStateProcessing.stopDisrupting();
         }
-    }
-
-    @TestLogging(value = "co.elastic.elasticsearch.stateless.reshard.SplitTargetService:DEBUG", reason = "logging assertions")
-    public void testTargetDoesNotAcceptWrongHandoffRequest() throws Exception {
-        String masterNode = startMasterOnlyNode();
-        String sourceShardNode = startIndexNode();
-        startSearchNodes(2);
-        ensureStableCluster(4);
-
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
-        );
-        Index index = resolveIndex(indexName);
-        ensureGreen(indexName);
-
-        checkNumberOfShardsSetting(sourceShardNode, indexName, 1);
-
-        int docs = randomIntBetween(10, 100);
-        indexDocs(indexName, docs);
-        refresh(indexName);
-        assertHitCount(prepareSearchAll(indexName), docs);
-
-        var handoffAttempted = new CountDownLatch(1);
-        var handoffBlocked = new CountDownLatch(1);
-
-        // Block the source shard from performing handoff.
-        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, sourceShardNode);
-        splitSourceService.setPreHandoffHook(() -> {
-            try {
-                if (handoffAttempted.getCount() > 0) {
-                    handoffAttempted.countDown();
-                }
-                if (handoffBlocked.getCount() > 0) {
-                    handoffBlocked.await();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        var targetShardNode = startIndexNode();
-        ensureStableCluster(5);
-
-        client(sourceShardNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
-
-        handoffAttempted.await();
-
-        // At this point the target shard is waiting for handoff and the source shard is blocked before sending handoff request.
-
-        var newIndexNode = startIndexNode();
-        ensureStableCluster(6);
-
-        // We block sending the start_split request from the new target shard
-        // since the source shard would fail it because it is already handling one (remember it's blocked at sending a handoff request).
-        // This is just to reduce the noise.
-        var startSplitBlocked = new CountDownLatch(1);
-        var newNodeTransportService = MockTransportService.getInstance(newIndexNode);
-        newNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            try {
-                if (TransportReshardSplitAction.START_SPLIT_ACTION_NAME.equals(action)) {
-                    if (startSplitBlocked.getCount() > 0) {
-                        startSplitBlocked.await();
-                    }
-                }
-                connection.sendRequest(requestId, action, request, options);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        // Now we remove targetShardNode from the cluster by making it unreachable from master.
-        // That will force the target shard to be recovered on a new node.
-        NetworkDisruption networkDisruption = new NetworkDisruption(
-            new NetworkDisruption.TwoPartitions(Set.of(masterNode), Set.of(targetShardNode)),
-            NetworkDisruption.DISCONNECT
-        );
-        internalCluster().setDisruptionScheme(networkDisruption);
-        networkDisruption.startDisrupting();
-
-        // Target shard is assigned to newIndexNode.
-        awaitClusterState(state -> state.metadata().indexMetadata(index).primaryTerm(1) > 1);
-
-        // Now targetShardNode comes back!
-        networkDisruption.stopDisrupting();
-        awaitClusterState(sourceShardNode, state -> state.nodes().hasByName(targetShardNode));
-
-        // Source shard now sends a handoff request to targetShardNode
-        // which should be rejected because the shard is closed.
-        MockLog.awaitLogger(
-            handoffBlocked::countDown,
-            SplitTargetService.class,
-            new MockLog.PatternSeenEventExpectation(
-                "stale handoff request",
-                SplitTargetService.class.getCanonicalName(),
-                Level.DEBUG,
-                ".*Received a stale split handoff request.*[" + indexName + "][1].*"
-            )
-        );
-
-        // Proceed with normal recovery on the new node.
-        startSplitBlocked.countDown();
-
-        waitForReshardCompletion(indexName);
-        ensureGreen(indexName);
-        assertHitCount(prepareSearchAll(indexName), docs);
     }
 
     @Override

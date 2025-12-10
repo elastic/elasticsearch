@@ -414,7 +414,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         assertNotSame(weight, cached);
         assertFalse(weight.scorerCalled);
         assertFalse(weight.scorerSupplierCalled);
-        cached.scorerSupplier(s.getIndexReader().leaves().getFirst());
+        cached.scorerSupplier(s.getIndexReader().leaves().get(0));
         assertFalse(weight.scorerCalled);
         assertTrue(weight.scorerSupplierCalled);
         IOUtils.close(r, dir);

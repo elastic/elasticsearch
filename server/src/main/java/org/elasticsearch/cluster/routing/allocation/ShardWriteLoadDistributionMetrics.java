@@ -199,7 +199,7 @@ public class ShardWriteLoadDistributionMetrics {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<DoubleWithAttributes>[] createPercentileArrays(int percentileCount, int ingestNodeCount) {
-        List<DoubleWithAttributes>[] lists = (List<DoubleWithAttributes>[]) new List[percentileCount];
+        List<DoubleWithAttributes>[] lists = new List[percentileCount];
         for (int i = 0; i < percentileCount; i++) {
             lists[i] = new ArrayList<>(ingestNodeCount);
         }

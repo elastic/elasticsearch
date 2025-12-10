@@ -46,22 +46,13 @@ public class HistogramMergeTDigestAggregator {
         current.add(groupId, value);
     }
 
-    public static void combineIntermediate(
-        TDigestStates.GroupingState state,
-        int groupId,
-        TDigestHolder value,
-        boolean seen
-    ) {
+    public static void combineIntermediate(TDigestStates.GroupingState state, int groupId, TDigestHolder value, boolean seen) {
         if (seen) {
             state.add(groupId, value);
         }
     }
 
-    public static Block evaluateFinal(
-        TDigestStates.GroupingState state,
-        IntVector selected,
-        GroupingAggregatorEvaluationContext ctx
-    ) {
+    public static Block evaluateFinal(TDigestStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
         return state.evaluateFinal(selected, ctx.driverContext());
     }
 }

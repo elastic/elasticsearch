@@ -44,7 +44,7 @@ public class HistogramPercentileErrorTests extends ErrorsForCasesWithoutExamples
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> switch (p) {
-            case 0 -> "exponential_histogram";
+            case 0 -> "exponential_histogram or tdigest";
             case 1 -> "numeric types";
             default -> throw new IllegalArgumentException("Unexpected parameter position: " + p);
         }));

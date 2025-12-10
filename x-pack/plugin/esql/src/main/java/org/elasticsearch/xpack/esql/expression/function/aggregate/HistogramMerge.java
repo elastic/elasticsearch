@@ -42,8 +42,8 @@ public class HistogramMerge extends AggregateFunction implements ToAggregator {
         HistogramMerge::new
     );
 
-    @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.AGGREGATE)
-    public HistogramMerge(Source source, @Param(name = "histogram", type = { "exponential_histogram" }) Expression field) {
+    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.AGGREGATE)
+    public HistogramMerge(Source source, @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field) {
         this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
@@ -67,7 +67,14 @@ public class HistogramMerge extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST, sourceText(), DEFAULT, "exponential_histogram", "tdigest");
+        return isType(
+            field(),
+            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "exponential_histogram",
+            "tdigest"
+        );
     }
 
     @Override

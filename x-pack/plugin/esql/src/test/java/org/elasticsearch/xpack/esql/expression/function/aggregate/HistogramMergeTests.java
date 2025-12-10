@@ -46,10 +46,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        Stream.of(
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100)
-            )
+        Stream.of(MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100), MultiRowTestCaseSupplier.tdigestCases(1, 100))
             .flatMap(List::stream)
             .map(HistogramMergeTests::makeSupplier)
             .collect(Collectors.toCollection(() -> suppliers));
@@ -88,8 +85,8 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
     }
 
     private static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
-         // TDigest is non-deterministic, we just do a sanity check here:
-         // the total count should match exactly and the result should have at least as many centroids as the largest input
+        // TDigest is non-deterministic, we just do a sanity check here:
+        // the total count should match exactly and the result should have at least as many centroids as the largest input
 
         long totalCount = 0;
         double min = Double.POSITIVE_INFINITY;
@@ -157,20 +154,16 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
                 if (tDigestTotalCount != finalTotalCount) {
                     return false;
                 }
-                return  true;
+                return true;
             }
 
             @Override
-            public void describeTo(Description description) {
-            }
+            public void describeTo(Description description) {}
         };
     }
 
     private static Matcher<?> createExpectedExponentialHistogramMatcher(List<Object> fieldValues) {
-        ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(
-            MAX_BUCKET_COUNT,
-            ExponentialHistogramCircuitBreaker.noop()
-        );
+        ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, ExponentialHistogramCircuitBreaker.noop());
 
         boolean anyValuesNonNull = false;
 

@@ -502,7 +502,8 @@ public class EsqlSession {
             request.query(),
             request.params(),
             SettingsValidationContext.from(remoteClusterService),
-            planTelemetry
+            planTelemetry,
+            inferenceService.inferenceSettings()
         );
     }
 

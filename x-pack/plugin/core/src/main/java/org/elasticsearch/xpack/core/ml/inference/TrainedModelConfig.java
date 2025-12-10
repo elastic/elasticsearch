@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -103,8 +102,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
     public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
     public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
-
-    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_11_X;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -281,11 +278,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
         modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
         fullDefinition = in.readOptionalBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            platformArchitecture = in.readOptionalString();
-        } else {
-            platformArchitecture = null;
-        }
+        platformArchitecture = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         }
@@ -466,9 +459,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(modelPackageConfig);
         out.writeOptionalBoolean(fullDefinition);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeOptionalString(platformArchitecture);
-        }
+        out.writeOptionalString(platformArchitecture);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(prefixStrings);

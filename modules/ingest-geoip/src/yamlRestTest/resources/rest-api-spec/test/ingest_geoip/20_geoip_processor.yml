@@ -386,9 +386,9 @@
   - match: { _source.geo\.location_data\.continent_name: "Europe" }
   - match: { _source.geo\.location_data\.region_iso_code: "SE-E" }
   - match: { _source.geo\.location_data\.region_name: "Östergötland County" }
-  # Location should remain as a composite object (geopoint)
-  - match: { _source.geo\.location_data\.location.lon: 15.6167 }
-  - match: { _source.geo\.location_data\.location.lat: 58.4167 }
+  # Location should be written as an array [lon, lat] in flexible mode
+  - match: { _source.geo\.location_data\.location.0: 15.6167 }
+  - match: { _source.geo\.location_data\.location.1: 58.4167 }
   # Verify that nested object was NOT created
   - is_false: _source.geo
 ---
@@ -472,8 +472,8 @@
   # Only the first valid IP should be processed
   - match: { _source.geo\.data\.city_name: "Linköping" }
   - match: { _source.geo\.data\.country_iso_code: "SE" }
-  - match: { _source.geo\.data\.location.lon: 15.6167 }
-  - match: { _source.geo\.data\.location.lat: 58.4167 }
+  - match: { _source.geo\.data\.location.0: 15.6167 }
+  - match: { _source.geo\.data\.location.1: 58.4167 }
 ---
 "Test geoip processor classic mode vs flexible mode comparison":
   - skip:
@@ -538,5 +538,5 @@
         id: "flexible"
   # Flexible mode creates dotted fields
   - match: { _source.geo\.info\.city_name: "Linköping" }
-  - match: { _source.geo\.info\.location.lon: 15.6167 }
+  - match: { _source.geo\.info\.location.0: 15.6167 }
   - is_false: _source.geo

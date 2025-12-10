@@ -553,14 +553,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(sourceAndMetadata.containsKey("my.target.region_name"), is(true));
         assertThat(sourceAndMetadata.containsKey("my.target.region_iso_code"), is(true));
 
-        // Verify that location remains as a composite object (geopoint)
+        // Verify that location is written as an array [lon, lat] in flexible mode
         assertThat(sourceAndMetadata.containsKey("my.target.location"), is(true));
         Object location = sourceAndMetadata.get("my.target.location");
-        assertThat(location, instanceOf(Map.class));
+        assertThat(location, instanceOf(List.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> locationMap = (Map<String, Object>) location;
-        assertThat(locationMap, hasEntry("lat", 25.4573));
-        assertThat(locationMap, hasEntry("lon", -80.4572));
+        List<Double> locationArray = (List<Double>) location;
+        assertThat(locationArray.size(), equalTo(2));
+        assertThat(locationArray.get(0), equalTo(-80.4572)); // longitude
+        assertThat(locationArray.get(1), equalTo(25.4573)); // latitude
 
         // Verify that the nested "my.target" object was NOT created
         assertThat(sourceAndMetadata.containsKey("my.target"), is(false));
@@ -637,14 +638,16 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(sourceAndMetadata.get("my.geo.city_name"), equalTo("Chicago"));
         assertThat(sourceAndMetadata.containsKey("my.geo.country_iso_code"), is(true));
 
-        // Verify that location remains as a composite object (geopoint)
+        // Verify that location is written as an array [lon, lat] in flexible mode
         assertThat(sourceAndMetadata.containsKey("my.geo.location"), is(true));
         Object location = sourceAndMetadata.get("my.geo.location");
-        assertThat(location, instanceOf(Map.class));
+        assertThat(location, instanceOf(List.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> locationMap = (Map<String, Object>) location;
-        assertThat(locationMap.containsKey("lat"), is(true));
-        assertThat(locationMap.containsKey("lon"), is(true));
+        List<Double> locationArray = (List<Double>) location;
+        assertThat(locationArray.size(), equalTo(2));
+        // Verify longitude and latitude are present in the array
+        assertThat(locationArray.get(0), notNullValue()); // longitude
+        assertThat(locationArray.get(1), notNullValue()); // latitude
 
         // Verify that the nested "my.geo" object was NOT created
         assertThat(sourceAndMetadata.containsKey("my.geo"), is(false));

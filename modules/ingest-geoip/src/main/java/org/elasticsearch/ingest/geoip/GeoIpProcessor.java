@@ -174,8 +174,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     /**
      * Writes GeoIP data to the document. In flexible field access mode, writes individual dotted fields
-     * (e.g., "my.field.city", "my.field.country") instead of a single nested object. Composite properties
-     * like "location" (containing lat/lon) are kept as objects since they represent a single logical field.
+     * (e.g., "my.field.city", "my.field.country") instead of a single nested object. The "location" field
+     * is written as an array [lat, lon] for better compatibility with geo_point fields in flexible mode.
      *
      * @param document the ingest document
      * @param targetField the base target field path
@@ -188,6 +188,17 @@ public final class GeoIpProcessor extends AbstractProcessor {
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
+
+                // Convert location from map {lat, lon} to array [lat, lon] in flexible mode
+                if ("location".equals(key) && value instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> locationMap = (Map<String, Object>) value;
+                    Double lat = (Double) locationMap.get("lat");
+                    Double lon = (Double) locationMap.get("lon");
+                    if (lat != null && lon != null) {
+                        value = List.of(lon, lat); // GeoJSON order: [lon, lat]
+                    }
+                }
 
                 document.setFieldValue(targetField + "." + key, value);
             }

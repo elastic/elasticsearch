@@ -199,5 +199,4 @@ public class StSimplifyUnitTests extends ESTestCase {
         assertEquals("POLYGON EMPTY", result);
     }
 
-
 }

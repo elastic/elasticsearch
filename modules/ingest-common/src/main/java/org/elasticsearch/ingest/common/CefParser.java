@@ -41,6 +41,7 @@ import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 import static java.util.Map.entry;
+import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.ingest.common.CefParser.DataType.DoubleType;
 import static org.elasticsearch.ingest.common.CefParser.DataType.IPType;
 import static org.elasticsearch.ingest.common.CefParser.DataType.IntegerType;
@@ -465,14 +466,38 @@ final class CefParser {
         };
     }
 
+    /**
+     * A utility method for determining whether a string contains only digits, possibly with a leading '+' or '-'.
+     * That is, does this string have any hope of being parse-able as a Long?
+     */
+    private static boolean isDigits(String s) {
+        if (hasLength(s) == false) {
+            return false; // the absence of digits is not digits
+        }
+        int i = 0;
+        // allow a leading + or - (but only if there are digits following that)
+        if (s.length() > 1 && (s.charAt(0) == '+' || s.charAt(0) == '-')) {
+            i++;
+        }
+        // verify that there are no non-digits
+        for (; i < s.length(); i++) {
+            if (Character.isDigit(s.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // visible for testing
     ZonedDateTime toTimestamp(String value) {
         // First, try parsing as milliseconds
-        try {
-            long milliseconds = Long.parseLong(value);
-            return Instant.ofEpochMilli(milliseconds).atZone(timezone);
-        } catch (NumberFormatException ignored) {
-            // Not a millisecond timestamp, continue to format parsing
+        if (isDigits(value)) {
+            try {
+                long milliseconds = Long.parseLong(value);
+                return Instant.ofEpochMilli(milliseconds).atZone(timezone);
+            } catch (NumberFormatException ignored) {
+                // Not a millisecond timestamp, continue to format parsing
+            }
         }
 
         // Try parsing with different layouts

@@ -90,6 +90,9 @@ public final class AutoPrefilteringUtils {
     }
 
     private static void adjustMinimumShouldMatchForPrunedShouldClauses(BoolQueryBuilder originalBool, BoolQueryBuilder prunedBool) {
+        if (originalBool.minimumShouldMatch() == null) {
+            return;
+        }
         if (prunedBool.should().size() == originalBool.should().size()) {
             prunedBool.minimumShouldMatch(originalBool.minimumShouldMatch());
         } else {

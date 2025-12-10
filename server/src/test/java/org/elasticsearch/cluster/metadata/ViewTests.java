@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -34,11 +33,6 @@ public class ViewTests extends AbstractXContentSerializingTestCase<View> {
     @Override
     protected View mutateInstance(View instance) {
         return randomValueOtherThan(instance, () -> randomView(instance.name()));
-    }
-
-    @Override
-    protected View createXContextTestInstance(XContentType xContentType) {
-        return randomView(randomName());
     }
 
     @Override

@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,11 +40,6 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
         }
         views.replaceAll((name, view) -> randomValueOtherThan(view, () -> randomView(name)));
         return new ViewMetadata(views);
-    }
-
-    @Override
-    protected ViewMetadata createXContextTestInstance(XContentType xContentType) {
-        return randomViewMetadata();
     }
 
     private static ViewMetadata randomViewMetadata() {

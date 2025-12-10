@@ -206,10 +206,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         try {
             checkFileRead(callerClass, path, false);
         } catch (IOException e) {
-            assert false : "NoSuchFileException should only be thrown when following links";
-            var notEntitledException = new NotEntitledException(e.getMessage());
-            notEntitledException.addSuppressed(e);
-            throw notEntitledException;
+            throw new AssertionError("IOException should be impossible unless following links", e);
         }
     }
 

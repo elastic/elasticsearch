@@ -59,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
@@ -79,7 +80,7 @@ public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
     private record ExpectedRankFeatureDoc(int doc, int rank, float score, List<String> featureData) {}
 
     private SearchContext createSearchContext() {
-        IndexService indexService = createIndex(randomAlphaOfLength(10));
+        IndexService indexService = createIndex(randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
         return new TestSearchContext(indexService);
     }
 
@@ -165,6 +166,7 @@ public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -295,6 +297,7 @@ public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -402,6 +405,7 @@ public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -500,6 +504,7 @@ public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -649,6 +654,7 @@ public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -791,6 +797,7 @@ public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();

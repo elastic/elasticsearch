@@ -1109,6 +1109,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for views in cluster state (and REST API).
+         */
+        VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -1795,7 +1800,7 @@ public class EsqlCapabilities {
      * capability.
      */
     public static String cap(NodeFeature feature) {
-        assert feature.id().startsWith("esql.");
+        assert feature.id().startsWith("esql.") : "node feature must start with 'esql.' but was " + feature.id();
         return feature.id().substring("esql.".length());
     }
 }

@@ -11,7 +11,9 @@ package org.elasticsearch.swisshash;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -21,7 +23,9 @@ import org.elasticsearch.simdvec.VectorComparisonUtils;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Assigns {@code int} ids to {@code long}s, vending the ids in order they are added.
@@ -48,6 +52,10 @@ import java.util.Arrays;
  *
  * <p> When a "big core" fills it's table to the fill factor, we build a new
  * "big core" and read all values in the old "big core" into the new one.
+ *
+ * <p> This class does not store the keys in the hash table slots. Instead, it
+ * uses a {@link #keyPages} to store the actual values, and the hash table
+ * slots store the {@code id} which indexes into the {@link #keyPages}.
  */
 public final class Ordinator64 extends Ordinator implements Releasable {
     private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
@@ -85,20 +93,43 @@ public final class Ordinator64 extends Ordinator implements Releasable {
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
-    SmallCore smallCore;
-    BigCore bigCore;
+    /**
+     * Pages of {@code keys}, vended by the {@link PageCacheRecycler}. It's
+     * important that the size of keys be a power of two, so we can quickly
+     * select the appropriate page and keys never span multiple pages.
+     */
+    private byte[][] keyPages;
+    private SmallCore smallCore;
+    private BigCore bigCore;
+    private final List<Releasable> toClose = new ArrayList<>();
 
-    @SuppressWarnings("this-escape")
-    public Ordinator64(PageCacheRecycler recycler, CircuitBreaker breaker, IdSpace idSpace) {
-        super(recycler, breaker, idSpace, INITIAL_CAPACITY, Ordinator64.SmallCore.FILL_FACTOR);
-        this.smallCore = new SmallCore();
+    public Ordinator64(PageCacheRecycler recycler, CircuitBreaker breaker) {
+        super(recycler, breaker, INITIAL_CAPACITY, Ordinator64.SmallCore.FILL_FACTOR);
+        boolean success = false;
+        try {
+            smallCore = new SmallCore();
+            keyPages = new byte[][] { grabKeyPage() };
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
+    }
+
+    private byte[] grabKeyPage() {
+        breaker.addEstimateBytesAndMaybeBreak(PageCacheRecycler.PAGE_SIZE_IN_BYTES, "ordinator64-keyPage");
+        toClose.add(() -> breaker.addWithoutBreaking(-PageCacheRecycler.PAGE_SIZE_IN_BYTES));
+        Recycler.V<byte[]> page = recycler.bytePage(false);
+        toClose.add(page);
+        return page.v();
     }
 
     /**
-     * Find an {@code id} by a {@code key}.
+     * Finds an {@code id} by a {@code key}.
      */
-    public int find(long key) {
-        int hash = hash(key);
+    public int find(final long key) {
+        final int hash = hash(key);
         if (smallCore != null) {
             return smallCore.find(key, hash);
         } else {
@@ -107,13 +138,12 @@ public final class Ordinator64 extends Ordinator implements Releasable {
     }
 
     /**
-     * Add many {@code key}s at once, putting their {@code id}s into an array.
+     * Adds many {@code key}s at once, putting their {@code id}s into an array.
      * If any {@code key} was already present it's previous assigned {@code id}
      * will be added to the array. If it wasn't present it'll be assigned a new
      * {@code id}.
-     * <p>
-     *     This method tends to be faster than {@link #add(long)}.
-     * </p>
+     *
+     * <p> This method tends to be faster than {@link #add(long)}.
      */
     public void add(long[] keys, int[] ids, int length) {
         int i = 0;
@@ -130,37 +160,13 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         }
     }
 
-    // /**
-    // * Add many {@code key}s at once, putting their {@code id}s into a builder.
-    // * If any {@code key} was already present it's previous assigned {@code id}
-    // * will be added to the builder. If it wasn't present it'll be assigned a new
-    // * {@code id}.
-    // * <p>
-    // * This method tends to be faster than {@link #add(long)}.
-    // * </p>
-    // */
-    // public void add(long[] keys, LongBlock.Builder ids, int length) {
-    // int i = 0;
-    // for (; i < length; i++) {
-    // if (bigCore != null) {
-    // for (; i < length; i++) {
-    // long k = keys[i];
-    // ids.appendLong(bigCore.add(k, hash(k)));
-    // }
-    // return;
-    // }
-    //
-    // ids.appendLong(add(keys[i]));
-    // }
-    // }
-
     /**
      * Add a {@code key}, returning its {@code id}s. If it was already present
      * it's previous assigned {@code id} will be returned. If it wasn't present
      * it'll be assigned a new {@code id}.
      */
-    public int add(long key) {
-        int hash = hash(key);
+    public int add(final long key) {
+        final int hash = hash(key);
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
@@ -177,7 +183,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
     public abstract class Itr extends Ordinator.Itr {
         /**
-         * The key the iterator is current pointing to.
+         * The key the iterator current points to.
          */
         public abstract long key();
     }
@@ -193,21 +199,25 @@ public final class Ordinator64 extends Ordinator implements Releasable {
      * and the remaining 7 bits contain the top 7 bits of the hash.
      * So it looks like {@code 0b0xxx_xxxx}.
      */
-    private byte control(int hash) {
+    private static byte control(int hash) {
         return (byte) (hash >>> (Integer.SIZE - 7));
     }
 
     @Override
     public void close() {
         Releasables.close(smallCore, bigCore);
+        Releasables.close(toClose);
+        toClose.clear();
     }
 
     private int growTracking() {
         // Juggle constants for the new page size
         growCount++;
-        // TODO what about MAX_INT?
         int oldCapacity = capacity;
         capacity <<= 1;
+        if (capacity < 0) {
+            throw new IllegalArgumentException("overflow: oldCapacity=" + oldCapacity + ", new capacity=" + capacity);
+        }
         mask = capacity - 1;
         nextGrowSize = (int) (capacity * BigCore.FILL_FACTOR);
         return oldCapacity;
@@ -217,21 +227,18 @@ public final class Ordinator64 extends Ordinator implements Releasable {
      * Open addressed hash table the probes by triangle numbers. Empty
      * {@code id}s are encoded as {@code -1}. This hash table can't
      * grow, and is instead replaced by a {@link BigCore}.
-     * <p>
-     *     This uses two pages from the {@link PageCacheRecycler}, one
-     *     for the {@code keys} and one for the {@code ids}.
-     * </p>
+     *
+     * <p> This uses one page from the {@link PageCacheRecycler} for the
+     * {@code ids}.
      */
     final class SmallCore extends Core {
         static final float FILL_FACTOR = 0.6F;
 
-        private final byte[] keyPage;
         private final byte[] idPage;
 
         private SmallCore() {
             boolean success = false;
             try {
-                keyPage = grabPage();
                 idPage = grabPage();
                 Arrays.fill(idPage, (byte) 0xff);
                 success = true;
@@ -250,7 +257,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                 if (id < 0) {
                     return -1; // empty
                 }
-                if (key(slot) == key) {
+                if (key(id) == key) {
                     return id;
                 }
                 slotIncrement++;
@@ -262,23 +269,22 @@ public final class Ordinator64 extends Ordinator implements Releasable {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
-                final int keyOffset = keyOffset(slot);
                 final int idOffset = idOffset(slot);
-                final long slotKey = (long) LONG_HANDLE.get(keyPage, keyOffset);
-                final int slotId = (int) INT_HANDLE.get(idPage, idOffset);
-                if (slotId >= 0) {
-                    if (slotKey == key) {
-                        return slotId;
+                final int currentId = (int) INT_HANDLE.get(idPage, idOffset);
+                if (currentId >= 0) {
+                    final long currentKey = key(currentId);
+                    if (currentKey == key) {
+                        return currentId;
                     }
+                    slotIncrement++;
+                    slot = slot(slot + slotIncrement);
                 } else {
-                    LONG_HANDLE.set(keyPage, keyOffset, key);
-                    int id = idSpace.next();
+                    int id = size;
                     INT_HANDLE.set(idPage, idOffset, id);
+                    setKey(id, key);
                     size++;
                     return id;
                 }
-                slotIncrement++;
-                slot = slot(slot + slotIncrement);
             }
         }
 
@@ -316,25 +322,29 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
                 @Override
                 public long key() {
-                    return SmallCore.this.key(slot);
+                    return SmallCore.this.key(id());
                 }
             };
         }
 
-        private void rehash(int oldCapacity) {
+        private void rehash(final int oldCapacity) {
             for (int slot = 0; slot < oldCapacity; slot++) {
-                int id = (int) INT_HANDLE.get(idPage, idOffset(slot));
+                final int id = id(slot);
                 if (id < 0) {
                     continue;
                 }
-                long key = (long) LONG_HANDLE.get(keyPage, keyOffset(slot));
-                int hash = hash(key);
-                bigCore.insert(key, hash, control(hash), id);
+                final long key = key(id);
+                final int hash = hash(key);
+                bigCore.insert(hash, control(hash), id);
             }
         }
 
-        private long key(int slot) {
-            return (long) LONG_HANDLE.get(keyPage, keyOffset(slot));
+        private long key(int id) {
+            return (long) LONG_HANDLE.get(keyPages[0], keyOffset(id));
+        }
+
+        private void setKey(int id, long value) {
+            LONG_HANDLE.set(keyPages[0], keyOffset(id), value);
         }
 
         private int id(int slot) {
@@ -356,7 +366,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         private static final byte CONTROL_EMPTY = (byte) 0b1111_1111;
 
         /**
-         * The "control" bytes from the Swisstable algorithm. This will contain
+         * The "control" bytes from the SwissTable algorithm. This will contain
          * {@link #CONTROL_EMPTY} for empty entries and {@code 0b0aaa_aaaa} for
          * filled entries, where {@code aaa_aaaa} are the top seven bits of the
          * hash. These are tests by SIMD instructions as a quick first pass to
@@ -372,13 +382,6 @@ public final class Ordinator64 extends Ordinator implements Releasable {
          * around the array.
          */
         private final byte[] controlData;
-
-        /**
-         * Pages of {@code keys}, vended by the {@link PageCacheRecycler}. It's
-         * important that the size of keys be a power of two, so we can quickly
-         * select the appropriate page and keys never span multiple pages.
-         */
-        private final byte[][] keyPages;
 
         /**
          * Pages of {@code ids}, vended by the {@link PageCacheRecycler}. Ids
@@ -399,7 +402,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
         BigCore() {
             int controlLength = capacity + BYTE_VECTOR_LANES;
-            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinator64");
+            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinator64-bigCore");
             toClose.add(() -> breaker.addWithoutBreaking(-controlLength));
             controlData = new byte[controlLength];
             Arrays.fill(controlData, (byte) 0xFF);
@@ -408,11 +411,14 @@ public final class Ordinator64 extends Ordinator implements Releasable {
             try {
                 int keyPagesNeeded = (capacity * KEY_SIZE - 1) >> PAGE_SHIFT;
                 keyPagesNeeded++;
+                var initialKeyPages = keyPages;
                 keyPages = new byte[keyPagesNeeded][];
                 for (int i = 0; i < keyPagesNeeded; i++) {
-                    keyPages[i] = grabPage();
+                    keyPages[i] = (i < initialKeyPages.length) ? initialKeyPages[i] : grabKeyPage();
                 }
-                assert keyPages[keyOffset(mask) >> PAGE_SHIFT] != null;
+                assert keyPages[keyOffset(mask) >> PAGE_SHIFT] != null
+                    && Arrays.stream(keyPages).mapToInt(b -> b.length).distinct().count() == 1L
+                    && keyPagesNeeded > initialKeyPages.length;
 
                 int idPagesNeeded = (capacity * ID_SIZE - 1) >> PAGE_SHIFT;
                 idPagesNeeded++;
@@ -457,8 +463,9 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                 int first;
                 while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
                     final int checkSlot = slot(slot + first);
-                    if (key(checkSlot) == key) {
-                        return id(checkSlot);
+                    final int id = id(checkSlot);
+                    if (key(id) == key) {
+                        return id;
                     }
                     // Clear the first set bit and try again
                     candidateMatches &= ~(1L << first);
@@ -478,14 +485,15 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                 return found;
             }
 
-            size++;
             if (size >= nextGrowSize) {
                 assert size == nextGrowSize;
                 grow();
             }
 
-            final int id = idSpace.next();
-            bigCore.insert(key, hash, control, id);
+            final int id = size;
+            setKey(id, key);
+            bigCore.insert(hash, control, id);
+            size++;
             return id;
         }
 
@@ -494,21 +502,16 @@ public final class Ordinator64 extends Ordinator implements Releasable {
          * after we verify that the key isn't in the index. And used by {@link #rehash}
          * because we know all keys are unique.
          */
-        private void insert(final long key, final int hash, final byte control, final int id) {
+        private void insert(final int hash, final byte control, final int id) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             while (true) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
                 if (VectorComparisonUtils.anyTrue(empty)) {
                     final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
-                    final int keyOffset = keyOffset(insertSlot);
                     final int idOffset = idOffset(insertSlot);
-                    LONG_HANDLE.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, key);
                     INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
                     controlData[insertSlot] = control;
-                    // Mirror the first group bytes to the end of the array to handle wraparound loads.
-                    // Benign writes: all other positions are just written twice.
-                    // controlData[((insertSlot - BYTE_VECTOR_LANES) & mask) + BYTE_VECTOR_LANES] = control;
                     // mirror only if slot is within the first group size, to handle wraparound loads
                     if (insertSlot < BYTE_VECTOR_LANES) {
                         controlData[insertSlot + capacity] = control;
@@ -544,7 +547,7 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
                 @Override
                 public long key() {
-                    return BigCore.this.key(slot);
+                    return BigCore.this.key(id());
                 }
             };
         }
@@ -552,14 +555,15 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         private void grow() {
             int oldCapacity = growTracking();
             try {
-                bigCore = new BigCore();
-                rehash(oldCapacity);
+                var newBigCore = new BigCore();
+                rehash(oldCapacity, newBigCore);
+                bigCore = newBigCore;
             } finally {
                 close();
             }
         }
 
-        private void rehash(final int oldCapacity) {
+        private void rehash(final int oldCapacity, BigCore newBigCore) {
             int slot = 0;
             while (slot < oldCapacity) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
@@ -568,10 +572,9 @@ public final class Ordinator64 extends Ordinator implements Releasable {
                         continue;
                     }
                     final int actualSlot = slot + i;
-                    final long key = key(actualSlot);
                     final int id = id(actualSlot);
-                    final int hash = hash(key);
-                    bigCore.insert(key, hash, control(hash), id);
+                    final int hash = hash(key(id));
+                    newBigCore.insert(hash, control(hash), id);
                 }
                 slot += BYTE_VECTOR_LANES;
             }
@@ -587,9 +590,14 @@ public final class Ordinator64 extends Ordinator implements Releasable {
             return VECTOR_UTILS.equalMask(controlData, slot, control);
         }
 
-        private long key(final int slot) {
-            final int keyOffset = keyOffset(slot);
+        private long key(final int id) {
+            final int keyOffset = keyOffset(id);
             return (long) LONG_HANDLE.get(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK);
+        }
+
+        private void setKey(final int id, final long value) {
+            final int keyOffset = keyOffset(id);
+            LONG_HANDLE.set(keyPages[keyOffset >> PAGE_SHIFT], keyOffset & PAGE_MASK, value);
         }
 
         private int id(final int slot) {
@@ -598,17 +606,15 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         }
     }
 
-    // These methods were added in order to be compliant with the random-key-access pattern provided by AbstractHash / LongHash.
-    // The key difference is that those classes support random-access-by-ID, which remains stable across resizing / rehashing.
-    // Access by (bucket) slot is not. At least for ESQL, we don't ever resize during the code that relies on random access, so using
-    // access-by-slot has the equivalent behavior. If this ever changes, we'll likely need to look into unpairing keys:ids in the slots in
-    // favour of accessing slot -> id -> key lookup array via id.
-
-    public long key(final int slot) {
+    /**
+     * Returns the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
+     * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
+     */
+    public long key(final int id) {
         if (this.bigCore == null) {
-            return this.smallCore.key(slot);
+            return this.smallCore.key(id);
         }
-        return bigCore.key(slot);
+        return bigCore.key(id);
     }
 
     int id(final int slot) {
@@ -618,8 +624,8 @@ public final class Ordinator64 extends Ordinator implements Releasable {
         return bigCore.id(slot);
     }
 
-    private int keyOffset(final int slot) {
-        return slot * KEY_SIZE;
+    private int keyOffset(final int id) {
+        return id * KEY_SIZE;
     }
 
     private int idOffset(final int slot) {

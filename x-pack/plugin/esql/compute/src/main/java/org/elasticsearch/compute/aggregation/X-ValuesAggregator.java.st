@@ -214,7 +214,7 @@ $endif$
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
 $if(int)$
-            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker());
 
 $elseif(long||double)$
             this.hashes = new LongLongHash(1, blockFactory.bigArrays());

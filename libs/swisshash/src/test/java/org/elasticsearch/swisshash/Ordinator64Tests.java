@@ -29,7 +29,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -88,7 +87,7 @@ public class Ordinator64Tests extends ESTestCase {
 
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
             assertThat(ord.size(), equalTo(0));
 
             switch (addType) {
@@ -150,149 +149,6 @@ public class Ordinator64Tests extends ESTestCase {
         assertThat(recycler.open, hasSize(0));
     }
 
-    public void testSharedIdSpace() {
-        Set<Long> leftValues = randomValues(count);
-        Set<Long> rightValues = randomValues(count);
-        long[] left = leftValues.stream().mapToLong(Long::longValue).toArray();
-        long[] right = rightValues.stream().mapToLong(Long::longValue).toArray();
-
-        TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        Ordinator64.IdSpace idSpace = new Ordinator64.IdSpace();
-        try (
-            Ordinator64 leftOrd = new Ordinator64(recycler, breaker, idSpace);
-            Ordinator64 rightOrd = new Ordinator64(recycler, breaker, idSpace);
-        ) {
-            assertThat(leftOrd.size(), equalTo(0));
-            assertThat(rightOrd.size(), equalTo(0));
-
-            IntUnaryOperator leftMap, rightMap, leftMapInverse, rightMapInverse;
-            switch (addType) {
-                case SINGLE_VALUE -> {
-                    leftMap = i -> 2 * i;
-                    rightMap = i -> 2 * i + 1;
-                    leftMapInverse = i -> i / 2;
-                    rightMapInverse = i -> (i - 1) / 2;
-
-                    for (int i = 0; i < count; i++) {
-                        assertThat(leftOrd.add(left[i]), equalTo(2 * i));
-                        assertThat(leftOrd.size(), equalTo(i + 1));
-                        assertThat(rightOrd.add(right[i]), equalTo(2 * i + 1));
-                        assertThat(rightOrd.size(), equalTo(i + 1));
-
-                        assertThat(leftOrd.add(left[i]), equalTo(2 * i));
-                        assertThat(leftOrd.size(), equalTo(i + 1));
-                        assertThat(rightOrd.add(right[i]), equalTo(2 * i + 1));
-                        assertThat(rightOrd.size(), equalTo(i + 1));
-                    }
-                    for (int i = 0; i < count; i++) {
-                        assertThat(leftOrd.add(left[i]), equalTo(2 * i));
-                        assertThat(leftOrd.size(), equalTo(count));
-                        assertThat(rightOrd.add(right[i]), equalTo(2 * i + 1));
-                        assertThat(rightOrd.size(), equalTo(count));
-                    }
-                    assertThat(leftOrd.size(), equalTo(count));
-                    assertThat(rightOrd.size(), equalTo(count));
-                }
-                case ARRAY -> {
-                    leftMap = i -> i;
-                    rightMap = i -> count + i;
-                    leftMapInverse = i -> i;
-                    rightMapInverse = i -> i - count;
-
-                    int[] target = new int[count];
-
-                    leftOrd.add(left, target, count);
-                    assertThat(target, equalTo(IntStream.range(0, count).toArray()));
-                    assertThat(leftOrd.size(), equalTo(count));
-
-                    Arrays.fill(target, 0);
-                    rightOrd.add(right, target, count);
-                    assertThat(target, equalTo(IntStream.range(count, 2 * count).toArray()));
-                    assertThat(leftOrd.size(), equalTo(count));
-
-                    Arrays.fill(target, 0);
-                    leftOrd.add(left, target, count);
-                    assertThat(target, equalTo(IntStream.range(0, count).toArray()));
-                    assertThat(leftOrd.size(), equalTo(count));
-
-                    Arrays.fill(target, 0);
-                    rightOrd.add(right, target, count);
-                    assertThat(target, equalTo(IntStream.range(count, 2 * count).toArray()));
-                    assertThat(leftOrd.size(), equalTo(count));
-
-                    for (int i = 0; i < count; i++) {
-                        assertThat(leftOrd.find(left[i]), equalTo(i));
-                        assertThat(rightOrd.find(right[i]), equalTo(count + i));
-                    }
-                }
-                // todo potentially remove this entirely, same as in ordinator64
-                // case BUILDER -> {
-                // leftMap = i -> i;
-                // rightMap = i -> count + i;
-                // leftMapInverse = i -> i;
-                // rightMapInverse = i -> i - count;
-                //
-                // LongBlock.Builder target = LongBlock.newBlockBuilder(count);
-                //
-                // leftOrd.add(left, target, count);
-                // assertThat(target.build(), equalTo(new LongArrayVector(LongStream.range(0, count).toArray(), count).asBlock()));
-                // assertThat(leftOrd.currentSize(), equalTo(count));
-                //
-                // target = LongBlock.newBlockBuilder(count);
-                // rightOrd.add(right, target, count);
-                // assertThat(target.build(), equalTo(new LongArrayVector(LongStream.range(count, 2 * count).toArray(), count).asBlock()));
-                // assertThat(leftOrd.currentSize(), equalTo(count));
-                //
-                // target = LongBlock.newBlockBuilder(count);
-                // leftOrd.add(left, target, count);
-                // assertThat(target.build(), equalTo(new LongArrayVector(LongStream.range(0, count).toArray(), count).asBlock()));
-                // assertThat(leftOrd.currentSize(), equalTo(count));
-                //
-                // target = LongBlock.newBlockBuilder(count);
-                // rightOrd.add(right, target, count);
-                // assertThat(target.build(), equalTo(new LongArrayVector(LongStream.range(count, 2 * count).toArray(), count).asBlock()));
-                // assertThat(leftOrd.currentSize(), equalTo(count));
-                //
-                // for (int i = 0; i < count; i++) {
-                // assertThat(leftOrd.find(left[i]), equalTo(i));
-                // assertThat(rightOrd.find(right[i]), equalTo(count + i));
-                // }
-                // }
-                default -> throw new IllegalArgumentException();
-            }
-            for (int i = 0; i < count; i++) {
-                assertThat(leftOrd.find(left[i]), equalTo(leftMap.applyAsInt(i)));
-                assertThat(rightOrd.find(right[i]), equalTo(rightMap.applyAsInt(i)));
-            }
-
-            assertStatus(leftOrd);
-            assertStatus(rightOrd);
-            assertThat("Only currently used pages are open", recycler.open, hasSize(2 * (expectedKeyPageCount + expectedIdPageCount)));
-
-            Long[] iterated = new Long[count];
-            for (Ordinator64.Itr itr = leftOrd.iterator(); itr.next();) {
-                int id = leftMapInverse.applyAsInt(itr.id());
-                assertThat(iterated[id], nullValue());
-                iterated[id] = itr.key();
-            }
-            for (int i = 0; i < left.length; i++) {
-                assertThat(iterated[i], equalTo(left[i]));
-            }
-
-            iterated = new Long[count];
-            for (Ordinator64.Itr itr = rightOrd.iterator(); itr.next();) {
-                int id = rightMapInverse.applyAsInt(itr.id());
-                assertThat(iterated[id], nullValue());
-                iterated[id] = itr.key();
-            }
-            for (int i = 0; i < right.length; i++) {
-                assertThat(iterated[i], equalTo(right[i]));
-            }
-        }
-        assertThat(recycler.open, hasSize(0));
-    }
-
     public void testBreaker() {
         Set<Long> values = randomValues(count);
         long[] v = values.stream().mapToLong(Long::longValue).toArray();
@@ -304,7 +160,7 @@ public class Ordinator64Tests extends ESTestCase {
         }
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+            try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
                 switch (addType) {
                     case SINGLE_VALUE -> {
                         for (int i = 0; i < v.length; i++) {
@@ -342,7 +198,7 @@ public class Ordinator64Tests extends ESTestCase {
     private void testSameBucketCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
             // mask must match the table mask used by Ordinator64
             int mask = 0xFFFF; // oversized; we only need lower bits locked
             long base = randomLong();
@@ -377,7 +233,7 @@ public class Ordinator64Tests extends ESTestCase {
     private void testSameControlDataCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
             int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
             long[] keys = makeSameControlDataKeys(control, count);
             Map<Long, Integer> expected = new HashMap<>();
@@ -415,7 +271,7 @@ public class Ordinator64Tests extends ESTestCase {
     private void testWorstCaseCollisionClusterImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker, new Ordinator64.IdSpace())) {
+        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
             // Pick a fixed 7-bit metadata and fixed low bits.
             int control = randomIntBetween(1, 120);
             long fixedBucketBits = randomLong() & 0xFFFF; // lock bucket range

@@ -133,7 +133,7 @@ class ValuesIntAggregator {
 
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker());
 
         }
 

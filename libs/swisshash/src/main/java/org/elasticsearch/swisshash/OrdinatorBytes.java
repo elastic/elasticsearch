@@ -29,37 +29,33 @@ import java.util.Arrays;
 
 /**
  * Assigns {@code int} ids to {@code BytesRef}s, vending the ids in order they are added.
- * <p>
- *     At it's core there are two hash table implementations, a "small core" and
- *     a "big core". The "small core" is a simple
- *     <a href="https://en.wikipedia.org/wiki/Open_addressing">open addressed</a>
- *     hash table with a fixed 60% load factor and a table of 2048. It quite quick
- *     because it has a fixed size and never grows.
- * </p>
- * <p>
- *     When the "small core" has more entries than it's load factor the "small core"
- *     is replaced with a "big core". The "big core" functions quite similarly to
- *     a <a href="https://faultlore.com/blah/hashbrown-tldr/">Swisstable</a>, Google's
- *     fancy SIMD hash table. In this table there's a contiguous array of "control"
- *     bytes that are either {@code 0b1111_1111} for empty entries or
- *     {@code 0b0aaa_aaaa} for populated entries, where {@code aaa_aaaa} are the top
- *     7 bytes of the hash. To find an entry by key you hash it, grab the top 7 bytes
- *     or it, and perform a SIMD read of the control array starting at the expected
- *     slot. We use the widest SIMD instruction the CPU supports, meaning 64 or 32
- *     bytes. If any of those match we check the actual key. So instead of scanning
- *     one slot at a time "small core", we effectively scan a whole bunch at once.
- *     This allows us to run a much higher load factor (85%) without any performance
- *     penalty so the extra byte feels super worth it.
- * </p>
- * <p>
- *     When a "big core" fills it's table to the fill factor, we build a new "big core"
- *     and read all values in the old "big core" into the new one.
- * </p>
- * <p>
- *     Unlike {@link Ordinator64}, this class does not store the keys in the hash table slots.
- *     Instead, it uses a {@link BytesRefArray} to store the actual bytes, and the hash table
- *     slots store the {@code id} which indexes into the {@link BytesRefArray}.
- * </p>
+ *
+ * <p> At it's core there are two hash table implementations, a "small core" and
+ * a "big core". The "small core" is a simple
+ * <a href="https://en.wikipedia.org/wiki/Open_addressing">open addressed</a>
+ * hash table with a fixed 60% load factor and a table of 2048. It quite quick
+ * because it has a fixed size and never grows.
+ *
+ * <p> When the "small core" has more entries than it's load factor the "small core"
+ * is replaced with a "big core". The "big core" functions quite similarly to
+ * a <a href="https://faultlore.com/blah/hashbrown-tldr/">Swisstable</a>, Google's
+ * fancy SIMD hash table. In this table there's a contiguous array of "control"
+ * bytes that are either {@code 0b1111_1111} for empty entries or
+ * {@code 0b0aaa_aaaa} for populated entries, where {@code aaa_aaaa} are the top
+ * 7 bytes of the hash. To find an entry by key you hash it, grab the top 7 bytes
+ * or it, and perform a SIMD read of the control array starting at the expected
+ * slot. We use the widest SIMD instruction the CPU supports, meaning 64 or 32
+ * bytes. If any of those match we check the actual key. So instead of scanning
+ * one slot at a time "small core", we effectively scan a whole bunch at once.
+ * This allows us to run a much higher load factor (85%) without any performance
+ * penalty so the extra byte feels super worth it.
+ *
+ * <p> When a "big core" fills it's table to the fill factor, we build a new
+ * "big core" nd read all values in the old "big core" into the new one.
+ *
+ * <p> This class does not store the keys in the hash table slots. Instead, it
+ * uses a {@link BytesRefArray} to store the actual bytes, and the hash table
+ * slots store the {@code id} which indexes into the {@link BytesRefArray}.
  */
 public final class OrdinatorBytes extends Ordinator implements Accountable, Releasable {
     private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
@@ -99,14 +95,14 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
     private BigCore bigCore;
 
     /**
-     * Create a new {@link OrdinatorBytes} that manages its own {@link BytesRefArray}.
+     * Creates a new {@link OrdinatorBytes} that manages its own {@link BytesRefArray}.
      */
     public OrdinatorBytes(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
         this(recycler, breaker, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
     }
 
     /**
-     * Create a new {@link OrdinatorBytes} that uses the provided {@link BytesRefArray}.
+     * Creates a new {@link OrdinatorBytes} that uses the provided {@link BytesRefArray}.
      * This allows multiple {@link OrdinatorBytes} to share the same key storage and ID space.
      */
     public OrdinatorBytes(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
@@ -114,8 +110,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
     }
 
     private OrdinatorBytes(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
-        // We pass a dummy IdSpace because we rely on BytesRefArray for ID generation
-        super(recycler, breaker, new IdSpace(), INITIAL_CAPACITY, SmallCore.FILL_FACTOR);
+        super(recycler, breaker, INITIAL_CAPACITY, SmallCore.FILL_FACTOR);
         this.bytesRefs = bytesRefs;
         this.ownsBytesRefs = ownsBytesRefs;
         boolean success = false;
@@ -135,7 +130,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
     }
 
     /**
-     * Find an {@code id} by a {@code key}.
+     * Finds an {@code id} by a {@code key}.
      */
     public int find(BytesRef key) {
         final int hash = hash(key);
@@ -147,7 +142,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
     }
 
     /**
-     * Add a {@code key}, returning its {@code id}. If it was already present
+     * Adds a {@code key}, returning its {@code id}. If it was already present
      * it's previous assigned {@code id} will be returned. If it wasn't present
      * it'll be assigned a new {@code id}.
      */
@@ -173,7 +168,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
 
     public abstract class Itr extends Ordinator.Itr {
         /**
-         * The key the iterator is current pointing to.
+         * The key the iterator current points to.
          */
         public abstract BytesRef key(BytesRef dest);
     }
@@ -189,7 +184,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
      * and the remaining 7 bits contain the top 7 bits of the hash.
      * So it looks like {@code 0b0xxx_xxxx}.
      */
-    private byte control(int hash) {
+    private static byte control(int hash) {
         return (byte) (hash >>> (Integer.SIZE - 7));
     }
 
@@ -204,9 +199,11 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
     private int growTracking() {
         // Juggle constants for the new page size
         growCount++;
-        // TODO what about MAX_INT?
         int oldCapacity = capacity;
         capacity <<= 1;
+        if (capacity < 0) {
+            throw new IllegalArgumentException("overflow: oldCapacity=" + oldCapacity + ", new capacity=" + capacity);
+        }
         mask = capacity - 1;
         nextGrowSize = (int) (capacity * BigCore.FILL_FACTOR);
         return oldCapacity;
@@ -217,7 +214,8 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
      * {@code id}s are encoded as {@code -1}. This hash table can't
      * grow, and is instead replaced by a {@link BigCore}.
      *
-     * <p> This uses one page from the {@link PageCacheRecycler} for the {@code ids}.
+     * <p> This uses one page from the {@link PageCacheRecycler} for the
+     * {@code ids}.
      */
     final class SmallCore extends Core {
         static final float FILL_FACTOR = 0.6F;
@@ -263,6 +261,8 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
                     if (matches(key, slotId)) {
                         return slotId;
                     }
+                    slotIncrement++;
+                    slot = slot(slot + slotIncrement);
                 } else {
                     // We don't use idSpace.next() because BytesRefArray manages IDs
                     int id = (int) bytesRefs.size();
@@ -271,8 +271,6 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
                     size++;
                     return id;
                 }
-                slotIncrement++;
-                slot = slot(slot + slotIncrement);
             }
         }
 
@@ -317,13 +315,12 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
 
         private void rehash(int oldCapacity) {
             for (int slot = 0; slot < oldCapacity; slot++) {
-                int id = (int) INT_HANDLE.get(idPage, idOffset(slot));
+                int id = id(slot);
                 if (id < 0) {
                     continue;
                 }
-                // Retrieve key from storage to rehash
                 bytesRefs.get(id, scratch);
-                int hash = hash(scratch);
+                final int hash = hash(scratch);
                 bigCore.insert(hash, control(hash), id);
             }
         }
@@ -345,7 +342,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
         private static final byte CONTROL_EMPTY = (byte) 0b1111_1111;
 
         /**
-         * The "control" bytes from the Swisstable algorithm.
+         * The "control" bytes from the SwissTable algorithm.
          */
         private final byte[] controlData;
 
@@ -360,7 +357,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
 
         BigCore() {
             int controlLength = capacity + BYTE_VECTOR_LANES;
-            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinatorBytes");
+            breaker.addEstimateBytesAndMaybeBreak(controlLength, "ordinatorBytes-bigCore");
             toClose.add(() -> breaker.addWithoutBreaking(-controlLength));
             controlData = new byte[controlLength];
             Arrays.fill(controlData, (byte) 0xFF);
@@ -419,8 +416,8 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
 
             final int id = (int) bytesRefs.size();
             bytesRefs.append(key);
-            size++;
             bigCore.insert(hash, control, id);
+            size++;
             return id;
         }
 
@@ -499,7 +496,6 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
                     }
                     final int actualSlot = slot + i;
                     final int id = id(actualSlot);
-                    // Retrieve key to rehash
                     bytesRefs.get(id, scratch);
                     final int hash = hash(scratch);
                     bigCore.insert(hash, control(hash), id);
@@ -525,7 +521,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
     }
 
     /**
-     * Return the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
+     * Returns the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {

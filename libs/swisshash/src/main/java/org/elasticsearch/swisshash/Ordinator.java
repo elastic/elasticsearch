@@ -32,7 +32,6 @@ import java.util.Objects;
 public abstract class Ordinator {
     protected final PageCacheRecycler recycler;
     protected final CircuitBreaker breaker;
-    protected final IdSpace idSpace;
 
     protected int capacity;
     protected int mask;
@@ -40,15 +39,8 @@ public abstract class Ordinator {
     protected int size;
     protected int growCount;
 
-    protected Ordinator(
-        PageCacheRecycler recycler,
-        CircuitBreaker breaker,
-        IdSpace idSpace,
-        int initialCapacity,
-        float smallCoreFillFactor
-    ) {
+    protected Ordinator(PageCacheRecycler recycler, CircuitBreaker breaker, int initialCapacity, float smallCoreFillFactor) {
         this.breaker = Objects.requireNonNull(breaker);
-        this.idSpace = Objects.requireNonNull(idSpace);
         this.recycler = recycler == null ? PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler;
 
         this.capacity = initialCapacity;
@@ -74,21 +66,6 @@ public abstract class Ordinator {
      * Build an iterator to walk all values and ids.
      */
     public abstract Itr iterator();
-
-    /**
-     * Sequence of {@code int}s assigned to ids. These can be shared between
-     * {@link Ordinator}s.
-     */
-    public static class IdSpace {
-        private int id;
-
-        /**
-         * Allocate the next id.
-         */
-        public int next() {
-            return id++;
-        }
-    }
 
     /**
      * Performance information about the {@link Ordinator} hopefully useful for debugging.

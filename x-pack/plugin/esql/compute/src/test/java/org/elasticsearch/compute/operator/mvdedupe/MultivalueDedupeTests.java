@@ -336,9 +336,7 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertIntHash(Set<Integer> previousValues, RandomBlock b) {
         BlockFactory blockFactory = blockFactory();
-        try (
-            Ordinator64 hash = new Ordinator64(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker(), new Ordinator64.IdSpace())
-        ) {
+        try (Ordinator64 hash = new Ordinator64(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hashAdd(blockFactory, hash);
 
@@ -371,9 +369,7 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertLongHash(Set<Long> previousValues, RandomBlock b) {
         BlockFactory blockFactory = blockFactory();
-        try (
-            Ordinator64 hash = new Ordinator64(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker(), new Ordinator64.IdSpace())
-        ) {
+        try (Ordinator64 hash = new Ordinator64(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hashAdd(blockFactory, hash);
 

@@ -96,7 +96,7 @@ $endif$
         super(blockFactory);
         this.channel = channel;
 $if(Ordinator64)$
-        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker());
 $elseif(OrdinatorBytes)$
         this.hash = new OrdinatorBytes(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
 $else$

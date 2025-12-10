@@ -43,7 +43,7 @@ final class IntBlockHash extends BlockHash {
     IntBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+        this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker());
     }
 
     @Override

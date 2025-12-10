@@ -92,6 +92,12 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
     }
 
     @Override
+    public void testInexistentIndexNameWithoutWildcard() {
+        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        super.testInexistentIndexNameWithoutWildcard();
+    }
+
+    @Override
     public void testExistentIndexWithoutWildcard() throws IOException {
         assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
         super.testExistentIndexWithoutWildcard();
@@ -102,8 +108,7 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         Version version = Clusters.localClusterVersion();
         assumeTrue(
             "skip on old versions",
-            version.onOrAfter(Version.fromString("9.1.0"))
-                || (version.onOrAfter(Version.fromString("8.19.0")) && version.before(Version.fromString("9.0.0")))
+            version.onOrAfter(Version.V_9_1_0) || (version.onOrAfter(Version.V_8_19_0) && version.before(Version.V_9_0_0))
         );
     }
 }

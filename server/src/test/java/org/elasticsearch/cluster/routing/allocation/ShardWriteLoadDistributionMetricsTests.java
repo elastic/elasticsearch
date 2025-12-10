@@ -295,7 +295,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     }
 
     private static void assertNoMetricsPublished(List<Measurement> measurements, String nodeId) {
-        assertThat(measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).toList(), empty());
+        assertThat(measurements.stream().filter(m -> m.attributes().get("es_node_id").equals(nodeId)).toList(), empty());
     }
 
     private static void assertNoMetricsPublished(TestInfrastructure testInfrastructure) {
@@ -426,7 +426,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     }
 
     private static Measurement measurementForNode(List<Measurement> measurements, String nodeId) {
-        return measurements.stream().filter(m -> m.attributes().get("node_id").equals(nodeId)).findFirst().orElseThrow();
+        return measurements.stream().filter(m -> m.attributes().get("es_node_id").equals(nodeId)).findFirst().orElseThrow();
     }
 
     private static Map<ShardId, Double> randomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {

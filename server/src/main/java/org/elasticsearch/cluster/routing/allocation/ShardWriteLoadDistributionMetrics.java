@@ -254,7 +254,7 @@ public class ShardWriteLoadDistributionMetrics {
     }
 
     private Map<String, Object> getAttributesForNode(DiscoveryNode node) {
-        return Map.of("node_id", node.getId(), "node_name", node.getName());
+        return Map.of("es_node_id", node.getId(), "es_node_name", node.getName());
     }
 
     private Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics(int index) {

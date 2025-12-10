@@ -508,6 +508,16 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
+    public void testEscapedBackslashNEdgeCase() {
+        String message = readCefMessageFile("escapedbackslash_n.cef.txt");
+        Map<String, Object> source = new HashMap<>();
+        source.put("message", message);
+        document = new IngestDocument("index", "id", 1L, null, null, source);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
+        processor.execute(document);
+        assertThat(document.getSource().get("message"), equalTo("This is an escaped backslash followed by an 'n': \\n"));
+    }
+
     public void testTabMessage() {
         String message = readCefMessageFile("tab_message.cef.txt");
         Map<String, Object> source = new HashMap<>();

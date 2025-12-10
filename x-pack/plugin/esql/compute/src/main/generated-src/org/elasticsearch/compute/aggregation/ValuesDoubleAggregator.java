@@ -162,7 +162,6 @@ class ValuesDoubleAggregator {
             int selectedCountsLen = selected.max() + 1;
             reserveBytesForIntArray(selectedCountsLen);
             this.selectedCounts = new int[selectedCountsLen];
-
             for (int id = 0; id < hashes.size(); id++) {
                 int group = (int) hashes.getKey1(id);
                 if (group < selectedCounts.length) {
@@ -217,7 +216,6 @@ class ValuesDoubleAggregator {
             reserveBytesForIntArray(total);
 
             this.ids = new int[total];
-
             for (int id = 0; id < hashes.size(); id++) {
                 int group = (int) hashes.getKey1(id);
                 ids[selectedCounts[group]++] = id;

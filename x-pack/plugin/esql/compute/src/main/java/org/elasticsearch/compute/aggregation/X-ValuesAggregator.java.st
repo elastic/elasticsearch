@@ -275,7 +275,6 @@ $endif$
             int selectedCountsLen = selected.max() + 1;
             reserveBytesForIntArray(selectedCountsLen);
             this.selectedCounts = new int[selectedCountsLen];
-
             for (int id = 0; id < hashes.size(); id++) {
 $if(long||double)$
                 int group = (int) hashes.getKey1(id);
@@ -335,7 +334,6 @@ $endif$
             reserveBytesForIntArray(total);
 
             this.ids = new int[total];
-
             for (int id = 0; id < hashes.size(); id++) {
 $if(long||double)$
                 int group = (int) hashes.getKey1(id);

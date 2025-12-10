@@ -675,8 +675,6 @@ tasks.named('stringTemplates').configure {
   }
 
   File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
-
-// todo address this
   template {
     it.properties = intProperties
     it.inputFile = valuesAggregatorInputFile

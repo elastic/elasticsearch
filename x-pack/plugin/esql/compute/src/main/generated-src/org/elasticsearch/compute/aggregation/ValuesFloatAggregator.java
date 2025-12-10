@@ -167,7 +167,6 @@ class ValuesFloatAggregator {
             int selectedCountsLen = selected.max() + 1;
             reserveBytesForIntArray(selectedCountsLen);
             this.selectedCounts = new int[selectedCountsLen];
-
             for (int id = 0; id < hashes.size(); id++) {
                 long both = hashes.get(id);
                 int group = (int) (both >>> Float.SIZE);
@@ -223,7 +222,6 @@ class ValuesFloatAggregator {
             reserveBytesForIntArray(total);
 
             this.ids = new int[total];
-
             for (int id = 0; id < hashes.size(); id++) {
                 long both = hashes.get(id);
                 int group = (int) (both >>> Float.SIZE);

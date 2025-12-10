@@ -152,11 +152,16 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
 
   if BUILD_JSON=$(curl --max-time 30 -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}?include_retried_jobs=true" 2>/dev/null); then
     if ORIGIN_JOB_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$BUILDKITE_JOB_ID" ' .jobs[] | select(.id == $jobId) | .retry_source.job_id' 2>/dev/null) && [ "$ORIGIN_JOB_ID" != "null" ] && [ -n "$ORIGIN_JOB_ID" ]; then
-      if BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null) && [ "$BUILD_SCAN_URL" != "null" ] && [ -n "$BUILD_SCAN_URL" ]; then
-        BUILD_SCAN_ID=$(echo "$BUILD_SCAN_URL" | sed 's|.*/s/||')
+      
+      # Attempt to retrieve build scan ID directly from metadata
+      BUILD_SCAN_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-id-" + $job_id]' 2>/dev/null)
 
+      # Retrieve build scan URL for annotation
+      BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null)
+
+      if [[ -n "$BUILD_SCAN_ID" ]] && [[ "$BUILD_SCAN_ID" != "null" ]]; then
         # Validate BUILD_SCAN_ID format to prevent injection attacks
-        if [[ -z "$BUILD_SCAN_ID" ]] || [[ ! "$BUILD_SCAN_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        if [[ ! "$BUILD_SCAN_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
           echo "Smart Retry Configuration Issue"
           echo "Invalid build scan ID format: $BUILD_SCAN_ID"
           echo "Smart retry will be disabled for this run."
@@ -212,10 +217,10 @@ EOF
         fi
       else
         echo "Smart Retry Configuration Issue"
-        echo "Could not extract build scan URL from build metadata."
+        echo "Could not find build scan ID in metadata."
         echo "Smart retry will be disabled for this run."
         SMART_RETRY_STATUS="failed"
-        SMART_RETRY_DETAILS="No build scan URL in metadata"
+        SMART_RETRY_DETAILS="No build scan ID in metadata"
       fi
     else
       echo "Smart Retry Configuration Issue"

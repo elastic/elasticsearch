@@ -121,6 +121,11 @@ develocity {
               .start()
               .waitFor()
 
+            // Attach build scan ID as build metadata
+            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanId}")
+              .start()
+              .waitFor()
+
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
             def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT')?:"0") > 0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""

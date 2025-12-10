@@ -45,16 +45,14 @@ if "%SMART_RETRIES%"=="true" (
 
         if defined ORIGIN_JOB_ID (
           if not "!ORIGIN_JOB_ID!"=="null" (
-            REM Extract build scan URL
+            REM Extract build scan ID directly (new way)
+            for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-id-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_ID=%%i
+
+            REM Retrieve build scan URL for annotation
             for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_URL=%%i
 
-            if defined BUILD_SCAN_URL (
-              if not "!BUILD_SCAN_URL!"=="null" (
-                REM Extract build scan ID from URL
-                for /f "tokens=* delims=" %%i in ("!BUILD_SCAN_URL!") do (
-                  set "url=%%i"
-                  for %%j in ("!url:/s/=" "!") do set BUILD_SCAN_ID=%%~nxj
-                )
+            if defined BUILD_SCAN_ID (
+              if not "!BUILD_SCAN_ID!"=="null" (
 
                 REM Validate using PowerShell (more reliable)
                 powershell -NoProfile -Command "exit -not ('!BUILD_SCAN_ID!' -match '^[a-zA-Z0-9_\-]+$')"
@@ -112,17 +110,17 @@ if "%SMART_RETRIES%"=="true" (
                 )
               ) else (
                 echo Smart Retry Configuration Issue
-                echo Could not extract build scan URL from build metadata.
+                echo Could not find build scan ID in metadata.
                 echo Smart retry will be disabled for this run.
                 set SMART_RETRY_STATUS=failed
-                set SMART_RETRY_DETAILS=No build scan URL in metadata
+                set SMART_RETRY_DETAILS=No build scan ID in metadata
               )
             ) else (
               echo Smart Retry Configuration Issue
-              echo Could not extract build scan URL from build metadata.
+              echo Could not find build scan ID in metadata.
               echo Smart retry will be disabled for this run.
               set SMART_RETRY_STATUS=failed
-              set SMART_RETRY_DETAILS=No build scan URL in metadata
+              set SMART_RETRY_DETAILS=No build scan ID in metadata
             )
           ) else (
             echo Smart Retry Configuration Issue

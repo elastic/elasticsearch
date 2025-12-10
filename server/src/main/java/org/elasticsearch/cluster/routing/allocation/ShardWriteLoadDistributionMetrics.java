@@ -28,6 +28,7 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,7 @@ public class ShardWriteLoadDistributionMetrics {
     );
     private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadSumValues = new AtomicReference<>(List.of());
     private volatile boolean metricsEnabled = false;
+    private volatile boolean lastMetricsCollected = true;
 
     public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         // 2 significant digits means error < 1% of any value in the range
@@ -117,7 +119,7 @@ public class ShardWriteLoadDistributionMetrics {
         if (metricsEnabled == false
             || clusterService.lifecycleState() != Lifecycle.State.STARTED
             || clusterInfo.getShardWriteLoads().isEmpty()
-            || thereAreUncollectedMetrics()) {
+            || lastMetricsCollected == false) {
             return;
         }
 
@@ -195,6 +197,7 @@ public class ShardWriteLoadDistributionMetrics {
         lastWriteLoadPrioritisationThresholdValues.set(writeLoadPrioritisationThresholdValues);
         lastShardCountExceedingPrioritisationThresholdValues.set(shardCountsExceedingPrioritisationThresholdValues);
         lastWriteLoadSumValues.set(shardWriteLoadSumValues);
+        lastMetricsCollected = false;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -226,27 +229,6 @@ public class ShardWriteLoadDistributionMetrics {
         return discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
     }
 
-    /**
-     * We receive ClusterInfo more often than we publish metrics, so don't recalculate
-     * the metrics if the last ones haven't been published yet.
-     * <p>
-     * This means the metrics can lag by ~30s, but it avoids calculating metrics that are
-     * discarded. An alternative would be to calculate the metrics on the metrics thread,
-     * but it could be quite expensive for larger clusters.
-     *
-     * @return true if there are uncollected metrics, false otherwise.
-     */
-    private boolean thereAreUncollectedMetrics() {
-        for (int i = 0; i < trackedPercentiles.length; i++) {
-            if (lastWriteLoadDistributionValues.get(i).isEmpty() == false) {
-                return true;
-            }
-        }
-        return lastWriteLoadPrioritisationThresholdValues.get().isEmpty() == false
-            || lastShardCountExceedingPrioritisationThresholdValues.get().isEmpty() == false
-            || lastWriteLoadSumValues.get().isEmpty() == false;
-    }
-
     private double roundTinyValuesToZero(double value) {
         assert value >= 0.0 : "We got a negative write load?! " + value;
         return value < 0.01 ? 0.0 : value;
@@ -256,19 +238,32 @@ public class ShardWriteLoadDistributionMetrics {
         return Map.of("es_node_id", node.getId(), "es_node_name", node.getName());
     }
 
-    private Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics(int index) {
+    // visible for testing
+    final Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics(int index) {
+        lastMetricsCollected = true;
         return lastWriteLoadDistributionValues.getAndSet(index, List.of());
     }
 
-    private Collection<DoubleWithAttributes> getWriteLoadPrioritisationThresholdMetrics() {
+    // visible for testing
+    final Collection<DoubleWithAttributes> getWriteLoadPrioritisationThresholdMetrics() {
+        lastMetricsCollected = true;
         return lastWriteLoadPrioritisationThresholdValues.getAndSet(List.of());
     }
 
-    private Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
+    // visible for testing
+    final Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
+        lastMetricsCollected = true;
         return lastShardCountExceedingPrioritisationThresholdValues.getAndSet(List.of());
     }
 
-    private Collection<DoubleWithAttributes> getWriteLoadSumMetrics() {
+    // visible for testing
+    final Collection<DoubleWithAttributes> getWriteLoadSumMetrics() {
+        lastMetricsCollected = true;
         return lastWriteLoadSumValues.getAndSet(List.of());
+    }
+
+    // visible for testing
+    int[] getTrackedPercentiles() {
+        return Arrays.copyOf(trackedPercentiles, trackedPercentiles.length);
     }
 }

@@ -293,6 +293,39 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
 
         assertEquals(measurementForNode(lowerP100writeLoadMeasurements, "index_0").getDouble(), 0.1, 0.01);
+
+        // Calculate again with original write-loads - should populate the metrics ready for collection
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
+
+        // simulate an overlap with metrics collection (collect a subset of the metrics)
+        final int metricsToCollect = randomIntBetween(1, 4);
+        final int[] trackedPercentiles = testInfrastructure.shardWriteLoadDistributionMetrics.getTrackedPercentiles();
+        for (int i = 0; i < metricsToCollect; i++) {
+            switch (randomInt(3)) {
+                case 0 -> testInfrastructure.shardWriteLoadDistributionMetrics.getWriteLoadDistributionMetrics(
+                    randomInt(trackedPercentiles.length - 1)
+                );
+                case 1 -> testInfrastructure.shardWriteLoadDistributionMetrics.getWriteLoadSumMetrics();
+                case 2 -> testInfrastructure.shardWriteLoadDistributionMetrics.getWriteLoadPrioritisationThresholdMetrics();
+                case 3 -> testInfrastructure.shardWriteLoadDistributionMetrics.getWriteLoadPrioritisationThresholdPercentileRankMetrics();
+                default -> fail("Unexpected random value");
+            }
+        }
+
+        // Calculate again with low write-loads - should populate the metrics ready for collection
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(clusterInfoWithLowWriteLoads);
+
+        testInfrastructure.meterRegistry.getRecorder().resetCalls();
+        testInfrastructure.meterRegistry.getRecorder().collect();
+
+        for (int percentile : trackedPercentiles) {
+            final var percentileWriteLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.DOUBLE_GAUGE,
+                    ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(percentile)
+                );
+            assertEquals(measurementForNode(percentileWriteLoadMeasurements, "index_0").getDouble(), 0.1, 0.01);
+        }
     }
 
     private static void assertNoMetricsPublished(List<Measurement> measurements, String nodeId) {

@@ -35,7 +35,11 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
     @Override
     protected ViewMetadata mutateInstance(ViewMetadata instance) {
         Map<String, View> views = new HashMap<>(instance.views());
-        views.replaceAll((name, view) -> randomView(name));
+        if (views.isEmpty()) {
+            String name = randomName();
+            return new ViewMetadata(Map.of(name, randomView(name)));
+        }
+        views.replaceAll((name, view) -> randomValueOtherThan(view, () -> randomView(name)));
         return new ViewMetadata(views);
     }
 
@@ -45,7 +49,7 @@ public class ViewMetadataTests extends AbstractChunkedSerializingTestCase<ViewMe
     }
 
     private static ViewMetadata randomViewMetadata() {
-        int numViews = randomIntBetween(8, 64);
+        int numViews = randomIntBetween(0, 64);
         Map<String, View> views = new HashMap<>(numViews);
         for (int i = 0; i < numViews; i++) {
             final String name = randomName();

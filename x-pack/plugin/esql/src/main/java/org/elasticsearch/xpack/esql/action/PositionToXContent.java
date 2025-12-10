@@ -235,15 +235,6 @@ public abstract class PositionToXContent {
                     return builder.value(((FloatBlock) block).getFloat(valueIndex));
                 }
             };
-            case DATE_RANGE -> new PositionToXContent(block) {
-                @Override
-                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-                    throws IOException {
-                    var from = ((LongRangeBlock) block).getFromBlock().getLong(valueIndex);
-                    var to = ((LongRangeBlock) block).getToBlock().getLong(valueIndex);
-                    return builder.value(dateRangeToString(from, to));
-                }
-            };
             case TSID_DATA_TYPE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)

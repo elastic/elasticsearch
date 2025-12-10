@@ -2233,7 +2233,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         assertThat(fork.children(), hasSize(2));
 
         // First branch: (eval s = length(text) | keep s, u, keyword)
-        var project1 = as(fork.children().get(0), EsqlProject.class);
+        var project1 = as(fork.children().get(0), Project.class);
         assertThat(Expressions.names(project1.projections()), containsInAnyOrder("s", "_fork", "t", "u", "keyword"));
         var eval1 = as(project1.child(), Eval.class);
         assertThat(eval1.fields(), hasSize(4));
@@ -2267,7 +2267,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         // Second branch: (eval t = v_dot_product(dense_vector, [1, 2, 3]) | keep t, u, keyword)
         // EsqlProject[[s{r}#55, _fork{r}#4, t{r}#11]]
-        var project2 = as(fork.children().get(1), EsqlProject.class);
+        var project2 = as(fork.children().get(1), Project.class);
         assertThat(Expressions.names(project2.projections()), containsInAnyOrder("s", "_fork", "t", "u", "keyword"));
 
         // Eval[[$$dense_vector$V_DOT_PRODUCT$-1468139866{f$}#60 AS t#11, fork2[KEYWORD] AS _fork#4, null[INTEGER] AS s#55]]

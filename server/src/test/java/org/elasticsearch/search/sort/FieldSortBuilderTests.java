@@ -29,6 +29,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -46,6 +49,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -683,5 +687,28 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     @Override
     protected FieldSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
         return FieldSortBuilder.fromXContent(parser, fieldName);
+    }
+
+    public void testIntRewritesToLong() throws IOException {
+        assertIntegerSortRewrite(
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19),
+            SortField.Type.LONG
+        );
+        assertIntegerSortRewrite(
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, IndexVersions.UPGRADE_TO_LUCENE_10_0_0),
+            SortField.Type.INT
+        );
+        assertIntegerSortRewrite(
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersions.INDEX_INT_SORT_INT_TYPE),
+            SortField.Type.LONG
+        );
+        assertIntegerSortRewrite(IndexVersion.current(), SortField.Type.INT);
+    }
+
+    private void assertIntegerSortRewrite(IndexVersion version, SortField.Type expectedType) throws IOException {
+        FieldSortBuilder builder = new FieldSortBuilder("custom-integer");
+        SortFieldAndFormat sff = builder.build(createMockSearchExecutionContext(version));
+        SortField sf = Lucene.rewriteMergeSortField(sff.field());
+        assertThat(sf.getType(), equalTo(expectedType));
     }
 }

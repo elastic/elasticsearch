@@ -129,14 +129,16 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
                 }
                 TDigestHolder actual = (TDigestHolder) actualObj;
 
-                if ((Double.isNaN(actual.getMin()) && finalMin != Double.POSITIVE_INFINITY) && finalMin != actual.getMin()) {
-                    return false;
-                }
-                if ((Double.isNaN(actual.getMax()) && finalMax != Double.NEGATIVE_INFINITY) && finalMax != actual.getMax()) {
-                    return false;
-                }
-                if ((Double.isNaN(actual.getSum()) && finalSum != 0.0) && finalSum != actual.getSum()) {
-                    return false;
+                if (finalTotalCount > 0) {
+                    if (finalMin != actual.getMin() || finalMax != actual.getMax() || finalSum != actual.getSum()) {
+                        return false;
+                    }
+                } else {
+                    if (Double.isNaN(actual.getMin()) == false
+                        || Double.isNaN(actual.getMax()) == false
+                        || Double.isNaN(actual.getSum()) == false) {
+                        return false;
+                    }
                 }
                 if (finalTotalCount != actual.getValueCount()) {
                     return false;

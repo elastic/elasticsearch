@@ -14,6 +14,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
@@ -127,11 +128,17 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, indexOptions, similarity, elementType) -> {
             if (GPU_FORMAT.isEnabled()) {
+                if (vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType) == false) {
+                    return null;
+                }
+
                 if (gpuMode == GpuMode.TRUE) {
                     assert GPUSupport.isSupported();
-                    if (isGpuIndexingFeatureAllowed() == false) {
+                    if (isGpuIndexingFeatureAllowed()) {
+                        return getVectorsFormat(indexOptions, similarity);
+                    } else {
                         log.error(
-                            String.format(
+                            Strings.format(
                                 "[%s] is set to TRUE, but it is not allowed by the current license",
                                 VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
                             ),
@@ -142,9 +149,11 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                 }
 
                 if (gpuMode == GpuMode.AUTO && GPUSupport.isSupported()) {
-                    if (isGpuIndexingFeatureAllowed() == false) {
+                    if (isGpuIndexingFeatureAllowed()) {
+                        return getVectorsFormat(indexOptions, similarity);
+                    } else {
                         log.warn(
-                            String.format(
+                            Strings.format(
                                 "The current configuration supports GPU indexing, but it is not allowed by the current license. "
                                     + "If this is intentional, it is possible to suppress this message by setting [%s] to FALSE",
                                 VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
@@ -152,10 +161,6 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                         );
                         return null;
                     }
-                }
-
-                if (vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType)) {
-                    return getVectorsFormat(indexOptions, similarity);
                 }
             }
             return null;

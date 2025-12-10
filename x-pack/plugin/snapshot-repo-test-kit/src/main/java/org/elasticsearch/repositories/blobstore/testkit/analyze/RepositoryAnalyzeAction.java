@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -510,9 +509,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 }
             }
 
-            if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
-                new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
-            }
+            new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
 
             final List<Long> blobSizes = getBlobSizes(request);
             Collections.shuffle(blobSizes, random);
@@ -970,11 +967,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                registerOperationCount = in.readVInt();
-            } else {
-                registerOperationCount = concurrency;
-            }
+            registerOperationCount = in.readVInt();
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
@@ -998,15 +991,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVInt(registerOperationCount);
-            } else if (registerOperationCount != concurrency) {
-                throw new IllegalArgumentException(
-                    "cannot send request with registerOperationCount != concurrency to version ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "]"
-                );
-            }
+            out.writeVInt(registerOperationCount);
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);

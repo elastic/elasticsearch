@@ -24,7 +24,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -493,7 +492,9 @@ public class BlockSerializationTests extends SerializationTestCase {
                     origBlock,
                     TransportVersionUtils.randomVersionBetween(
                         random(),
-                        DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                        // Same as DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                        // copied here to avoid a circular dependency
+                        TransportVersion.fromName("esql_aggregate_metric_double_created_version"),
                         TransportVersion.current()
                     )
                 )

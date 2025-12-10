@@ -23,7 +23,6 @@ import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +32,25 @@ import java.util.function.IntSupplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ArrayStateTests extends ESTestCase {
+    /**
+     * Expected types for the array state tests.
+     * <p>
+     *     Different from ElementType as one ElementType may have multiple formats
+     *     (E.g. BYTES_REF represents both IP or an unconstrainted KEYWORD).
+     * </p>
+     * <p>
+     *     Different from DataType to avoid circular dependencies.
+     * </p>
+     */
+    private enum DataType {
+        INTEGER,
+        LONG,
+        FLOAT,
+        DOUBLE,
+        BOOLEAN,
+        IP;
+    }
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();

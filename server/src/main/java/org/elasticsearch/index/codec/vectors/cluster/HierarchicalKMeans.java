@@ -98,7 +98,7 @@ public class HierarchicalKMeans {
         KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
-            KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size());
+            KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), localSampleSize);
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
         return kMeansIntermediate;
@@ -118,7 +118,7 @@ public class HierarchicalKMeans {
         Arrays.fill(assignments, -1);
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
-        KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size());
+        KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), m);
         kMeansLocal.cluster(vectors, kMeansIntermediate);
 
         // TODO: consider adding cluster size counts to the kmeans algo
@@ -181,12 +181,12 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    private KMeansLocal buildKmeansLocal(int numVectors) {
+    private KMeansLocal buildKmeansLocal(int numVectors, int localSampleSize) {
         int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         return executor == null || numWorkers <= 1
-            ? new KMeansLocalSerial(samplesPerCluster, maxIterations)
-            : new KMeansLocalConcurrent(executor, numWorkers, samplesPerCluster, maxIterations);
+            ? new KMeansLocalSerial(localSampleSize, maxIterations)
+            : new KMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
     }
 
     static FloatVectorValues createClusterSlice(int clusterSize, int cluster, FloatVectorValues vectors, int[] assignments) {

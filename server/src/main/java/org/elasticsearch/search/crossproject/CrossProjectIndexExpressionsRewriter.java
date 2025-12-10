@@ -117,6 +117,8 @@ public class CrossProjectIndexExpressionsRewriter {
             rewrittenExpression = rewriteUnqualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
             logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         }
+        // Empty rewritten expressions should have been thrown earlier
+        assert false == rewrittenExpression.isEmpty() : "rewritten index expression must not be empty";
         return rewrittenExpression;
     }
 
@@ -220,6 +222,10 @@ public class CrossProjectIndexExpressionsRewriter {
     public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
         public IndexRewriteResult(String localExpression) {
             this(localExpression, Set.of());
+        }
+
+        public boolean isEmpty() {
+            return localExpression == null && remoteExpressions.isEmpty();
         }
     }
 }

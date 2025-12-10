@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
-    protected static EsqlParser parser;
+    protected static EsqlParser parser = EsqlParser.INSTANCE;
     protected static LogicalOptimizerContext logicalOptimizerCtx;
     protected static LogicalPlanOptimizer logicalOptimizer;
 
@@ -87,7 +87,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        parser = new EsqlParser();
         logicalOptimizerCtx = unboundLogicalOptimizerContext();
         logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
         logicalOptimizerWithLatestVersion = new LogicalPlanOptimizer(
@@ -174,7 +173,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         List<EsIndex> metricIndices = new ArrayList<>();
-        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.isEnabled()) {
+        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled()) {
             Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
             metricIndices.add(
                 EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
@@ -288,38 +287,38 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
+        var analyzed = analyzer.analyze(parser.parseQuery(query));
         var optimized = optimizer.optimize(analyzed);
         return optimized;
     }
 
     protected LogicalPlan planAirports(String query) {
-        var analyzed = analyzerAirports.analyze(parser.createStatement(query));
+        var analyzed = analyzerAirports.analyze(parser.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         return optimized;
     }
 
     protected LogicalPlan planExtra(String query) {
-        var analyzed = analyzerExtra.analyze(parser.createStatement(query));
+        var analyzed = analyzerExtra.analyze(parser.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         return optimized;
     }
 
     protected LogicalPlan planTypes(String query) {
-        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query)));
+        return logicalOptimizer.optimize(analyzerTypes.analyze(parser.parseQuery(query)));
     }
 
     protected LogicalPlan planMultiIndex(String query) {
-        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query)));
+        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.parseQuery(query)));
     }
 
     protected LogicalPlan planSample(String query) {
-        var analyzed = sampleDataIndexAnalyzer.analyze(parser.createStatement(query));
+        var analyzed = sampleDataIndexAnalyzer.analyze(parser.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
     protected LogicalPlan planSubquery(String query) {
-        var analyzed = subqueryAnalyzer.analyze(parser.createStatement(query));
+        var analyzed = subqueryAnalyzer.analyze(parser.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

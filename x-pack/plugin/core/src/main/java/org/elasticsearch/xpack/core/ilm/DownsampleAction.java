@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -121,9 +120,7 @@ public class DownsampleAction implements LifecycleAction {
     public DownsampleAction(StreamInput in) throws IOException {
         this(
             new DateHistogramInterval(in),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
-                ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
-                : DEFAULT_WAIT_TIMEOUT,
+            TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName()),
             in.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING) ? in.readOptionalBoolean() : null,
             in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_ILM)
                 ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
@@ -134,11 +131,7 @@ public class DownsampleAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeString(waitTimeout.getStringRep());
-        } else {
-            out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());
-        }
+        out.writeString(waitTimeout.getStringRep());
         if (out.getTransportVersion().supports(ILM_FORCE_MERGE_IN_DOWNSAMPLING)) {
             out.writeOptionalBoolean(forceMergeIndex);
         }

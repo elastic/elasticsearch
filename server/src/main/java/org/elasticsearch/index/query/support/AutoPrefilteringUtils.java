@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.query.support;
 
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -41,6 +42,23 @@ public final class AutoPrefilteringUtils {
             return Optional.empty();
         }
 
+        if (query instanceof BoolQueryBuilder boolQuery) {
+            return pruneBoolQuery(boolQuery, prunedTypes);
+        }
+        if (query instanceof BoostingQueryBuilder boostingQuery) {
+            // We only need the positive query here as the negative query is used for scoring only - we are filtering.
+            return pruneQuery(boostingQuery.positiveQuery(), prunedTypes);
+        }
+        if (query instanceof ConstantScoreQueryBuilder constantScoreQuery) {
+            Optional<QueryBuilder> pruned = pruneQuery(constantScoreQuery.innerQuery(), prunedTypes);
+            return pruned.map(q -> q == constantScoreQuery.innerQuery() ? constantScoreQuery : new ConstantScoreQueryBuilder(q));
+        }
+        if (query instanceof DisMaxQueryBuilder disMaxQuery) {
+            return pruneDisMaxQuery(disMaxQuery, prunedTypes);
+        }
+        if (query instanceof FunctionScoreQueryBuilder functionScoreQuery) {
+            return pruneFunctionScoreQuery(functionScoreQuery, prunedTypes);
+        }
         if (query instanceof InterceptedQueryBuilderWrapper interceptedQuery) {
             Optional<QueryBuilder> pruned = pruneQuery(interceptedQuery.query(), prunedTypes);
             return pruned.map(q -> q == interceptedQuery.query() ? interceptedQuery : new InterceptedQueryBuilderWrapper(q));
@@ -51,52 +69,60 @@ public final class AutoPrefilteringUtils {
                 q -> q == nestedQuery.query() ? nestedQuery : new NestedQueryBuilder(nestedQuery.path(), q, nestedQuery.scoreMode())
             );
         }
-        if (query instanceof BoolQueryBuilder boolQuery) {
-            return pruneBooleanQueryClausesThatAreIneligibleForPrefiltering(boolQuery, prunedTypes);
-        }
-        if (query instanceof BoostingQueryBuilder boostingQuery) {
-            // We only need the positive query here as the negative query is used for scoring only - we are filtering.
-            return pruneQuery(boostingQuery.positiveQuery(), prunedTypes);
-        }
-        if (query instanceof ConstantScoreQueryBuilder constantScoreQuery) {
-            Optional<QueryBuilder> pruned = pruneQuery(constantScoreQuery.innerQuery(), prunedTypes);
-            return pruned.map(q -> q == constantScoreQuery.innerQuery() ? constantScoreQuery : new ConstantScoreQueryBuilder(q));
-        }
-        if (query instanceof FunctionScoreQueryBuilder functionScoreQuery) {
-            // We could remove the function score entirely as it should not be helpful for filtering,
-            // but leaving it in for now to preserve the original query.
-            Optional<QueryBuilder> pruned = pruneQuery(functionScoreQuery.query(), prunedTypes);
-            return pruned.map(
-                q -> q == functionScoreQuery.query()
-                    ? functionScoreQuery
-                    : new FunctionScoreQueryBuilder(q, functionScoreQuery.filterFunctionBuilders())
-            );
-        }
-        if (query instanceof DisMaxQueryBuilder disMaxQuery) {
-            DisMaxQueryBuilder builder = new DisMaxQueryBuilder();
-            for (QueryBuilder innerQuery : disMaxQuery.innerQueries()) {
-                Optional<QueryBuilder> pruned = pruneQuery(innerQuery, prunedTypes);
-                pruned.ifPresent(builder::add);
-            }
-            // No need to preserve tiebreaks for filtering.
-            return builder.innerQueries().isEmpty() ? Optional.empty() : Optional.of(builder);
-        }
 
         return Optional.of(query);
     }
 
-    private static Optional<QueryBuilder> pruneBooleanQueryClausesThatAreIneligibleForPrefiltering(
-        BoolQueryBuilder boolQuery,
+    private static Optional<QueryBuilder> pruneBoolQuery(BoolQueryBuilder boolQuery, Set<Class<? extends QueryBuilder>> prunedTypes) {
+        BoolQueryBuilder prunedBool = new BoolQueryBuilder();
+        pruneQueries(boolQuery.must(), prunedTypes).forEach(prunedBool::must);
+        pruneQueries(boolQuery.should(), prunedTypes).forEach(prunedBool::should);
+        pruneQueries(boolQuery.filter(), prunedTypes).forEach(prunedBool::filter);
+        pruneQueries(boolQuery.mustNot(), prunedTypes).forEach(prunedBool::mustNot);
+        adjustMinimumShouldMatchForPrunedShouldClauses(boolQuery, prunedBool);
+
+        if (prunedBool.equals(boolQuery)) {
+            return Optional.of(boolQuery);
+        }
+
+        // No need to preserve scoring parameters for filtering.
+        return prunedBool.hasClauses() ? Optional.of(prunedBool) : Optional.empty();
+    }
+
+    private static void adjustMinimumShouldMatchForPrunedShouldClauses(BoolQueryBuilder originalBool, BoolQueryBuilder prunedBool) {
+        if (prunedBool.should().size() == originalBool.should().size()) {
+            prunedBool.minimumShouldMatch(originalBool.minimumShouldMatch());
+        } else {
+            int originalMsm = Queries.calculateMinShouldMatch(originalBool.should().size(), originalBool.minimumShouldMatch());
+            prunedBool.minimumShouldMatch(originalMsm <= prunedBool.should().size() ? originalMsm : prunedBool.should().size());
+        }
+    }
+
+    private static Optional<QueryBuilder> pruneDisMaxQuery(DisMaxQueryBuilder disMaxQuery, Set<Class<? extends QueryBuilder>> prunedTypes) {
+        DisMaxQueryBuilder builder = new DisMaxQueryBuilder();
+        for (QueryBuilder innerQuery : disMaxQuery.innerQueries()) {
+            Optional<QueryBuilder> pruned = pruneQuery(innerQuery, prunedTypes);
+            pruned.ifPresent(builder::add);
+        }
+        if (builder.innerQueries().equals(disMaxQuery.innerQueries())) {
+            return Optional.of(disMaxQuery);
+        }
+        // No need to preserve tiebreaks for filtering.
+        return builder.innerQueries().isEmpty() ? Optional.empty() : Optional.of(builder);
+    }
+
+    private static Optional<QueryBuilder> pruneFunctionScoreQuery(
+        FunctionScoreQueryBuilder functionScoreQuery,
         Set<Class<? extends QueryBuilder>> prunedTypes
     ) {
-        BoolQueryBuilder builder = new BoolQueryBuilder();
-        pruneQueries(boolQuery.must(), prunedTypes).forEach(builder::must);
-        pruneQueries(boolQuery.should(), prunedTypes).forEach(builder::should);
-        pruneQueries(boolQuery.filter(), prunedTypes).forEach(builder::filter);
-        pruneQueries(boolQuery.mustNot(), prunedTypes).forEach(builder::mustNot);
-        builder.minimumShouldMatch(boolQuery.minimumShouldMatch());
-        // No need to preserve scoring parameters for filtering.
-        return builder.hasClauses() ? Optional.of(builder) : Optional.empty();
+        // We could remove the function score entirely as it should not be helpful for filtering,
+        // but leaving it in for now to preserve the original query.
+        Optional<QueryBuilder> pruned = pruneQuery(functionScoreQuery.query(), prunedTypes);
+        return pruned.map(
+            q -> q == functionScoreQuery.query()
+                ? functionScoreQuery
+                : new FunctionScoreQueryBuilder(q, functionScoreQuery.filterFunctionBuilders())
+        );
     }
 
     private static List<QueryBuilder> pruneQueries(List<QueryBuilder> queries, Set<Class<? extends QueryBuilder>> prunedTypes) {

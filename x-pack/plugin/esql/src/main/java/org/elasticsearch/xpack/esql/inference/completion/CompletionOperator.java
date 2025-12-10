@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
@@ -53,8 +54,8 @@ public class CompletionOperator extends InferenceOperator {
      * @param inputPage The input data page.
      */
     @Override
-    protected CompletionOperatorRequestIterator requests(Page inputPage) {
-        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
+    protected BulkInferenceRequestItemIterator requests(Page inputPage) {
+        return new CompletionInferenceRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 
     /**
@@ -63,7 +64,7 @@ public class CompletionOperator extends InferenceOperator {
      * @param input The input page for which results will be constructed.
      */
     @Override
-    protected CompletionOperatorOutputBuilder outputBuilder(Page input) {
+    protected OutputBuilder outputBuilder(Page input) {
         BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(input.getPositionCount());
         return new CompletionOperatorOutputBuilder(outputBlockBuilder, input);
     }

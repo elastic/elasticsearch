@@ -15,7 +15,7 @@ import java.util.Iterator;
 /**
  * An iterator over {@link InferenceAction.Request} that can be released to free resources.
  */
-public interface BulkRequestItemIterator extends Iterator<BulkRequestItem>, Releasable {
+public interface BulkInferenceRequestItemIterator extends Iterator<BulkInferenceRequestItem>, Releasable {
 
     /**
      * Returns an estimate of the number of requests that will be produced.

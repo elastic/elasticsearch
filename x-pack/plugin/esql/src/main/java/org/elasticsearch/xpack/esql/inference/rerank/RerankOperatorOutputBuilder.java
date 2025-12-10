@@ -11,12 +11,12 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 
 import java.util.Comparator;
-import java.util.Iterator;
+import java.util.List;
 import java.util.stream.IntStream;
 
 /**
@@ -68,34 +68,35 @@ class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
         }
     }
 
-    /**
-     * Extracts the ranked document results from the inference response and appends their relevance scores to the score block builder.
-     * <p>
-     * If the response is not of type {@link ChatCompletionResults} an {@link IllegalStateException} is thrown.
-     * </p>
-     * <p>
-     * The responses must be added in the same order as the corresponding inference requests were generated.
-     * Failing to preserve order may lead to incorrect or misaligned output rows.
-     * </p>
-     */
     @Override
-    public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
-        if (inferenceResponse == null) {
-            scoreBlockBuilder.appendNull();
-            return;
-        }
+    public void addInferenceResponse(BulkInferenceResponse bulkInferenceResponse) {
+        List<RankedDocsResults.RankedDoc> rankedDocs = inferenceResults(bulkInferenceResponse.response());
+        int currentIndex = 0;
+        for (int valueCount : bulkInferenceResponse.shape()) {
+            if (valueCount == 0) {
+                scoreBlockBuilder.appendNull();
+                continue;
+            }
 
-        Iterator<RankedDocsResults.RankedDoc> sortedRankedDocIterator = inferenceResults(inferenceResponse).getRankedDocs()
-            .stream()
-            .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
-            .iterator();
-
-        while (sortedRankedDocIterator.hasNext()) {
-            scoreBlockBuilder.appendDouble(sortedRankedDocIterator.next().relevanceScore());
+            // Extract scores for this position and find the max
+            double maxScore = Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < valueCount; i++) {
+                RankedDocsResults.RankedDoc doc = rankedDocs.get(currentIndex++);
+                maxScore = Math.max(maxScore, doc.relevanceScore());
+            }
+            scoreBlockBuilder.appendDouble(maxScore);
         }
     }
 
-    private RankedDocsResults inferenceResults(InferenceAction.Response inferenceResponse) {
-        return InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, RankedDocsResults.class);
+    private List<RankedDocsResults.RankedDoc> inferenceResults(InferenceAction.Response inferenceResponse) {
+        if (inferenceResponse == null) {
+            return List.of();
+        }
+
+        return InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, RankedDocsResults.class)
+            .getRankedDocs()
+            .stream()
+            .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
+            .toList();
     }
 }

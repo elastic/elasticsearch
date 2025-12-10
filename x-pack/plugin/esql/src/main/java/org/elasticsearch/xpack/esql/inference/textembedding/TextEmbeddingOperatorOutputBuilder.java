@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
+
+import java.util.List;
 
 /**
  * {@link TextEmbeddingOperatorOutputBuilder} builds the output page for text embedding by converting
@@ -35,41 +38,27 @@ class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuil
         Releasables.close(outputBlockBuilder);
     }
 
-    /**
-     * Adds an inference response to the output builder.
-     *
-     * <p>
-     * If the response is null or not of type {@link DenseEmbeddingResults} an {@link IllegalStateException} is thrown.
-     * Else, the embedding vector is added to the output block as a multi-value position.
-     * </p>
-     *
-     * <p>
-     * The responses must be added in the same order as the corresponding inference requests were generated.
-     * Failing to preserve order may lead to incorrect or misaligned output rows.
-     * </p>
-     */
     @Override
-    public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
-        if (inferenceResponse == null) {
-            outputBlockBuilder.appendNull();
-            return;
+    public void addInferenceResponse(BulkInferenceResponse bulkInferenceResponse) {
+        List<DenseEmbeddingResults.Embedding<?>> embeddings = inferenceResults(bulkInferenceResponse.response());
+        int currentIndex = 0;
+
+        for (int valueCount : bulkInferenceResponse.shape()) {
+            if (valueCount == 0) {
+                outputBlockBuilder.appendNull();
+                continue;
+            }
+
+            outputBlockBuilder.beginPositionEntry();
+            for (int i = 0; i < valueCount; i++) {
+                DenseEmbeddingResults.Embedding<?> embedding = embeddings.get(currentIndex++);
+                float[] embeddingArray = getEmbeddingAsFloatArray(embedding);
+                for (float component : embeddingArray) {
+                    outputBlockBuilder.appendFloat(component);
+                }
+            }
+            outputBlockBuilder.endPositionEntry();
         }
-
-        DenseEmbeddingResults<?> embeddingResults = inferenceResults(inferenceResponse);
-
-        var embeddings = embeddingResults.embeddings();
-        if (embeddings.isEmpty()) {
-            outputBlockBuilder.appendNull();
-            return;
-        }
-
-        float[] embeddingArray = getEmbeddingAsFloatArray(embeddingResults);
-
-        outputBlockBuilder.beginPositionEntry();
-        for (float component : embeddingArray) {
-            outputBlockBuilder.appendFloat(component);
-        }
-        outputBlockBuilder.endPositionEntry();
     }
 
     /**
@@ -82,20 +71,28 @@ class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuil
         return inputPage.appendBlock(outputBlock);
     }
 
-    private DenseEmbeddingResults<?> inferenceResults(InferenceAction.Response inferenceResponse) {
-        return InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, DenseEmbeddingResults.class);
+    @SuppressWarnings("unchecked")
+    private List<DenseEmbeddingResults.Embedding<?>> inferenceResults(InferenceAction.Response inferenceResponse) {
+        if (inferenceResponse == null) {
+            return List.of();
+        }
+
+        return (List<DenseEmbeddingResults.Embedding<?>>) (List<?>) InferenceOperator.OutputBuilder.inferenceResults(
+            inferenceResponse,
+            DenseEmbeddingResults.class
+        ).embeddings();
     }
 
     /**
      * Extracts the embedding as a float array from the embedding result.
      */
-    private static float[] getEmbeddingAsFloatArray(DenseEmbeddingResults<?> embedding) {
-        return switch (embedding.embeddings().get(0)) {
+    private static float[] getEmbeddingAsFloatArray(DenseEmbeddingResults.Embedding<?> embedding) {
+        return switch (embedding) {
             case DenseEmbeddingFloatResults.Embedding floatEmbedding -> floatEmbedding.values();
             case DenseEmbeddingByteResults.Embedding byteEmbedding -> toFloatArray(byteEmbedding.values());
             default -> throw new IllegalArgumentException(
                 "Unsupported embedding type: "
-                    + embedding.embeddings().get(0).getClass().getName()
+                    + embedding.getClass().getName()
                     + ". Expected "
                     + DenseEmbeddingFloatResults.Embedding.class.getSimpleName()
                     + " or "

@@ -16,8 +16,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItemIterator;
 
 import java.util.List;
 
@@ -75,7 +76,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
         try {
-            BulkRequestItemIterator requests = requests(input);
+            BulkInferenceRequestItemIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
 
             bulkInferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
@@ -103,7 +104,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         }
 
         try (OutputBuilder outputBuilder = outputBuilder(ongoingInferenceResult.inputPage)) {
-            for (InferenceAction.Response response : ongoingInferenceResult.responses) {
+            for (BulkInferenceResponse response : ongoingInferenceResult.responses) {
                 outputBuilder.addInferenceResponse(response);
             }
             return outputBuilder.buildOutput();
@@ -118,7 +119,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      *
      * @param input The input page to process.
      */
-    protected abstract BulkRequestItemIterator requests(Page input);
+    protected abstract BulkInferenceRequestItemIterator requests(Page input);
 
     /**
      * Creates a new {@link OutputBuilder} instance used to build the output page.
@@ -141,7 +142,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          *
          * @param inferenceResponse The inference response to include.
          */
-        void addInferenceResponse(InferenceAction.Response inferenceResponse);
+        void addInferenceResponse(BulkInferenceResponse inferenceResponse);
 
         /**
          * Builds the final output page from accumulated inference responses.
@@ -173,7 +174,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * @param inputPage The input page used to generate inference requests.
      * @param responses The inference responses returned by the inference service.
      */
-    public record OngoingInferenceResult(Page inputPage, List<InferenceAction.Response> responses) implements Releasable {
+    public record OngoingInferenceResult(Page inputPage, List<BulkInferenceResponse> responses) implements Releasable {
 
         @Override
         public void close() {

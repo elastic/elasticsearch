@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.esql.inference.textembedding;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItem;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItemIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemIterator;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -22,11 +24,15 @@ import java.util.NoSuchElementException;
  * This iterator reads text inputs from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
  * of type {@link TaskType#TEXT_EMBEDDING}.
  */
-class TextEmbeddingOperatorRequestIterator implements BulkRequestItemIterator {
+class TextEmbeddingInferenceRequestIterator implements BulkInferenceRequestItemIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;
     private final int size;
+
+    private int[] shapeBuffer;
+    private int shapeSize;
+
     private int currentPos = 0;
 
     /**
@@ -35,10 +41,12 @@ class TextEmbeddingOperatorRequestIterator implements BulkRequestItemIterator {
      * @param textBlock   The input block containing text to embed.
      * @param inferenceId The ID of the inference model to invoke.
      */
-    TextEmbeddingOperatorRequestIterator(BytesRefBlock textBlock, String inferenceId) {
+    TextEmbeddingInferenceRequestIterator(BytesRefBlock textBlock, String inferenceId) {
         this.textReader = new InputTextReader(textBlock);
         this.size = textBlock.getPositionCount();
         this.inferenceId = inferenceId;
+        // Start with reasonable capacity (most shapes are small)
+        this.shapeBuffer = new int[16];
     }
 
     @Override
@@ -47,16 +55,39 @@ class TextEmbeddingOperatorRequestIterator implements BulkRequestItemIterator {
     }
 
     @Override
-    public BulkRequestItem next() {
+    public BulkInferenceRequestItem next() {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
-        /*
-         * Keep only the first value in case of multi-valued fields.
-         * TODO: check if it is consistent with how the query vector builder is working.
-         */
-        return new BulkRequestItem(inferenceRequest(textReader.readText(currentPos++, 1)));
+        shapeSize = 0;
+        String nextText = null;
+
+        // Consume positions until we find a non-null/non-empty value or exhaust the block
+        // Keep only the first value in case of multi-valued fields.
+        while (Strings.isNullOrEmpty(nextText) && currentPos < size) {
+            nextText = textReader.readText(currentPos, 1);
+            addToShape(Strings.isNullOrEmpty(nextText) ? 0 : 1);
+            currentPos++;
+        }
+
+        // Consume trailing nulls/empty values
+        while (currentPos < size && Strings.isNullOrEmpty(textReader.readText(currentPos, 1))) {
+            addToShape(0);
+            currentPos++;
+        }
+
+        // Create shape array of exact size
+        int[] shape = Arrays.copyOf(shapeBuffer, shapeSize);
+        return new BulkInferenceRequestItem(inferenceRequest(nextText), shape);
+    }
+
+    private void addToShape(int value) {
+        if (shapeSize >= shapeBuffer.length) {
+            // Grow buffer if needed (rare case)
+            shapeBuffer = Arrays.copyOf(shapeBuffer, shapeBuffer.length * 2);
+        }
+        shapeBuffer[shapeSize++] = value;
     }
 
     /**

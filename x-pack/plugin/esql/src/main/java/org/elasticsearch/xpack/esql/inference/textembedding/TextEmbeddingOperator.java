@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
@@ -55,8 +56,8 @@ public class TextEmbeddingOperator extends InferenceOperator {
      * @param inputPage The input data page.
      */
     @Override
-    protected TextEmbeddingOperatorRequestIterator requests(Page inputPage) {
-        return new TextEmbeddingOperatorRequestIterator((BytesRefBlock) textEvaluator.eval(inputPage), inferenceId());
+    protected BulkInferenceRequestItemIterator requests(Page inputPage) {
+        return new TextEmbeddingInferenceRequestIterator((BytesRefBlock) textEvaluator.eval(inputPage), inferenceId());
     }
 
     /**
@@ -65,7 +66,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
      * @param input The input page for which results will be constructed.
      */
     @Override
-    protected TextEmbeddingOperatorOutputBuilder outputBuilder(Page input) {
+    protected OutputBuilder outputBuilder(Page input) {
         FloatBlock.Builder outputBlockBuilder = blockFactory().newFloatBlockBuilder(input.getPositionCount());
         return new TextEmbeddingOperatorOutputBuilder(outputBlockBuilder, input);
     }

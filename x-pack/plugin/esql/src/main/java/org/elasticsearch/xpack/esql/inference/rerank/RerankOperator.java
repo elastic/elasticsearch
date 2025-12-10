@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
@@ -65,15 +66,15 @@ public class RerankOperator extends InferenceOperator {
      * Returns the request iterator responsible for batching and converting input rows into inference requests.
      */
     @Override
-    protected RerankOperatorRequestIterator requests(Page inputPage) {
-        return new RerankOperatorRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
+    protected BulkInferenceRequestItemIterator requests(Page inputPage) {
+        return new RerankInferenceRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
     }
 
     /**
      * Returns the output builder responsible for collecting inference responses and building the output page.
      */
     @Override
-    protected RerankOperatorOutputBuilder outputBuilder(Page input) {
+    protected OutputBuilder outputBuilder(Page input) {
         DoubleBlock.Builder outputBlockBuilder = blockFactory().newDoubleBlockBuilder(input.getPositionCount());
         return new RerankOperatorOutputBuilder(outputBlockBuilder, input, scoreChannel);
     }

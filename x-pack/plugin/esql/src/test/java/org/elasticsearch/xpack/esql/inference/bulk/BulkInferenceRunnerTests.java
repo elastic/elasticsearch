@@ -61,21 +61,24 @@ public class BulkInferenceRunnerTests extends ESTestCase {
             return null;
         });
 
-        AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
+        AtomicReference<List<BulkInferenceResponse>> output = new AtomicReference<>();
+        ActionListener<List<BulkInferenceResponse>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
         inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
             .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
 
-        assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), equalTo(responses))));
+        assertBusy(() -> {
+            assertThat(output.get(), notNullValue());
+            assertThat(output.get().stream().map(BulkInferenceResponse::response).toList(), equalTo(responses));
+        });
     }
 
     public void testSuccessfulBulkExecutionOnEmptyRequest() throws Exception {
-        BulkRequestItemIterator requestIterator = mock(BulkRequestItemIterator.class);
+        BulkInferenceRequestItemIterator requestIterator = mock(BulkInferenceRequestItemIterator.class);
         when(requestIterator.hasNext()).thenReturn(false);
 
-        AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
+        AtomicReference<List<BulkInferenceResponse>> output = new AtomicReference<>();
+        ActionListener<List<BulkInferenceResponse>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
         inferenceRunnerFactory(new NoOpClient(threadPool)).create(randomBulkExecutionConfig())
             .executeBulk(requestIterator, assertAnswerUsingSearchThreadPool(listener));
@@ -95,7 +98,7 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
+        ActionListener<List<BulkInferenceResponse>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
         inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
             .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
@@ -123,7 +126,7 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
+        ActionListener<List<BulkInferenceResponse>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
         inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
             .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
@@ -151,8 +154,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
                     return null;
                 });
 
-                ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> {
-                    assertThat(r, equalTo(responses));
+                ActionListener<List<BulkInferenceResponse>> listener = ActionListener.wrap(r -> {
+                    assertThat(r.stream().map(BulkInferenceResponse::response).toList(), equalTo(responses));
                     latch.countDown();
                 }, ESTestCase::fail);
 
@@ -186,11 +189,11 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         return new BulkInferenceRunnerConfig(between(1, 100), between(1, 100));
     }
 
-    private BulkRequestItemIterator requestIterator(List<InferenceAction.Request> requests) {
+    private BulkInferenceRequestItemIterator requestIterator(List<InferenceAction.Request> requests) {
         final Iterator<InferenceAction.Request> delegate = requests.iterator();
-        BulkRequestItemIterator iterator = mock(BulkRequestItemIterator.class);
+        BulkInferenceRequestItemIterator iterator = mock(BulkInferenceRequestItemIterator.class);
         doAnswer(i -> delegate.hasNext()).when(iterator).hasNext();
-        doAnswer(i -> new BulkRequestItem(delegate.next())).when(iterator).next();
+        doAnswer(i -> new BulkInferenceRequestItem(delegate.next())).when(iterator).next();
         doAnswer(i -> requests.size()).when(iterator).estimatedSize();
         return iterator;
     }

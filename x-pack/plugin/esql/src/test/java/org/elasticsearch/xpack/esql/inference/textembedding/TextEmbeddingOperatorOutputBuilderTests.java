@@ -17,6 +17,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 
 import java.util.List;
 
@@ -38,39 +40,6 @@ public class TextEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
 
     public void testBuildLargeOutputWithByteEmbeddings() throws Exception {
         assertBuildOutputWithByteEmbeddings(between(1_000, 10_000));
-    }
-
-    public void testHandleNullResponses() throws Exception {
-        final int size = between(10, 100);
-        final Page inputPage = randomInputPage(size, between(1, 5));
-
-        try (
-            TextEmbeddingOperatorOutputBuilder outputBuilder = new TextEmbeddingOperatorOutputBuilder(
-                blockFactory().newFloatBlockBuilder(size),
-                inputPage
-            )
-        ) {
-            // Add some null responses
-            for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
-                if (randomBoolean()) {
-                    outputBuilder.addInferenceResponse(null);
-                } else {
-                    float[] embedding = randomFloatEmbedding(randomIntBetween(50, 200));
-                    outputBuilder.addInferenceResponse(createFloatEmbeddingResponse(embedding));
-                }
-            }
-
-            final Page outputPage = outputBuilder.buildOutput();
-            assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-            assertThat(outputPage.getBlockCount(), equalTo(inputPage.getBlockCount() + 1));
-
-            FloatBlock outputBlock = (FloatBlock) outputPage.getBlock(outputPage.getBlockCount() - 1);
-            assertThat(outputBlock.getPositionCount(), equalTo(size));
-
-            outputPage.releaseBlocks();
-        }
-
-        allBreakersEmpty();
     }
 
     public void testHandleEmptyEmbeddings() throws Exception {
@@ -205,21 +174,24 @@ public class TextEmbeddingOperatorOutputBuilderTests extends ComputeTestCase {
         return embedding;
     }
 
-    private static InferenceAction.Response createFloatEmbeddingResponse(float[] embedding) {
+    private static BulkInferenceResponse createFloatEmbeddingResponse(float[] embedding) {
         var embeddingResult = new DenseEmbeddingFloatResults.Embedding(embedding);
         var denseEmbeddingResults = new DenseEmbeddingFloatResults(List.of(embeddingResult));
-        return new InferenceAction.Response(denseEmbeddingResults);
+        return createBulkInferenceResponse(new InferenceAction.Response(denseEmbeddingResults), new int[] { 1 });
     }
 
-    private static InferenceAction.Response createByteEmbeddingResponse(byte[] embedding) {
+    private static BulkInferenceResponse createByteEmbeddingResponse(byte[] embedding) {
         var embeddingResult = new DenseEmbeddingByteResults.Embedding(embedding);
         var denseEmbeddingResults = new DenseEmbeddingByteResults(List.of(embeddingResult));
-        return new InferenceAction.Response(denseEmbeddingResults);
+        return createBulkInferenceResponse(new InferenceAction.Response(denseEmbeddingResults), new int[] { 1 });
     }
 
-    private static InferenceAction.Response createEmptyFloatEmbeddingResponse() {
-        var denseEmbeddingResults = new DenseEmbeddingFloatResults(List.of());
-        return new InferenceAction.Response(denseEmbeddingResults);
+    private static BulkInferenceResponse createEmptyFloatEmbeddingResponse() {
+        return createBulkInferenceResponse(null, new int[] { 0 });
+    }
+
+    private static BulkInferenceResponse createBulkInferenceResponse(InferenceAction.Response inferenceResponse, int[] shape) {
+        return new BulkInferenceResponse(new BulkInferenceRequestItem(null, shape), inferenceResponse);
     }
 
     private Page randomInputPage(int positionCount, int columnCount) {

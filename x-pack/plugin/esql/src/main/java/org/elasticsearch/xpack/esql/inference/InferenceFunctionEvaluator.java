@@ -53,10 +53,9 @@ public class InferenceFunctionEvaluator {
      * Creates a new inference function evaluator with a custom operator provider.
      * This constructor is primarily used for testing to inject mock operator providers.
      *
-     * @param foldContext               the fold context containing circuit breakers and evaluation settings
      * @param inferenceOperatorProvider custom provider for creating inference operators
      */
-    InferenceFunctionEvaluator(FoldContext foldContext, InferenceOperatorProvider inferenceOperatorProvider) {
+    InferenceFunctionEvaluator(InferenceOperatorProvider inferenceOperatorProvider) {
         this.inferenceOperatorProvider = inferenceOperatorProvider;
     }
 
@@ -199,7 +198,7 @@ public class InferenceFunctionEvaluator {
          * @return a new instance of {@link InferenceFunctionEvaluator}
          */
         public InferenceFunctionEvaluator create(FoldContext foldContext, InferenceService inferenceService) {
-            return new InferenceFunctionEvaluator(foldContext, createInferenceOperatorProvider(foldContext, inferenceService));
+            return new InferenceFunctionEvaluator(createInferenceOperatorProvider(foldContext, inferenceService));
         }
 
         /**

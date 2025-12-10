@@ -97,8 +97,8 @@ public class BulkInferenceRunner {
      * @param requests An iterator over the inference requests to execute
      * @param listener Called with the list of all responses in request order
      */
-    public void executeBulk(BulkRequestItemIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
-        List<InferenceAction.Response> responses = new ArrayList<>();
+    public void executeBulk(BulkInferenceRequestItemIterator requests, ActionListener<List<BulkInferenceResponse>> listener) {
+        List<BulkInferenceResponse> responses = new ArrayList<>();
         executeBulk(requests, responses::add, listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(responses)));
     }
 
@@ -116,8 +116,8 @@ public class BulkInferenceRunner {
      * @param completionListener Called when all requests are complete or if any error occurs
      */
     public void executeBulk(
-        BulkRequestItemIterator requests,
-        Consumer<InferenceAction.Response> responseConsumer,
+        BulkInferenceRequestItemIterator requests,
+        Consumer<BulkInferenceResponse> responseConsumer,
         ActionListener<Void> completionListener
     ) {
         if (requests.hasNext() == false) {
@@ -151,16 +151,16 @@ public class BulkInferenceRunner {
      * </p>
      */
     private class BulkInferenceRequest {
-        private final BulkRequestItemIterator requests;
-        private final Consumer<InferenceAction.Response> responseConsumer;
+        private final BulkInferenceRequestItemIterator requests;
+        private final Consumer<BulkInferenceResponse> responseConsumer;
         private final ActionListener<Void> completionListener;
 
         private final BulkInferenceExecutionState executionState = new BulkInferenceExecutionState();
         private final AtomicBoolean responseSent = new AtomicBoolean(false);
 
         BulkInferenceRequest(
-            BulkRequestItemIterator requests,
-            Consumer<InferenceAction.Response> responseConsumer,
+            BulkInferenceRequestItemIterator requests,
+            Consumer<BulkInferenceResponse> responseConsumer,
             ActionListener<Void> completionListener
         ) {
             this.requests = requests;
@@ -177,7 +177,7 @@ public class BulkInferenceRunner {
          *
          * @return A BulkRequestItem if a request and permit are available, null otherwise
          */
-        private BulkRequestItem pollPendingRequest() {
+        private BulkInferenceRequestItem pollPendingRequest() {
             synchronized (requests) {
                 if (requests.hasNext()) {
                     return requests.next().withSeqNo(executionState.generateSeqNo());
@@ -226,9 +226,9 @@ public class BulkInferenceRunner {
                         }
                         return;
                     } else {
-                        BulkRequestItem bulkRequestItem = pollPendingRequest();
+                        BulkInferenceRequestItem bulkInferenceRequestItem = pollPendingRequest();
 
-                        if (bulkRequestItem == null) {
+                        if (bulkInferenceRequestItem == null) {
                             // No more requests available
                             // Release the permit we didn't used and stop processing
                             permits.release();
@@ -257,8 +257,8 @@ public class BulkInferenceRunner {
                             executor,
                             ActionListener.runAfter(
                                 ActionListener.wrap(
-                                    r -> executionState.onInferenceResponse(bulkRequestItem.seqNo(), r),
-                                    e -> executionState.onInferenceException(bulkRequestItem.seqNo(), e)
+                                    r -> executionState.onInferenceResponse(new BulkInferenceResponse(bulkInferenceRequestItem, r)),
+                                    e -> executionState.onInferenceException(bulkInferenceRequestItem.seqNo(), e)
                                 ),
                                 () -> {
                                     // Release the permit we used
@@ -301,7 +301,7 @@ public class BulkInferenceRunner {
                         );
 
                         // Handle null requests (edge case in some iterators)
-                        if (bulkRequestItem.request() == null) {
+                        if (bulkInferenceRequestItem.request() == null) {
                             inferenceResponseListener.onResponse(null);
                             continue;
                         }
@@ -311,7 +311,7 @@ public class BulkInferenceRunner {
                             client,
                             INFERENCE_ORIGIN,
                             InferenceAction.INSTANCE,
-                            bulkRequestItem.request(),
+                            bulkInferenceRequestItem.request(),
                             inferenceResponseListener
                         );
                     }
@@ -336,7 +336,7 @@ public class BulkInferenceRunner {
                 persistedSeqNo++;
                 if (executionState.hasFailure() == false) {
                     try {
-                        InferenceAction.Response response = executionState.fetchBufferedResponse(persistedSeqNo);
+                        BulkInferenceResponse response = executionState.fetchBufferedResponse(persistedSeqNo);
                         responseConsumer.accept(response);
                     } catch (Exception e) {
                         executionState.addFailure(e);

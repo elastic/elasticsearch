@@ -15,6 +15,9 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
+
+import java.util.List;
 
 /**
  * {@link CompletionOperatorOutputBuilder} builds the output page for {@link CompletionOperator} by converting {@link ChatCompletionResults}
@@ -35,39 +38,27 @@ class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder
         Releasables.close(outputBlockBuilder);
     }
 
-    /**
-     * Adds an inference response to the output builder.
-     *
-     * <p>
-     * If the response is null or not of type {@link ChatCompletionResults} an {@link IllegalStateException} is thrown.
-     * Else, the result text is added to the output block.
-     * </p>
-     *
-     * <p>
-     * The responses must be added in the same order as the corresponding inference requests were generated.
-     * Failing to preserve order may lead to incorrect or misaligned output rows.
-     * </p>
-     */
+
     @Override
-    public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
-        if (inferenceResponse == null) {
-            outputBlockBuilder.appendNull();
-            return;
-        }
+    public void addInferenceResponse(BulkInferenceResponse bulkInferenceResponse) {
+        List<ChatCompletionResults.Result> results = inferenceResults(bulkInferenceResponse.response());
+        int currentIndex = 0;
 
-        ChatCompletionResults completionResults = inferenceResults(inferenceResponse);
+        for (int valueCount : bulkInferenceResponse.shape()) {
+            if (valueCount == 0) {
+                outputBlockBuilder.appendNull();
+                continue;
+            }
 
-        if (completionResults == null) {
-            throw new IllegalStateException("Received null inference result; expected a non-null result of type ChatCompletionResults");
+            outputBlockBuilder.beginPositionEntry();
+            for (int i = 0; i < valueCount; i++) {
+                ChatCompletionResults.Result result = results.get(currentIndex++);
+                bytesRefBuilder.copyChars(result.content());
+                outputBlockBuilder.appendBytesRef(bytesRefBuilder.get());
+                bytesRefBuilder.clear();
+            }
+            outputBlockBuilder.endPositionEntry();
         }
-
-        outputBlockBuilder.beginPositionEntry();
-        for (ChatCompletionResults.Result completionResult : completionResults.getResults()) {
-            bytesRefBuilder.copyChars(completionResult.content());
-            outputBlockBuilder.appendBytesRef(bytesRefBuilder.get());
-            bytesRefBuilder.clear();
-        }
-        outputBlockBuilder.endPositionEntry();
     }
 
     /**
@@ -80,7 +71,11 @@ class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder
         return inputPage.appendBlock(outputBlock);
     }
 
-    private ChatCompletionResults inferenceResults(InferenceAction.Response inferenceResponse) {
-        return InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, ChatCompletionResults.class);
+    private List<ChatCompletionResults.Result> inferenceResults(InferenceAction.Response inferenceResponse) {
+        if (inferenceResponse == null) {
+            return List.of();
+        }
+
+        return InferenceOperator.OutputBuilder.inferenceResults(inferenceResponse, ChatCompletionResults.class).results();
     }
 }

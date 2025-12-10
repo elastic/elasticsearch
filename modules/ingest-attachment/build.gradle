@@ -21,7 +21,7 @@ esplugin {
 // when updating tika, please review it's parent pom : https://repo1.maven.org/maven2/org/apache/tika/tika-parent
 // and manually update the transitive dependencies here
 def versions = [
-  'tika'  : '3.2.2',
+  'tika'  : '3.2.3',
   'pdfbox': '3.0.5',
   'poi'   : '5.4.1',
   'sparsebitset' : '1.3', //poi dependency: https://repo1.maven.org/maven2/org/apache/poi/poi/
@@ -33,7 +33,7 @@ def versions = [
   //intentionally using the elder "juniversalchardet:juniversalchardet" rather than the newer "com.github.albfernandez:juniversalchardet"
   //since the "com.github.albfernandez" fork has some problems with Chinese.
   'juniversalchardet' : '1.0.3',
-  'jsoup' : '1.21.1',
+  'jsoup' : '1.21.2',
   'jempbox' : '1.8.17',
   'xmlbeans' : '5.3.0', //poi-ooxml dependency: https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/
   'commonsCollections4' : '4.5.0',

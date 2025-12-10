@@ -529,7 +529,9 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
-        context.setImmediateXContentParent(context.parser().currentToken());
+        if (context.isImmediateParentAnArray() == false) {
+            context.setImmediateXContentParent(context.parser().currentToken());
+        }
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);

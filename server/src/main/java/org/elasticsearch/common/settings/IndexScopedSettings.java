@@ -169,6 +169,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
+                MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,

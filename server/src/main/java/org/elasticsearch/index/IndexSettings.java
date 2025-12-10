@@ -49,6 +49,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -1027,6 +1028,7 @@ public final class IndexSettings {
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedParentsLimit;
     private volatile long mappingNestedDocsLimit;
+    private volatile long mappingArrayObjectsLimit;
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile boolean ignoreDynamicFieldNamesBeyondLimit;
@@ -1208,6 +1210,7 @@ public final class IndexSettings {
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         mappingNestedParentsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        mappingArrayObjectsLimit = scopedSettings.get(INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
@@ -1350,6 +1353,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING, this::setMappingNestedParentsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING, this::setMappingArrayObjectsLimit);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
@@ -1899,6 +1903,14 @@ public final class IndexSettings {
 
     private void setMappingNestedDocsLimit(long value) {
         this.mappingNestedDocsLimit = value;
+    }
+
+    public long getMappingArrayObjectsLimit() {
+        return mappingArrayObjectsLimit;
+    }
+
+    private void setMappingArrayObjectsLimit(long value) {
+        this.mappingArrayObjectsLimit = value;
     }
 
     public long getMappingTotalFieldsLimit() {

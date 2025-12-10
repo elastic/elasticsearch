@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.View;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -37,16 +36,11 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
     }
 
     public static class Request extends LocalClusterStateRequest {
-        private List<String> names;
+        private final List<String> names;
 
         public Request(TimeValue masterNodeTimeout, String... names) {
             super(masterNodeTimeout);
             this.names = List.of(names);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            TransportAction.localOnly();
         }
 
         @Override

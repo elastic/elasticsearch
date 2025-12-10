@@ -156,12 +156,11 @@ public class CrossProjectIndexResolutionValidator {
                     // found locally, continue to next expression
                     continue;
                 }
-                ElasticsearchSecurityException unauthorizedException = null;
-                if (localException instanceof ElasticsearchSecurityException securityException) {
-                    unauthorizedException = securityException;
-                }
                 assert localExpressions != ResolvedIndexExpression.LocalExpressions.NONE || false == remoteExpressions.isEmpty()
                     : "both local expression and remote expressions are empty which should have errored earlier at index rewriting time";
+                ElasticsearchSecurityException localSecurityException = null;
+                if (localException instanceof ElasticsearchSecurityException securityException) localSecurityException = securityException;
+
                 boolean foundFlat = false;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
@@ -179,28 +178,28 @@ public class CrossProjectIndexResolutionValidator {
                     if (remoteException == null) {
                         // found flat expression somewhere
                         foundFlat = true;
-                        if (remoteAuthorizationExceptions != null) {
-                            remoteAuthorizationExceptions.clear();
-                            remoteUnauthorizedIndices.clear();
+                        if (remoteUnauthorizedIndices != null) {
+                            for (var entry : remoteUnauthorizedIndices.entrySet()) {
+                                entry.setValue(entry.getValue().stream().filter(index -> index.endsWith(":" + resource) == false).toList());
+                            }
                         }
                         break;
                     }
-                    if (unauthorizedException == null && remoteException instanceof ElasticsearchSecurityException securityException) {
-                        unauthorizedException = securityException;
+                    if (localSecurityException == null && remoteException instanceof ElasticsearchSecurityException securityException) {
                         if (remoteAuthorizationExceptions == null) {
                             remoteAuthorizationExceptions = new HashMap<>();
                             remoteUnauthorizedIndices = new HashMap<>();
                         }
                         remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
-                        remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(resource);
+                        remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(remoteExpression);
                     }
                 }
                 if (foundFlat) {
                     continue;
                 }
-                if (unauthorizedException != null) {
+                if (localSecurityException != null) {
                     if (localAuthorizationException == null) {
-                        localAuthorizationException = unauthorizedException;
+                        localAuthorizationException = localSecurityException;
                         localUnauthorizedIndices = new ArrayList<>();
                     }
                     localUnauthorizedIndices.add(originalExpression);
@@ -224,7 +223,10 @@ public class CrossProjectIndexResolutionValidator {
 
             if (remoteAuthorizationExceptions != null) {
                 for (var e : remoteAuthorizationExceptions.entrySet()) {
-                    var exception = formatAuthorizationException(e.getValue(), remoteUnauthorizedIndices.get(e.getKey()));
+                    final var unauthorizedIndices = remoteUnauthorizedIndices.get(e.getKey());
+                    if (unauthorizedIndices.isEmpty()) continue;
+
+                    var exception = formatAuthorizationException(e.getValue(), unauthorizedIndices);
                     if (firstException == null) {
                         firstException = exception;
                     } else {

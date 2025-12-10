@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -41,9 +42,15 @@ public class StdDevOverTime extends TimeSeriesAggregateFunction {
             name = "number",
             type = { "double", "integer", "long" },
             description = "Expression that outputs values to calculate the standard deviation of."
-        ) Expression field
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the standard deviation over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
     public StdDevOverTime(Source source, Expression field, Expression filter, Expression window) {

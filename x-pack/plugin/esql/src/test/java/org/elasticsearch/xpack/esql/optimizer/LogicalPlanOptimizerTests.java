@@ -9114,14 +9114,21 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
-    public void testKnnWithRerankAmdTopN() {
-        assertThat(typesError("""
+    public void testKnnWithRerankWithoutLimit() {
+        var query = """
             from types metadata _score
             | where knn(dense_vector, [0, 1, 2])
             | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
-            | sort _score desc
-            | limit 10
-            """), containsString("Knn function must be used with a LIMIT clause"));
+            """;
+
+        var optimized = planTypes(query);
+
+        var rerank = as(optimized, Rerank.class);
+        var limit = as(rerank.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1_000));
+        var filter = as(limit.child(), Filter.class);
+        var knn = as(filter.condition(), Knn.class);
+        assertThat(knn.implicitK(), equalTo(1_000));
     }
 
     public void testKnnWithRerankAmdLimit() {

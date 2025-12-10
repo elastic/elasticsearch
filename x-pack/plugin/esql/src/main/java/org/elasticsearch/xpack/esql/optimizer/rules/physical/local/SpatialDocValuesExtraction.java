@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -36,12 +36,12 @@ import java.util.Set;
 /**
  * This rule is responsible for marking spatial fields to be extracted from doc-values instead of source values.
  * This is a very specific optimization that is only used in the context of spatial aggregations.
- * Normally spatial fields are extracted from source values because this maintains original precision, but is very slow.
- * Simply loading from doc-values loses precision for points, and loses the geometry topological information for shapes.
+ * Normally spatial fields are extracted from source values because this maintains original precision but is very slow.
+ * Simply loading from doc-values loses precision for points and loses the geometry topological information for shapes.
  * For this reason we only consider loading from doc values under very specific conditions:
  * <ul>
  *     <li>The spatial data is consumed by a spatial aggregation (eg. <code>ST_CENTROIDS_AGG</code>, negating the need for precision.</li>
- *     <li>This aggregation is planned to run on the data node, so the doc-values Blocks are never transmit to the coordinator node.</li>
+ *     <li>This aggregation is planned to run on the data node, so the doc-values Blocks are never transmitted to the coordinator node.</li>
  *     <li>The data node index in question has doc-values stored for the field in question.</li>
  * </ul>
  * While we do not support transmitting spatial doc-values to the coordinator node, it is still important on the data node to ensure
@@ -58,15 +58,15 @@ import java.util.Set;
  * </ul>
  * The question has been raised why the spatial functions need to know if they are using doc-values or not. At first glance one might
  * perceive ES|QL functions as being logical planning only constructs, reflecting only the intent of the user. This, however, is not true.
- * The ES|QL functions all contain the runtime implementation of the functions behaviour, in the form of one or more static methods,
+ * The ES|QL functions all contain the runtime implementation of the function's behaviour, in the form of one or more static methods,
  * as well as a <code>toEvaluator()</code> instance method that is used to generates Block traversal code to call these runtime
  * implementations, based on some internal state of the instance of the function. In most cases this internal state contains information
  * determined during the logical planning phase, such as the field name and type, and whether it is a literal and can be folded.
  * In the case of spatial functions, the internal state also contains information about whether the function is using doc-values or not.
- * This knowledge is determined in the class being described here, and is only determined during local physical planning on each data
+ * This knowledge is determined in the class being described here and is only determined during local physical planning on each data
  * node. This is because the decision to use doc-values is based on the local data node's index configuration, and the local physical plan
  * is the only place where this information is available. This also means that the knowledge of the usage of doc-values does not need
- * to be serialized between nodes, and is only used locally.
+ * to be serialized between nodes and is only used locally.
  */
 public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     AggregateExec,
@@ -105,7 +105,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 List<Alias> changed = fields.stream()
                     .map(
                         f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
-                            .transformDown(SpatialGridFunction.class, s -> withDocValues(s, foundAttributes))
+                            .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes))
                     )
                     .toList();
                 if (changed.equals(fields) == false) {
@@ -117,7 +117,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
                 var condition = filterExec.condition()
                     .transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
-                    .transformDown(SpatialGridFunction.class, s -> withDocValues(s, foundAttributes));
+                    .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes));
                 if (filterExec.condition().equals(condition) == false) {
                     exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
                 }
@@ -147,7 +147,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
     }
 
-    private SpatialGridFunction withDocValues(SpatialGridFunction spatial, Set<FieldAttribute> foundAttributes) {
+    private SpatialDocValuesFunction withDocValues(SpatialDocValuesFunction spatial, Set<FieldAttribute> foundAttributes) {
         // Only update the docValues flags if the field is found in the attributes
         boolean found = foundField(spatial.spatialField(), foundAttributes);
         return found ? spatial.withDocValues(found) : spatial;

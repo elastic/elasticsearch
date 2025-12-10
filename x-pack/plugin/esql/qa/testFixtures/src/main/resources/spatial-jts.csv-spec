@@ -178,7 +178,7 @@ ROW geo_shape = TO_GEOSHAPE("BBOX (0, 2, 2, 0)")
 ;
 
 result1:geo_shape | result2:geo_shape
-POLYGON EMPTY     | POLYGON ((0.0 0.0, 0.0 2.0, 2.0 2.0, 2.0 0.0, 0.0 0.0))
+POLYGON EMPTY     | POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
 ;
 
 stSimplifyPostGisFirstExample

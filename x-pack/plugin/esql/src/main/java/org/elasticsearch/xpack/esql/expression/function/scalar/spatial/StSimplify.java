@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -46,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
-public class StSimplify extends EsqlScalarFunction {
+public class StSimplify extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StSimplify",
@@ -65,7 +64,7 @@ public class StSimplify extends EsqlScalarFunction {
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        examples = @Example(file = "spatial", tag = "st_simplify")
+        examples = @Example(file = "spatial-jts", tag = "st_simplify")
     )
     public StSimplify(
         Source source,
@@ -81,7 +80,11 @@ public class StSimplify extends EsqlScalarFunction {
             description = "Tolerance for the geometry simplification, in the units of the input SRS"
         ) Expression tolerance
     ) {
-        super(source, List.of(geometry, tolerance));
+        this(source, geometry, tolerance, false);
+    }
+
+    private StSimplify(Source source, Expression geometry, Expression tolerance, boolean spatialDocValues) {
+        super(source, List.of(geometry, tolerance), spatialDocValues);
         this.geometry = geometry;
         this.tolerance = tolerance;
     }
@@ -118,6 +121,16 @@ public class StSimplify extends EsqlScalarFunction {
     }
 
     @Override
+    public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
+        return new StSimplify(source(), geometry, tolerance, true);
+    }
+
+    @Override
+    public Expression spatialField() {
+        return geometry;
+    }
+
+    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory geometryEvaluator = toEvaluator.apply(geometry);
 
@@ -126,6 +139,19 @@ public class StSimplify extends EsqlScalarFunction {
         }
         var toleranceExpression = tolerance.fold(toEvaluator.foldCtx());
         double inputTolerance = getInputTolerance(toleranceExpression);
+        if (spatialDocValues && geometry.dataType() == DataType.GEO_POINT) {
+            return new StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator.Factory(
+                source(),
+                geometryEvaluator,
+                inputTolerance
+            );
+        } else if (spatialDocValues && geometry.dataType() == DataType.CARTESIAN_POINT) {
+            return new StSimplifyNonFoldableCartesianPointDocValuesAndFoldableToleranceEvaluator.Factory(
+                source(),
+                geometryEvaluator,
+                inputTolerance
+            );
+        }
         return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
     }
 

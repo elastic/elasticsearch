@@ -178,6 +178,7 @@ public class CrossProjectIndexResolutionValidator {
                     if (remoteException == null) {
                         // found flat expression somewhere
                         foundFlat = true;
+                        // ensure we don't report this index as unauthorized if it's unauthorized on another remote
                         if (remoteUnauthorizedIndices != null) {
                             for (var entry : remoteUnauthorizedIndices.entrySet()) {
                                 entry.setValue(entry.getValue().stream().filter(index -> index.endsWith(":" + resource) == false).toList());

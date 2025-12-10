@@ -16,11 +16,39 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.1.5 [elasticsearch-9.1.5-deprecations]
+
+## 9.2.2 [elasticsearch-9.2.2-deprecations]
 
 There are no deprecations associated with this release.
 
+## 9.1.8 [elasticsearch-9.1.8-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.7 [elasticsearch-9.1.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.1 [elasticsearch-9.2.1-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.6 [elasticsearch-9.1.6-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.0 [elasticsearch-9.2.0-deprecations]
+
+Cluster Coordination:
+* Remove `PeerFinder` request timeout [#134365](https://github.com/elastic/elasticsearch/pull/134365)
+
+
+
 ## 9.0.8 [elasticsearch-9.0.8-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.5 [elasticsearch-9.1.5-deprecations]
 
 There are no deprecations associated with this release.
 

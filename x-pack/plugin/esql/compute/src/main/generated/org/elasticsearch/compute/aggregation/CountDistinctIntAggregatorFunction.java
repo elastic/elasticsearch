@@ -149,8 +149,8 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctIntAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctIntAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

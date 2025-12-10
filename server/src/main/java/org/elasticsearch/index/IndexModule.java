@@ -45,6 +45,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -62,7 +63,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -495,8 +495,7 @@ public final class IndexModule {
         IdFieldMapper idFieldMapper,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        QueryRewriteInterceptor queryRewriteInterceptor
+        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -560,7 +559,6 @@ public final class IndexModule {
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
                 mapperMetrics,
-                queryRewriteInterceptor,
                 indexingStatsSettings,
                 searchStatsSettings,
                 mergeMetrics
@@ -660,7 +658,8 @@ public final class IndexModule {
         ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
-        ScriptService scriptService
+        ScriptService scriptService,
+        DocumentMapper documentMapper
     ) throws IOException {
         return new MapperService(
             clusterService,
@@ -677,7 +676,8 @@ public final class IndexModule {
             query -> {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
-            mapperMetrics
+            mapperMetrics,
+            documentMapper
         );
     }
 

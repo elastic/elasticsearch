@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
@@ -114,7 +115,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of()
         ) {
 
             @Override
@@ -222,7 +224,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
 
                 @Override
@@ -339,7 +342,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
 
                 @Override
@@ -470,7 +474,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -579,7 +584,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 results,
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
-                mock(SearchResponseMetrics.class)
+                mock(SearchResponseMetrics.class),
+                Map.of()
             ) {
 
                 @Override
@@ -647,7 +653,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ShardId(index, 0),
                 Collections.emptyList(),
-                originalIndices
+                originalIndices,
+                SplitShardCountSummary.UNSET
             );
             // Skip all the shards
             searchShardIterator.skip(true);
@@ -678,7 +685,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             new ArraySearchPhaseResults<>(searchShardIterators.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            mock(SearchResponseMetrics.class)
+            mock(SearchResponseMetrics.class),
+            Map.of()
         ) {
 
             @Override
@@ -768,7 +776,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
             Collections.shuffle(started, random());
             started.addAll(initializing);
-            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices));
+            list.add(new SearchShardIterator(null, new ShardId(index, i), started, originalIndices, SplitShardCountSummary.UNSET));
         }
         return list;
     }

@@ -300,10 +300,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var replicated = in.readBoolean();
         var system = in.readBoolean();
         var allowCustomRouting = in.readBoolean();
-        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
-        var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-            ? in.readOptionalWriteable(DataStreamLifecycle::new)
-            : null;
+        var indexMode = in.readOptionalEnum(IndexMode.class);
+        var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
         // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071
         var failureStoreEnabled = in.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.V_8_16_0) ? in.readBoolean() : false;
@@ -446,12 +444,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return getMatchingIndexTemplate(projectMetadata).mergeSettings(settings).mergeMappings(mappings);
     }
 
-    public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
-        ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
-        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
-        return templateSettings.merge(settings);
-    }
-
     /**
      * Returns the mappings that would be used to create the write index if this data stream were rolled over right now. This includes
      * the mapping overrides on this data stream, the mapping from the matching composable template, and the mappings from all component
@@ -499,9 +491,47 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             writeIndex.getName()
         );
         return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
-            CompressedXContent mergedMapping = indexService.mapperService()
-                .merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE)
-                .mappingSource();
+            MapperService mapperService = indexService.mapperService();
+            if (mapperService == null) {
+                return CompressedXContent.fromJSON("{}");
+            }
+            Settings templateSettings = mergedTemplate.template().settings();
+            String indexModeSettingName = IndexSettings.MODE.getKey();
+            if (templateSettings != null
+                && Objects.equals(
+                    mapperService.getIndexSettings().getMode().getName(),
+                    templateSettings.get(indexModeSettingName)
+                ) == false) {
+                /*
+                 * It is possible that someone has changed the index mode in the template, but the data stream has not been rolled over yet.
+                 * This mapperService is for the write index, which still has the old index mode in its index settings. This only matters
+                 * for validation. To avoid failing index-mode-specific mapping validation due to using the old index mode with the new
+                 * mapping, we make sure to correct the index mode and index routing path here.
+                 */
+                IndexMetadata oldIndexMetadata = indexService.getMetadata();
+
+                Settings oldIndexSettings = oldIndexMetadata.getSettings();
+                String indexRoutingPathSettingName = IndexMetadata.INDEX_ROUTING_PATH.getKey();
+                if (Objects.equals(
+                    templateSettings.get(indexRoutingPathSettingName),
+                    oldIndexSettings.get(indexRoutingPathSettingName)
+                ) == false) {
+                    /*
+                     * If the routing_path has changed, we need to make sure to update it so that validation does not fail when we merge
+                     * mappings.
+                     */
+                    Settings.Builder settingsBuilder = Settings.builder().put(oldIndexSettings);
+                    settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
+                    settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
+                    IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
+                    mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
+                }
+            }
+            CompressedXContent mergedMapping = mapperService.merge(
+                MapperService.SINGLE_MAPPING_NAME,
+                mappings,
+                MapperService.MergeReason.INDEX_TEMPLATE
+            ).mappingSource();
             /*
              * If the merged mapping contains the old "_doc" type placeholder, we remove it to make things more straightforward for the
              * client:
@@ -1247,7 +1277,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier
     ) {
         assert backingIndices.indices.contains(index) : "the provided index must be a backing index for this datastream";
-        if (lifecycle == null || lifecycle.downsampling() == null) {
+        if (lifecycle == null || lifecycle.downsamplingRounds() == null) {
             return List.of();
         }
 
@@ -1260,8 +1290,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexGenerationTime != null) {
             long nowMillis = nowSupplier.getAsLong();
             long indexGenerationTimeMillis = indexGenerationTime.millis();
-            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.downsampling().size());
-            for (DownsamplingRound round : lifecycle.downsampling()) {
+            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.downsamplingRounds().size());
+            for (DownsamplingRound round : lifecycle.downsamplingRounds()) {
                 if (nowMillis >= indexGenerationTimeMillis + round.after().getMillis()) {
                     orderedRoundsForIndex.add(round);
                 }
@@ -1450,12 +1480,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(replicated);
         out.writeBoolean(system);
         out.writeBoolean(allowCustomRouting);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeOptionalEnum(indexMode);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(lifecycle);
-        }
+        out.writeOptionalEnum(indexMode);
+        out.writeOptionalWriteable(lifecycle);
         if (out.getTransportVersion()
             .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             // TODO: clear out the failure_store field, which is redundant https://github.com/elastic/elasticsearch/issues/127071

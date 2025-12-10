@@ -33,7 +33,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -67,11 +66,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -136,7 +135,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
         // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        denseVectorElementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         useSearchInferenceId = randomBoolean();
     }
 
@@ -278,7 +280,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Query innerQuery = assertOuterBooleanQuery(query);
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
-            case FLOAT -> KnnFloatVectorQuery.class;
+            case FLOAT, BFLOAT16 -> KnnFloatVectorQuery.class;
             case BYTE, BIT -> KnnByteVectorQuery.class;
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
@@ -348,9 +350,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         int inferenceLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(denseVectorElementType, TEXT_EMBEDDING_DIMENSION_COUNT);
         double[] inference = new double[inferenceLength];
         Arrays.fill(inference, 1.0);
-        MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
+        MlDenseEmbeddingResults textEmbeddingResults = new MlDenseEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(TextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
+        return new InferenceAction.Response(DenseEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override
@@ -605,13 +607,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 denseVectorElementType
             );
         };
-    }
-
-    public static class FakeMlPlugin extends Plugin {
-        @Override
-        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return new MlInferenceNamedXContentProvider().getNamedWriteables();
-        }
     }
 
     private static TestThreadPool threadPool;

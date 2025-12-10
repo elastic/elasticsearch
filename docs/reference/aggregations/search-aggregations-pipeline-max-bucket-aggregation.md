@@ -107,9 +107,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 1. `keys` is an array of strings since the maximum value may be present in multiple buckets
 

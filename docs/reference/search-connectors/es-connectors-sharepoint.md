@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic SharePoint Server connector* is a [connector](/reference/search-connectors/index.md) for [Microsoft SharePoint Server](https://www.microsoft.com/en-ww/microsoft-365/sharepoint/).
 
-This connector is written in Python using the open code [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py).
+This connector is written in Python using the open code [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server).
 
 ::::{tip}
 Looking for the SharePoint **Online** connector? See the [SharePoint Online reference](/reference/search-connectors/es-connectors-sharepoint-online.md).
@@ -57,7 +57,7 @@ PUT _connector/my-sharepoint_server-connector
   "service_type": "sharepoint_server"
 }
 ```
-%  TEST[skip:can’t test in isolation]
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -193,9 +193,9 @@ You can deploy the SharePoint Server connector as a self-managed connector using
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -344,4 +344,4 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server) (branch *main*, compatible with Elastic *9.0*).

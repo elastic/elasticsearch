@@ -78,23 +78,42 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     private int blockIndex() {
-        return countAll ? 0 : channels.get(0);
+        // In case of countAll, block index is irrelevant.
+        // Page.positionCount should be used instead,
+        // because the page could have zero blocks
+        // (drop all columns scenario)
+        return countAll ? -1 : channels.get(0);
     }
 
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
-        Block block = page.getBlock(blockIndex());
-        LongState state = this.state;
-        int count;
-        if (mask.isConstant()) {
-            if (mask.getBoolean(0) == false) {
-                return;
+        if (countAll) {
+            // this will work also when the page has no blocks
+            if (mask.isConstant() && mask.getBoolean(0)) {
+                state.longValue(state.longValue() + page.getPositionCount());
+            } else {
+                int count = 0;
+                for (int i = 0; i < mask.getPositionCount(); i++) {
+                    if (mask.getBoolean(i)) {
+                        count++;
+                    }
+                }
+                state.longValue(state.longValue() + count);
             }
-            count = countAll ? block.getPositionCount() : block.getTotalValueCount();
         } else {
-            count = countMasked(block, mask);
+            Block block = page.getBlock(blockIndex());
+            LongState state = this.state;
+            int count;
+            if (mask.isConstant()) {
+                if (mask.getBoolean(0) == false) {
+                    return;
+                }
+                count = block.getTotalValueCount();
+            } else {
+                count = countMasked(block, mask);
+            }
+            state.longValue(state.longValue() + count);
         }
-        state.longValue(state.longValue() + count);
     }
 
     private int countMasked(Block block, BooleanVector mask) {

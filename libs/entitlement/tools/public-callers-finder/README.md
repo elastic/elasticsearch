@@ -15,20 +15,32 @@ it treats calls to `super` in `S.m` as regular calls (e.g. `example() -> S.m() -
 
 In order to run the tool, use:
 ```shell
-./gradlew :libs:entitlement:tools:public-callers-finder:run -Druntime.java=25 --args="<input-file> [<bubble-up-from-public>]"
+./gradlew :libs:entitlement:tools:public-callers-finder:run [-Druntime.java=25] --args="<input-file> [--transitive] [--check-instrumentation] [--include-incubator]"
 ```
-Where `input-file` is a CSV file (columns separated by `TAB`) that contains the following columns:
-1. Module name
-2. unused
-3. unused
-4. Fully qualified class name (ASM style, with `/` separators)
-5. Method name
-6. Method descriptor (ASM signature)
-7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
 
-And `bubble-up-from-public` is a boolean (`true|false`) indicating if the code should stop at the first public method (`false`: default) or continue to find usages recursively even after reaching the "public surface".
+- `input-file` is a `TAB`-separated TSV file containing the following columns:
+  1. Module name
+  2. unused
+  3. unused
+  4. Fully qualified class name (ASM style, with `/` separators)
+  5. Method name
+  6. Method descriptor (ASM signature)
+  7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
 
-The output of the tool is another CSV file, with one line for each entry-point, columns separated by `TAB`
+- optional: `--transitive` to not stop at the first public method, but continue to find the transitive public surface.
+
+- optional: `--check-instrumentation` to check if methods are instrumented for entitlements.
+
+- optional: `--include-incubator` to include incubator modules (e.g. `jdk.incubator.vector`).
+
+If `-Druntime.java` is not provided, the bundled JDK is used.
+
+Examples:
+```bash
+./gradlew :libs:entitlement:tools:public-callers-finder:run --args="sensitive-methods.tsv --transitive --check-instrumentation"
+```
+
+The tool writes the following `TAB`-separated columns to standard out:
 
 1. Module name
 2. File name (from source root)
@@ -37,12 +49,13 @@ The output of the tool is another CSV file, with one line for each entry-point, 
 5. Method name
 6. Method descriptor (ASM signature)
 7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
-8. Original caller Module name
-9. Original caller Class name (ASM style, with `/` separators)
-10. Original caller Method name
-11. Original caller Visibility
+8. If using `--check-instrumentation`: `COVERED` if method is instrumented with entitlement checks, `MISSING` otherwise
+9. Original caller Module name
+10. Original caller Class name (ASM style, with `/` separators)
+11. Original caller Method name
+12. Original caller Visibility
 
-Examples:
+Example output:
 ```
 java.base	DeleteOnExitHook.java	50	java/io/DeleteOnExitHook$1	run	()V	PUBLIC	java.base	java/io/File	delete	PUBLIC
 java.base	ZipFile.java	254	java/util/zip/ZipFile	<init>	(Ljava/io/File;ILjava/nio/charset/Charset;)V	PUBLIC	java.base	java/io/File	delete	PUBLIC

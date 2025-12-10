@@ -1,17 +1,16 @@
- # Tests for l2_norm similarity function
- 
- similarityWithVectorField
- required_capability: l2_norm_vector_similarity_function
- required_capability: dense_vector_field_type_released
+# Tests for l2_norm similarity function
+
+similarityWithVectorField
+required_capability: vector_similarity_functions_pushdown
  
 // tag::vector-l2-norm[]
- from colors
- | eval similarity = v_l2_norm(rgb_vector, [0, 255, 255]) 
- | sort similarity desc, color asc 
+from colors
+| eval similarity = v_l2_norm(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
 // end::vector-l2-norm[]
- | limit 10
- | keep color, similarity
- ;
+| limit 10
+| keep color, similarity
+;
  
 // tag::vector-l2-norm-result[]
 color:text | similarity:double
@@ -28,9 +27,8 @@ tomato     | 351.0227966308594
 // end::vector-l2-norm-result[] 
 ;
 
- similarityAsPartOfExpression
- required_capability: l2_norm_vector_similarity_function
- required_capability: dense_vector_field_type_released
+similarityAsPartOfExpression
+required_capability: vector_similarity_functions_pushdown
  
 from colors
 | eval score = round((1 + v_l2_norm(rgb_vector, [0, 255, 255]) / 2), 3) 
@@ -53,8 +51,7 @@ tomato     | 176.511
 ;
 
 similarityWithLiteralVectors
-required_capability: l2_norm_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row a = 1
 | eval similarity = round(v_l2_norm([1, 2, 3], [0, 1, 2]), 3) 
@@ -66,8 +63,7 @@ similarity:double
 ;
 
 similarityWithStats
-required_capability: l2_norm_vector_similarity_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = round(v_l2_norm(rgb_vector, [0, 255, 255]), 3) 
@@ -79,9 +75,7 @@ avg:double | min:double | max:double
 ;
 
 similarityWithNull
-required_capability: l2_norm_vector_similarity_function
-required_capability: vector_similarity_functions_support_null
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
 
 from colors
 | eval similarity = v_l2_norm(rgb_vector, null) 
@@ -93,9 +87,7 @@ total_null:long
 ;
 
 similarityWithRow
-required_capability: l2_norm_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
  
 row vector = to_dense_vector([1, 2, 3]) 
 | eval similarity = round(v_l2_norm(vector, [0, 1, 2]), 3) 
@@ -105,28 +97,123 @@ vector: dense_vector | similarity:double
 [1.0, 2.0, 3.0]      | 1.732
 ;
 
-similarityWithVectorField
-required_capability: l2_norm_vector_similarity_function
-required_capability: to_dense_vector_function
-required_capability: dense_vector_field_type_released
+multipleEvalSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
 
 from colors
-| eval query = to_dense_vector([0, 255, 255])
-| eval similarity = v_l2_norm(rgb_vector, query) 
+| eval similarity1 = v_l2_norm(rgb_vector, [0, 255, 255]), similarity2 = v_l2_norm(rgb_vector, [255, 0, 255]) / 2 + 1
+| sort similarity1 desc, similarity2 desc, color asc 
+| limit 10
+| keep color, similarity1, similarity2
+;
+
+color:text | similarity1:double | similarity2:double
+red        | 441.6729431152344  | 128.5
+maroon     | 382.6669616699219  | 143.4376983642578
+crimson    | 376.36419677734375 | 100.56153869628906
+orange     | 371.68536376953125 | 152.86341857910156
+gold       | 362.8360595703125  | 167.7707977294922
+black      | 360.62445068359375 | 181.31222534179688
+yellow     | 360.62445068359375 | 181.31222534179688
+magenta    | 360.62445068359375 | 1.0
+firebrick  | 359.67486572265625 | 119.24339294433594
+tomato     | 351.0227966308594  | 105.4712905883789
+;
+
+multipleSimilarityWithVectorFields
+required_capability: vector_similarity_functions_pushdown
+
+from colors
+| eval similarity = v_l2_norm(rgb_vector, [0, 255, 255]) / 2 + v_l2_norm(rgb_vector, [255, 0, 255]) / 2 + 1
 | sort similarity desc, color asc 
 | limit 10
 | keep color, similarity
 ;
- 
+
 color:text | similarity:double
-red        | 441.6729431152344
-maroon     | 382.6669616699219
-crimson    | 376.36419677734375
-orange     | 371.68536376953125
-gold       | 362.8360595703125
-black      | 360.62445068359375
-magenta    | 360.62445068359375
-yellow     | 360.62445068359375
-firebrick  | 359.67486572265625
-tomato     | 351.0227966308594
+black      | 361.62445068359375
+yellow     | 361.62445068359375
+lime       | 349.3364715576172
+red        | 349.3364715576172
+gold       | 349.18882751464844
+orange     | 338.7061004638672
+chartreuse | 334.77117919921875
+green      | 334.77117919921875
+maroon     | 334.77117919921875
+olive      | 313.31072998046875
+;
+
+l2NormWithLookupJoin
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| eval s = v_l2_norm(rgb_vector, [1, 2, 3])
+| lookup join colors_cmyk on id
+| keep color, s, cmyk_vector
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double           | cmyk_vector:dense_vector
+white      | 438.2111511230469  | [0.0, 0.0, 0.0, 0.0]
+snow       | 432.468505859375   | [0.0, 2.0, 2.0, 0.0]
+ivory      | 429.7604064941406  | [0.0, 0.0, 6.0, 0.0]
+azure      | 429.6905822753906  | [6.0, 0.0, 0.0, 0.0]
+mint cream | 429.59747314453125 | [4.0, 0.0, 2.0, 0.0]
+sea shell  | 422.8356628417969  | [0.0, 4.0, 7.0, 0.0]
+honeydew   | 421.0688781738281  | [6.0, 0.0, 6.0, 0.0]
+old lace   | 417.2313537597656  | [0.0, 3.0, 9.0, 1.0]
+corn silk  | 414.87469482421875 | [0.0, 3.0, 14.0, 0.0]
+linen      | 412.5215148925781  | [0.0, 4.0, 8.0, 2.0]
+;
+
+l2NormWithLookupJoinOnJoinedField
+required_capability: vector_similarity_functions_pushdown
+required_capability: join_lookup_v12
+
+from colors
+| lookup join colors_cmyk on id
+| eval s = v_l2_norm(cmyk_vector, [1, 2, 3, 4])
+| keep color, s
+| sort s desc, color asc
+| limit 10
+;
+
+color:text | s:double
+navy       | 146.73104858398438
+green      | 146.04794311523438
+maroon     | 145.3616180419922
+blue       | 139.39154052734375
+lime       | 138.67227172851562
+red        | 137.9492645263672
+indigo     | 115.40797424316406
+firebrick  | 114.02631378173828
+crimson    | 113.67497253417969
+teal       | 109.22454071044922
+;
+
+l2NormWithEnrich
+required_capability: vector_similarity_functions_pushdown
+required_capability: enrich_load
+
+from colors
+| eval s = v_l2_norm(rgb_vector, [1, 2, 3])
+| enrich colors_policy
+| keep color_name, s
+| sort s desc, color_name asc
+| limit 10
+;
+
+color_name:text | s:double
+white           | 438.2111511230469
+snow            | 432.468505859375
+ivory           | 429.7604064941406
+azure           | 429.6905822753906
+mint cream      | 429.59747314453125
+sea shell       | 422.8356628417969
+honeydew        | 421.0688781738281
+old lace        | 417.2313537597656
+corn silk       | 414.87469482421875
+linen           | 412.5215148925781
 ;

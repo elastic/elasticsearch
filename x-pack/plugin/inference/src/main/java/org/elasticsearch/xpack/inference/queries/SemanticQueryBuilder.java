@@ -8,14 +8,18 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -33,21 +37,23 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -93,6 +99,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String fieldName;
     private final String query;
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
+    private final SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier;
     private final Boolean lenient;
 
     // ccsRequest is only used on the local cluster coordinator node to detect when:
@@ -135,6 +142,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.fieldName = fieldName;
         this.query = query;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
+        this.inferenceResultsMapSupplier = null;
         this.lenient = lenient;
         this.ccsRequest = ccsRequest;
     }
@@ -143,6 +151,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
+
         if (in.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
             this.inferenceResultsMap = in.readOptional(
                 i1 -> i1.readImmutableMap(FullyQualifiedInferenceId::new, i2 -> i2.readNamedWriteable(InferenceResults.class))
@@ -156,20 +165,26 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             this.inferenceResultsMap = inferenceResults != null ? buildSingleResultInferenceResultsMap(inferenceResults) : null;
             in.readBoolean(); // Discard noInferenceResults, it is no longer necessary
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
-            this.lenient = in.readOptionalBoolean();
-        } else {
-            this.lenient = null;
-        }
+
+        this.lenient = in.readOptionalBoolean();
+
         if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
             this.ccsRequest = in.readBoolean();
         } else {
             this.ccsRequest = false;
         }
+
+        this.inferenceResultsMapSupplier = null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (inferenceResultsMapSupplier != null) {
+            throw new IllegalStateException(
+                "inferenceResultsMapSupplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+            );
+        }
+
         out.writeString(fieldName);
         out.writeString(query);
         if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
@@ -197,9 +212,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             out.writeOptionalNamedWriteable(inferenceResults);
             out.writeBoolean(inferenceResults == null);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
-            out.writeOptionalBoolean(lenient);
-        }
+        out.writeOptionalBoolean(lenient);
         if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
             out.writeBoolean(ccsRequest);
         } else if (ccsRequest) {
@@ -216,6 +229,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private SemanticQueryBuilder(
         SemanticQueryBuilder other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
         this.fieldName = other.fieldName;
@@ -224,6 +238,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.queryName = other.queryName;
         // No need to copy the map here since this is only called internally. We can safely assume that the caller will not modify the map.
         this.inferenceResultsMap = inferenceResultsMap;
+        this.inferenceResultsMapSupplier = inferenceResultsMapSupplier;
         this.lenient = other.lenient;
         this.ccsRequest = ccsRequest;
     }
@@ -255,31 +270,26 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * Get inference results for the provided query using the provided fully qualified inference IDs.
      * </p>
      * <p>
-     * This method will return an inference results map that will be asynchronously populated with inference results. If the provided
-     * inference results map already contains all required inference results, the same map instance will be returned. Otherwise, a new map
-     * instance will be returned. It is guaranteed that a non-null map instance will be returned.
+     * This method will return an inference results map supplier that will provide a complete map of additional inference results required.
+     * If the provided inference results map already contains all required inference results, a null supplier will be returned.
      * </p>
      *
      * @param queryRewriteContext The query rewrite context
      * @param fullyQualifiedInferenceIds The fully qualified inference IDs to use to generate inference results
      * @param inferenceResultsMap The initial inference results map
      * @param query The query to generate inference results for
-     * @return An inference results map
+     * @return An inference results map supplier
      */
-    static Map<FullyQualifiedInferenceId, InferenceResults> getInferenceResults(
+    static SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> getInferenceResults(
         QueryRewriteContext queryRewriteContext,
         Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         @Nullable String query
     ) {
-        boolean modifiedInferenceResultsMap = false;
-        Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap = inferenceResultsMap != null
-            ? inferenceResultsMap
-            : Map.of();
-
+        List<String> inferenceIds = new ArrayList<>(fullyQualifiedInferenceIds.size());
         if (query != null) {
             for (FullyQualifiedInferenceId fullyQualifiedInferenceId : fullyQualifiedInferenceIds) {
-                if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
+                if (inferenceResultsMap == null || inferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
                     if (fullyQualifiedInferenceId.clusterAlias().equals(queryRewriteContext.getLocalClusterAlias()) == false) {
                         // Catch if we are missing inference results that should have been generated on another cluster
                         throw new IllegalStateException(
@@ -291,59 +301,96 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                         );
                     }
 
-                    if (modifiedInferenceResultsMap == false) {
-                        // Copy the inference results map to ensure it is mutable and thread safe
-                        currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
-                        modifiedInferenceResultsMap = true;
-                    }
-
-                    registerInferenceAsyncAction(
-                        queryRewriteContext,
-                        ((ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults>) currentInferenceResultsMap),
-                        query,
-                        fullyQualifiedInferenceId.inferenceId()
-                    );
+                    inferenceIds.add(fullyQualifiedInferenceId.inferenceId());
                 }
             }
         }
 
-        return currentInferenceResultsMap;
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier = null;
+        if (inferenceIds.isEmpty() == false) {
+            inferenceResultsMapSupplier = new SetOnce<>();
+            registerInferenceAsyncActions(queryRewriteContext, inferenceResultsMapSupplier, query, inferenceIds);
+        }
+
+        return inferenceResultsMapSupplier;
     }
 
-    static void registerInferenceAsyncAction(
+    static void registerInferenceAsyncActions(
         QueryRewriteContext queryRewriteContext,
-        ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         String query,
-        String inferenceId
+        List<String> inferenceIds
     ) {
-        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-            TaskType.ANY,
-            inferenceId,
-            null,
-            null,
-            null,
-            List.of(query),
-            Map.of(),
-            InputType.INTERNAL_SEARCH,
-            null,
-            false
-        );
-
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                InferenceAction.INSTANCE,
-                inferenceRequest,
-                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                    inferenceResultsMap.put(
-                        new FullyQualifiedInferenceId(queryRewriteContext.getLocalClusterAlias(), inferenceId),
-                        validateAndConvertInferenceResults(inferenceResponse.getResults(), inferenceId)
-                    );
-                    l.onResponse(null);
-                })
+        List<InferenceAction.Request> inferenceRequests = inferenceIds.stream()
+            .map(
+                i -> new InferenceAction.Request(
+                    TaskType.ANY,
+                    i,
+                    null,
+                    null,
+                    null,
+                    List.of(query),
+                    Map.of(),
+                    InputType.INTERNAL_SEARCH,
+                    null,
+                    false
+                )
             )
-        );
+            .toList();
+
+        queryRewriteContext.registerAsyncAction((client, listener) -> {
+            GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> gal = createGroupedActionListener(
+                inferenceResultsMapSupplier,
+                inferenceRequests.size(),
+                listener
+            );
+            for (InferenceAction.Request inferenceRequest : inferenceRequests) {
+                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
+                    queryRewriteContext.getLocalClusterAlias(),
+                    inferenceRequest.getInferenceEntityId()
+                );
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    inferenceRequest,
+                    gal.delegateFailureAndWrap((l, inferenceResponse) -> {
+                        InferenceResults inferenceResults = validateAndConvertInferenceResults(
+                            inferenceResponse.getResults(),
+                            fullyQualifiedInferenceId.inferenceId()
+                        );
+                        l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
+                    })
+                );
+            }
+        });
+    }
+
+    static <T extends QueryBuilder> T getNewInferenceResultsFromSupplier(
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> supplier,
+        T currentQueryBuilder,
+        Function<Map<FullyQualifiedInferenceId, InferenceResults>, T> copyGenerator
+    ) {
+        Map<FullyQualifiedInferenceId, InferenceResults> newInferenceResultsMap = supplier.get();
+        // It's safe to use only the new inference results map (once set) because we can enumerate the scenarios where we need to get
+        // inference results:
+        // - On the local coordinating node, getting inference results for the first time. The previous inference results map is null.
+        // - On the remote coordinating node, getting inference results for remote cluster inference IDs. In this case, we can guarantee
+        // that only remote cluster inference results are required to handle the query.
+        return newInferenceResultsMap != null ? copyGenerator.apply(newInferenceResultsMap) : currentQueryBuilder;
+    }
+
+    private static GroupedActionListener<Tuple<FullyQualifiedInferenceId, InferenceResults>> createGroupedActionListener(
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        int inferenceRequestCount,
+        ActionListener<?> listener
+    ) {
+        return new GroupedActionListener<>(inferenceRequestCount, listener.delegateFailureAndWrap((l, responses) -> {
+            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(responses.size());
+            responses.forEach(r -> inferenceResultsMap.put(r.v1(), r.v2()));
+            inferenceResultsMapSupplier.set(inferenceResultsMap);
+            l.onResponse(null);
+        }));
     }
 
     static Map<FullyQualifiedInferenceId, InferenceResults> convertFromBwcInferenceResultsMap(
@@ -459,26 +506,41 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             );
         }
 
-        SemanticQueryBuilder rewritten = this;
-        if (queryRewriteContext.hasAsyncActions() == false) {
-            Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = getInferenceIdsForField(
-                resolvedIndices.getConcreteLocalIndicesMetadata().values(),
-                queryRewriteContext.getLocalClusterAlias(),
-                fieldName
+        if (inferenceResultsMapSupplier != null) {
+            // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
+            return getNewInferenceResultsFromSupplier(
+                inferenceResultsMapSupplier,
+                this,
+                m -> new SemanticQueryBuilder(this, m, null, ccsRequest)
             );
-            Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = getInferenceResults(
-                queryRewriteContext,
-                fullyQualifiedInferenceIds,
-                inferenceResultsMap,
-                query
-            );
+        }
 
-            if (modifiedInferenceResultsMap == inferenceResultsMap) {
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = getInferenceIdsForField(
+            resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+            queryRewriteContext.getLocalClusterAlias(),
+            fieldName
+        );
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> newInferenceResultsMapSupplier = getInferenceResults(
+            queryRewriteContext,
+            fullyQualifiedInferenceIds,
+            inferenceResultsMap,
+            query
+        );
+
+        SemanticQueryBuilder rewritten = this;
+        if (newInferenceResultsMapSupplier == null) {
+            // No additional inference results are required
+            if (inferenceResultsMap != null) {
                 // The inference results map is fully populated, so we can perform error checking
-                inferenceResultsErrorCheck(modifiedInferenceResultsMap);
+                inferenceResultsErrorCheck(inferenceResultsMap);
             } else {
-                rewritten = new SemanticQueryBuilder(this, modifiedInferenceResultsMap, ccsRequest);
+                // No inference results have been collected yet, indicating we don't need any to rewrite this query.
+                // This can happen when querying an unsupported field type or an unavailable index. Set an empty inference results map so
+                // that rewriting can continue.
+                rewritten = new SemanticQueryBuilder(this, Map.of(), null, ccsRequest);
             }
+        } else {
+            rewritten = new SemanticQueryBuilder(this, inferenceResultsMap, newInferenceResultsMapSupplier, ccsRequest);
         }
 
         return rewritten;
@@ -505,7 +567,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         InferenceResults inferenceResults = inferenceResultsList.getFirst();
         if (inferenceResults instanceof TextExpansionResults == false
-            && inferenceResults instanceof MlTextEmbeddingResults == false
+            && inferenceResults instanceof MlDenseEmbeddingResults == false
             && inferenceResults instanceof ErrorInferenceResults == false
             && inferenceResults instanceof WarningInferenceResults == false) {
             return new ErrorInferenceResults(
@@ -513,7 +575,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                     "Expected query inference results to be of type ["
                         + TextExpansionResults.NAME
                         + "] or ["
-                        + MlTextEmbeddingResults.NAME
+                        + MlDenseEmbeddingResults.NAME
                         + "], got ["
                         + inferenceResults.getWriteableName()
                         + "]. Has the inference endpoint ["
@@ -577,11 +639,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
+            && Objects.equals(inferenceResultsMapSupplier, other.inferenceResultsMapSupplier)
             && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsMap, ccsRequest);
+        return Objects.hash(fieldName, query, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 }

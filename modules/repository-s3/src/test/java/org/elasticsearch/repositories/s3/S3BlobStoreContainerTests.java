@@ -117,6 +117,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+        when(blobStore.supportsConditionalWrites(any())).thenReturn(true);
 
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
 
@@ -238,6 +239,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+        when(blobStore.supportsConditionalWrites(any())).thenReturn(true);
 
         final S3BlobStore sourceBlobStore = mock(S3BlobStore.class);
         when(sourceBlobStore.bucket()).thenReturn(sourceBucketName);

@@ -7,59 +7,91 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
+import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings.JINA_AI_CONFIGURABLE_LATE_CHUNKING;
 import static org.hamcrest.Matchers.is;
 
-public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<JinaAIEmbeddingsTaskSettings> {
+public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIEmbeddingsTaskSettings> {
 
     public static JinaAIEmbeddingsTaskSettings createRandom() {
-        var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
+        var inputType = randomBoolean() ? randomFrom(VALID_INPUT_TYPE_VALUES) : null;
+        var lateChunking = randomBoolean() ? randomBoolean() : null;
 
-        return new JinaAIEmbeddingsTaskSettings(inputType);
+        return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
     }
 
-    public void testIsEmpty() {
-        var randomSettings = createRandom();
-        var stringRep = Strings.toString(randomSettings);
-        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    public void testIsEmpty_ReturnsTrue_ForEmptySettings() {
+        var emptySettings = new JinaAIEmbeddingsTaskSettings(null, null);
+        assertTrue(emptySettings.isEmpty());
     }
 
-    public void testUpdatedTaskSettings_NotUpdated_UseInitialSettings() {
-        var initialSettings = createRandom();
-        var newSettings = new JinaAIEmbeddingsTaskSettings((InputType) null);
-        Map<String, Object> newSettingsMap = new HashMap<>();
-        JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+    public void testIsEmpty_ReturnsFalse_WhenAnyValuesAreSet() {
+        var settingsWithValuesList = List.of(
+            new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), null),
+            new JinaAIEmbeddingsTaskSettings(null, randomBoolean()),
+            new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), randomBoolean())
         );
-        assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
+
+        settingsWithValuesList.forEach(settings -> assertFalse(settings.isEmpty()));
     }
 
-    public void testUpdatedTaskSettings_Updated_UseNewSettings() {
+    public void testUpdatedTaskSettings_ReturnsInitialSettings_WhenNewSettingsAreEmpty() {
         var initialSettings = createRandom();
-        var newSettings = new JinaAIEmbeddingsTaskSettings(randomWithoutUnspecified());
         Map<String, Object> newSettingsMap = new HashMap<>();
-        newSettingsMap.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
-        JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
-        );
-        assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
+        JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(newSettingsMap);
+        assertEquals(updatedSettings, initialSettings);
+    }
+
+    public void testUpdatedTaskSettings_ReturnsUpdatedSettings_WhenNewSettingsHaveInputType() {
+        var initialSettings = createRandom();
+        var newInputType = randomValueOtherThan(initialSettings.getInputType(), () -> randomFrom(VALID_INPUT_TYPE_VALUES));
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        newSettingsMap.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, newInputType.toString());
+
+        JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(newSettingsMap);
+        JinaAIEmbeddingsTaskSettings expectedSettings = new JinaAIEmbeddingsTaskSettings(newInputType, initialSettings.getLateChunking());
+        assertEquals(expectedSettings, updatedSettings);
+    }
+
+    public void testUpdatedTaskSettings_ReturnsUpdatedSettings_WhenNewSettingsHaveLateChunking() {
+        var initialSettings = createRandom();
+        var newLateChunking = initialSettings.getLateChunking() == null ? randomBoolean() : initialSettings.getLateChunking() == false;
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        newSettingsMap.put(JinaAIEmbeddingsTaskSettings.LATE_CHUNKING, newLateChunking);
+
+        JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(newSettingsMap);
+        JinaAIEmbeddingsTaskSettings expectedSettings = new JinaAIEmbeddingsTaskSettings(initialSettings.getInputType(), newLateChunking);
+        assertEquals(expectedSettings, updatedSettings);
+    }
+
+    public void testUpdatedTaskSettings_ReturnsUpdatedSettings_WhenNewSettingsHaveAllValuesSet() {
+        var initialSettings = createRandom();
+        var newInputType = randomValueOtherThan(initialSettings.getInputType(), () -> randomFrom(VALID_INPUT_TYPE_VALUES));
+        var newLateChunking = initialSettings.getLateChunking() == null ? randomBoolean() : initialSettings.getLateChunking() == false;
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        newSettingsMap.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, newInputType.toString());
+        newSettingsMap.put(JinaAIEmbeddingsTaskSettings.LATE_CHUNKING, newLateChunking);
+
+        JinaAIEmbeddingsTaskSettings updatedSettings = (JinaAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(newSettingsMap);
+        JinaAIEmbeddingsTaskSettings expectedSettings = new JinaAIEmbeddingsTaskSettings(newInputType, newLateChunking);
+        assertEquals(expectedSettings, updatedSettings);
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
@@ -73,13 +105,42 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         MatcherAssert.assertThat(JinaAIEmbeddingsTaskSettings.fromMap(null), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
     }
 
-    public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
-        MatcherAssert.assertThat(
-            JinaAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.INGEST.toString()))
-            ),
-            is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST))
+    public void testFromMap_CreatesSettings_WhenInputTypeIsPresent() {
+        var inputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+
+        var actualSettings = JinaAIEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString()))
         );
+        var expectedSettings = new JinaAIEmbeddingsTaskSettings(inputType, null);
+        assertEquals(expectedSettings, actualSettings);
+    }
+
+    public void testFromMap_CreatesSettings_WhenLateChunkingIsPresent() {
+        var lateChunking = randomBoolean();
+
+        var actualSettings = JinaAIEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.LATE_CHUNKING, lateChunking))
+        );
+        var expectedSettings = new JinaAIEmbeddingsTaskSettings(null, lateChunking);
+        assertEquals(expectedSettings, actualSettings);
+    }
+
+    public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
+        var inputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+        var lateChunking = randomBoolean();
+
+        var actualSettings = JinaAIEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    JinaAIEmbeddingsTaskSettings.INPUT_TYPE,
+                    inputType.toString(),
+                    JinaAIEmbeddingsTaskSettings.LATE_CHUNKING,
+                    lateChunking
+                )
+            )
+        );
+        var expectedSettings = new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
+        assertEquals(expectedSettings, actualSettings);
     }
 
     public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
@@ -155,7 +216,15 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected JinaAIEmbeddingsTaskSettings mutateInstance(JinaAIEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, JinaAIEmbeddingsTaskSettingsTests::createRandom);
+        InputType inputType = instance.getInputType();
+        Boolean lateChunking = instance.getLateChunking();
+        switch (randomInt(1)) {
+            case 0 -> inputType = randomValueOtherThan(inputType, () -> randomFrom(VALID_INPUT_TYPE_VALUES));
+            case 1 -> lateChunking = lateChunking == null ? randomBoolean() : lateChunking == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {
@@ -170,5 +239,14 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         }
 
         return map;
+    }
+
+    @Override
+    protected JinaAIEmbeddingsTaskSettings mutateInstanceForVersion(JinaAIEmbeddingsTaskSettings instance, TransportVersion version) {
+        if (version.supports(JINA_AI_CONFIGURABLE_LATE_CHUNKING)) {
+            return new JinaAIEmbeddingsTaskSettings(instance.getInputType(), instance.getLateChunking());
+        } else {
+            return new JinaAIEmbeddingsTaskSettings(instance.getInputType(), null);
+        }
     }
 }

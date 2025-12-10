@@ -94,7 +94,7 @@ public class TimeSeriesUsageTransportActionTests extends ESTestCase {
             if (phaseConfig.hasDownsampling) {
                 actions.put(
                     DownsampleAction.NAME,
-                    new DownsampleAction(new DateHistogramInterval("1m"), null, phaseConfig.hasDownsamplingForceMerge)
+                    new DownsampleAction(new DateHistogramInterval("1m"), null, phaseConfig.hasDownsamplingForceMerge, null)
                 );
             }
             if (phaseConfig.hasForceMerge) {

@@ -96,6 +96,12 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @TaskAction
     public void run() throws IOException {
         TransportVersionResourcesService resources = getResourceService().get();
+        List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromGitBase();
+        boolean onReleaseBranch = resources.checkIfDefinitelyOnReleaseBranch(upstreamUpperBounds, getCurrentUpperBoundName().get());
+        if (onReleaseBranch) {
+            throw new IllegalArgumentException("Transport version generation cannot run on release branches");
+        }
+
         Set<String> referencedNames = TransportVersionReference.collectNames(getReferencesFiles());
         Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
         String targetDefinitionName = getTargetDefinitionName(resources, referencedNames, changedDefinitionNames);
@@ -109,7 +115,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             resetAllUpperBounds(resources, idsByBase);
         } else {
             getLogger().lifecycle("Generating transport version name: " + targetDefinitionName);
-            List<TransportVersionUpperBound> upstreamUpperBounds = resources.getUpperBoundsFromGitBase();
+
             Set<String> targetUpperBoundNames = getTargetUpperBoundNames(resources, upstreamUpperBounds, targetDefinitionName);
 
             List<TransportVersionId> ids = updateUpperBounds(

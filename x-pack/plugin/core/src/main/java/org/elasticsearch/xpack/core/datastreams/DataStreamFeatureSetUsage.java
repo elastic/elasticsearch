@@ -134,7 +134,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
                 in.readVLong(),
                 in.readVLong(),
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING) ? in.readVLong() : 0,
+                in.readVLong(),
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
@@ -156,9 +156,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
             out.writeVLong(this.indicesBehindDataStream);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
-                    out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);
-                }
+                out.writeVLong(this.failureStoreEffectivelyEnabledDataStreamCount);
                 out.writeVLong(this.failureStoreIndicesCount);
             }
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {

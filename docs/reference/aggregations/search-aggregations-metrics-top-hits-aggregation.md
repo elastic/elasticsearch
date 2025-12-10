@@ -178,10 +178,10 @@ Possible response:
   }
 }
 ```
-%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-%  TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChK/$body.aggregations.top_tags.buckets.0.top_sales_hits.hits.hits.0._id/]
-%  TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChL/$body.aggregations.top_tags.buckets.1.top_sales_hits.hits.hits.0._id/]
-%  TESTRESPONSE[s/AVnNBmatCQpcRyxw6ChH/$body.aggregations.top_tags.buckets.2.top_sales_hits.hits.hits.0._id/]
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChK/$body.aggregations.top_tags.buckets.0.top_sales_hits.hits.hits.0._id/]
+% TESTRESPONSE[s/AVnNBmauCQpcRyxw6ChL/$body.aggregations.top_tags.buckets.1.top_sales_hits.hits.hits.0._id/]
+% TESTRESPONSE[s/AVnNBmatCQpcRyxw6ChH/$body.aggregations.top_tags.buckets.2.top_sales_hits.hits.hits.0._id/]
 
 ## Field collapse example [_field_collapse_example]
 
@@ -302,8 +302,8 @@ POST /sales/_search
   }
 }
 ```
-%  TEST[continued]
-%  TEST[s/_search/_search\?filter_path=aggregations.by_sale.by_user.buckets/]
+% TEST[continued]
+% TEST[s/_search/_search\?filter_path=aggregations.by_sale.by_user.buckets/]
 
 Top hits response snippet with a nested hit, which resides in the first slot of array field `comments`:
 

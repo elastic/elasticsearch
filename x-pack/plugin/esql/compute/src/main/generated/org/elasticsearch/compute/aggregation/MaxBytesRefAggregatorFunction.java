@@ -156,8 +156,8 @@ public final class MaxBytesRefAggregatorFunction implements AggregatorFunction {
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MaxBytesRefAggregator.combineIntermediate(state, max.getBytesRef(0, scratch), seen.getBoolean(0));
+    BytesRef maxScratch = new BytesRef();
+    MaxBytesRefAggregator.combineIntermediate(state, max.getBytesRef(0, maxScratch), seen.getBoolean(0));
   }
 
   @Override

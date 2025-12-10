@@ -2,10 +2,10 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| aggregate_metric_double | double |
-| double | double |
-| integer | long |
-| long | long |
+| field | window | result |
+| --- | --- | --- |
+| aggregate_metric_double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| integer | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Range"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/range.html

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,9 +48,10 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     private InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap, ccsRequest);
+        super(other, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override
@@ -63,7 +65,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = this;
         if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
@@ -73,8 +75,12 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
-        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, ccsRequest);
+    protected InterceptedInferenceQueryBuilder<MatchQueryBuilder> copy(
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        boolean ccsRequest
+    ) {
+        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override

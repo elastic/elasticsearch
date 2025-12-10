@@ -49,12 +49,12 @@ public class IncreaseTests extends AbstractAggregationTestCase {
                 suppliers.add(testCaseSupplier);
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Increase(source, args.get(0), args.get(1));
+        return new Increase(source, args.get(0), AggregateFunction.NO_WINDOW, args.get(1));
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,13 +26,15 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -62,9 +65,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     private InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
         boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap, ccsRequest);
+        super(other, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override
@@ -87,6 +91,33 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     protected FullyQualifiedInferenceId getInferenceIdOverride() {
         String modelId = getQueryVectorBuilderModelId();
         return modelId != null ? new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, modelId) : null;
+    }
+
+    @Override
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> customDoRewriteGetInferenceResults(
+        QueryRewriteContext queryRewriteContext
+    ) throws IOException {
+        // knn query may contain filters that are also intercepted.
+        // We need to rewrite those here so that we can get inference results for them too.
+        return rewriteFilterQueries(queryRewriteContext);
+    }
+
+    private InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> rewriteFilterQueries(QueryRewriteContext queryRewriteContext)
+        throws IOException {
+        boolean filtersChanged = false;
+        List<QueryBuilder> rewrittenFilters = new ArrayList<>(originalQuery.filterQueries().size());
+        for (QueryBuilder filter : originalQuery.filterQueries()) {
+            QueryBuilder rewrittenFilter = filter.rewrite(queryRewriteContext);
+            if (rewrittenFilter != filter) {
+                filtersChanged = true;
+            }
+            rewrittenFilters.add(rewrittenFilter);
+        }
+        if (filtersChanged) {
+            originalQuery.setFilterQueries(rewrittenFilters);
+            return copy(inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
+        }
+        return this;
     }
 
     @Override
@@ -117,7 +148,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewritten = this;
         if (queryRewriteContext.getMinTransportVersion().supports(NEW_SEMANTIC_QUERY_INTERCEPTORS) == false) {
             rewritten = BWC_INTERCEPTOR.interceptAndRewrite(queryRewriteContext, originalQuery);
@@ -127,8 +158,12 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
-        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, ccsRequest);
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> copy(
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        SetOnce<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapSupplier,
+        boolean ccsRequest
+    ) {
+        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, inferenceResultsMapSupplier, ccsRequest);
     }
 
     @Override
@@ -195,7 +230,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 fullyQualifiedInferenceId = new FullyQualifiedInferenceId(clusterAlias, semanticTextFieldType.getSearchInferenceId());
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
+            MlDenseEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -226,7 +261,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 throw new IllegalStateException("No query vector or query vector builder model ID specified");
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
+            MlDenseEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(fullyQualifiedInferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -244,20 +279,20 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         return knnQuery;
     }
 
-    private MlTextEmbeddingResults getTextEmbeddingResults(FullyQualifiedInferenceId fullyQualifiedInferenceId) {
+    private MlDenseEmbeddingResults getTextEmbeddingResults(FullyQualifiedInferenceId fullyQualifiedInferenceId) {
         InferenceResults inferenceResults = inferenceResultsMap.get(fullyQualifiedInferenceId);
         if (inferenceResults == null) {
             throw new IllegalStateException("Could not find inference results from inference endpoint [" + fullyQualifiedInferenceId + "]");
-        } else if (inferenceResults instanceof MlTextEmbeddingResults == false) {
+        } else if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
             throw new IllegalArgumentException(
                 "Expected query inference results to be of type ["
-                    + MlTextEmbeddingResults.NAME
+                    + MlDenseEmbeddingResults.NAME
                     + "], got ["
                     + inferenceResults.getWriteableName()
                     + "]. Are you specifying a compatible inference endpoint? Has the inference endpoint configuration changed?"
             );
         }
 
-        return (MlTextEmbeddingResults) inferenceResults;
+        return (MlDenseEmbeddingResults) inferenceResults;
     }
 }

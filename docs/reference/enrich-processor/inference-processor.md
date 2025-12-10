@@ -54,7 +54,7 @@ If the specified `output_field` already exists in the ingest document, it won’
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ## Configuring multiple inputs [_configuring_multiple_inputs]
 
@@ -77,7 +77,7 @@ The `content` and `title` fields will be read from the incoming document and sen
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Selecting the input fields with `input_output` is incompatible with the `target_field` and `field_map` options.
 
@@ -95,7 +95,7 @@ Selecting the input fields with `input_output` is incompatible with the `target_
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ## {{classification-cap}} configuration options [inference-processor-classification-opt]
 
@@ -597,7 +597,7 @@ Refer to [Properties of `tokenizaton`](https://www.elastic.co/docs/api/doc/elast
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 This configuration specifies a `regression` inference and the results are written to the `my_regression` field contained in the `target_field` results object. The `field_map` configuration maps the field `original_fieldname` from the source document to the field expected by the model.
 
@@ -613,7 +613,7 @@ This configuration specifies a `regression` inference and the results are writte
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 This configuration specifies a `classification` inference. The number of categories for which the predicted probabilities are reported is 2 (`num_top_classes`). The result is written to the `prediction` field and the top classes to the `probabilities` field. Both fields are contained in the `target_field` results object.
 
@@ -638,7 +638,7 @@ To get the full benefit of aggregating and searching for [{{feat-imp}}](docs-con
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The mapping field name for {{feat-imp}} (in the example above, it is `ml.inference.feature_importance`) is compounded as follows:
 
@@ -655,7 +655,7 @@ For example, if you provide a tag `foo` in the definition as you can see below:
   ...
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Then, the {{feat-imp}} value is written to the `ml.inference.foo.feature_importance` field.
 
@@ -667,7 +667,7 @@ You can also specify the target field as follows:
   "target_field": "my_field"
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 In this case, {{feat-imp}} is exposed in the `my_field.foo.feature_importance` field.
 
@@ -702,7 +702,7 @@ PUT _ingest/pipeline/query_helper_pipeline
   ]
 }
 ```
-%  TEST[skip: An inference endpoint is required.]
+% TEST[skip: An inference endpoint is required.]
 
 1. The `prompt` field contains the prompt used for the completion task, created with [Painless](docs-content://explore-analyze/scripting/modules-scripting-painless.md). `+ ctx.content` appends the natural language input to the prompt.
 2. The ID of the pre-configured {{infer}} endpoint, which utilizes the [`openai` service](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `completion` task type.
@@ -722,7 +722,7 @@ POST _ingest/pipeline/query_helper_pipeline/_simulate
   ]
 }
 ```
-%  TEST[skip: An inference processor with an inference endpoint is required.]
+% TEST[skip: An inference processor with an inference endpoint is required.]
 
 1. The natural language query used to generate an {{es}} query within the prompt created by the {{infer}} processor.
 

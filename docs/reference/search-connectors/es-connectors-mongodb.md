@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic MongoDB connector* is a [connector](/reference/search-connectors/index.md) for [MongoDB](https://www.mongodb.com) data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/mongodb.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mongo) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
@@ -114,7 +114,7 @@ PUT _connector/my-mongodb-connector
   "service_type": "mongodb"
 }
 ```
-%  TEST[skip:can’t test in isolation]
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -197,7 +197,7 @@ Incorrect (`new Date()` will be interpreted as string):
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Correct (usage of [$$NOW](https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW)):
 
@@ -226,7 +226,7 @@ Correct (usage of [$$NOW](https://www.mongodb.com/docs/manual/reference/aggregat
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 
 #### Connecting with self-signed or custom CA TLS Cert [es-connectors-mongodb-client-known-issues-tls-with-invalid-cert]
@@ -288,9 +288,9 @@ You can deploy the MongoDB connector as a self-managed connector using Docker. F
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -415,7 +415,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 	}
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 For example:
 
@@ -433,7 +433,7 @@ For example:
 	}
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 `find` queries also support additional options, for example the `projection` object:
 
@@ -454,7 +454,7 @@ For example:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Where the available options are:
 
@@ -487,7 +487,7 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
     }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Where the available options are:
 

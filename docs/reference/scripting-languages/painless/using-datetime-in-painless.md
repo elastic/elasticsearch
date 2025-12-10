@@ -684,7 +684,6 @@ Run the following curl commands to load the data necessary for the context examp
       }
     }
     ```
-    % TESTSETUP
 
 2. Load the sample data.
 
@@ -731,7 +730,7 @@ GET /messages/_search?pretty=true
   }
 }
 ```
-
+% TEST[continued]
 
 ### Morning/Evening Bucket Aggregation Example [_morningevening_bucket_aggregation_example]
 
@@ -773,7 +772,7 @@ GET /_search?pretty=true
   }
 }
 ```
- TEST[continued]
+% TEST[continued]
 
 The following shows the script broken into multiple lines:
 

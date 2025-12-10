@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,7 +40,13 @@ public sealed interface Decision extends ToXContent, Writeable permits Decision.
     Single THROTTLE = new Single(Type.THROTTLE);
 
     /**
-     * Creates a simple decision
+     * Creates a new {@link Decision} instance including some (optional) extra details to explain it. Do not call this method to create a
+     * new {@link Decision} instance in an {@link AllocationDecider} implementation unless the explanation is required, because allocation
+     * decision-making is a hot path and constructing fresh instances for each decision can be very expensive. Instead, check
+     * {@link RoutingAllocation#debugDecision()} before doing nontrivial explanation work, and use one of the constants above such as
+     * {@link #YES} or {@link #NO} if no explanation is required. See also {@link RoutingAllocation#decision} for a utility method to
+     * perform this check automatically.
+     *
      * @param type {@link Type} of the decision
      * @param label label for the Decider that produced this decision
      * @param explanation explanation of the decision

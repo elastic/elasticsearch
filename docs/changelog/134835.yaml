@@ -1,5 +1,0 @@
-pr: 134835
-summary: Add new `/_security/stats` endpoint
-area: Authorization
-type: enhancement
-issues: []

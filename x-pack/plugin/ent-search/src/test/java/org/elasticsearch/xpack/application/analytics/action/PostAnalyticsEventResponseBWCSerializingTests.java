@@ -27,7 +27,7 @@ public class PostAnalyticsEventResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected PostAnalyticsEventAction.Response mutateInstance(PostAnalyticsEventAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PostAnalyticsEventAction.Response(instance.isAccepted() == false);
     }
 
     @Override

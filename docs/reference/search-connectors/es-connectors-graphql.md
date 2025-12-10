@@ -7,7 +7,7 @@ mapped_pages:
 # Elastic GraphQL connector reference [es-connectors-graphql]
 
 
-The Elastic GraphQL connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/blob/main/connectors/sources/graphql.py).
+The Elastic GraphQL connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/blob/main/app/connectors_service/connectors/sources/graphql).
 
 
 ## Availability and prerequisites [es-connectors-graphql-connector-availability-and-prerequisites]
@@ -43,9 +43,9 @@ You can deploy the GraphQL connector as a self-managed connector using Docker. F
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -146,7 +146,7 @@ Note the following configuration fields:
         }
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
 
 `graphql_variables`
@@ -172,7 +172,7 @@ Note the following configuration fields:
         "organization.users": "user_id"
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
     In this example `user_id` is unique in every user document. Therefore, we set `user_id` as the value for `organization.users`.
 
@@ -190,7 +190,7 @@ Note the following configuration fields:
         "content-type": "Application/json"
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
 
 `pagination_model` (required)
@@ -217,7 +217,7 @@ Note the following configuration fields:
         }
     }
     ```
-    %  NOTCONSOLE
+    % NOTCONSOLE
 
     The value of `pagination_key` is `sampleData.users` so it must contain:
 

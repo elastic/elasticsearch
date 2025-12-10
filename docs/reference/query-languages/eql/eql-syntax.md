@@ -815,7 +815,7 @@ A data set contains the following `process` events in ascending chronological or
 { "index" : { "_id": "11" } }
 { "user": { "name": "root" }, "process": { "name": "cat" }, ...}
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 An EQL sequence query searches the data set:
 

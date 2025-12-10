@@ -13,6 +13,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 /** A rather roundabout way of ignoring shard ref counters in tests. */
@@ -60,7 +62,7 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         }
 
         @Override
-        public SourceLoader newSourceLoader() {
+        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
             throw new UnsupportedOperationException();
         }
 
@@ -68,7 +70,8 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             throw new UnsupportedOperationException();
         }

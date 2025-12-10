@@ -61,7 +61,7 @@ The client ingesting the document must have permissions to write to the final ta
 ```js
 {"type":"security_exception","reason":"action [indices:admin/auto_create] is unauthorized for API key id [8-dt9H8BqGblnY2uSI--] of user [elastic/fleet-server] on indices [logs-foo-default], this action is granted by the index privileges [auto_configure,create_index,manage,all]"}
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ## Configuration options [reroute-options]
 
@@ -93,7 +93,7 @@ Use the `if` option to define conditions for when a document should be rerouted:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ### Fallback values [reroute-fallback-values]
 
@@ -112,6 +112,6 @@ In this example, the processor first attempts to resolve `service.name` for the 
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 If a field reference evaluates to a non-string value, the processor fails.

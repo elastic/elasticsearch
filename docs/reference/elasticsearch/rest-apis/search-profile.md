@@ -231,7 +231,7 @@ The API returns the following result:
 }
 ```
 % TESTRESPONSE[s/"took": 25/"took": $body.took/]
-% TESTRESPONSE[s/"hits": \[...\]/"hits": $body.$_path/]
+% TESTRESPONSE[s/"hits": \[\.\.\.\]/"hits": $body.$_path/]
 % TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 % TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 % TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
@@ -267,14 +267,14 @@ The overall structure of the profile response is as follows:
      }
 }
 ```
-%  TESTRESPONSE[s/"profile": /"took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": /]
-%  TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
-%  TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
-%  TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
-%  TESTRESPONSE[s/"query": \[…​\]/"query": $body.$_path/]
-%  TESTRESPONSE[s/"collector": \[…​\]/"collector": $body.$_path/]
-%  TESTRESPONSE[s/"aggregations": \[…​\]/"aggregations": []/]
-%  TESTRESPONSE[s/"fetch": \{…​\}/"fetch": $body.$_path/]
+% TESTRESPONSE[s/"profile": /"took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": /]
+% TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
+% TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+% TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
+% TESTRESPONSE[s/"query": \[\.\.\.\]/"query": $body.$_path/]
+% TESTRESPONSE[s/"collector": \[\.\.\.\]/"collector": $body.$_path/]
+% TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": []/]
+% TESTRESPONSE[s/"fetch": \{\.\.\.\}/"fetch": $body.$_path/]
 
 1. A profile is returned for each shard that participated in the response, and is identified by a unique ID.
 2. If the query was run on the local cluster, the cluster name is left out of the composite id and is marked "(local)" here. For a profile running on a remote_cluster using cross-cluster search, the "id" value would be something like `[q2aE02wS1R8qQFnYu6vDVQ][remote1:my-index-000001][0]` and the "cluster" value would be `remote1`.
@@ -335,10 +335,10 @@ The `query` section contains detailed timing of the query tree executed by Lucen
     }
 ]
 ```
-%  TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n/]
-%  TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
-%  TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
-%  TESTRESPONSE[s/"breakdown": \{…​\}/"breakdown": $body.$_path/]
+% TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n/]
+% TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
+% TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
+% TESTRESPONSE[s/"breakdown": \{\.\.\.\}/"breakdown": $body.$_path/]
 
 1. The breakdown timings are omitted for simplicity.
 
@@ -378,9 +378,9 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
   "count_weight_count": 0
 }
 ```
-%  TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
-%  TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
-%  TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
+% TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:get message:search",\n"time_in_nanos": $body.$_path,/]
+% TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}/]
+% TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all. All caveats about the overall `time_in_nanos` apply here. The intention of the breakdown is to give you a feel for A) what machinery in Lucene is actually eating time, and B) the magnitude of differences in times between the various components. Like the overall time, the breakdown is inclusive of all children times.
 
@@ -508,8 +508,8 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[setup:my_index]
-%  TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.node_id,profile.shards.shard_id,profile.shards.index,profile.shards.cluster,profile.shards.searches,profile.shards.aggregations,profile.shards.fetch/]
+% TEST[setup:my_index]
+% TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.node_id,profile.shards.shard_id,profile.shards.index,profile.shards.cluster,profile.shards.searches,profile.shards.aggregations,profile.shards.fetch/]
 
 This example has:
 
@@ -688,8 +688,8 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[s/_search/_search\?filter_path=profile.shards.aggregations/]
-%  TEST[continued]
+% TEST[s/_search/_search\?filter_path=profile.shards.aggregations/]
+% TEST[continued]
 
 This yields the following aggregation profile output:
 
@@ -777,9 +777,9 @@ This yields the following aggregation profile output:
   }
 }
 ```
-%  TESTRESPONSE[s/\.\.\.//]
-%  TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
-%  TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+% TESTRESPONSE[s/\.\.\.//]
+% TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
+% TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
 
 From the profile structure we can see that the `my_scoped_agg` is internally being run as a `NumericTermsAggregator` (because the field it is aggregating, `http.response.status_code`, is a numeric field). At the same level, we see a `GlobalAggregator` which comes from `my_global_agg`. That aggregation then has a child `NumericTermsAggregator` which comes from the second term’s aggregation on `http.response.status_code`.
 
@@ -996,9 +996,9 @@ In the response, we see a profile which includes a `dfs` section for each shard 
     }
 }
 ```
-%  TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ "$body.$_path", {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
-%  TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path}]}}/]
-%  TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
+% TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ "$body.$_path", {\n"id": "$body.$_path",\n"node_id": "$body.$_path",\n"shard_id": "$body.$_path",\n"index": "$body.$_path",\n"cluster": "$body.$_path",\n/]
+% TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path}]}}/]
+% TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
 
 In the `dfs.statistics` portion of this response we see a `time_in_nanos` which is the total time it took to collect term statistics for this shard along with a further breakdown of the individual parts.
 

@@ -56,6 +56,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 
 /**
@@ -631,6 +632,7 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    // TODO: deprecate this setting as this was designed as an opt-out and name of the setting is tied actual name of the codec:
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es87tsdb_codec.enabled",
         true,
@@ -668,10 +670,60 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
-    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
-        "index.mapping.use_doc_values_skipper",
+    public static final Setting<Boolean> LOGSDB_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
+        "index.logsdb.sort_on_message_template",
         false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
+    public static final Setting<Boolean> USE_SYNTHETIC_ID = Setting.boolSetting(
+        "index.mapping.use_synthetic_id",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean enabled) {
+                if (enabled) {
+                    if (TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when the feature flag is enabled.",
+                                USE_SYNTHETIC_ID.getKey()
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled) {
+                    // Verify if index mode is TIME_SERIES
+                    var indexMode = (IndexMode) settings.get(MODE);
+                    if (indexMode != IndexMode.TIME_SERIES) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                                USE_SYNTHETIC_ID.getKey(),
+                                MODE.getKey(),
+                                IndexMode.TIME_SERIES.name(),
+                                indexMode.name()
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> list = List.of(MODE);
+                return list.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final
     );
@@ -701,6 +753,21 @@ public final class IndexSettings {
         Property.Final,
         Property.ServerlessPublic
     );
+
+    public static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
+        IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
+        if (MODE.get(s) == IndexMode.TIME_SERIES) {
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+                return "true";
+            }
+            return "false";
+        }
+        if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
+            return "true";
+        }
+        return "false";
+    }, Property.IndexScope, Property.Final);
 
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
@@ -769,6 +836,32 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING = Setting.boolSetting(
+        "index.use_time_series_doc_values_format",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            var indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE = Setting.boolSetting(
+        "index.use_time_series_doc_values_format_large_block_size",
+        settings -> {
+            if (settings == null) {
+                return Boolean.FALSE.toString();
+            }
+            var indexMode = IndexSettings.MODE.get(settings);
+            return Boolean.toString(indexMode == IndexMode.TIME_SERIES);
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -782,6 +875,14 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
+
+    public static final Setting<Boolean> USE_ES_812_POSTINGS_FORMAT = Setting.boolSetting("index.use_legacy_postings_format", settings -> {
+        if (settings == null) {
+            return Boolean.FALSE.toString();
+        }
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return Boolean.toString(indexMode.useEs812PostingsFormat());
+    }, Property.IndexScope, Property.Final);
 
     /**
      * The `index.mapping.ignore_above` setting defines the maximum length for the content of a field that will be indexed
@@ -924,6 +1025,7 @@ public final class IndexSettings {
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile long mappingNestedFieldsLimit;
+    private volatile long mappingNestedParentsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
@@ -937,6 +1039,10 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
+    private final boolean useTimeSeriesSyntheticId;
+    private final boolean useTimeSeriesDocValuesFormat;
+    private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
+    private final boolean useEs812PostingsFormat;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1100,6 +1206,7 @@ public final class IndexSettings {
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        mappingNestedParentsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
@@ -1123,6 +1230,31 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+        useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
+        useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
+        useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
+        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
+        if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
+            assert false;
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is set to [%s] but index metadata has a different value [%s].",
+                    USE_SYNTHETIC_ID.getKey(),
+                    useSyntheticId,
+                    indexMetadata.useTimeSeriesSyntheticId()
+                )
+            );
+        }
+        if (useSyntheticId) {
+            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
+            assert indexMetadata.useTimeSeriesSyntheticId();
+            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
+            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID);
+            useTimeSeriesSyntheticId = true;
+        } else {
+            useTimeSeriesSyntheticId = false;
+        }
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1216,6 +1348,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING, this::setMappingNestedParentsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
@@ -1752,6 +1885,14 @@ public final class IndexSettings {
         this.mappingNestedFieldsLimit = value;
     }
 
+    public long getMappingNestedParentsLimit() {
+        return mappingNestedParentsLimit;
+    }
+
+    private void setMappingNestedParentsLimit(long value) {
+        this.mappingNestedParentsLimit = value;
+    }
+
     public long getMappingNestedDocsLimit() {
         return mappingNestedDocsLimit;
     }
@@ -1828,6 +1969,14 @@ public final class IndexSettings {
         return indexMappingSourceMode;
     }
 
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
+        if (getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(getIndexVersionCreated());
+        } else {
+            return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+        }
+    }
+
     /**
      * @return Whether recovery source should be enabled if needed.
      *         Note that this is a node setting, and this setting is not sourced from index settings.
@@ -1845,6 +1994,34 @@ public final class IndexSettings {
 
     public boolean useDocValuesSkipper() {
         return useDocValuesSkipper;
+    }
+
+    /**
+     * @return Whether the index is a time-series index that use synthetic ids.
+     */
+    public boolean useTimeSeriesSyntheticId() {
+        return useTimeSeriesSyntheticId;
+    }
+
+    /**
+     * @return Whether the time series doc value format should be used.
+     */
+    public boolean useTimeSeriesDocValuesFormat() {
+        return useTimeSeriesDocValuesFormat;
+    }
+
+    /**
+     * @return Whether the time series doc value format with large numeric block size should be used.
+     */
+    public boolean isUseTimeSeriesDocValuesFormatLargeBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeBlockSize;
+    }
+
+    /**
+     * @return Whether the ES 8.12 postings format should be used.
+     */
+    public boolean useEs812PostingsFormat() {
+        return useEs812PostingsFormat;
     }
 
     /**

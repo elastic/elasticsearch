@@ -31,7 +31,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.rest.RestChannel;
@@ -39,6 +38,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -60,8 +60,9 @@ import java.util.function.Consumer;
 import javax.net.ssl.SSLException;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
+import static org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4TestUtils.randomClusterSettings;
 
-public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractHttpServerTransportTestCase {
+public class SecurityNetty4HttpServerTransportCloseNotifyTests extends ESTestCase {
 
     private static <T> T safePoll(BlockingQueue<T> queue) {
         try {

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Nested"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html
@@ -194,9 +197,12 @@ The following parameters are accepted by `nested` fields:
 As described earlier, each nested object is indexed as a separate Lucene document. Continuing with the previous example, if we indexed a single document containing 100 `user` objects, then 101 Lucene documents would be created: one for the parent document, and one for each nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts settings in place to guard against performance problems:
 
 `index.mapping.nested_fields.limit`
-:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `50`.
+:   The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting limits the number of unique `nested` types per index. Default is `100`.
 
 In the previous example, the `user` mapping would count as only 1 towards this limit.
+
+`index.mapping.nested_parents.limit`
+:   The maximum number of nested fields that act as parents of other nested fields. Each nested parent requires its own in-memory parent bitset. Root-level nested fields share a parent bitset, but nested fields under other nested fields require additional bitsets. This setting limits the number of unique nested parents to prevent excessive memory usage. Default is `50`.
 
 `index.mapping.nested_objects.limit`
 :   The maximum number of nested JSON objects that a single document can contain across all `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested objects. Default is `10000`.

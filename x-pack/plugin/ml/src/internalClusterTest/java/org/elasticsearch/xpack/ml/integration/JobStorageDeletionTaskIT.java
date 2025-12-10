@@ -119,7 +119,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         ensureStableCluster(1);
         String jobIdDedicated = "delete-test-job-dedicated";
 
-        Job.Builder job = createJob(jobIdDedicated, ByteSizeValue.ofMb(2)).setResultsIndexName(jobIdDedicated);
+        Job.Builder job = createJob(jobIdDedicated, ByteSizeValue.ofMb(2)).setResultsIndexName(jobIdDedicated + "-000001");
         client().execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).actionGet();
         String dedicatedIndex = job.build().getInitialResultsIndexName();
@@ -138,14 +138,14 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
             IndicesAliasesRequest.AliasActions.add()
                 .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
                 .isHidden(true)
-                .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
+                .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001")
                 .writeIndex(false)
                 .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated)))
         )
             .addAliasAction(
                 IndicesAliasesRequest.AliasActions.add()
                     .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
-                    .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
+                    .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared-000001")
                     .isHidden(true)
                     .writeIndex(true)
             )

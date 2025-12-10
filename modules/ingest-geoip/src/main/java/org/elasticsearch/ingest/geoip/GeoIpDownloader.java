@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -33,10 +35,9 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -57,7 +58,7 @@ import java.util.function.Supplier;
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
-public class GeoIpDownloader extends AllocatedPersistentTask {
+public class GeoIpDownloader extends AbstractGeoIpDownloader {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
@@ -80,14 +81,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private final ProjectClient client;
     private final HttpClient httpClient;
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
     private final String endpoint;
 
     // visible for testing
     protected volatile GeoIpTaskState state;
-    private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
-    private final Supplier<TimeValue> pollIntervalSupplier;
     private final Supplier<Boolean> eagerDownloadSupplier;
     /*
      * This variable tells us whether we have at least one pipeline with a geoip processor. If there are no geoip processors then we do
@@ -115,13 +113,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Supplier<Boolean> atLeastOneGeoipProcessorSupplier,
         ProjectId projectId
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, headers, threadPool, pollIntervalSupplier);
         this.client = client;
         this.httpClient = httpClient;
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
         this.endpoint = ENDPOINT_SETTING.get(settings);
-        this.pollIntervalSupplier = pollIntervalSupplier;
         this.eagerDownloadSupplier = eagerDownloadSupplier;
         this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
         this.projectId = projectId;
@@ -216,7 +212,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error(() -> "error downloading geoip database [" + name + "] for project [" + projectId + "]", e);
+            boolean nodeShuttingDown = e instanceof NodeClosedException
+                || (e instanceof EsRejectedExecutionException rejected && rejected.isExecutorShutdown());
+            logger.log(
+                nodeShuttingDown ? Level.INFO : Level.ERROR,
+                () -> "error downloading geoip database [" + name + "] for project [" + projectId + "]",
+                e
+            );
         }
     }
 
@@ -292,16 +294,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         return buf;
     }
 
-    /**
-     * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
-     */
+    @Override
     void runDownloader() {
-        // by the time we reach here, the state will never be null
-        assert state != null;
-
         if (isCancelled() || isCompleted()) {
+            logger.debug("Not running downloader because task is cancelled or completed");
             return;
         }
+        // by the time we reach here, the state will never be null
+        assert this.state != null : "this.state is null. You need to call setState() before calling runDownloader()";
+
         try {
             updateDatabases();
         } catch (Exception e) {
@@ -312,22 +313,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             cleanDatabases();
         } catch (Exception e) {
             logger.error("exception during geoip databases cleanup", e);
-        }
-        scheduleNextRun(pollIntervalSupplier.get());
-    }
-
-    /**
-     * This method requests that the downloader be rescheduled to run immediately (presumably because a dynamic property supplied by
-     * pollIntervalSupplier or eagerDownloadSupplier has changed, or a pipeline with a geoip processor has been added). This method does
-     * nothing if this task is cancelled, completed, or has not yet been scheduled to run for the first time. It cancels any existing
-     * scheduled run.
-     */
-    public void requestReschedule() {
-        if (isCancelled() || isCompleted()) {
-            return;
-        }
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(TimeValue.ZERO);
         }
     }
 
@@ -349,21 +334,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     @Override
-    protected void onCancelled() {
-        if (scheduled != null) {
-            scheduled.cancel();
-        }
-        markAsCompleted();
-    }
-
-    @Override
     public GeoIpDownloaderStats getStatus() {
         return isCancelled() || isCompleted() ? null : stats;
-    }
-
-    private void scheduleNextRun(TimeValue time) {
-        if (threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
-        }
     }
 }

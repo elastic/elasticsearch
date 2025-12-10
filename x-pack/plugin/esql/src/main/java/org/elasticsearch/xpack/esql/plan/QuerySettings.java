@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -22,20 +21,18 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class QuerySettings {
-    // TODO check cluster state and see if project routing is allowed
-    // see https://github.com/elastic/elasticsearch/pull/134446
-    // PROJECT_ROUTING(..., state -> state.getRemoteClusterNames().crossProjectEnabled());
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",
         DataType.KEYWORD,
         true,
-        false,
         true,
+        false,
         "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled.",
-        (value, settings) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),
-        (_rcs) -> null
+        (value, ctx) -> ctx.crossProjectEnabled() ? null : "cross-project search not enabled",
+        (value) -> Foldables.stringLiteralValueOf(value, "Unexpected value"),
+        null
     );
 
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
@@ -45,7 +42,7 @@ public class QuerySettings {
         true,
         true,
         "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC",
-        (value, _rcs) -> {
+        (value) -> {
             String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
                 return ZoneId.of(timeZone);
@@ -53,24 +50,35 @@ public class QuerySettings {
                 throw new IllegalArgumentException("Invalid time zone [" + timeZone + "]");
             }
         },
-        (_rcs) -> ZoneOffset.UTC
+        ZoneOffset.UTC
     );
 
     public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
-        .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));;
+        .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
-    public static void validate(EsqlStatement statement, RemoteClusterService clusterService) {
+    public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
         for (QuerySetting setting : statement.settings()) {
             QuerySettingDef<?> def = SETTINGS_BY_NAME.get(setting.name());
             if (def == null) {
                 throw new ParsingException(setting.source(), "Unknown setting [" + setting.name() + "]");
             }
 
+            if (def.snapshotOnly && ctx.isSnapshot() == false) {
+                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] is only available in snapshot builds");
+            }
+
             if (setting.value().dataType() != def.type()) {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must be of type " + def.type());
             }
 
-            String error = def.validator().validate(setting.value(), clusterService);
+            Literal literal;
+            if (setting.value() instanceof Literal l) {
+                literal = l;
+            } else {
+                throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must have a literal value");
+            }
+
+            String error = def.validator().validate(literal, ctx);
             if (error != null) {
                 throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
             }
@@ -89,7 +97,7 @@ public class QuerySettings {
      * @param validator A validation function to check the setting value.
      *                  Defaults to calling the {@link #parser} and returning the error message of any exception it throws.
      * @param parser A function to parse the setting value into the final object.
-     * @param defaultValueSupplier A supplier of the default value to be used when the setting is not set.
+     * @param defaultValue A default value to be used when the setting is not set.
      * @param <T> The type of the setting value.
      */
     public record QuerySettingDef<T>(
@@ -101,8 +109,11 @@ public class QuerySettings {
         String description,
         Validator validator,
         Parser<T> parser,
-        Function<RemoteClusterService, T> defaultValueSupplier
+        T defaultValue
     ) {
+        /**
+         * Constructor with a default validator that delegates to the parser.
+         */
         public QuerySettingDef(
             String name,
             DataType type,
@@ -111,23 +122,23 @@ public class QuerySettings {
             boolean snapshotOnly,
             String description,
             Parser<T> parser,
-            Function<RemoteClusterService, T> defaultValueSupplier
+            T defaultValue
         ) {
             this(name, type, serverlessOnly, preview, snapshotOnly, description, (value, rcs) -> {
                 try {
-                    parser.parse(value, rcs);
+                    parser.parse(value);
                     return null;
                 } catch (Exception exc) {
                     return exc.getMessage();
                 }
-            }, parser, defaultValueSupplier);
+            }, parser, defaultValue);
         }
 
-        public T get(Expression value, RemoteClusterService clusterService) {
+        public T parse(@Nullable Literal value) {
             if (value == null) {
-                return defaultValueSupplier.apply(clusterService);
+                return defaultValue;
             }
-            return parser.parse(value, clusterService);
+            return parser.parse(value);
         }
 
         @FunctionalInterface
@@ -136,15 +147,15 @@ public class QuerySettings {
              * Validates the setting value and returns the error message if there's an error, or null otherwise.
              */
             @Nullable
-            String validate(Expression value, RemoteClusterService clusterService);
+            String validate(Literal value, SettingsValidationContext ctx);
         }
 
         @FunctionalInterface
         public interface Parser<T> {
             /**
-             * Parses an already validated expression.
+             * Parses an already validated literal.
              */
-            T parse(Expression value, RemoteClusterService clusterService);
+            T parse(Literal value);
         }
     }
 }

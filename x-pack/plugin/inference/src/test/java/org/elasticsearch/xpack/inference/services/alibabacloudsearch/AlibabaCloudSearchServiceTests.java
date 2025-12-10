@@ -34,9 +34,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -491,6 +492,27 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         testChunkedInfer(TaskType.SPARSE_EMBEDDING, null);
     }
 
+    public void testChunkedInfer_noInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = createModelForTaskType(randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING), null);
+
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputTypeTests.randomWithIngestAndSearch(),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+        }
+        assertThat(listener.actionGet(TIMEOUT), empty());
+    }
+
     private void testChunkedInfer(TaskType taskType, ChunkingSettings chunkingSettings) throws IOException {
         var input = List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"));
 
@@ -516,7 +538,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var firstResult = results.getFirst();
             assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
             Class<?> expectedClass = switch (taskType) {
-                case TEXT_EMBEDDING -> TextEmbeddingFloatResults.Chunk.class;
+                case TEXT_EMBEDDING -> DenseEmbeddingFloatResults.Chunk.class;
                 case SPARSE_EMBEDDING -> SparseEmbeddingResults.Chunk.class;
                 default -> null;
             };
@@ -650,10 +672,10 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         ) {
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
-                    TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
+                    DenseEmbeddingFloatResults results = new DenseEmbeddingFloatResults(
                         List.of(
-                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
-                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
+                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
+                            new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
                         )
                     );
 

@@ -46,7 +46,8 @@ public class IdLoaderTests extends ESTestCase {
     private final int routingHash = randomInt();
 
     public void testSynthesizeIdSimple() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        final boolean useSyntheticIds = randomBoolean();
+        var idLoader = IdLoader.createTsIdLoader(null, null, useSyntheticIds);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
@@ -60,15 +61,16 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(leafReader.numDocs(), equalTo(3));
             var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1, 2 });
             // NOTE: time series data is ordered by (tsid, timestamp)
-            assertThat(leaf.getId(0), equalTo(expectedId(docs.get(2), routingHash)));
-            assertThat(leaf.getId(1), equalTo(expectedId(docs.get(0), routingHash)));
-            assertThat(leaf.getId(2), equalTo(expectedId(docs.get(1), routingHash)));
+            assertThat(leaf.getId(0), equalTo(expectedId(docs.get(2), routingHash, useSyntheticIds)));
+            assertThat(leaf.getId(1), equalTo(expectedId(docs.get(0), routingHash, useSyntheticIds)));
+            assertThat(leaf.getId(2), equalTo(expectedId(docs.get(1), routingHash, useSyntheticIds)));
         };
         prepareIndexReader(indexAndForceMerge(docs, routingHash), verify, false);
     }
 
     public void testSynthesizeIdMultipleSegments() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        final boolean useSyntheticIds = randomBoolean();
+        var idLoader = IdLoader.createTsIdLoader(null, null, useSyntheticIds);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
@@ -110,22 +112,22 @@ public class IdLoaderTests extends ESTestCase {
                 assertThat(leafReader.numDocs(), equalTo(docs1.size()));
                 var leaf = idLoader.leaf(null, leafReader, IntStream.range(0, docs1.size()).toArray());
                 for (int i = 0; i < docs1.size(); i++) {
-                    assertThat(leaf.getId(i), equalTo(expectedId(docs1.get(i), routingHash)));
+                    assertThat(leaf.getId(i), equalTo(expectedId(docs1.get(i), routingHash, useSyntheticIds)));
                 }
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(1).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs2.size()));
                 var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 3 });
-                assertThat(leaf.getId(0), equalTo(expectedId(docs2.get(0), routingHash)));
-                assertThat(leaf.getId(3), equalTo(expectedId(docs2.get(3), routingHash)));
+                assertThat(leaf.getId(0), equalTo(expectedId(docs2.get(0), routingHash, useSyntheticIds)));
+                assertThat(leaf.getId(3), equalTo(expectedId(docs2.get(3), routingHash, useSyntheticIds)));
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(2).reader();
                 assertThat(leafReader.numDocs(), equalTo(docs3.size()));
                 var leaf = idLoader.leaf(null, leafReader, new int[] { 1, 2 });
-                assertThat(leaf.getId(1), equalTo(expectedId(docs3.get(1), routingHash)));
-                assertThat(leaf.getId(2), equalTo(expectedId(docs3.get(2), routingHash)));
+                assertThat(leaf.getId(1), equalTo(expectedId(docs3.get(1), routingHash, useSyntheticIds)));
+                assertThat(leaf.getId(2), equalTo(expectedId(docs3.get(2), routingHash, useSyntheticIds)));
             }
             {
                 LeafReader leafReader = indexReader.leaves().get(2).reader();
@@ -138,7 +140,8 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdRandom() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        final boolean useSyntheticIds = randomBoolean();
+        var idLoader = IdLoader.createTsIdLoader(null, null, useSyntheticIds);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         Set<String> expectedIDs = new HashSet<>();
@@ -161,7 +164,7 @@ public class IdLoaderTests extends ESTestCase {
             for (int j = 0; j < numberOfSamples; j++) {
                 Doc doc = new Doc(startTime++, dimensions);
                 randomDocs.add(doc);
-                expectedIDs.add(expectedId(doc, routingHash));
+                expectedIDs.add(expectedId(doc, routingHash, useSyntheticIds));
             }
         }
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
@@ -240,7 +243,7 @@ public class IdLoaderTests extends ESTestCase {
         iw.addDocument(fields);
     }
 
-    private static String expectedId(Doc doc, int routingHash) throws IOException {
+    private static String expectedId(Doc doc, int routingHash, boolean useSyntheticIds) {
         var routingFields = new RoutingPathFields(null);
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
@@ -249,7 +252,11 @@ public class IdLoaderTests extends ESTestCase {
                 routingFields.addString(dimension.field, dimension.value.toString());
             }
         }
-        return TsidExtractingIdFieldMapper.createId(routingHash, routingFields.buildHash().toBytesRef(), doc.timestamp);
+        if (useSyntheticIds) {
+            return TsidExtractingIdFieldMapper.createSyntheticId(routingFields.buildHash().toBytesRef(), doc.timestamp, routingHash);
+        } else {
+            return TsidExtractingIdFieldMapper.createId(routingHash, routingFields.buildHash().toBytesRef(), doc.timestamp);
+        }
     }
 
     record Doc(long timestamp, List<Dimension> dimensions) {}

@@ -401,12 +401,11 @@ public class IndexNameExpressionResolver {
         Collection<ResolvedExpression> resources = expandWildcards && WildcardExpressionResolver.hasWildcards(expressions)
             ? new LinkedHashSet<>()
             : new ArrayList<>(expressions.length);
-        boolean wildcardSeen = false;
         for (int i = 0, n = expressions.length; i < n; i++) {
             String originalExpression = expressions[i];
 
-            // Resolve exclusion, a `-` prefixed expression is an exclusion only if it succeeds a wildcard.
-            boolean isExclusion = wildcardSeen && originalExpression.startsWith("-");
+            // Resolve exclusion, a `-` prefixed expression is an exclusion
+            boolean isExclusion = originalExpression.startsWith("-");
             String baseExpression = isExclusion ? originalExpression.substring(1) : originalExpression;
 
             // Parse a potential selector from the expression
@@ -422,7 +421,6 @@ public class IndexNameExpressionResolver {
 
             // Check if it's wildcard
             boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(baseExpression);
-            wildcardSeen |= isWildcard;
 
             if (isWildcard) {
                 Set<ResolvedExpression> matchingResources = WildcardExpressionResolver.matchWildcardToResources(
@@ -479,12 +477,7 @@ public class IndexNameExpressionResolver {
             return;
         }
         if (RemoteClusterAware.isRemoteIndexName(current)) {
-            List<String> crossClusterIndices = new ArrayList<>();
-            for (int i = 0; i < expressions.length; i++) {
-                if (RemoteClusterAware.isRemoteIndexName(expressions[i])) {
-                    crossClusterIndices.add(expressions[i]);
-                }
-            }
+            List<String> crossClusterIndices = RemoteClusterAware.getRemoteIndexExpressions(expressions);
             throw new IllegalArgumentException(
                 "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
             );
@@ -761,17 +754,7 @@ public class IndexNameExpressionResolver {
             infe = new IndexNotFoundException("no indices exist", Metadata.ALL);
             infe.setResources("index_or_alias", Metadata.ALL);
         } else if (indexExpressions.length == 1) {
-            if (indexExpressions[0].startsWith("-")) {
-                // this can arise when multi-target syntax is used with an exclusion not in the "inclusion" list, such as
-                // "GET test1,test2,-test3"
-                // the caller should have put "GET test*,-test3"
-                infe = new IndexNotFoundException(
-                    "if you intended to exclude this index, ensure that you use wildcards that include it before explicitly excluding it",
-                    indexExpressions[0]
-                );
-            } else {
-                infe = new IndexNotFoundException(indexExpressions[0]);
-            }
+            infe = new IndexNotFoundException(indexExpressions[0]);
             infe.setResources("index_or_alias", indexExpressions[0]);
         } else {
             infe = new IndexNotFoundException((String) null);

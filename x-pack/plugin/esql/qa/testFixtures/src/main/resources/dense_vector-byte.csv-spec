@@ -1,9 +1,8 @@
 retrieveByteVectorData
-required_capability: dense_vector_field_type_released
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
-| EVAL k = v_l2_norm(byte_vector, [1,2,3]) // workaround to enable fetching dense_vector
 | KEEP id, byte_vector
 | SORT id
 ;
@@ -16,12 +15,11 @@ id:l | byte_vector:dense_vector
 ;
 
 denseByteVectorWithEval
-required_capability: dense_vector_field_type_released
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector
 | EVAL v = byte_vector
-| EVAL k = v_l2_norm(byte_vector, [1,2,3])  // workaround to enable fetching dense_vector
 | KEEP id, v
 | SORT id
 ;
@@ -34,14 +32,13 @@ id:l | v:dense_vector
 ;
 
 denseByteVectorWithRenameAndDrop
-required_capability: dense_vector_field_type_released
+required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector 
 | EVAL v = byte_vector
-| EVAL k = v_l2_norm(byte_vector, [1,2,3])  // workaround to enable fetching dense_vector
 | RENAME v AS new_vector 
-| DROP float_vector, byte_vector, bit_vector, k
+| DROP float_vector, byte_vector, bit_vector
 | SORT id
 ;
 

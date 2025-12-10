@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
@@ -32,13 +33,17 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.dataTypeEqu
  */
 public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> {
 
+    // Are we verifying the global plan (coordinator) or a local plan (data node)?
+    protected final boolean isLocal;
+
+    protected PostOptimizationPhasePlanVerifier(boolean isLocal) {
+        this.isLocal = isLocal;
+    }
+
     /** Verifies the optimized plan */
-    public Failures verify(P optimizedPlan, boolean skipRemoteEnrichVerification, List<Attribute> expectedOutputAttributes) {
+    public Failures verify(P optimizedPlan, List<Attribute> expectedOutputAttributes) {
         Failures failures = new Failures();
         Failures depFailures = new Failures();
-        if (skipVerification(optimizedPlan, skipRemoteEnrichVerification)) {
-            return failures;
-        }
 
         checkPlanConsistency(optimizedPlan, failures, depFailures);
 
@@ -51,9 +56,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         return failures;
     }
 
-    protected abstract boolean skipVerification(P optimizedPlan, boolean skipRemoteEnrichVerification);
-
-    protected abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
+    abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
 
     private static void verifyOutputNotChanged(QueryPlan<?> optimizedPlan, List<Attribute> expectedOutputAttributes, Failures failures) {
         // disable this check if there are other failures already
@@ -71,7 +74,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 .stream()
                 .anyMatch(x -> x.name().equals(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
             // LookupJoinExec represents the lookup index with EsSourceExec and this is turned into EsQueryExec by
-            // ReplaceSourceAttributes. Because InsertFieldExtractions doesn't apply to lookup indices, the
+            // ReplaceSourceAttributes. Because InsertFieldExtraction doesn't apply to lookup indices, the
             // right hand side will only have the EsQueryExec providing the _doc attribute and nothing else.
             // We perform an optimizer run on every fragment. LookupJoinExec also contains such a fragment,
             // and currently it only contains an EsQueryExec after optimization.
@@ -83,7 +86,15 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 a -> a instanceof TimeSeriesAggregate ts
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries;
+
+            // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection
+            boolean hasTimeSeriesReplacingTsId = optimizedPlan.anyMatch(
+                a -> a instanceof TimeSeriesAggregate ts
+                    && ts.output().stream().anyMatch(g -> g.name().equals(MetadataAttribute.TIMESERIES))
+                    && expectedOutputAttributes.stream().noneMatch(g -> g.name().equals(MetadataAttribute.TIMESERIES))
+            );
+
+            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeSeriesReplacingTsId;
             if (ignoreError == false) {
                 failures.add(
                     fail(

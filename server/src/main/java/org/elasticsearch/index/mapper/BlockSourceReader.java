@@ -107,7 +107,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NEEDS_SOURCE;
+            return fetcher.storedFieldsSpec();
         }
 
         @Override

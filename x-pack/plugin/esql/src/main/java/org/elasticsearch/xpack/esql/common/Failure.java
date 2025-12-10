@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.common;
 
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -37,9 +38,15 @@ public class Failure {
 
     @Override
     public int hashCode() {
+        if (node instanceof UnresolvedAttribute ua) {
+            return ua.hashCode(true);
+        }
         return Objects.hash(node);
     }
 
+    /**
+     * Equality is based on the contained node, the failure is "attached" to it.
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -51,6 +58,14 @@ public class Failure {
         }
 
         Failure other = (Failure) obj;
+
+        // When deduplicating failures, it's important to ignore the NameIds of UnresolvedAttributes.
+        // Otherwise, two failures will be emitted to the user for e.g.
+        // `FROM test | STATS max(unknown) by unknown` because the two `unknown` attributes will have differentNameIds - even though they
+        // clearly refer to the same problem.
+        if (node instanceof UnresolvedAttribute ua) {
+            return ua.equals(other.node, true);
+        }
         return Objects.equals(node, other.node);
     }
 

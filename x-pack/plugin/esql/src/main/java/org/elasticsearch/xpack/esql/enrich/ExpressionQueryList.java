@@ -18,11 +18,13 @@ import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -56,9 +58,10 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final List<QueryList> queryLists;
-    private final List<Query> preJoinFilters = new ArrayList<>();
+    private final List<Query> lucenePushableFilters = new ArrayList<>();
     private final SearchExecutionContext context;
     private final AliasFilter aliasFilter;
+    private final LucenePushdownPredicates lucenePushdownPredicates;
 
     private ExpressionQueryList(
         List<QueryList> queryLists,
@@ -70,6 +73,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         this.queryLists = new ArrayList<>(queryLists);
         this.context = context;
         this.aliasFilter = aliasFilter;
+        this.lucenePushdownPredicates = LucenePushdownPredicates.from(
+            SearchContextStats.from(List.of(context)),
+            new EsqlFlags(clusterService.getClusterSettings())
+        );
         buildPreJoinFilter(rightPreJoinPlan, clusterService);
     }
 
@@ -141,98 +148,104 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
         for (Expression expr : expressions) {
-            if (expr instanceof EsqlBinaryComparison binaryComparison) {
-                // the left side comes from the page that was sent to the lookup node
-                // the right side is the field from the lookup index
-                // check if the left side is in the matchFields
-                // if it is its corresponding page is the corresponding number in inputPage
-                Expression left = binaryComparison.left();
-                if (left instanceof Attribute leftAttribute) {
-                    boolean matched = false;
-                    for (int i = 0; i < matchFields.size(); i++) {
-                        if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
-                            Block block = inputPage.getBlock(i);
-                            Expression right = binaryComparison.right();
-                            if (right instanceof Attribute rightAttribute) {
-                                MappedFieldType fieldType = context.getFieldType(rightAttribute.name());
-                                if (fieldType != null) {
-                                    // special handle Equals operator
-                                    // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
-                                    // so here we reuse the existing logic from field based join to build a termQueryList for Equals
-                                    if (binaryComparison instanceof Equals) {
-                                        QueryList termQueryForEquals = termQueryList(
-                                            fieldType,
-                                            context,
-                                            aliasFilter,
-                                            inputPage.getBlock(matchFields.get(i).channel()),
-                                            matchFields.get(i).type()
-                                        ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
-                                        queryLists.add(termQueryForEquals);
-                                    } else {
-                                        queryLists.add(
-                                            new BinaryComparisonQueryList(
-                                                fieldType,
-                                                context,
-                                                block,
-                                                binaryComparison,
-                                                clusterService,
-                                                aliasFilter,
-                                                warnings
-                                            )
-                                        );
-                                    }
-                                    matched = true;
-                                    break;
-                                } else {
-                                    throw new IllegalStateException(
-                                        "Could not find field [" + rightAttribute.name() + "] in the lookup join index"
-                                    );
-                                }
-                            } else {
-                                throw new IllegalStateException(
-                                    "Only field from the right dataset are supported on the right of the join on condition but got: " + expr
-                                );
-                            }
-                        }
-                    }
-                    if (matched == false) {
-                        throw new IllegalStateException(
-                            "Could not find field [" + leftAttribute.name() + "] in the left side of the lookup join"
-                        );
-                    }
-                } else {
-                    throw new IllegalStateException(
-                        "Only field from the left dataset are supported on the left of the join on condition but got: " + expr
-                    );
-                }
-            } else {
-                // we only support binary comparisons in the join on conditions
-                throw new IllegalStateException("Only binary comparisons are supported in join ON conditions, but got: " + expr);
+            boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, inputPage, clusterService, warnings);
+            if (applied == false) {
+                applied = applyAsRightSidePushableFilter(expr);
+            }
+            if (applied == false) {
+                throw new IllegalArgumentException("Cannot apply join condition: " + expr);
             }
         }
     }
 
-    private void addToPreJoinFilters(QueryBuilder query) {
+    private boolean applyAsRightSidePushableFilter(Expression filter) {
+        if (filter instanceof TranslationAware translationAware) {
+            if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
+                QueryBuilder queryBuilder = translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder();
+                // Rewrite the query builder to ensure doIndexMetadataRewrite is called
+                // Some functions, such as KQL require rewriting to work properly
+                try {
+                    queryBuilder = Rewriteable.rewrite(queryBuilder, context, true);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Error while rewriting query for Lucene pushable filter", e);
+                }
+                addToLucenePushableFilters(queryBuilder);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean applyAsLeftRightBinaryComparison(
+        Expression expr,
+        List<MatchConfig> matchFields,
+        Page inputPage,
+        ClusterService clusterService,
+        Warnings warnings
+    ) {
+        if (expr instanceof EsqlBinaryComparison binaryComparison
+            && binaryComparison.left() instanceof Attribute leftAttribute
+            && binaryComparison.right() instanceof Attribute rightAttribute) {
+            // the left side comes from the page that was sent to the lookup node
+            // the right side is the field from the lookup index
+            // check if the left side is in the matchFields
+            // if it is its corresponding page is the corresponding number in inputPage
+            Block block = null;
+            DataType dataType = null;
+            for (int i = 0; i < matchFields.size(); i++) {
+                if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
+                    block = inputPage.getBlock(i);
+                    dataType = matchFields.get(i).type();
+                    break;
+                }
+            }
+            MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
+            if (block != null && rightFieldType != null && dataType != null) {
+                // special handle Equals operator
+                // TermQuery is faster than BinaryComparisonQueryList, as it does less work per row
+                // so here we reuse the existing logic from field based join to build a termQueryList for Equals
+                if (binaryComparison instanceof Equals) {
+                    QueryList termQueryForEquals = termQueryList(rightFieldType, context, aliasFilter, block, dataType).onlySingleValues(
+                        warnings,
+                        "LOOKUP JOIN encountered multi-value"
+                    );
+                    queryLists.add(termQueryForEquals);
+                } else {
+                    queryLists.add(
+                        new BinaryComparisonQueryList(
+                            rightFieldType,
+                            context,
+                            block,
+                            binaryComparison,
+                            clusterService,
+                            aliasFilter,
+                            warnings
+                        )
+                    );
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addToLucenePushableFilters(QueryBuilder query) {
         try {
             if (query != null) {
-                preJoinFilters.add(query.toQuery(context));
+                lucenePushableFilters.add(query.toQuery(context));
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Error while building query for PreJoinFilters filter", e);
+            throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
         }
     }
 
     private void buildPreJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
         if (rightPreJoinPlan instanceof FilterExec filterExec) {
             List<Expression> candidateRightHandFilters = Predicates.splitAnd(filterExec.condition());
-            LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
-                SearchContextStats.from(List.of(context)),
-                new EsqlFlags(clusterService.getClusterSettings())
-            );
             for (Expression filter : candidateRightHandFilters) {
                 if (filter instanceof TranslationAware translationAware) {
                     if (TranslationAware.Translatable.YES.equals(translationAware.translatable(lucenePushdownPredicates))) {
-                        addToPreJoinFilters(translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder());
+                        addToLucenePushableFilters(translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder());
                     }
                 }
                 // If the filter is not translatable we will not apply it for now
@@ -268,7 +281,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             builder.add(q, BooleanClause.Occur.FILTER);
         }
         // also attach the pre-join filter if it exists
-        for (Query preJoinFilter : preJoinFilters) {
+        for (Query preJoinFilter : lucenePushableFilters) {
             builder.add(preJoinFilter, BooleanClause.Occur.FILTER);
         }
         return builder.build();

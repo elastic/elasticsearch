@@ -95,7 +95,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
     private Map<TaskType, Class<? extends ModelValidator>> taskTypeToModelValidatorClassMap() {
         return Map.of(
             TaskType.TEXT_EMBEDDING,
-            TextEmbeddingModelValidator.class,
+            DenseEmbeddingModelValidator.class,
             TaskType.SPARSE_EMBEDDING,
             SimpleModelValidator.class,
             TaskType.RERANK,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ilm.actions;
 
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -23,11 +24,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
+import org.elasticsearch.xpack.core.ilm.DownsampleActionTests;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -57,7 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DownsampleActionIT extends ESRestTestCase {
+public class DownsampleActionIT extends IlmESRestTestCase {
 
     private String index;
     private String policy;
@@ -194,11 +196,12 @@ public class DownsampleActionIT extends ESRestTestCase {
         // Create the ILM policy
         String phaseName = randomFrom("warm", "cold");
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        DownsampleConfig.SamplingMethod samplingMethod = DownsampleActionTests.randomSamplingMethod();
         createNewSingletonPolicy(
             client(),
             policy,
             phaseName,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean(), samplingMethod)
         );
 
         // Create a time series index managed by the policy
@@ -220,6 +223,10 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
             assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
+            assertEquals(
+                DownsampleConfig.SamplingMethod.getOrDefault(samplingMethod).toString(),
+                settings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
+            );
         });
         assertBusy(
             () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
@@ -233,7 +240,12 @@ public class DownsampleActionIT extends ESRestTestCase {
                 client(),
                 policy,
                 "hot",
-                new DownsampleAction(ConfigTestHelpers.randomInterval(), DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+                new DownsampleAction(
+                    ConfigTestHelpers.randomInterval(),
+                    DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                    randomBoolean(),
+                    DownsampleActionTests.randomSamplingMethod()
+                )
             )
         );
         assertTrue(
@@ -247,11 +259,12 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // add a policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        DownsampleConfig.SamplingMethod samplingMethod = DownsampleActionTests.randomSamplingMethod();
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             DownsampleAction.NAME,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean(), samplingMethod)
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -304,17 +317,22 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
             assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
+            assertEquals(
+                DownsampleConfig.SamplingMethod.getOrDefault(samplingMethod).toString(),
+                settings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
+            );
         });
     }
 
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        DownsampleConfig.SamplingMethod samplingMethod = DownsampleActionTests.randomSamplingMethod();
         createNewSingletonPolicy(
             client(),
             policy,
             "warm",
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean(), samplingMethod)
         );
 
         // Create a template
@@ -356,6 +374,10 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
             assertEquals(fixedInterval.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
+            assertEquals(
+                DownsampleConfig.SamplingMethod.getOrDefault(samplingMethod).toString(),
+                settings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
+            );
         });
     }
 
@@ -367,7 +389,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             client(),
             policy,
             "warm",
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
         );
 
         // Create a template
@@ -393,15 +420,16 @@ public class DownsampleActionIT extends ESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         assertBusy(() -> {
+            Map<String, Object> explainResponse = explainIndex(client(), backingIndexName);
             assertThat(
                 "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
-                explainIndex(client(), backingIndexName).get("step"),
+                explainResponse.get("step"),
                 is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
             );
 
-            assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+            assertThat(explainResponse.get("step_info"), is(notNullValue()));
             assertThat(
-                (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                (String) ((Map<String, Object>) explainResponse.get("step_info")).get("message"),
                 containsString("Waiting until the index's time series end time lapses")
             );
         }, 30, TimeUnit.SECONDS);
@@ -415,7 +443,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             client(),
             policy,
             phaseName,
-            new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT, randomBoolean())
+            new DownsampleAction(
+                fixedInterval,
+                DownsampleAction.DEFAULT_WAIT_TIMEOUT,
+                randomBoolean(),
+                DownsampleActionTests.randomSamplingMethod()
+            )
         );
 
         // Create a non TSDB managed index
@@ -444,28 +477,30 @@ public class DownsampleActionIT extends ESRestTestCase {
     public void testDownsampleTwice() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
-        request.setJsonEntity("""
+        DownsampleConfig.SamplingMethod samplingMethod = DownsampleActionTests.randomSamplingMethod();
+        String samplingMethodInPolicy = getSamplingMethodInPolicy(samplingMethod);
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "policy": {
                     "phases": {
                         "warm": {
                             "actions": {
                                 "downsample": {
-                                    "fixed_interval" : "1m"
+                                    "fixed_interval" : "1m"%s
                                 }
                             }
                         },
                         "cold": {
                             "actions": {
                                 "downsample": {
-                                    "fixed_interval" : "1h"
+                                    "fixed_interval" : "1h"%s
                                 }
                             }
                         }
                     }
                 }
             }
-            """);
+            """, samplingMethodInPolicy, samplingMethodInPolicy));
         client().performRequest(request);
 
         // Create a template
@@ -512,6 +547,10 @@ public class DownsampleActionIT extends ESRestTestCase {
                 assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
                 assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
                 assertEquals("1h", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
+                assertEquals(
+                    DownsampleConfig.SamplingMethod.getOrDefault(samplingMethod).toString(),
+                    settings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
+                );
             }, 120, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             if (indexExists(firstBackingIndex)) {
@@ -528,14 +567,21 @@ public class DownsampleActionIT extends ESRestTestCase {
     public void testDownsampleTwiceSameInterval() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
-        request.setJsonEntity("""
+        // Ensure that changing the sampling method does not cause this index to fail, since it's already downsampled for this interval.
+        DownsampleConfig.SamplingMethod initialSamplingMethod = randomBoolean()
+            ? null
+            : randomFrom(DownsampleConfig.SamplingMethod.values());
+        DownsampleConfig.SamplingMethod updatedSamplingMethod = initialSamplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE
+            ? (randomBoolean() ? null : DownsampleConfig.SamplingMethod.AGGREGATE)
+            : DownsampleConfig.SamplingMethod.LAST_VALUE;
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "policy": {
                     "phases": {
                         "warm": {
                             "actions": {
                                 "downsample": {
-                                    "fixed_interval" : "5m"
+                                    "fixed_interval" : "5m"%s
                                 }
                             }
                         },
@@ -546,7 +592,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                     }
                 }
             }
-            """);
+            """, getSamplingMethodInPolicy(initialSamplingMethod)));
         assertOK(client().performRequest(request));
 
         // Create a template
@@ -585,22 +631,26 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertThat(indexExists(downsampleIndexName), is(true));
             assertThat(indexExists(firstBackingIndex), is(false));
 
-            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
-            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("warm"));
+            Map<String, Object> explainResponse = explainIndex(client(), downsampleIndexName);
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainResponse.get("phase"), is("warm"));
 
             Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleIndexName);
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
             assertEquals("5m", settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey()));
+            assertEquals(
+                DownsampleConfig.SamplingMethod.getOrDefault(initialSamplingMethod).toString(),
+                settings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
+            );
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
         }, 120, TimeUnit.SECONDS);
 
         // update the policy to now contain the downsample action in cold, whilst not existing in warm anymore (this will have our already
         // downsampled index attempt to go through the downsample action again when in cold)
-
         Request updatePolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        updatePolicyRequest.setJsonEntity("""
+        updatePolicyRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "policy": {
                     "phases": {
@@ -612,22 +662,28 @@ public class DownsampleActionIT extends ESRestTestCase {
                             "min_age": "0ms",
                             "actions": {
                                "downsample": {
-                                  "fixed_interval" : "5m"
+                                  "fixed_interval" : "5m"%s
                                }
                             }
                         }
                     }
                 }
             }
-            """);
+            """, getSamplingMethodInPolicy(updatedSamplingMethod)));
         assertOK(client().performRequest(updatePolicyRequest));
 
         // the downsample index (already part of the data stream as we created it in the warm phase previously) should continue to exist and
         // reach the cold/complete/complete step
         assertBusy(() -> {
             assertThat(indexExists(downsampleIndexName), is(true));
-            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
-            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("cold"));
+            Map<String, Object> explainResponse = explainIndex(client(), downsampleIndexName);
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainResponse.get("phase"), is("cold"));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleIndexName);
+            assertEquals(
+                DownsampleConfig.SamplingMethod.getOrDefault(initialSamplingMethod).toString(),
+                settings.get(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey())
+            );
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -674,5 +730,9 @@ public class DownsampleActionIT extends ESRestTestCase {
             return (String) asMap.keySet().toArray()[0];
         }
         return null;
+    }
+
+    private static String getSamplingMethodInPolicy(DownsampleConfig.SamplingMethod samplingMethod) {
+        return samplingMethod == null ? "" : ", \"sampling_method\": \"" + samplingMethod + "\"";
     }
 }

@@ -29,7 +29,7 @@ public class RestGetBasicStatus extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         final var request = new GetBasicStatusRequest(RestUtils.getMasterNodeTimeout(restRequest));
-        return channel -> client.execute(GetBasicStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportGetBasicStatusAction.TYPE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -98,6 +98,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     @Override
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Object getSampleObjectForDocument() {
         return getSampleValueForDocument();
     }

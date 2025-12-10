@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,16 +26,18 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::new);
 
     private final Expression timestamp;
@@ -51,25 +52,22 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         preview = true,
         examples = { @Example(file = "k8s-timeseries-irate", tag = "irate") }
     )
-    public Irate(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
-
     public Irate(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the irate",
+            optional = true
+        ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private Irate(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private Irate(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    public Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -78,7 +76,8 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -89,21 +88,17 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected NodeInfo<Irate> info() {
-        return NodeInfo.create(this, Irate::new, field(), timestamp);
+        return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public Irate replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new Irate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Irate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Irate withFilter(Expression filter) {
-        return new Irate(source(), field(), filter, timestamp);
+        return new Irate(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -119,10 +114,12 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
+        final DataType tsType = timestamp().dataType();
+        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false);
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -134,6 +131,11 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public String toString() {
-        return "irate(" + field() + ")";
+        return "irate(" + field() + ", " + timestamp() + ")";
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

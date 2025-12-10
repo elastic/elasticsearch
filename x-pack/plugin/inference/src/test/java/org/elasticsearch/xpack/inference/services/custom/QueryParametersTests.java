@@ -104,7 +104,11 @@ public class QueryParametersTests extends AbstractBWCWireSerializationTestCase<Q
 
     @Override
     protected QueryParameters mutateInstance(QueryParameters instance) {
-        return randomValueOtherThan(instance, QueryParametersTests::createRandom);
+        var parameters = randomValueOtherThan(
+            instance.parameters(),
+            () -> randomList(5, () -> new QueryParameters.Parameter(randomAlphaOfLength(5), randomAlphaOfLength(5)))
+        );
+        return new QueryParameters(parameters);
     }
 
     @Override

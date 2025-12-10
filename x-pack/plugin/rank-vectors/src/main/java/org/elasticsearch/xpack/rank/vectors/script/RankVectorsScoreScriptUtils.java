@@ -357,6 +357,7 @@ public class RankVectorsScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for float vectors: " + queryVector.getClass().getName());
                 }
+                case BFLOAT16 -> throw new IllegalArgumentException("Unsupported element type: bfloat16");
             };
         }
 

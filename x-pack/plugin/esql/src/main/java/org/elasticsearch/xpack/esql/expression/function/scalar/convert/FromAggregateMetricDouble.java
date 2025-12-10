@@ -19,9 +19,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -29,8 +31,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction {
+public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction, BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FromAggregateMetricDouble",
@@ -119,7 +123,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(field, dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE, sourceText(), DEFAULT, "aggregate_metric_double only");
+        return isType(field, dt -> dt == AGGREGATE_METRIC_DOUBLE, sourceText(), DEFAULT, "aggregate_metric_double only");
     }
 
     @Override
@@ -155,10 +159,10 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
         @Override
         public Block eval(Page page) {
             Block block = eval.eval(page);
-            if (block.areAllValuesNull()) {
-                return block;
-            }
             try {
+                if (block.areAllValuesNull()) {
+                    return blockFactory.newConstantNullBlock(block.getPositionCount());
+                }
                 Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(subFieldIndex);
                 resultBlock.incRef();
                 return resultBlock;
@@ -191,5 +195,25 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     @Override
     public Set<DataType> supportedTypes() {
         return Set.of(AGGREGATE_METRIC_DOUBLE);
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (field() instanceof FieldAttribute f && f.dataType() == AGGREGATE_METRIC_DOUBLE) {
+            var folded = subfieldIndex.fold(FoldContext.small());
+            if (folded == null) {
+                throw new IllegalArgumentException("Subfield Index was null");
+            }
+            var subfield = ((Number) folded).intValue();
+            var functionConfig = switch (AggregateMetricDoubleBlockBuilder.Metric.indexToMetric(subfield)) {
+                case MIN -> BlockLoaderFunctionConfig.Function.AMD_MIN;
+                case MAX -> BlockLoaderFunctionConfig.Function.AMD_MAX;
+                case SUM -> BlockLoaderFunctionConfig.Function.AMD_SUM;
+                case COUNT -> BlockLoaderFunctionConfig.Function.AMD_COUNT;
+                case null -> throw new IllegalArgumentException("Received invalid subfield index [" + subfield + "].");
+            };
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.JustFunction(functionConfig));
+        }
+        return null;
     }
 }

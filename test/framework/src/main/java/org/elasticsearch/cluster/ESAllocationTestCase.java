@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeight
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -53,6 +55,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -141,8 +144,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
+        return createAllocationService(settings, gatewayAllocator, clusterInfoService, snapshotsInfoService, Collections.emptyList());
+    }
+
+    public static MockAllocationService createAllocationService(
+        Settings settings,
+        GatewayAllocator gatewayAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         return new MockAllocationService(
-            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings), clusterPlugins),
             gatewayAllocator,
             createShardsAllocator(settings),
             clusterInfoService,
@@ -151,8 +164,16 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return randomAllocationDeciders(settings, clusterSettings, Collections.emptyList());
+    }
+
+    public static AllocationDeciders randomAllocationDeciders(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, clusterPlugins)
         );
         Collections.shuffle(deciders, random());
         return new AllocationDeciders(deciders);
@@ -192,7 +213,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             null,
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -380,6 +402,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         final var result = allocationService.reroute(clusterState, "test reroute", listener);
         safeGet(listener::result); // ensures it completed successfully
         return result;
+    }
+
+    public static void assertDecisionMatches(String description, Decision decision, Decision.Type type, String explanationPattern) {
+        assertEquals(description, type, decision.type());
+        if (explanationPattern == null) {
+            assertNull(decision.getExplanation());
+        } else {
+            assertTrue(
+                org.elasticsearch.common.Strings.format("Expected: \"%s\", got \"%s\"", explanationPattern, decision.getExplanation()),
+                Regex.simpleMatch(explanationPattern, decision.getExplanation())
+            );
+        }
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

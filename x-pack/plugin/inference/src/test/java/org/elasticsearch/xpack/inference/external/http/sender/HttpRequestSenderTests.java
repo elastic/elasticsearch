@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -39,7 +39,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -48,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -56,6 +55,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisElserAuthorizationResponse;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -301,23 +301,16 @@ public class HttpRequestSenderTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            String responseJson = """
-                {
-                    "models": [
-                        {
-                          "model_name": "model-a",
-                          "task_types": ["embed/text/sparse", "chat"]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var url = getUrl(webServer);
+            var elserResponse = getEisElserAuthorizationResponse(url);
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(elserResponse.responseJson()));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var request = new ElasticInferenceServiceAuthorizationRequest(
                 getUrl(webServer),
                 new TraceContext("", ""),
-                randomElasticInferenceServiceRequestMetadata()
+                randomElasticInferenceServiceRequestMetadata(),
+                CCMAuthenticationApplierFactory.NOOP_APPLIER
             );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
@@ -329,17 +322,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var result = listener.actionGet(TIMEOUT);
             assertThat(result, instanceOf(ElasticInferenceServiceAuthorizationResponseEntity.class));
             var authResponse = (ElasticInferenceServiceAuthorizationResponseEntity) result;
-            assertThat(
-                authResponse.getAuthorizedModels(),
-                is(
-                    List.of(
-                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                            "model-a",
-                            EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)
-                        )
-                    )
-                )
-            );
+            assertThat(authResponse.getAuthorizedEndpoints(), is(elserResponse.responseEntity().getAuthorizedEndpoints()));
         }
     }
 
@@ -354,7 +337,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
-                () -> sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), null, listener)
+                () -> sender.send(
+                    RequestManagerTests.createMockWithRateLimitingEnabled(),
+                    new EmbeddingsInput(List.of(), null),
+                    null,
+                    listener
+                )
             );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
@@ -375,7 +363,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
+            sender.send(
+                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                new EmbeddingsInput(List.of(), null),
+                TimeValue.timeValueNanos(1),
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -397,7 +390,12 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
+            sender.send(
+                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                new EmbeddingsInput(List.of(), null),
+                TimeValue.timeValueNanos(1),
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 

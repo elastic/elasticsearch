@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.DeltaLongAggregatorFunctionSupplier
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,17 +26,19 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
-public class Delta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class Delta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delta", Delta::new);
 
     private final Expression timestamp;
@@ -50,21 +51,22 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         preview = true,
         examples = { @Example(file = "k8s-timeseries-delta", tag = "delta") }
     )
-    public Delta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field) {
-        this(source, field, new UnresolvedAttribute(source, "@timestamp"));
+    public Delta(
+        Source source,
+        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the delta over time",
+            optional = true
+        ) Expression window,
+        Expression timestamp
+    ) {
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    public Delta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, timestamp);
-    }
-
-    // compatibility constructor used when reading from the stream
-    private Delta(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private Delta(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    public Delta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -73,7 +75,8 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -84,21 +87,17 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected NodeInfo<Delta> info() {
-        return NodeInfo.create(this, Delta::new, field(), timestamp);
+        return NodeInfo.create(this, Delta::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public Delta replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new Delta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Delta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public Delta withFilter(Expression filter) {
-        return new Delta(source(), field(), filter, timestamp);
+        return new Delta(source(), field(), filter, window(), timestamp);
     }
 
     @Override
@@ -135,10 +134,11 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public String toString() {
-        return "delta(" + field() + ")";
+        return "delta(" + field() + ", " + timestamp() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 }

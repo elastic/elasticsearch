@@ -84,16 +84,9 @@ public class ResolveClusterActionRequest extends LegacyActionRequest implements 
         this.names = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.localIndicesRequested = localIndicesPresent(names);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {
-            this.clusterInfoOnly = in.readBoolean();
-            this.isQueryingCluster = in.readBoolean();
-        } else {
-            this.clusterInfoOnly = false;
-            this.isQueryingCluster = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER)) {
-            this.timeout = in.readOptionalTimeValue();
-        }
+        this.clusterInfoOnly = in.readBoolean();
+        this.isQueryingCluster = in.readBoolean();
+        this.timeout = in.readOptionalTimeValue();
     }
 
     @Override
@@ -104,13 +97,9 @@ public class ResolveClusterActionRequest extends LegacyActionRequest implements 
         }
         out.writeStringArray(names);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {
-            out.writeBoolean(clusterInfoOnly);
-            out.writeBoolean(isQueryingCluster);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER)) {
-            out.writeOptionalTimeValue(timeout);
-        }
+        out.writeBoolean(clusterInfoOnly);
+        out.writeBoolean(isQueryingCluster);
+        out.writeOptionalTimeValue(timeout);
     }
 
     static String createVersionErrorMessage(TransportVersion versionFound) {

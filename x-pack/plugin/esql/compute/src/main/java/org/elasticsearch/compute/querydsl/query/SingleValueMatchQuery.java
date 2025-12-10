@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -132,15 +133,10 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (SortedNumericLongValues.unwrapSingleton(sortedNumerics) != null) {
-                    // check for dense field
-                    // TODO: check doc values skippers
-                    final PointValues points = context.reader().getPointValues(fieldData.getFieldName());
-                    if (points != null && points.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, sortedNumerics::advanceExact);
-                    }
+                NumericDocValues ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                if (ndv != null && ndv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedNumerics.advanceExact(doc)) {
@@ -162,21 +158,10 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
-                    // check for dense field
-                    // TODO: check doc values skippers
-                    final Terms terms = context.reader().terms(fieldData.getFieldName());
-                    if (terms != null && terms.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(
-                            boost,
-                            scoreMode,
-                            maxDoc,
-                            MULTI_VALUE_MATCH_COST,
-                            sortedSetDocValues::advanceExact
-                        );
-                    }
+                SortedDocValues sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                if (sdv != null && sdv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sdv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedSetDocValues.advanceExact(doc)) {
@@ -224,6 +209,9 @@ public final class SingleValueMatchQuery extends Query {
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (fieldData instanceof ConstantIndexFieldData cfd && cfd.getValue() != null) {
+            return new MatchAllDocsQuery();
+        }
         for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
             final LeafReader reader = context.reader();
             final int maxDoc = reader.maxDoc();

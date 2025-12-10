@@ -30,24 +30,12 @@ import static jdk.incubator.vector.VectorOperators.OR;
 
 public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
-    static final int VECTOR_BITSIZE;
+    static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
 
-    private static final VectorSpecies<Float> FLOAT_SPECIES;
-    private static final VectorSpecies<Integer> INTEGER_SPECIES;
+    private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
+    private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
-    static final boolean HAS_FAST_INTEGER_VECTORS;
-
-    static {
-        // default to platform supported bitsize
-        VECTOR_BITSIZE = VectorShape.preferredShape().vectorBitSize();
-        FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-        INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-
-        // hotspot misses some SSE intrinsics, workaround it
-        // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon
-        boolean isAMD64withoutAVX2 = Constants.OS_ARCH.equals("amd64") && VECTOR_BITSIZE < 256;
-        HAS_FAST_INTEGER_VECTORS = isAMD64withoutAVX2 == false;
-    }
+    static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
@@ -762,7 +750,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return sum;
     }
 
-    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_PREFFERED_FLOATS;
 
     static {
@@ -1024,6 +1012,12 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void packDibit(int[] vector, byte[] packed) {
+        // TODO
+        DefaultESVectorUtilSupport.packDibitImpl(vector, packed);
+    }
+
+    @Override
     public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
         // 128 / 32 == 4
         if (q.length >= 8 && HAS_FAST_INTEGER_VECTORS) {
@@ -1123,12 +1117,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
     }
 
+    private static final VectorSpecies<Byte> PREFERRED_BYTE_SPECIES = PanamaVectorConstants.PREFERRED_BYTE_SPECIES;
+
     @Override
     public int indexOf(final byte[] bytes, final int offset, final int length, final byte marker) {
-        final ByteVector markerVector = ByteVector.broadcast(ByteVector.SPECIES_PREFERRED, marker);
-        final int loopBound = ByteVector.SPECIES_PREFERRED.loopBound(length);
-        for (int i = 0; i < loopBound; i += ByteVector.SPECIES_PREFERRED.length()) {
-            ByteVector chunk = ByteVector.fromArray(ByteVector.SPECIES_PREFERRED, bytes, offset + i);
+        final ByteVector markerVector = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, marker);
+        final int loopBound = PREFERRED_BYTE_SPECIES.loopBound(length);
+        for (int i = 0; i < loopBound; i += PREFERRED_BYTE_SPECIES.length()) {
+            ByteVector chunk = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, bytes, offset + i);
             VectorMask<Byte> mask = chunk.eq(markerVector);
             if (mask.anyTrue()) {
                 return i + mask.firstTrue();

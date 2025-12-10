@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER;
 import static org.hamcrest.Matchers.containsString;
@@ -38,7 +40,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
-        Integer dims = randomBoolean() ? 1536 : null;
+        Integer dims = randomNonNegativeIntOrNull();
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         return new AzureOpenAiEmbeddingsServiceSettings(
             resourceName,
@@ -509,7 +511,36 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
     @Override
     protected AzureOpenAiEmbeddingsServiceSettings mutateInstance(AzureOpenAiEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiEmbeddingsServiceSettingsTests::createRandom);
+        var resourceName = instance.resourceName();
+        var deploymentId = instance.deploymentId();
+        var apiVersion = instance.apiVersion();
+        var dimensions = instance.dimensions();
+        var dimensionsSetByUser = instance.dimensionsSetByUser();
+        var maxInputTokens = instance.maxInputTokens();
+        var similarity = instance.similarity();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(7)) {
+            case 0 -> resourceName = randomValueOtherThan(resourceName, () -> randomAlphaOfLength(8));
+            case 1 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLength(8));
+            case 2 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
+            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 4 -> dimensionsSetByUser = dimensionsSetByUser == false;
+            case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 7 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new AzureOpenAiEmbeddingsServiceSettings(
+            resourceName,
+            deploymentId,
+            apiVersion,
+            dimensions,
+            dimensionsSetByUser,
+            maxInputTokens,
+            similarity,
+            rateLimitSettings
+        );
     }
 
     public static Map<String, Object> getPersistentAzureOpenAiServiceSettingsMap(

@@ -393,6 +393,13 @@ public class ESVectorUtil {
         IMPL.packAsBinary(vector, packed);
     }
 
+    public static void packDibit(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.packDibit(vector, packed);
+    }
+
     /**
      * The idea here is to organize the query vector bits such that the first bit
      * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,

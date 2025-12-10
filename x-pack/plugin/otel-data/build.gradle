@@ -12,7 +12,9 @@ buildscript {
     maven { url = "https://jitpack.io" }
   }
   dependencies {
-    classpath 'com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT'
+    classpath('com.github.google:protobuf-gradle-plugin:PR786-SNAPSHOT') {
+      changing = false
+    }
   }
 }
 
@@ -96,7 +98,7 @@ dependencies {
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
 
-  implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+  api "com.google.protobuf:protobuf-java:${protobufVersion}"
   // The protobuf plugin only adds a dependency for the variant relevant for the current platform.
   // Without explicitly adding all classifiers, the --write-verification-metadata task would only add the one for the current platform.
   // Therefore, the verification check would fail on other platforms, like on CI or for contributors that work on another platform.

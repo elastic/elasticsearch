@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -192,7 +191,10 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
-        final Authentication original = AuthenticationTestHelper.builder().apiKey().transportVersion(TransportVersions.V_7_8_0).build();
+        final Authentication original = AuthenticationTestHelper.builder()
+            .apiKey()
+            .transportVersion(Authentication.VERSION_SYNTHETIC_ROLE_NAMES)
+            .build();
 
         // original authentication has the old style of role descriptor maps
         assertThat(
@@ -210,7 +212,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersions.V_7_8_0);
+        }, Authentication.VERSION_SYNTHETIC_ROLE_NAMES);
 
         // If target is new node, ensure old map style API key metadata is rewritten to bytesreference
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
@@ -228,7 +230,7 @@ public class SecurityContextTests extends ESTestCase {
                         equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
+        }, VERSION_API_KEY_ROLES_AS_BYTES);
     }
 
     public void testExecuteAfterRemovingParentAuthorization() {

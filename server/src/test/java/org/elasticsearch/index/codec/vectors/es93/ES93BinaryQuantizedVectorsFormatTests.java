@@ -22,7 +22,6 @@ package org.elasticsearch.index.codec.vectors.es93;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -56,14 +55,23 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
+import static java.lang.String.format;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.oneOf;
 
 public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
@@ -75,13 +83,9 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     private KnnVectorsFormat format;
 
-    boolean useBFloat16() {
-        return false;
-    }
-
     @Override
     public void setUp() throws Exception {
-        format = new ES93BinaryQuantizedVectorsFormat(useBFloat16(), random().nextBoolean());
+        format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
         super.setUp();
     }
 
@@ -147,7 +151,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
                     IndexSearcher searcher = new IndexSearcher(reader);
                     BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
                     Query query = new DiversifyingChildrenFloatKnnVectorQuery(fieldName, vector, null, 1, parentFilter);
-                    assertTrue(searcher.search(query, 1).scoreDocs.length == 0);
+                    assertThat(searcher.search(query, 1).scoreDocs, emptyArray());
                 }
             }
 
@@ -186,29 +190,30 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
     }
 
     public void testToString() {
-        FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
-            @Override
-            public KnnVectorsFormat knnVectorsFormat() {
-                return new ES93BinaryQuantizedVectorsFormat();
-            }
-        };
-        String expectedPattern = "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat,"
-            + " rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat,"
-            + " format=Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())),"
-            + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}()))";
-        var defaultScorer = expectedPattern.replaceAll("\\{}", "DefaultFlatVectorScorer");
-        var memSegScorer = expectedPattern.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
-        assertThat(customCodec.knnVectorsFormat().toString(), oneOf(defaultScorer, memSegScorer));
+        String expected = "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s, scorer=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
+            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}())"
+        );
+        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer={}())");
+
+        var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
+        var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
+        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
     }
 
     @Override
     public void testRandomWithUpdatesAndGraph() {
-        // graph not supported
+        throw new AssumptionViolatedException("Graph not supported");
     }
 
     @Override
     public void testSearchWithVisitedLimit() {
-        // visited limit is not respected, as it is brute force search
+        throw new AssumptionViolatedException("visited limit not respected");
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -239,11 +244,13 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());
-                    assertTrue(offHeap.get("veb") > 0L);
                     if (expectVecOffHeap) {
-                        int bytes = useBFloat16() ? BFloat16.BYTES : Float.BYTES;
-                        assertEquals(vector.length * bytes, (long) offHeap.get("vec"));
+                        assertThat(offHeap, aMapWithSize(2));
+                        assertThat(offHeap, hasEntry(equalTo("veb"), greaterThan(0L)));
+                        assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
+                    } else {
+                        assertThat(offHeap, aMapWithSize(1));
+                        assertThat(offHeap, hasEntry(equalTo("veb"), greaterThan(0L)));
                     }
                 }
             }

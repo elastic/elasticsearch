@@ -946,7 +946,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
 
     /**
-     * A unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
+     * An unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
      */
     public static BigInteger randomUnsignedLongBetween(BigInteger min, BigInteger max) {
         if (min.compareTo(BigInteger.ZERO) < 0) {
@@ -1134,6 +1134,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static DoubleStream randomDoubles(long streamSize) {
         return random().doubles(streamSize);
+    }
+
+    /**
+     * Returns a pseudo-random double from a Gaussian distribution with mean 0.0 and standard deviation 1.0
+     */
+    public static double randomGaussianDouble() {
+        return random().nextGaussian();
     }
 
     /**
@@ -1501,7 +1508,72 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        assert input == null || input.getClass().isArray() == false
+            : "randomValueOtherThan() does not work as expected with arrays, use randomArrayOtherThan() instead";
         return randomValueOtherThanMany(v -> Objects.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for object arrays
+     */
+    public static <T> T[] randomArrayOtherThan(T[] input, Supplier<T[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for boolean arrays
+     */
+    public static boolean[] randomArrayOtherThan(boolean[] input, Supplier<boolean[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for byte arrays
+     */
+    public static byte[] randomArrayOtherThan(byte[] input, Supplier<byte[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for char arrays
+     */
+    public static char[] randomArrayOtherThan(char[] input, Supplier<char[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for short arrays
+     */
+    public static short[] randomArrayOtherThan(short[] input, Supplier<short[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for int arrays
+     */
+    public static int[] randomArrayOtherThan(int[] input, Supplier<int[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for long arrays
+     */
+    public static long[] randomArrayOtherThan(long[] input, Supplier<long[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for float arrays
+     */
+    public static float[] randomArrayOtherThan(float[] input, Supplier<float[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input, for double arrays
+     */
+    public static double[] randomArrayOtherThan(double[] input, Supplier<double[]> randomSupplier) {
+        return randomValueOtherThanMany(v -> Arrays.equals(input, v), randomSupplier);
     }
 
     /**
@@ -1686,6 +1758,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
+    public static IndexSettings defaultIndexSettings() {
+        IndexMetadata INDEX_METADATA = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        return new IndexSettings(INDEX_METADATA, Settings.EMPTY);
+    }
+
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
@@ -1747,6 +1828,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> List<T> shuffledList(T... values) {
+        return shuffledList(Arrays.asList(values));
     }
 
     public static <T> List<T> shuffledList(List<T> list) {
@@ -1928,7 +2015,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
      * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
      * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
-     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself).
      */
     public static <T extends Writeable> T copyWriteable(
         T original,
@@ -2792,7 +2879,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. On of the tasks will be run on the
+     * Run {@code numberOfTasks} parallel tasks that were created by the given {@code taskFactory}. One of the tasks will be run on the
      * calling thread, the rest will be run on a new thread.
      * @param numberOfTasks number of tasks to run in parallel
      * @param taskFactory task factory
@@ -2836,6 +2923,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (e != null) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Run the given tasks in parallel. One of the tasks will be run on the calling thread, and each of the others will run on its own
+     * fresh thread.
+     */
+    public static void runInParallel(Runnable... tasks) {
+        runInParallel(tasks.length, i -> tasks[i].run());
     }
 
     public static void ensureAllContextsReleased(SearchService searchService) {

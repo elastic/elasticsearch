@@ -51,6 +51,8 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(settings);
         final String dataNodeOne = internalCluster().startDataOnlyNode(settings);
         final String dataNodeTwo = internalCluster().startDataOnlyNode(settings);
+        // Maintain a third node so that there's always at least one non-hot-spotting node that can receive shards.
+        internalCluster().startDataOnlyNode(settings);
 
         // Unmodified cluster info should detect no hot-spotting nodes
         MockLog.awaitLogger(
@@ -60,7 +62,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 "no hot-spots detected",
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.TRACE,
-                "No hot-spotting nodes detected"
+                "No hot-spotting write nodes detected"
             )
         );
 
@@ -76,7 +78,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
                 Strings.format("""
-                    Nodes [[%s]] are hot-spotting, of 3 total cluster nodes. Reroute for hot-spotting has never previously been called. \
+                    Nodes [[%s]] are hot-spotting, of 3 total ingest nodes. Reroute for hot-spotting has never previously been called. \
                     Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s]. \
                     Triggering reroute.
                     """, getNodeId(dataNodeOne), TimeValue.timeValueMillis(queueLatencyThresholdMillis))
@@ -111,7 +113,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
                 Strings.format("""
-                    Nodes [[*]] are hot-spotting, of 3 total cluster nodes. \
+                    Nodes [[*]] are hot-spotting, of 3 total ingest nodes. \
                     Reroute for hot-spotting was last called [*] ago. Previously hot-spotting nodes are [[%s]]. \
                     The write thread pool queue latency threshold is [%s]. Triggering reroute.
                     """, getNodeId(dataNodeOne), TimeValue.timeValueMillis(queueLatencyThresholdMillis))
@@ -130,7 +132,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 "no hot-spots detected",
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.TRACE,
-                "No hot-spotting nodes detected"
+                "No hot-spotting write nodes detected"
             )
         );
     }

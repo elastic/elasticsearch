@@ -30,7 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
@@ -72,6 +72,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -449,7 +450,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         var model = mockModelForChunking();
 
         SageMakerSchema schema = mock();
-        when(schema.response(any(), any(), any())).thenReturn(TextEmbeddingFloatResultsTests.createRandomResults());
+        when(schema.response(any(), any(), any())).thenReturn(DenseEmbeddingFloatResultsTests.createRandomResults());
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvoke();
 
@@ -469,6 +470,30 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             }))
         );
         verify(client, times(2)).invoke(any(), any(), any(), any());
+        verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testChunkedInfer_noInputs() throws Exception {
+        var model = mockModelForChunking();
+
+        SageMakerSchema schema = mock();
+        when(schemas.schemaFor(model)).thenReturn(schema);
+        mockInvoke();
+
+        sageMakerService.chunkedInfer(
+            model,
+            QUERY,
+            List.of(),
+            null,
+            INPUT_TYPE,
+            THIRTY_SECONDS,
+            assertOnce(assertNoFailureListener(chunkedInferences -> {
+                verify(schemas, never()).schemaFor(any());
+                verify(schema, never()).request(any(), any());
+                verify(schema, never()).response(any(), any(), any());
+            }))
+        );
+        verify(client, never()).invoke(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 

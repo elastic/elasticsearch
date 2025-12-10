@@ -1,19 +1,13 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/text.html
 ---
 
-# Text type family [text]
-
-
-The text family includes the following field types:
-
-* [`text`](#text-field-type), the traditional field type for full-text content such as the body of an email or the description of a product.
-* [`match_only_text`](#match-only-text-field-type), a space-optimized variant of `text` that disables scoring and performs slower on queries that need positions. It is best suited for indexing log messages.
-
-
-## Text field type [text-field-type]
+# Text field type [text-field-type]
 
 A field to index full-text values, such as the body of an email or the description of a product. These fields are `analyzed`, that is they are passed through an [analyzer](docs-content://manage-data/data-store/text-analysis.md) to convert the string into a list of individual terms before being indexed. The analysis process allows Elasticsearch to search for individual words *within* each full text field. Text fields are not used for sorting and seldom used for aggregations (although the [significant text aggregation](/reference/aggregations/search-aggregations-bucket-significanttext-aggregation.md) is a notable exception).
 
@@ -304,43 +298,3 @@ PUT my-index-000001
   }
 }
 ```
-
-
-## Match-only text field type [match-only-text-field-type]
-
-A variant of [`text`](#text-field-type) that trades scoring and efficiency of positional queries for space efficiency. This field effectively stores data the same way as a `text` field that only indexes documents (`index_options: docs`) and disables norms (`norms: false`). Term queries perform as fast if not faster as on `text` fields, however queries that need positions such as the [`match_phrase` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) perform slower as they need to look at the `_source` document to verify whether a phrase matches. All queries return constant scores that are equal to 1.0.
-
-Analysis is not configurable: text is always analyzed with the [default analyzer](docs-content://manage-data/data-store/text-analysis/specify-an-analyzer.md#specify-index-time-default-analyzer) ([`standard`](/reference/text-analysis/analysis-standard-analyzer.md) by default).
-
-[span queries](/reference/query-languages/query-dsl/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
-
-Other than that, `match_only_text` supports the same queries as `text`. And like `text`, it does not support sorting and has only limited support for aggregations.
-
-```console
-PUT logs
-{
-  "mappings": {
-    "properties": {
-      "@timestamp": {
-        "type": "date"
-      },
-      "message": {
-        "type": "match_only_text"
-      }
-    }
-  }
-}
-```
-
-
-### Parameters for match-only text fields [match-only-text-params]
-
-The following mapping parameters are accepted:
-
-[`fields`](/reference/elasticsearch/mapping-reference/multi-fields.md)
-:   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations, or the same string value analyzed by different analyzers.
-
-[`meta`](/reference/elasticsearch/mapping-reference/mapping-field-meta.md)
-:   Metadata about the field.
-
-

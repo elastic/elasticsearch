@@ -237,6 +237,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.deleteShard(id, routing);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeBody(out);

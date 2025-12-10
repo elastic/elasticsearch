@@ -1,6 +1,0 @@
-pr: 133166
-summary: Improve Expanding Lookup Join performance by pushing a filter to the right
-  side of the lookup join
-area: ES|QL
-type: enhancement
-issues: []

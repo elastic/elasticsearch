@@ -1,0 +1,5 @@
+pr: 136438
+summary: '`BlockSourceReader` should always apply source filtering'
+area: "ES|QL"
+type: enhancement
+issues: []

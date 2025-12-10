@@ -152,6 +152,43 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 % TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 % TESTRESPONSE[non_json]
 
+#### Filter vs WHERE clause behavior
+
+The `filter` parameter can eliminate columns from the result set when it skips entire indices.
+This is useful for resolving type conflicts between attributes of different indices.
+
+For example, if several days of data in a data stream were indexed with an incorrect type, you can use a filter to exclude the incorrect range.
+This allows {{esql}} to use the correct type for the remaining data without changing the source pattern.
+
+##### Example
+
+Consider querying `index-1` with an `f1` attribute and `index-2` with an `f2` attribute.
+
+Using a filter the following query returns only the `f1` column:
+
+```console
+POST /_query?format=txt
+{
+  "query": "FROM index-*",
+  "filter": {
+    "term": {
+      "f1": "*"
+    }
+  }
+}
+```
+% TEST[skip:no index]
+
+Using a WHERE clause returns both the `f1` and `f2` columns:
+
+```console
+POST /_query?format=txt
+{
+  "query": "FROM index-* WHERE f1 is not null"
+}
+```
+% TEST[skip:no index]
+
 ### Columnar results [esql-rest-columnar]
 
 By default, {{esql}} returns results as rows. For example, `FROM` returns each individual document as one row. For the `json`, `yaml`, `cbor` and `smile` [formats](#esql-rest-format), {{esql}} can return the results in a columnar fashion where one row represents all the values of a certain column in the results.

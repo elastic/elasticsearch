@@ -22,6 +22,7 @@ import org.opensaml.saml.saml2.core.NameID;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SamlAuthenticationStateTests extends IdpSamlTestCase {
@@ -80,7 +81,7 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
             assertThat(obj2, equalTo(obj1));
 
             final BytesReference bytes2 = XContentHelper.toXContent(obj2, xContentType, humanReadable);
-            assertThat(bytes2, equalTo(bytes1));
+            assertThat(bytes2, equalBytes(bytes1));
 
             return obj2;
         }

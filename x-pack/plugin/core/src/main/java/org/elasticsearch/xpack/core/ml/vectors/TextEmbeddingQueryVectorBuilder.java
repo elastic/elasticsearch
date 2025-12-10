@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.ml.vectors;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 
@@ -29,13 +29,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
+
+    public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER = new NodeFeature(
+        "text_embedding_query_vector_builder.used_by.result_diversification_mmr_retriever"
+    );
 
     public static final String NAME = "text_embedding";
 
@@ -64,11 +67,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
-            this.modelId = in.readOptionalString();
-        } else {
-            this.modelId = in.readString();
-        }
+        this.modelId = in.readOptionalString();
         this.modelText = in.readString();
     }
 
@@ -79,16 +78,12 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_7_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID)) {
-            out.writeOptionalString(modelId);
-        } else {
-            out.writeString(modelId);
-        }
+        out.writeOptionalString(modelId);
         out.writeString(modelText);
     }
 
@@ -127,14 +122,14 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
                 return;
             }
 
-            if (response.getInferenceResults().get(0) instanceof MlTextEmbeddingResults textEmbeddingResults) {
+            if (response.getInferenceResults().get(0) instanceof MlDenseEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
             } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
                 throw new IllegalArgumentException(
                     "expected a result of type ["
-                        + MlTextEmbeddingResults.NAME
+                        + MlDenseEmbeddingResults.NAME
                         + "] received ["
                         + response.getInferenceResults().get(0).getWriteableName()
                         + "]. Is ["

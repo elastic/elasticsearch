@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -42,9 +43,9 @@ import java.util.Map;
  * <p>A SystemIndexPlugin may also specify “associated indices,” which hold plugin state in user space. These indices are not managed or
  * protected, but they are included in snapshots of the feature.
  *
- * <p>An implementation of SystemIndexPlugin may override {@link #cleanUpFeature(ClusterService, ProjectResolver, Client, ActionListener)}
- * in order to provide a “factory reset” of the plugin state. This can be useful for testing. The default method will simply retrieve a list
- * of system and associated indices and delete them.
+ * <p>An implementation of SystemIndexPlugin may override {@link #cleanUpFeature(ClusterService, ProjectResolver, Client, TimeValue,
+ * ActionListener)} in order to provide a “factory reset” of the plugin state. This can be useful for testing. The default method will
+ * simply retrieve a list of system and associated indices and delete them.
  *
  * <p>An implementation may also override {@link #prepareForIndicesMigration(ProjectMetadata, Client, ActionListener)}  and
  * {@link #indicesMigrationComplete(Map, Client, ActionListener)}  in order to take special action before and after a
@@ -100,12 +101,14 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * @param clusterService Cluster service to provide cluster state
      * @param projectResolver Project resolver
      * @param client A client, for executing actions
+     * @param masterNodeTimeout Timeout for tasks enqueued on the master node
      * @param listener Listener for post-cleanup result
      */
     default void cleanUpFeature(
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
+        TimeValue masterNodeTimeout,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
     ) {
         SystemIndices.Feature.cleanUpFeature(
@@ -115,6 +118,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
             clusterService,
             projectResolver,
             client,
+            masterNodeTimeout,
             listener
         );
     }

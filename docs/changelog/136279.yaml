@@ -1,5 +1,0 @@
-pr: 136279
-summary: Initialize `TermsEnum` eagerly
-area: Search
-type: bug
-issues: []

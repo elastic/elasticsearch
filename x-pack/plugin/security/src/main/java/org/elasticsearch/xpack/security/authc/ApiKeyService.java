@@ -48,7 +48,6 @@ import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -141,17 +140,16 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
@@ -207,6 +205,16 @@ public class ApiKeyService implements Closeable {
         TimeValue.timeValueMinutes(15),
         Property.NodeScope
     );
+    public static final Setting<TimeValue> CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING = Setting.timeSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.ttl",
+        TimeValue.timeValueHours(48L),
+        Property.NodeScope
+    );
+    public static final Setting<Integer> CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING = Setting.intSetting(
+        "xpack.security.authc.api_key.certificate_identity_pattern_cache.max_keys",
+        100,
+        Property.NodeScope
+    );
 
     private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
@@ -218,6 +226,7 @@ public class ApiKeyService implements Closeable {
     private final boolean enabled;
     private final Settings settings;
     private final InactiveApiKeysRemover inactiveApiKeysRemover;
+    private final Cache<String, Pattern> certificateIdentityPatternCache;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
@@ -268,8 +277,15 @@ public class ApiKeyService implements Closeable {
                 .setMaximumWeight(maximumWeight)
                 .removalListener(getAuthCacheRemovalListener(maximumWeight))
                 .build();
-            final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
-            this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
+            final TimeValue docTtl = DOC_CACHE_TTL_SETTING.get(settings);
+            this.apiKeyDocCache = docTtl.getNanos() == 0 ? null : new ApiKeyDocCache(docTtl, maximumWeight);
+
+            final TimeValue patternTtl = CERTIFICATE_IDENTITY_PATTERN_CACHE_TTL_SETTING.get(settings);
+            final int maximumPatternWeight = CERTIFICATE_IDENTITY_PATTERN_CACHE_MAX_KEYS_SETTING.get(settings);
+            this.certificateIdentityPatternCache = patternTtl.getNanos() == 0
+                ? null
+                : CacheBuilder.<String, Pattern>builder().setExpireAfterAccess(patternTtl).setMaximumWeight(maximumPatternWeight).build();
+
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key", new CacheInvalidatorRegistry.CacheInvalidator() {
                 @Override
                 public void invalidate(Collection<String> keys) {
@@ -309,6 +325,7 @@ public class ApiKeyService implements Closeable {
         } else {
             this.apiKeyAuthCache = null;
             this.apiKeyDocCache = null;
+            this.certificateIdentityPatternCache = null;
         }
 
         if (enabled) {
@@ -385,12 +402,11 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-                && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+            if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                            + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                             + "] or higher to support creating cross cluster API keys"
                     )
                 );
@@ -406,23 +422,10 @@ public class ApiKeyService implements Closeable {
                 return;
             }
 
-            Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
-                userRoleDescriptors,
-                transportVersion,
-                request.getId()
-            );
+            Set<RoleDescriptor> filteredRoleDescriptors = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
 
             createApiKeyAndIndexIt(authentication, request, filteredRoleDescriptors, listener);
         }
-    }
-
-    private Set<RoleDescriptor> filterRoleDescriptorsForMixedCluster(
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final TransportVersion transportVersion,
-        final String... apiKeyIds
-    ) {
-        final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
-        return maybeRemoveRemotePrivileges(userRolesWithoutDescription, transportVersion, apiKeyIds);
     }
 
     private boolean validateRoleDescriptorsForMixedCluster(
@@ -430,12 +433,12 @@ public class ApiKeyService implements Closeable {
         final List<RoleDescriptor> roleDescriptors,
         final TransportVersion transportVersion
     ) {
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(roleDescriptors)) {
+        if (transportVersion.before(Authentication.VERSION_CROSS_CLUSTER_ACCESS) && hasRemoteIndices(roleDescriptors)) {
             // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -523,13 +526,6 @@ public class ApiKeyService implements Closeable {
         final long numberOfRoleDescriptorsWithRestriction = getNumberOfRoleDescriptorsWithRestriction(requestRoleDescriptors);
         if (numberOfRoleDescriptorsWithRestriction > 0L) {
             // creating/updating API keys with restrictions is not allowed in a mixed cluster.
-            if (transportVersion.before(WORKFLOWS_RESTRICTION_VERSION)) {
-                return new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
-                        + "] or higher to support restrictions for API keys"
-                );
-            }
             // It's only allowed to create/update API keys with a single role descriptor that is restricted.
             if (numberOfRoleDescriptorsWithRestriction != 1L) {
                 return new IllegalArgumentException("more than one role descriptor with restriction is not supported");
@@ -702,11 +698,7 @@ public class ApiKeyService implements Closeable {
             logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
         }
 
-        Set<RoleDescriptor> filteredRoleDescriptors = filterRoleDescriptorsForMixedCluster(
-            userRoleDescriptors,
-            transportVersion,
-            apiKeyIds
-        );
+        Set<RoleDescriptor> filteredRoleDescriptors = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
 
         findVersionedApiKeyDocsForSubject(
             authentication,
@@ -810,81 +802,6 @@ public class ApiKeyService implements Closeable {
                 "cannot update API key of type [" + apiKeyDoc.type.value() + "] while expected type is [" + expectedType.value() + "]"
             );
         }
-    }
-
-    /**
-     * This method removes remote indices and cluster privileges from the given role descriptors
-     * when we are in a mixed cluster in which some of the nodes do not support remote indices/clusters.
-     * Storing these roles would cause parsing issues on old nodes
-     * (i.e. nodes running with transport version before
-     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY}).
-     */
-    static Set<RoleDescriptor> maybeRemoveRemotePrivileges(
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final TransportVersion transportVersion,
-        final String... apiKeyIds
-    ) {
-        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            || transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
-            final Set<RoleDescriptor> affectedRoles = new HashSet<>();
-            final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
-                if (roleDescriptor.hasRemoteIndicesPrivileges() || roleDescriptor.hasRemoteClusterPermissions()) {
-                    affectedRoles.add(roleDescriptor);
-                    return new RoleDescriptor(
-                        roleDescriptor.getName(),
-                        roleDescriptor.getClusterPrivileges(),
-                        roleDescriptor.getIndicesPrivileges(),
-                        roleDescriptor.getApplicationPrivileges(),
-                        roleDescriptor.getConditionalClusterPrivileges(),
-                        roleDescriptor.getRunAs(),
-                        roleDescriptor.getMetadata(),
-                        roleDescriptor.getTransientMetadata(),
-                        roleDescriptor.hasRemoteIndicesPrivileges()
-                            && transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-                                ? null
-                                : roleDescriptor.getRemoteIndicesPrivileges(),
-                        roleDescriptor.hasRemoteClusterPermissions() && transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)
-                            ? null
-                            : roleDescriptor.getRemoteClusterPermissions(),
-                        roleDescriptor.getRestriction(),
-                        roleDescriptor.getDescription()
-                    );
-                }
-                return roleDescriptor;
-            }).collect(Collectors.toSet());
-
-            if (false == affectedRoles.isEmpty()) {
-                List<String> affectedRolesNames = affectedRoles.stream().map(RoleDescriptor::getName).sorted().collect(Collectors.toList());
-                if (affectedRoles.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
-                    && transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
-                    logger.info(
-                        "removed remote indices privileges from role(s) {} for API key(s) [{}]",
-                        affectedRolesNames,
-                        buildDelimitedStringWithLimit(10, apiKeyIds)
-                    );
-                    HeaderWarning.addWarning(
-                        "Removed API key's remote indices privileges from role(s) "
-                            + affectedRolesNames
-                            + ". Remote indices are not supported by all nodes in the cluster. "
-                    );
-                }
-                if (affectedRoles.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions)
-                    && transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
-                    logger.info(
-                        "removed remote cluster privileges from role(s) {} for API key(s) [{}]",
-                        affectedRolesNames,
-                        buildDelimitedStringWithLimit(10, apiKeyIds)
-                    );
-                    HeaderWarning.addWarning(
-                        "Removed API key's remote cluster privileges from role(s) "
-                            + affectedRolesNames
-                            + ". Remote cluster privileges are not supported by all nodes in the cluster."
-                    );
-                }
-            }
-            return result;
-        }
-        return userRoleDescriptors;
     }
 
     /**
@@ -1396,7 +1313,7 @@ public class ApiKeyService implements Closeable {
                         if (result.success) {
                             if (result.verify(credentials.getKey())) {
                                 // move on
-                                validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                                completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                             } else {
                                 listener.onResponse(
                                     AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1416,7 +1333,7 @@ public class ApiKeyService implements Closeable {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                         if (verified) {
                             // move on
-                            validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                            completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                         } else {
                             listener.onResponse(
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1439,7 +1356,7 @@ public class ApiKeyService implements Closeable {
                 verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
                     if (verified) {
                         // move on
-                        validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
+                        completeApiKeyAuthentication(apiKeyDoc, credentials, clock, listener);
                     } else {
                         listener.onResponse(
                             AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1471,7 +1388,7 @@ public class ApiKeyService implements Closeable {
     }
 
     // package-private for testing
-    static void validateApiKeyTypeAndExpiration(
+    void completeApiKeyAuthentication(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
@@ -1489,6 +1406,34 @@ public class ApiKeyService implements Closeable {
                 )
             );
             return;
+        }
+
+        if (apiKeyDoc.certificateIdentity != null) {
+            if (credentials.getCertificateIdentity() == null) {
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        Strings.format(
+                            "API key (type:[%s], id:[%s]) requires certificate identity matching [%s], but no certificate was provided",
+                            apiKeyDoc.type.value(),
+                            credentials.getId(),
+                            apiKeyDoc.certificateIdentity
+                        )
+                    )
+                );
+                return;
+            }
+            if (validateCertificateIdentity(credentials.getCertificateIdentity(), apiKeyDoc.certificateIdentity) == false) {
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        Strings.format(
+                            "DN from provided certificate [%s] does not match API Key certificate identity pattern [%s]",
+                            credentials.getCertificateIdentity(),
+                            apiKeyDoc.certificateIdentity
+                        )
+                    )
+                );
+                return;
+            }
         }
 
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
@@ -1515,22 +1460,49 @@ public class ApiKeyService implements Closeable {
         }
     }
 
+    private boolean validateCertificateIdentity(String certificateIdentity, String certificateIdentityPattern) {
+        logger.trace("Validating certificate identity [{}] against [{}]", certificateIdentity, certificateIdentityPattern);
+        return getCertificateIdentityPattern(certificateIdentityPattern).matcher(certificateIdentity).matches();
+    }
+
+    // Visible for testing
+    Pattern getCertificateIdentityPattern(String certificateIdentityPattern) {
+        if (certificateIdentityPatternCache != null) {
+            try {
+                return certificateIdentityPatternCache.computeIfAbsent(certificateIdentityPattern, Pattern::compile);
+            } catch (ExecutionException e) {
+                logger.error(
+                    Strings.format(
+                        "Failed to validate certificate identity against pattern [%s] using cache. Falling back to regular matching",
+                        certificateIdentityPattern
+                    ),
+                    e
+                );
+            }
+        }
+        return Pattern.compile(certificateIdentityPattern);
+    }
+
     ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {
         if (false == isEnabled()) {
             return null;
         }
-        return parseApiKey(apiKeyString, ApiKey.Type.REST);
+        return parseApiKey(apiKeyString, null, ApiKey.Type.REST);
     }
 
-    static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {
-        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), expectedType);
+    static ApiKeyCredentials getCredentialsFromHeader(final String header, @Nullable String certificateIdentity, ApiKey.Type expectedType) {
+        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), certificateIdentity, expectedType);
     }
 
     public static String withApiKeyPrefix(final String encodedApiKey) {
         return "ApiKey " + encodedApiKey;
     }
 
-    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString, ApiKey.Type expectedType) {
+    private static ApiKeyCredentials parseApiKey(
+        SecureString apiKeyString,
+        @Nullable String certificateIdentity,
+        ApiKey.Type expectedType
+    ) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
@@ -1554,7 +1526,8 @@ public class ApiKeyService implements Closeable {
                 return new ApiKeyCredentials(
                     new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
                     new SecureString(Arrays.copyOfRange(apiKeyCredChars, secretStartPos, apiKeyCredChars.length)),
-                    expectedType
+                    expectedType,
+                    certificateIdentity
                 );
             } finally {
                 if (apiKeyCredChars != null) {
@@ -1671,11 +1644,17 @@ public class ApiKeyService implements Closeable {
         private final String id;
         private final SecureString key;
         private final ApiKey.Type expectedType;
+        private final String certificateIdentity;
 
         public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType) {
+            this(id, key, expectedType, null);
+        }
+
+        public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType, @Nullable String certificateIdentity) {
             this.id = id;
             this.key = key;
             this.expectedType = expectedType;
+            this.certificateIdentity = certificateIdentity;
         }
 
         String getId() {
@@ -1708,6 +1687,15 @@ public class ApiKeyService implements Closeable {
 
         public ApiKey.Type getExpectedType() {
             return expectedType;
+        }
+
+        /**
+         * The identity (Subject DistinguishedName) of the X.509 certificate that was provided by the client
+         * alongside the API during authenticate.
+         * <em>At the time of writing, the only place where this is used is for cross cluster request signing</em>
+         */
+        public String getCertificateIdentity() {
+            return certificateIdentity;
         }
     }
 

@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import javax.security.auth.x500.X500Principal;
+
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 
 public final class CrossClusterAccessHeaders {
@@ -85,7 +87,17 @@ public final class CrossClusterAccessHeaders {
     }
 
     public ApiKeyService.ApiKeyCredentials credentials() {
-        return parseCredentialsHeader(credentialsHeader);
+        return parseCredentialsHeader(credentialsHeader, getCertificateIdentity(signature));
+    }
+
+    public static String getCertificateIdentity(X509CertificateSignature signature) {
+        if (signature != null) {
+            if (signature.certificates().length == 0) {
+                throw new IllegalArgumentException("Provided signature does not contain any certificates");
+            }
+            return signature.leafCertificate().getSubjectX500Principal().getName(X500Principal.RFC2253);
+        }
+        return null;
     }
 
     public X509CertificateSignature signature() {
@@ -96,9 +108,15 @@ public final class CrossClusterAccessHeaders {
         return signablePayload;
     }
 
-    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header) {
+    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(String credentialsHeader) {
+        return parseCredentialsHeader(credentialsHeader, null);
+    }
+
+    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header, @Nullable String expectedCertificateIdentity) {
         try {
-            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header, ApiKey.Type.CROSS_CLUSTER));
+            return Objects.requireNonNull(
+                ApiKeyService.getCredentialsFromHeader(header, expectedCertificateIdentity, ApiKey.Type.CROSS_CLUSTER)
+            );
         } catch (Exception ex) {
             throw new IllegalArgumentException(
                 "cross cluster access header ["

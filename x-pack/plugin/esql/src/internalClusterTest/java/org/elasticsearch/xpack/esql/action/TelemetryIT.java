@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -190,6 +191,18 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
                         : Collections.emptyMap(),
                     EsqlCapabilities.Cap.INLINE_STATS.isEnabled()
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx, (FROM idx | WHERE host =="127.0.0.1")
+                        | WHERE id > 10
+                        """,
+                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
+                        ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2)
+                        : Collections.emptyMap(),
+                    Collections.emptyMap(),
+                    EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
                 ) }
         );
     }
@@ -297,10 +310,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     private static EsqlQueryRequest executeQuery(String query) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
-        request.pragmas(randomPragmas());
-        return request;
+        return syncEsqlQueryRequest(query).pragmas(randomPragmas());
     }
 
     private static void loadData(String nodeName) {

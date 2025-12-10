@@ -31,7 +31,7 @@ import java.util.stream.Stream;
 /**
  * Static class used to convert aggregate expressions to the named expressions that represent their intermediate state.
  */
-final class AggregateMapper {
+public final class AggregateMapper {
 
     public static List<NamedExpression> mapNonGrouping(List<? extends NamedExpression> aggregates) {
         return doMapping(aggregates, false);
@@ -111,7 +111,9 @@ final class AggregateMapper {
             case INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case DOUBLE -> DataType.DOUBLE;
-            case FLOAT, NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+            case DOC -> DataType.DOC_DATA_TYPE;
+            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM;
+            case FLOAT, NULL, COMPOSITE, AGGREGATE_METRIC_DOUBLE, TDIGEST, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );
         };

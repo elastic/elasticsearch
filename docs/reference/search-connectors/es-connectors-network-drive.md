@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic network drive connector* is a [connector](/reference/search-connectors/index.md) for network drive data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/network_drive.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/network_drive) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
@@ -105,9 +105,9 @@ You can deploy the Network drive connector as a self-managed connector using Doc
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -247,7 +247,7 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-recursively-wit
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder$$$
 **Indexing files and folders directly inside folder**
@@ -259,7 +259,7 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders$$$
 **Indexing files and folders directly inside a set of folders**
@@ -271,7 +271,7 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern$$$
 **Excluding files and folders that match a pattern**
@@ -283,7 +283,7 @@ $$$es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-p
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 
 ### Content extraction [es-connectors-network-drive-client-content-extraction]

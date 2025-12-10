@@ -112,10 +112,10 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(
-        Integer numAllocations,
+        @Nullable Integer numAllocations,
         int numThreads,
         String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         @Nullable String deploymentId
     ) {
         this.numAllocations = numAllocations;
@@ -233,6 +233,10 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     public ElasticsearchInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         var mutableServiceSettings = new HashMap<>(serviceSettings);
+
+        if (serviceSettings.containsKey(NUM_THREADS)) {
+            validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
+        }
 
         var numAllocations = extractOptionalPositiveInteger(
             mutableServiceSettings,

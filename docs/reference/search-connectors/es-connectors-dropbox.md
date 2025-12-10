@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic Dropbox connector* is a [connector](/reference/search-connectors/index.md) for [Dropbox](https://www.dropbox.com). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/dropbox.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/dropbox) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
@@ -51,7 +51,7 @@ PUT _connector/my-dropbox-connector
   "service_type": "dropbox"
 }
 ```
-%  TEST[skip:can’t test in isolation]
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -145,6 +145,7 @@ To generate a refresh token, follow these steps:
     ```shell
     curl -X POST "https://api.dropboxapi.com/oauth2/token?code=<AUTHORIZATION_CODE>&grant_type=authorization_code" -u "<APP_KEY>:<APP_SECRET>"
     ```
+    % NOTCONSOLE
 
     Store the refresh token from the response to be used in the connector configuration.
 
@@ -213,9 +214,9 @@ You can deploy the Dropbox connector as a self-managed connector using Docker. F
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -242,6 +243,7 @@ connectors:
     service_type: dropbox
     api_key: <CONNECTOR_API_KEY_FROM_KIBANA> # Optional. If not provided, the connector will use the elasticsearch.api_key instead
 ```
+% NOTCONSOLE
 
 Using the `elasticsearch.api_key` is the recommended authentication method. However, you can also use `elasticsearch.username` and `elasticsearch.password` to authenticate with your Elasticsearch instance.
 
@@ -263,7 +265,7 @@ docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
-
+% NOTCONSOLE
 ::::
 
 
@@ -340,7 +342,7 @@ $$$es-connectors-dropbox-client-sync-rules-advanced-example-1$$$
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-dropbox-client-sync-rules-advanced-example-2$$$
 **Example: Query with file extension filter**
@@ -358,7 +360,7 @@ $$$es-connectors-dropbox-client-sync-rules-advanced-example-2$$$
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-dropbox-client-sync-rules-advanced-example-3$$$
 **Example: Query with file category filter**
@@ -380,7 +382,7 @@ $$$es-connectors-dropbox-client-sync-rules-advanced-example-3$$$
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-dropbox-client-sync-rules-advanced-limitations$$$
 **Limitations**
@@ -403,7 +405,6 @@ For faster tests, add the `DATA_SIZE=small` flag:
 ```shell
 make ftest NAME=dropbox DATA_SIZE=small
 ```
-
 
 ### Known issues [es-connectors-dropbox-client-known-issues]
 

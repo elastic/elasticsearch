@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -89,9 +90,9 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 continue;
             }
             tsDataStreamCount++;
-            Integer dlmRounds = ds.getDataLifecycle() == null || ds.getDataLifecycle().downsampling() == null
+            Integer dlmRounds = ds.getDataLifecycle() == null || ds.getDataLifecycle().downsamplingRounds() == null
                 ? null
-                : ds.getDataLifecycle().downsampling().size();
+                : ds.getDataLifecycle().downsamplingRounds().size();
 
             for (Index backingIndex : ds.getIndices()) {
                 IndexMetadata indexMetadata = projectMetadata.index(backingIndex);
@@ -102,21 +103,25 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
                 if (ds.isIndexManagedByDataStreamLifecycle(indexMetadata.getIndex(), ignored -> indexMetadata) && dlmRounds != null) {
                     dlmStats.trackIndex(ds, indexMetadata);
                     dlmStats.trackRounds(dlmRounds, ds, indexMetadata);
+                    dlmStats.trackSamplingMethod(ds.getDataLifecycle().downsamplingMethod(), ds, indexMetadata);
                 } else if (ilmAvailable && projectMetadata.isIndexManagedByILM(indexMetadata)) {
                     LifecyclePolicyMetadata policyMetadata = ilmMetadata.getPolicyMetadatas().get(indexMetadata.getLifecyclePolicyName());
                     if (policyMetadata == null) {
                         continue;
                     }
                     int rounds = 0;
+                    DownsampleConfig.SamplingMethod samplingMethod = null;
                     for (Phase phase : policyMetadata.getPolicy().getPhases().values()) {
                         if (phase.getActions().containsKey(DownsampleAction.NAME)) {
                             rounds++;
+                            samplingMethod = ((DownsampleAction) phase.getActions().get(DownsampleAction.NAME)).samplingMethod();
                         }
                     }
                     if (rounds > 0) {
                         ilmStats.trackPolicy(policyMetadata.getPolicy());
                         ilmStats.trackIndex(ds, indexMetadata);
                         ilmStats.trackRounds(rounds, ds, indexMetadata);
+                        ilmStats.trackSamplingMethod(samplingMethod, ds, indexMetadata);
                     }
                 }
                 String interval = indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey());
@@ -143,6 +148,9 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
     private static class DownsamplingStatsTracker {
         private long downsampledDataStreams = 0;
         private long downsampledIndices = 0;
+        private long aggregateSamplingMethod = 0;
+        private long lastValueSamplingMethod = 0;
+        private long undefinedSamplingMethod = 0;
         private final LongSummaryStatistics rounds = new LongSummaryStatistics();
 
         void trackIndex(DataStream ds, IndexMetadata indexMetadata) {
@@ -160,13 +168,31 @@ public class TimeSeriesUsageTransportAction extends XPackUsageFeatureTransportAc
             }
         }
 
+        void trackSamplingMethod(DownsampleConfig.SamplingMethod samplingMethod, DataStream ds, IndexMetadata indexMetadata) {
+            // We want to track the sampling method per data stream,
+            // so we use the write index to determine the active lifecycle configuration
+            if (Objects.equals(indexMetadata.getIndex(), ds.getWriteIndex())) {
+                if (samplingMethod == null) {
+                    undefinedSamplingMethod++;
+                    return;
+                }
+                switch (samplingMethod) {
+                    case DownsampleConfig.SamplingMethod.AGGREGATE -> aggregateSamplingMethod++;
+                    case DownsampleConfig.SamplingMethod.LAST_VALUE -> lastValueSamplingMethod++;
+                }
+            }
+        }
+
         TimeSeriesFeatureSetUsage.DownsamplingFeatureStats getDownsamplingStats() {
             return new TimeSeriesFeatureSetUsage.DownsamplingFeatureStats(
                 downsampledDataStreams,
                 downsampledIndices,
                 rounds.getMin(),
                 rounds.getAverage(),
-                rounds.getMax()
+                rounds.getMax(),
+                aggregateSamplingMethod,
+                lastValueSamplingMethod,
+                undefinedSamplingMethod
             );
         }
     }

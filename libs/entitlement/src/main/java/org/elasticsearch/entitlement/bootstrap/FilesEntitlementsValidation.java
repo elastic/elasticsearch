@@ -45,7 +45,7 @@ class FilesEntitlementsValidation {
                     .map(x -> ((FilesEntitlement) x))
                     .findFirst();
                 if (filesEntitlement.isPresent()) {
-                    var fileAccessTree = FileAccessTree.withoutExclusivePaths(filesEntitlement.get(), pathLookup, List.of());
+                    var fileAccessTree = FileAccessTree.withoutExclusivePaths(filesEntitlement.get(), pathLookup, List.of(), List.of());
                     validateReadFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, readAccessForbidden);
                     validateWriteFilesEntitlements(pluginPolicy.getKey(), scope.moduleName(), fileAccessTree, writeAccessForbidden);
                 }

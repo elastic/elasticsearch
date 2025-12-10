@@ -83,7 +83,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_fns]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       indices.downsample:
@@ -98,12 +98,9 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            FROM test-downsample
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | DROP a
-            | STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx)
-            | LIMIT 100
+          query: "FROM test-downsample |
+          STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx)
+          | LIMIT 100"
 
   - length: {values: 1}
   - length: {values.0: 4}
@@ -128,7 +125,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       indices.downsample:
@@ -143,13 +140,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            FROM test-downsample
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | DROP a
-            | WHERE @timestamp == "2021-04-28T19:00:00.000Z"
-            | KEEP k8s.pod.network.rx
-            | LIMIT 100
+          query: "FROM test-downsample | WHERE @timestamp == \"2021-04-28T19:00:00.000Z\" | KEEP k8s.pod.network.rx | LIMIT 100"
   - length: {values: 1}
   - length: {values.0: 1}
   - match: {columns.0.name: "k8s.pod.network.rx"}
@@ -164,7 +155,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for to_aggregate_metric_double function"
 
   - do:
@@ -240,12 +231,11 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            FROM test-*
-            | WHERE k8s.pod.uid == "947e4ced-1786-4e53-9e0c-5c447e959507"
-            | EVAL rx = to_aggregate_metric_double(k8s.pod.network.rx)
-            | STATS max(rx), min(rx), sum(rx), count(rx)
-            | LIMIT 100
+          query: "FROM test-* |
+          WHERE k8s.pod.uid == \"947e4ced-1786-4e53-9e0c-5c447e959507\" |
+          EVAL rx = to_aggregate_metric_double(k8s.pod.network.rx) |
+          STATS max(rx), min(rx), sum(rx), count(rx) |
+          LIMIT 100"
 
   - length: {values: 1}
   - length: {values.0: 4}
@@ -270,7 +260,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
@@ -346,12 +336,10 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            FROM test-*
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | WHERE k8s.pod.uid == "947e4ced-1786-4e53-9e0c-5c447e959507"
-            | STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx), avg(k8s.pod.network.rx)
-            | LIMIT 100
+          query: "FROM test-* |
+          WHERE k8s.pod.uid == \"947e4ced-1786-4e53-9e0c-5c447e959507\" |
+          STATS max(k8s.pod.network.rx), min(k8s.pod.network.rx), sum(k8s.pod.network.rx), count(k8s.pod.network.rx), avg(k8s.pod.network.rx) |
+          LIMIT 100"
 
   - length: {values: 1}
   - length: {values.0: 5}
@@ -374,12 +362,12 @@ setup:
   - do:
       esql.query:
         body:
-          query: "FROM test-* | STATS max = max(k8s.pod.network.rx)  | LIMIT 100"
+          query: "TS test-* | STATS max = max(k8s.pod.network.rx)  | LIMIT 100"
   - length: {values: 1}
   - length: {values.0: 1}
   - match: {columns.0.name: "max"}
   - match: {columns.0.type: "double"}
-  - match: {values.0.0: 803685.0}
+  - match: {values.0.0: 800479.0}
 
 ---
 "Over time functions from downsampled and non-downsampled indices simultaneously, no grouping":
@@ -389,7 +377,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ts_command_v0, aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
@@ -469,14 +457,12 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            TS test-*
-            | STATS avg = sum(avg_over_time(k8s.pod.network.rx)),
-                    count = sum(count_over_time(k8s.pod.network.rx)),
-                    sum = sum(sum_over_time(k8s.pod.network.rx))
-                 BY time_bucket = bucket(@timestamp, 1 hour)
-            | SORT time_bucket
-            | LIMIT 10
+          query: "TS test-* |
+          STATS avg = sum(avg_over_time(k8s.pod.network.rx)),
+                count = sum(count_over_time(k8s.pod.network.rx)),
+                sum = sum(sum_over_time(k8s.pod.network.rx))
+                BY time_bucket = bucket(@timestamp, 1 hour) |
+          SORT time_bucket | LIMIT 10"
 
   - length: {values: 4}
   - length: {values.0: 4}
@@ -513,7 +499,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ts_command_v0, aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
@@ -593,14 +579,13 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            TS test-*
-            | STATS avg = sum(avg_over_time(k8s.pod.network.rx)),
-                    count = sum(count_over_time(k8s.pod.network.rx)),
-                    sum = sum(sum_over_time(k8s.pod.network.rx))
-                 BY k8s.pod.name, time_bucket = bucket(@timestamp, 1 hour)
-            | SORT time_bucket, k8s.pod.name
-            |LIMIT 10
+          query: "TS test-* |
+          STATS avg = sum(avg_over_time(k8s.pod.network.rx)),
+                count = sum(count_over_time(k8s.pod.network.rx)),
+                sum = sum(sum_over_time(k8s.pod.network.rx))
+          BY k8s.pod.name, time_bucket = bucket(@timestamp, 1 hour) |
+          SORT time_bucket, k8s.pod.name |
+          LIMIT 10"
 
   - length: {values: 6}
   - length: {values.0: 5}
@@ -686,13 +671,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            FROM test-*
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | DROP a
-            | SORT some_field, @timestamp, k8s.pod.uid
-            | KEEP k8s.pod.network.rx, some_field, @timestamp
-            | LIMIT 10
+          query: "FROM test-* | SORT some_field, @timestamp, k8s.pod.uid | KEEP k8s.pod.network.rx, some_field, @timestamp | LIMIT 10"
 
   - length: {values: 5}
   - length: {values.0: 3}
@@ -726,7 +705,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Have MV_EXPAND not error out when applied to aggregate_metric_doubles (is a no-op)"
 
   - do:
@@ -742,14 +721,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: |
-            FROM test-downsample
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | DROP a
-            | MV_EXPAND k8s.pod.network.rx
-            | SORT @timestamp, k8s.pod.uid
-            | KEEP k8s.pod.network.rx, @timestamp
-            | LIMIT 10
+          query: "FROM test-downsample | MV_EXPAND k8s.pod.network.rx | SORT @timestamp, k8s.pod.uid | KEEP k8s.pod.network.rx, @timestamp | LIMIT 10"
 
   - length: {values: 4}
   - length: {values.0: 2}

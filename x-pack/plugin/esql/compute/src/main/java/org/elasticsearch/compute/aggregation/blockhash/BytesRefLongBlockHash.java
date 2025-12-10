@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.IntLongBlockAdd;
 import org.elasticsearch.core.ReleasableIterator;
@@ -30,13 +32,14 @@ import org.elasticsearch.core.Releasables;
 /**
  * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
  */
-final class BytesRefLongBlockHash extends BlockHash {
+public final class BytesRefLongBlockHash extends BlockHash {
     private final int bytesChannel;
     private final int longsChannel;
     private final boolean reverseOutput;
     private final int emitBatchSize;
     private final BytesRefBlockHash bytesHash;
     private final LongLongHash finalHash;
+    private long minLongKey = Long.MAX_VALUE;
 
     BytesRefLongBlockHash(BlockFactory blockFactory, int bytesChannel, int longsChannel, boolean reverseOutput, int emitBatchSize) {
         super(blockFactory);
@@ -102,7 +105,7 @@ final class BytesRefLongBlockHash extends BlockHash {
         final int[] ords = new int[positions];
         int lastByte = bytesHashes.getInt(0);
         long lastLong = longsVector.getLong(0);
-        ords[0] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, lastLong)));
+        ords[0] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, lastLong)));
         boolean constant = true;
         if (bytesHashes.isConstant()) {
             for (int i = 1; i < positions; i++) {
@@ -110,7 +113,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 if (nextLong == lastLong) {
                     ords[i] = ords[i - 1];
                 } else {
-                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, nextLong)));
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(lastByte, nextLong)));
                     lastLong = nextLong;
                     constant = false;
                 }
@@ -122,7 +125,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 if (nextByte == lastByte && nextLong == lastLong) {
                     ords[i] = ords[i - 1];
                 } else {
-                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(nextByte, nextLong)));
+                    ords[i] = Math.toIntExact(hashOrdToGroup(addGroup(nextByte, nextLong)));
                     lastByte = nextByte;
                     lastLong = nextLong;
                     constant = false;
@@ -143,28 +146,59 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys() {
-        int positions = (int) finalHash.size();
         BytesRefBlock k1 = null;
         LongVector k2 = null;
-        try (
-            BytesRefBlock.Builder keys1 = blockFactory.newBytesRefBlockBuilder(positions);
-            LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
-        ) {
-            BytesRef scratch = new BytesRef();
-            for (long i = 0; i < positions; i++) {
-                keys2.appendLong(finalHash.getKey2(i));
-                long h1 = finalHash.getKey1(i);
-                if (h1 == 0) {
-                    keys1.appendNull();
-                } else {
-                    keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch));
+        int positions = (int) finalHash.size();
+        if (OrdinalBytesRefBlock.isDense(positions, bytesHash.hash.size())) {
+            try (var ordinals = blockFactory.newIntBlockBuilder(positions); var longs = blockFactory.newLongVectorBuilder(positions)) {
+                for (long p = 0; p < positions; p++) {
+                    long h1 = finalHash.getKey1(p);
+                    if (h1 == 0) {
+                        ordinals.appendNull();
+                    } else {
+                        ordinals.appendInt(Math.toIntExact(h1 - 1));
+                    }
+                    longs.appendLong(finalHash.getKey2(p));
+                }
+                // TODO: make takeOwnershipOf work?
+                BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
+                BytesRefVector dict = null;
+
+                try {
+                    dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                    bytes = null; // transfer ownership to dict
+                    k1 = new OrdinalBytesRefBlock(ordinals.build(), dict);
+                    dict = null;  // transfer ownership to k1
+                } finally {
+                    Releasables.closeExpectNoException(bytes, dict);
+                }
+                k2 = longs.build();
+            } finally {
+                if (k2 == null) {
+                    Releasables.closeExpectNoException(k1);
                 }
             }
-            k1 = keys1.build();
-            k2 = keys2.build();
-        } finally {
-            if (k2 == null) {
-                Releasables.closeExpectNoException(k1);
+        } else {
+            try (
+                BytesRefBlock.Builder keys1 = blockFactory.newBytesRefBlockBuilder(positions);
+                LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
+            ) {
+                BytesRef scratch = new BytesRef();
+                for (long i = 0; i < positions; i++) {
+                    long h1 = finalHash.getKey1(i);
+                    if (h1 == 0) {
+                        keys1.appendNull();
+                    } else {
+                        keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch));
+                    }
+                    keys2.appendLong(finalHash.getKey2(i));
+                }
+                k1 = keys1.build();
+                k2 = keys2.build();
+            } finally {
+                if (k2 == null) {
+                    Releasables.closeExpectNoException(k1);
+                }
             }
         }
         if (reverseOutput) {
@@ -172,6 +206,31 @@ final class BytesRefLongBlockHash extends BlockHash {
         } else {
             return new Block[] { k1, k2.asBlock() };
         }
+    }
+
+    public long getBytesRefKeyFromGroup(long groupId) {
+        return finalHash.getKey1(groupId);
+    }
+
+    public long getLongKeyFromGroup(long groupId) {
+        return finalHash.getKey2(groupId);
+    }
+
+    public long getGroupId(long bytesKey, long longKey) {
+        return finalHash.find(bytesKey, longKey);
+    }
+
+    public long addGroup(long bytesKey, long longKey) {
+        minLongKey = Math.min(minLongKey, longKey);
+        return finalHash.add(bytesKey, longKey);
+    }
+
+    public long numGroups() {
+        return finalHash.size();
+    }
+
+    public long getMinLongKey() {
+        return minLongKey;
     }
 
     @Override

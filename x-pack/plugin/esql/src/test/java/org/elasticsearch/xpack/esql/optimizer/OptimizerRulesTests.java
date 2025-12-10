@@ -28,11 +28,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsInAnyOrderIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.of;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class OptimizerRulesTests extends ESTestCase {
 
@@ -128,8 +129,8 @@ public class OptimizerRulesTests extends ESTestCase {
         };
 
         rule.apply(
-            new EsqlParser().createStatement("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
-            new LogicalOptimizerContext(null, FoldContext.small())
+            EsqlParser.INSTANCE.parseQuery("FROM index | EVAL x=f1+1 | KEEP x, f2 | LIMIT 1"),
+            new LogicalOptimizerContext(null, FoldContext.small(), randomMinimumVersion())
         );
 
         var literal = new Literal(new Source(1, 25, "1"), 1, DataType.INTEGER);
@@ -138,6 +139,6 @@ public class OptimizerRulesTests extends ESTestCase {
         var alias = new Alias(new Source(1, 18, "x=f1+1"), "x", add);
 
         // contains expressions only from EVAL
-        assertThat(rule.appliedTo, containsInAnyOrder(alias, add, attribute, literal));
+        assertThat(rule.appliedTo, containsInAnyOrderIgnoringIds(alias, add, attribute, literal));
     }
 }

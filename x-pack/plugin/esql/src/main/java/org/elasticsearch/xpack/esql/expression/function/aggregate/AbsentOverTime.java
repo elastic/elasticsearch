@@ -23,8 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
-
-import static java.util.Collections.emptyList;
+import java.util.Objects;
 
 /**
  * Similar to {@link Absent}, but it is used to check the absence of values over a time series in the given field.
@@ -67,14 +66,21 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
-        ) Expression field
+                "version",
+                "exponential_histogram" }
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the absent over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public AbsentOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public AbsentOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, List.of());
     }
 
     private AbsentOverTime(StreamInput in) throws IOException {
@@ -88,17 +94,17 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public AbsentOverTime withFilter(Expression filter) {
-        return new AbsentOverTime(source(), field(), filter);
+        return new AbsentOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<AbsentOverTime> info() {
-        return NodeInfo.create(this, AbsentOverTime::new, field(), filter());
+        return NodeInfo.create(this, AbsentOverTime::new, field(), filter(), window());
     }
 
     @Override
     public AbsentOverTime replaceChildren(List<Expression> newChildren) {
-        return new AbsentOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new AbsentOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -113,6 +119,6 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public Absent perTimeSeriesAggregation() {
-        return new Absent(source(), field(), filter());
+        return new Absent(source(), field(), filter(), window());
     }
 }

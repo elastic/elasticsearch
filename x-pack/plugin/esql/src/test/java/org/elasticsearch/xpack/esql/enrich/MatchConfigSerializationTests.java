@@ -52,7 +52,7 @@ public class MatchConfigSerializationTests extends AbstractWireSerializingTestCa
         // Implement logic to create a random MatchConfig instance
         String name = randomAlphaOfLengthBetween(1, 100);
         int channel = randomInt();
-        DataType type = randomFrom(DataType.types());
+        DataType type = randomValueOtherThanMany(t -> false == t.supportedVersion().supportedLocally(), () -> randomFrom(DataType.types()));
         return new MatchConfig(name, channel, type);
     }
 

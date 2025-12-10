@@ -243,13 +243,8 @@ public class AggregationOperator implements Operator {
             aggregationNanos = in.readVLong();
             aggregationFinishNanos = in.readOptionalVLong();
             pagesProcessed = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
-            }
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
         }
 
         @Override
@@ -257,10 +252,8 @@ public class AggregationOperator implements Operator {
             out.writeVLong(aggregationNanos);
             out.writeOptionalVLong(aggregationFinishNanos);
             out.writeVInt(pagesProcessed);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override

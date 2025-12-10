@@ -181,7 +181,17 @@ public final class EvalMapper {
                     Releasables.closeExpectNoException(leftEval, rightEval);
                 }
             }
-            return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
+            return new ExpressionEvaluator.Factory() {
+                @Override
+                public ExpressionEvaluator get(DriverContext driverContext) {
+                    return new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
+                }
+
+                @Override
+                public String toString() {
+                    return "BooleanLogicExpressionEvaluator[" + "bl=" + bc + ", leftEval=" + leftEval + ", rightEval=" + rightEval + ']';
+                }
+            };
         }
     }
 

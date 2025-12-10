@@ -1,5 +1,0 @@
-pr: 131056
-summary: Add existing shards allocator settings to failure store allowed list
-area: Data streams
-type: bug
-issues: []

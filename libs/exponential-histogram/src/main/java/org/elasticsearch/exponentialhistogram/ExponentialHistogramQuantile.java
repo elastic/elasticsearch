@@ -25,6 +25,8 @@ import java.util.OptionalLong;
 
 /**
  * Provides quantile estimation for {@link ExponentialHistogram} instances.
+ * All algorithms assume that the values of each histogram bucket have exactly the same value,
+ * which is defined by {@link ExponentialScaleUtils#getPointOfLeastRelativeError(long, int)}.
  */
 public class ExponentialHistogramQuantile {
 
@@ -84,6 +86,12 @@ public class ExponentialHistogramQuantile {
      * @return the number of elements less than (or less-or-equal, if {@code inclusive} is true) the given value
      */
     public static long estimateRank(ExponentialHistogram histo, double value, boolean inclusive) {
+        if (Double.isNaN(histo.min()) || value < histo.min()) {
+            return 0;
+        }
+        if (value > histo.max()) {
+            return histo.valueCount();
+        }
         if (value >= 0) {
             long rank = histo.negativeBuckets().valueCount();
             if (value > 0 || inclusive) {

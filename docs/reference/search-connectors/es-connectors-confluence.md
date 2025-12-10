@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic Confluence connector* is a [connector](/reference/search-connectors/index.md) for [Atlassian Confluence](https://www.atlassian.com/software/confluence). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/confluence.py) (branch *main*, compatible with Elastic *9.0*).
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/atlassian/confluence) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
@@ -55,7 +55,7 @@ PUT _connector/my-confluence-connector
   "service_type": "confluence"
 }
 ```
-%  TEST[skip:can’t test in isolation]
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -203,9 +203,9 @@ You can deploy the Confluence connector as a self-managed connector using Docker
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -310,7 +310,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 **Example 2**: Queries for indexing data based on `created` and `lastmodified` time.
 
@@ -324,7 +324,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 **Example 3**: Query for indexing only given types in a **Space** with key *SD*.
 
@@ -335,7 +335,7 @@ This connector supports [advanced sync rules](/reference/search-connectors/es-sy
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ::::{note}
 Syncing recently created/updated items in Confluence may be delayed when using advanced sync rules, because the search endpoint used for CQL queries returns stale results in the response. For more details refer to the following issue in the [Confluence documentation](https://jira.atlassian.com/browse/CONFCLOUD-73997).

@@ -829,7 +829,7 @@ public class ShardStateAction {
         public void clusterStatePublished(ClusterState newClusterState) {
             rerouteService.reroute(
                 "reroute after starting shards",
-                Priority.NORMAL,
+                Priority.HIGH,
                 ActionListener.wrap(
                     r -> logger.trace("reroute after starting shards succeeded"),
                     e -> logger.debug("reroute after starting shards failed", e)

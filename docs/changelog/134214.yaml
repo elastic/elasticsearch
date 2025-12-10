@@ -1,6 +1,0 @@
-pr: 134214
-summary: "[Downsampling++] Add time series telemetry in xpack usage"
-area: Downsampling
-type: enhancement
-issues:
-  - 133953

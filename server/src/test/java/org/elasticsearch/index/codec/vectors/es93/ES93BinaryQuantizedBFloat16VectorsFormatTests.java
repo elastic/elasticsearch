@@ -9,89 +9,254 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.index.VectorEncoding;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.CheckJoinIndex;
+import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.junit.AssumptionViolatedException;
 
-import static org.hamcrest.Matchers.closeTo;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 
-public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends ES93BinaryQuantizedVectorsFormatTests {
+import static java.lang.String.format;
+import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.oneOf;
+
+public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
+    private KnnVectorsFormat format;
+
     @Override
-    boolean useBFloat16() {
-        return true;
+    public void setUp() throws Exception {
+        format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean());
+        super.setUp();
     }
 
     @Override
-    protected VectorEncoding randomVectorEncoding() {
-        return VectorEncoding.FLOAT32;
+    protected Codec getCodec() {
+        return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
     @Override
-    public void testEmptyByteVectorData() throws Exception {
-        // no bytes
+    protected VectorSimilarityFunction randomSimilarity() {
+        return RandomPicks.randomFrom(
+            random(),
+            List.of(
+                VectorSimilarityFunction.DOT_PRODUCT,
+                VectorSimilarityFunction.EUCLIDEAN,
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+            )
+        );
     }
 
-    @Override
-    public void testMergingWithDifferentByteKnnFields() throws Exception {
-        // no bytes
+    static String encodeInts(int[] i) {
+        return Arrays.toString(i);
     }
 
-    @Override
-    public void testByteVectorScorerIteration() throws Exception {
-        // no bytes
+    static BitSetProducer parentFilter(IndexReader r) throws IOException {
+        // Create a filter that defines "parent" documents in the index
+        BitSetProducer parentsFilter = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
+        CheckJoinIndex.check(r, parentsFilter);
+        return parentsFilter;
     }
 
-    @Override
-    public void testSortedIndexBytes() throws Exception {
-        // no bytes
+    Document makeParent(int[] children) {
+        Document parent = new Document();
+        parent.add(newStringField("docType", "_parent", Field.Store.NO));
+        parent.add(newStringField("id", encodeInts(children), Field.Store.YES));
+        return parent;
     }
 
-    @Override
-    public void testMismatchedFields() throws Exception {
-        // no bytes
-    }
+    public void testEmptyDiversifiedChildSearch() throws Exception {
+        String fieldName = "field";
+        int dims = random().nextInt(4, 65);
+        float[] vector = randomVector(dims);
+        VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
+        try (Directory d = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig().setCodec(getCodec());
+            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
+            try (IndexWriter w = new IndexWriter(d, iwc)) {
+                List<Document> toAdd = new ArrayList<>();
+                for (int j = 1; j <= 5; j++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField(fieldName, vector, similarityFunction));
+                    doc.add(newStringField("id", Integer.toString(j), Field.Store.YES));
+                    toAdd.add(doc);
+                }
+                toAdd.add(makeParent(new int[] { 1, 2, 3, 4, 5 }));
+                w.addDocuments(toAdd);
+                w.addDocuments(List.of(makeParent(new int[] { 6, 7, 8, 9, 10 })));
+                w.deleteDocuments(new FieldExistsQuery(fieldName), new TermQuery(new Term("id", encodeInts(new int[] { 1, 2, 3, 4, 5 }))));
+                w.flush();
+                w.commit();
+                w.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
+                    Query query = new DiversifyingChildrenFloatKnnVectorQuery(fieldName, vector, null, 1, parentFilter);
+                    assertThat(searcher.search(query, 1).scoreDocs, emptyArray());
+                }
+            }
 
-    @Override
-    public void testRandomBytes() throws Exception {
-        // no bytes
-    }
-
-    @Override
-    public void testWriterRamEstimate() throws Exception {
-        // estimate is different due to bfloat16
-    }
-
-    @Override
-    public void testRandom() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testRandom);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testSparseVectors() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testSparseVectors);
-        assertFloatsWithinBounds(err);
-    }
-
-    @Override
-    public void testVectorValuesReportCorrectDocs() throws Exception {
-        AssertionError err = expectThrows(AssertionError.class, super::testVectorValuesReportCorrectDocs);
-        assertFloatsWithinBounds(err);
-    }
-
-    private static final Pattern FLOAT_ASSERTION_FAILURE = Pattern.compile(".*expected:<([0-9.-]+)> but was:<([0-9.-]+)>");
-
-    private static void assertFloatsWithinBounds(AssertionError error) {
-        Matcher m = FLOAT_ASSERTION_FAILURE.matcher(error.getMessage());
-        if (m.matches() == false) {
-            throw error;    // nothing to do with us, just rethrow
         }
+    }
 
-        // numbers just need to be in the same vicinity
-        double expected = Double.parseDouble(m.group(1));
-        double actual = Double.parseDouble(m.group(2));
-        double allowedError = expected * 0.01;  // within 1%
-        assertThat(error.getMessage(), actual, closeTo(expected, allowedError));
+    public void testSearch() throws Exception {
+        String fieldName = "field";
+        int numVectors = random().nextInt(99, 500);
+        int dims = random().nextInt(4, 65);
+        float[] vector = randomVector(dims);
+        VectorSimilarityFunction similarityFunction = randomSimilarity();
+        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, vector, similarityFunction);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < numVectors; i++) {
+                    Document doc = new Document();
+                    knnField.setVectorValue(randomVector(dims));
+                    doc.add(knnField);
+                    w.addDocument(doc);
+                }
+                w.commit();
+
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    final int k = random().nextInt(5, 50);
+                    float[] queryVector = randomVector(dims);
+                    Query q = new KnnFloatVectorQuery(fieldName, queryVector, k);
+                    TopDocs collectedDocs = searcher.search(q, k);
+                    assertEquals(k, collectedDocs.totalHits.value());
+                    assertEquals(TotalHits.Relation.EQUAL_TO, collectedDocs.totalHits.relation());
+                }
+            }
+        }
+    }
+
+    public void testToString() {
+        String expected = "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s, scorer=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
+            "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}())"
+        );
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "ES93BFloat16FlatVectorsFormat(name=ES93BFloat16FlatVectorsFormat, flatVectorScorer={}())"
+        );
+
+        var defaultScorer = expected.replaceAll("\\{}", "DefaultFlatVectorScorer");
+        var memSegScorer = expected.replaceAll("\\{}", "Lucene99MemorySegmentFlatVectorsScorer");
+
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, false);
+        assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer)));
+    }
+
+    @Override
+    public void testRandomWithUpdatesAndGraph() {
+        throw new AssumptionViolatedException("Graph not supported");
+    }
+
+    @Override
+    public void testSearchWithVisitedLimit() {
+        throw new AssumptionViolatedException("visited limit not respected");
+    }
+
+    public void testSimpleOffHeapSize() throws IOException {
+        try (Directory dir = newDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeMMapDir() throws IOException {
+        try (Directory dir = newMMapDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (IndexWriter w = new IndexWriter(dir, config)) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                if (r instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    var fieldInfo = r.getFieldInfos().fieldInfo("f");
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+                    if (expectVecOffHeap) {
+                        assertThat(offHeap, aMapWithSize(2));
+                        assertThat(offHeap, hasEntry(equalTo("veb"), greaterThan(0L)));
+                        assertThat(offHeap, hasEntry("vec", (long) vector.length * BFloat16.BYTES));
+                    } else {
+                        assertThat(offHeap, aMapWithSize(1));
+                        assertThat(offHeap, hasEntry(equalTo("veb"), greaterThan(0L)));
+                    }
+                }
+            }
+        }
+    }
+
+    static Directory newMMapDirectory() throws IOException {
+        Directory dir = new MMapDirectory(createTempDir("ES93BinaryQuantizedBFloat16VectorsFormatTests"));
+        if (random().nextBoolean()) {
+            dir = new MockDirectoryWrapper(random(), dir);
+        }
+        return dir;
     }
 }

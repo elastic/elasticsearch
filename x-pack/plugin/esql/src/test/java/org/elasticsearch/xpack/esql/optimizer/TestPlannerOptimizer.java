@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -18,12 +20,12 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 
 public class TestPlannerOptimizer {
-    private final EsqlParser parser;
     private final Analyzer analyzer;
     private final LogicalPlanOptimizer logicalOptimizer;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
@@ -31,7 +33,11 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
-        this(config, analyzer, new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small())));
+        this(
+            config,
+            analyzer,
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()))
+        );
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
@@ -39,8 +45,7 @@ public class TestPlannerOptimizer {
         this.config = config;
         this.logicalOptimizer = logicalOptimizer;
 
-        parser = new EsqlParser();
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
         mapper = new Mapper();
 
     }
@@ -54,8 +59,12 @@ public class TestPlannerOptimizer {
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer) {
-        var physical = optimizedPlan(physicalPlan(query, analyzer), stats);
-        return physical;
+        return plan(query, stats, analyzer, null);
+    }
+
+    public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer, @Nullable QueryBuilder esFilter) {
+        PhysicalPlan plan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan(query, analyzer), esFilter);
+        return optimizedPlan(plan, stats);
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {
@@ -81,7 +90,7 @@ public class TestPlannerOptimizer {
             new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, esqlFlags, config, FoldContext.small(), searchStats),
             true
         );
-        var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
+        var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer, null);
 
         // handle local reduction alignment
         l = PhysicalPlanOptimizerTests.localRelationshipAlignment(l);
@@ -91,9 +100,8 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
-        PhysicalPlan physical = mapper.map(logical);
-        return physical;
+        return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
     }
 }

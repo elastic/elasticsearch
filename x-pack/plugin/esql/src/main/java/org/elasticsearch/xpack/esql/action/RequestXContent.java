@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -33,6 +34,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
@@ -76,6 +79,7 @@ final class RequestXContent {
     private static final ParseField FILTER_FIELD = new ParseField("filter");
     static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
+    static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
     private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
@@ -86,9 +90,10 @@ final class RequestXContent {
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
     static final ParseField KEEP_ON_COMPLETION = new ParseField("keep_on_completion");
+    static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
-    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(EsqlQueryRequest::syncEsqlQueryRequest);
-    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(EsqlQueryRequest::asyncEsqlQueryRequest);
+    private static final ObjectParser<EsqlQueryRequest, Void> SYNC_PARSER = objectParserSync(() -> syncEsqlQueryRequest(null));
+    private static final ObjectParser<EsqlQueryRequest, Void> ASYNC_PARSER = objectParserAsync(() -> asyncEsqlQueryRequest(null));
 
     /** Parses a synchronous request. */
     static EsqlQueryRequest parseSync(XContentParser parser) {
@@ -113,9 +118,11 @@ final class RequestXContent {
             PRAGMA_FIELD
         );
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
+        parser.declareString((request, timeZone) -> request.timeZone(ZoneId.of(timeZone)), TIME_ZONE_FIELD);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
+        parser.declareString(EsqlQueryRequest::projectRouting, PROJECT_ROUTING);
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {

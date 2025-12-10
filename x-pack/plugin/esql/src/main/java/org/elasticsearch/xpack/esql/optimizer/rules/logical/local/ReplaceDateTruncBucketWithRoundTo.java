@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
 public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
@@ -74,7 +73,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                 dateTrunc.interval(),
                 searchStats,
                 eval,
-                (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, DEFAULT_TZ, minValue, maxValue)
+                (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, dateTrunc.zoneId(), minValue, maxValue)
             );
         } else if (e instanceof Bucket bucket) {
             roundTo = maybeSubstituteWithRoundTo(

@@ -564,7 +564,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         return client;
     }
 
-    private S3BlobContainer.ConditionalOperation randomCondition() {
+    private ConditionalOperation randomCondition() {
         return switch (between(0, 2)) {
             case 0 -> ConditionalOperation.NONE;
             case 1 -> ConditionalOperation.IF_NONE_MATCH;

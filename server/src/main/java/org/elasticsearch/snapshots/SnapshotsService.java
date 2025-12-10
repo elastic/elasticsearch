@@ -685,9 +685,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
 
                 if (newMaster
-                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false
-                    || SnapshotsServiceUtils.supportsNodeRemovalTracking(event.state()) != SnapshotsServiceUtils
-                        .supportsNodeRemovalTracking(event.previousState())) {
+                    || event.state().metadata().nodeShutdowns().equals(event.previousState().metadata().nodeShutdowns()) == false) {
                     updateNodeIdsToRemoveQueue.submitTask(
                         "SnapshotsService#updateNodeIdsToRemove",
                         new UpdateNodeIdsForRemovalTask(),
@@ -2388,9 +2386,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     changedCount,
                     startedCount
                 );
-                return SnapshotsServiceUtils.supportsNodeRemovalTracking(initialState)
-                    ? updated.withUpdatedNodeIdsForRemoval(initialState)
-                    : updated;
+                return updated.withUpdatedNodeIdsForRemoval(initialState);
             }
             return existing;
         }
@@ -3367,12 +3363,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
 
             final var clusterState = batchExecutionContext.initialState();
-            if (SnapshotsServiceUtils.supportsNodeRemovalTracking(clusterState)) {
-                final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
-                final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
-                if (newSnapshotsInProgress != snapshotsInProgress) {
-                    return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
-                }
+            final var snapshotsInProgress = SnapshotsInProgress.get(clusterState);
+            final var newSnapshotsInProgress = snapshotsInProgress.withUpdatedNodeIdsForRemoval(clusterState);
+            if (newSnapshotsInProgress != snapshotsInProgress) {
+                return ClusterState.builder(clusterState).putCustom(SnapshotsInProgress.TYPE, newSnapshotsInProgress).build();
             }
             return clusterState;
         }

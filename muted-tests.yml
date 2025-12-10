@@ -472,6 +472,18 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.saml.SamlServiceProviderMetadataIT
   method: testAuthenticationWhenMetadataIsUnreliable
   issue: https://github.com/elastic/elasticsearch/issues/139067
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/138764
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/139300
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139303
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139304
 
 # Examples:
 #

@@ -48,8 +48,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        byte[] results = copyToBytes(new RetryingInputStream<>(services, randomRetryingPurpose()) {
-        });
+        byte[] results = copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()));
         assertEquals(resourceBytes.length(), results.length);
         assertThat(new BytesArray(results), equalBytes(resourceBytes));
         assertEquals(retryableFailures + 1, services.getAttempts());
@@ -71,8 +70,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream<>(services, randomFiniteRetryingPurpose()) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomFiniteRetryingPurpose()))
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + 1, services.getAttempts());
@@ -94,8 +92,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream<>(services, OperationPurpose.REPOSITORY_ANALYSIS) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, OperationPurpose.REPOSITORY_ANALYSIS))
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(1, services.getAttempts());
@@ -116,8 +113,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        byte[] result = copyToBytes(new RetryingInputStream<>(services, OperationPurpose.INDICES) {
-        });
+        byte[] result = copyToBytes(new ShortDelayRetryingInputStream(services, OperationPurpose.INDICES));
         assertThat(new BytesArray(result), equalBytes(resourceBytes));
         assertEquals(numberOfFailures + 1, services.getAttempts());
         assertEquals(Stream.generate(() -> READ).limit(numberOfFailures).toList(), services.getRetryStarted());
@@ -149,8 +145,7 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         final var ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream<>(services, randomFiniteRetryingPurpose()) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomFiniteRetryingPurpose()))
         );
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + meaningfulProgressAttempts, services.getAttempts());
@@ -178,8 +173,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         };
         final IOException ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new RetryingInputStream<>(services, randomRetryingPurpose()) {
-            })
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()))
         );
         assertSame(notRetriableException, ioException);
         assertEquals(retryableFailures + 1, services.getAttempts());
@@ -206,8 +200,22 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        copyToBytes(new RetryingInputStream<>(services, randomRetryingPurpose()) {
-        });
+        copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()));
+    }
+
+    /**
+     * RetryingInputStream with a short fixed delay so these tests run quickly
+     */
+    private static final class ShortDelayRetryingInputStream extends RetryingInputStream<String> {
+
+        ShortDelayRetryingInputStream(BlobStoreServices<String> blobStoreServices, OperationPurpose purpose) throws IOException {
+            super(blobStoreServices, purpose);
+        }
+
+        @Override
+        protected long getRetryDelayInMillis() {
+            return 1;
+        }
     }
 
     private static byte[] copyToBytes(InputStream inputStream) throws IOException {

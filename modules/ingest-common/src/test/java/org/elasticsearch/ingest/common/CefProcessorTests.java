@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CefProcessorTests extends ESTestCase {
 
     private static String readCefMessageFile(String fileName) {
-        try (var resource = CefProcessorTests.class.getResourceAsStream("/" + fileName)) {
+        try (var resource = CefProcessorTests.class.getResourceAsStream("/cef/" + fileName)) {
             return new String(Objects.requireNonNull(resource).readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);

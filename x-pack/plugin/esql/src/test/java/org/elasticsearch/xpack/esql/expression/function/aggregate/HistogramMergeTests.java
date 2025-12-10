@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.aggregation.TDigestStates;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -42,12 +46,15 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        Stream.of(MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100))
+        Stream.of(
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+            )
             .flatMap(List::stream)
             .map(HistogramMergeTests::makeSupplier)
             .collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
     }
 
     @Override
@@ -60,29 +67,123 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var fieldValues = fieldTypedData.multiRowData();
 
-            ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(
-                MAX_BUCKET_COUNT,
-                ExponentialHistogramCircuitBreaker.noop()
-            );
+            Matcher<?> resultMatcher;
 
-            boolean anyValuesNonNull = false;
-
-            for (var fieldValue : fieldValues) {
-                ExponentialHistogram histogram = (ExponentialHistogram) fieldValue;
-                if (histogram != null) {
-                    anyValuesNonNull = true;
-                    merger.add(histogram);
-                }
+            if (fieldTypedData.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                resultMatcher = createExpectedExponentialHistogramMatcher(fieldValues);
+            } else if (fieldTypedData.type() == DataType.TDIGEST) {
+                resultMatcher = createExpectedTDigestMatcher(fieldValues);
+            } else {
+                throw new IllegalArgumentException("Unsupported data type [" + fieldTypedData.type() + "]");
             }
 
-            var expected = anyValuesNonNull ? merger.get() : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("HistogramMerge", fieldSupplier.type()),
-                DataType.EXPONENTIAL_HISTOGRAM,
-                equalToWithLenientZeroBucket(expected)
+                fieldTypedData.type(),
+                resultMatcher
             );
+
         });
+    }
+
+    private static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
+         // TDigest is non-deterministic, we just do a sanity check here:
+         // the total count should match exactly and the result should have at least as many centroids as the largest input
+
+        long totalCount = 0;
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
+        double sum = 0.0;
+        boolean anyValuesNonNull = false;
+
+        long maxCentroidCount = 0;
+
+        for (var fieldValue : fieldValues) {
+            TDigestHolder tdigest = (TDigestHolder) fieldValue;
+            if (tdigest != null) {
+                anyValuesNonNull = true;
+                totalCount += tdigest.getValueCount();
+                min = Double.isNaN(tdigest.getMin()) ? min : Math.min(min, tdigest.getMin());
+                max = Double.isNaN(tdigest.getMax()) ? max : Math.max(max, tdigest.getMax());
+                sum += Double.isNaN(tdigest.getSum()) ? 0.0 : tdigest.getSum();
+
+                TDigestState decoded = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
+                tdigest.addTo(decoded);
+                maxCentroidCount = Math.max(maxCentroidCount, decoded.centroidCount());
+            }
+        }
+
+        if (anyValuesNonNull == false) {
+            return equalTo(null);
+        }
+
+        double finalMin = min;
+        double finalMax = max;
+        double finalSum = sum;
+        long finalTotalCount = totalCount;
+        long finalMaxCentroidCount = maxCentroidCount;
+
+        return new BaseMatcher<TDigestHolder>() {
+            @Override
+            public boolean matches(Object actualObj) {
+                if (actualObj instanceof TDigestHolder == false) {
+                    return false;
+                }
+                TDigestHolder actual = (TDigestHolder) actualObj;
+
+                if ((Double.isNaN(actual.getMin()) && finalMin != Double.POSITIVE_INFINITY) && finalMin != actual.getMin()) {
+                    return false;
+                }
+                if ((Double.isNaN(actual.getMax()) && finalMax != Double.NEGATIVE_INFINITY) && finalMax != actual.getMax()) {
+                    return false;
+                }
+                if ((Double.isNaN(actual.getSum()) && finalSum != 0.0) && finalSum != actual.getSum()) {
+                    return false;
+                }
+                if (finalTotalCount != actual.getValueCount()) {
+                    return false;
+                }
+
+                TDigestState decoded = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
+                actual.addTo(decoded);
+                if (decoded.centroidCount() < finalMaxCentroidCount) {
+                    return false;
+                }
+                long tDigestTotalCount = 0;
+                for (Centroid centroid : decoded.centroids()) {
+                    tDigestTotalCount += centroid.count();
+                }
+                if (tDigestTotalCount != finalTotalCount) {
+                    return false;
+                }
+                return  true;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+            }
+        };
+    }
+
+    private static Matcher<?> createExpectedExponentialHistogramMatcher(List<Object> fieldValues) {
+        ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(
+            MAX_BUCKET_COUNT,
+            ExponentialHistogramCircuitBreaker.noop()
+        );
+
+        boolean anyValuesNonNull = false;
+
+        for (var fieldValue : fieldValues) {
+            ExponentialHistogram histogram = (ExponentialHistogram) fieldValue;
+            if (histogram != null) {
+                anyValuesNonNull = true;
+                merger.add(histogram);
+            }
+        }
+
+        var expected = anyValuesNonNull ? merger.get() : null;
+        return equalToWithLenientZeroBucket(expected);
     }
 
     private static Matcher<?> equalToWithLenientZeroBucket(ExponentialHistogram expected) {

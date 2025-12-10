@@ -167,7 +167,7 @@ public class TDigestHolder implements GenericNamedWriteable {
 
     public void addTo(TDigestState state) {
         try {
-            // TODO: Te decoding is copied from TDigestFieldMapper. It would be nice to find a way to reuse that code
+            // TODO: The decoding is copied from TDigestFieldMapper. It would be nice to find a way to reuse that code
             ByteArrayStreamInput values = new ByteArrayStreamInput();
             values.reset(encodedDigest.bytes, encodedDigest.offset, encodedDigest.length);
             while (values.available() > 0) {

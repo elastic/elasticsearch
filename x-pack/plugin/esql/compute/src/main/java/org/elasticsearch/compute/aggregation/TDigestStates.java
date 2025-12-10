@@ -29,7 +29,7 @@ public final class TDigestStates {
 
     // Currently we use the same defaults as for queryDSL, we might make this configurable later
     private static final TDigestExecutionHint EXECUTION_HINT = TDigestExecutionHint.DEFAULT;
-    static final double COMPRESSION = 100.0;
+    public static final double COMPRESSION = 100.0;
 
     private TDigestStates() {}
 
@@ -117,6 +117,10 @@ public final class TDigestStates {
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.states = bigArrays.newObjectArray(1);
+            this.minima = bigArrays.newDoubleArray(1);
+            this.maxima = bigArrays.newDoubleArray(1);
+            this.sums = bigArrays.newDoubleArray(1);
+            this.counts = bigArrays.newLongArray(1);
             this.bigArrays = bigArrays;
             this.breaker = breaker;
         }
@@ -214,7 +218,7 @@ public final class TDigestStates {
             for (int i = 0; i < states.size(); i++) {
                 Releasables.close(states.get(i));
             }
-            Releasables.close(states);
+            Releasables.close(states, minima, maxima, sums, counts);
             states = null;
         }
 

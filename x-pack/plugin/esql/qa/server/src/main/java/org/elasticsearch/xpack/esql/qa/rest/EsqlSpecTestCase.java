@@ -185,7 +185,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsInferenceTestService(),
                 false,
                 supportsExponentialHistograms(),
-                supportsTDigestField()
+                supportsTDigestField(),
+                supportsBFloat16ElementType()
             );
             return null;
         });
@@ -296,6 +297,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsTDigestField() {
         return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V1.capabilityName()));
+    }
+
+    protected boolean supportsBFloat16ElementType() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
     }
 
     protected void doTest() throws Throwable {

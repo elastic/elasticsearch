@@ -27,9 +27,11 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -346,7 +348,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, true, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -371,7 +373,8 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         boolean requiresTimeSeries,
         boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported
+        boolean tDigestFieldSupported,
+        boolean bFloat16ElementTypeSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -381,7 +384,8 @@ public class CsvTestsDataLoader {
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
                 && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
-                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)) {
+                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
+                && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -447,6 +451,27 @@ public class CsvTestsDataLoader {
         return false;
     }
 
+    private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("element_type");
+                    if (typeNode != null && typeNode.asText().equals("bfloat16")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
@@ -459,7 +484,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false);
     }
 
     public static void loadDataSetIntoEs(
@@ -469,7 +494,8 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported
+        boolean tDigestFieldSupported,
+        boolean bFloat16ElementTypeSupported
     ) throws IOException {
         loadDataSetIntoEs(
             client,
@@ -479,6 +505,7 @@ public class CsvTestsDataLoader {
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
             tDigestFieldSupported,
+            bFloat16ElementTypeSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -493,6 +520,7 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
+        boolean bFloat16ElementTypeSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
@@ -505,7 +533,8 @@ public class CsvTestsDataLoader {
             inferenceEnabled,
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
-            tDigestFieldSupported
+            tDigestFieldSupported,
+            bFloat16ElementTypeSupported
         )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);

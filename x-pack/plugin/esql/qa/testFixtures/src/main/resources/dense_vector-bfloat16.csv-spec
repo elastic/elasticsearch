@@ -1,4 +1,4 @@
-retrieveDenseBfloat16VectorData
+retrieveDenseBFloat16VectorData
 required_capability: dense_vector_field_type_released
 required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
@@ -13,10 +13,10 @@ id:l | bfloat16_vector:dense_vector
 0    | [1.0, 2.0, 3.0]
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
-3    | [0.054, 0.032, 0.012]
+3    | [0.053955078, 0.031982422, 0.012023926]
 ;
 
-denseBfloat16VectorWithEval
+denseBFloat16VectorWithEval
 required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 required_capability: generic_vector_format
@@ -32,9 +32,10 @@ id:l | v:dense_vector
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
 3    | [0.054, 0.032, 0.012]
+
 ;
 
-denseBfloat16VectorWithRenameAndDrop
+denseBFloat16VectorWithRenameAndDrop
 required_capability: dense_vector_agg_metric_double_if_version
 required_capability: l2_norm_vector_similarity_function
 required_capability: generic_vector_format

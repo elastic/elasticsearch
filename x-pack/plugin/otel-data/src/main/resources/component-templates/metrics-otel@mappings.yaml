@@ -26,29 +26,43 @@ template:
       - histogram:
           mapping:
             type: histogram
+            meta:
+              unit: "{{unit}}"
       - counter_long:
           mapping:
             type: long
             time_series_metric: counter
+            meta:
+              unit: "{{unit}}"
       - gauge_long:
           mapping:
             type: long
             time_series_metric: gauge
+            meta:
+              unit: "{{unit}}"
       - counter_double:
           mapping:
             type: double
             time_series_metric: counter
+            meta:
+              unit: "{{unit}}"
       - gauge_double:
           mapping:
             type: double
             time_series_metric: gauge
+            meta:
+              unit: "{{unit}}"
       - summary:
           mapping:
             type: aggregate_metric_double
             metrics: [sum, value_count]
             default_metric: value_count
+            meta:
+              unit: "{{unit}}"
       - summary_minmax:
           mapping:
             type: aggregate_metric_double
             metrics: [sum, value_count, min, max]
             default_metric: value_count
+            meta:
+              unit: "{{unit}}"

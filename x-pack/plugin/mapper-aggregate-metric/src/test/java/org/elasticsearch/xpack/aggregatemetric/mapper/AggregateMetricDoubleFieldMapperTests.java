@@ -14,9 +14,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -36,6 +38,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -115,12 +118,12 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
         );
-        
+
         IndexableField f = doc.rootDoc().getField("field.min");
         assertThat(f, instanceOf(SortedNumericDocValuesField.class));
         SortedNumericDocValuesField sdv = (SortedNumericDocValuesField) f;
         assertEquals(NumericUtils.doubleToSortableLong(-10.1), sdv.numericValue());
-        assertThat(sdv.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.RANGE));
+        assertThat(sdv.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.NONE));
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
@@ -636,7 +639,18 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
-        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        return List.of(
+            new SortShortcutSupport(
+                IndexVersion.current(),
+                settings,
+                "field",
+                this::minimalMapping,
+                b -> {},
+                this::writeField,
+                Assert::assertNotNull
+            )
+        );
     }
 
     @Override
@@ -665,7 +679,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
                 fieldMapping(this::minimalMapping)
             );
             MappedFieldType ft = mapperService.fieldType("field");
-            assertIndexType(ft, IndexType.skippers());
+            assertIndexType(ft, IndexType.docValuesOnly());
         }
     }
 

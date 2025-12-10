@@ -370,18 +370,16 @@ public enum DataType implements Writeable {
         builder().esType("exponential_histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.RESOLVE_FIELDS_RESPONSE_USED_TV)
+            .underConstruction(DataTypesTransportVersions.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION)
     ),
 
-    /*
     TDIGEST(
-        builder().esType("exponential_histogram")
+        builder().esType("tdigest")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction()
-    ),
+            .underConstruction(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST)
 
-     */
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
@@ -1043,10 +1041,14 @@ public enum DataType implements Writeable {
         );
 
         /**
-         * First transport version after the PR that introduced the exponential histogram data type.
+         * First transport version after the PR that introduced the exponential histogram data type which was NOT also backported to 9.2.
+         * (Exp. histogram was added as SNAPSHOT-only to 9.3.)
          */
-        public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName(
-            "esql_resolve_fields_response_used"
+        public static final TransportVersion TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION = TransportVersion.fromName(
+            "text_similarity_rank_docs_explain_chunks"
         );
+
+        private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+
     }
 }

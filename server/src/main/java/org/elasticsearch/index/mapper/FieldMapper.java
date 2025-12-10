@@ -618,7 +618,8 @@ public abstract class FieldMapper extends Mapper {
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
                     if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
-                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
+                        && ((kwd.docValuesParameters().enabled
+                            && kwd.docValuesParameters().cardinality == DocValuesParameter.Values.Cardinality.LOW) || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }
@@ -630,7 +631,9 @@ public abstract class FieldMapper extends Mapper {
                 mapperBuilders.put(mapper.leafName(), context -> mapper);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                    if (kwd.hasNormalizer() == false
+                        && ((kwd.fieldType().hasDocValues() && kwd.fieldType().storedInBinaryDocValues() == false)
+                            || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }

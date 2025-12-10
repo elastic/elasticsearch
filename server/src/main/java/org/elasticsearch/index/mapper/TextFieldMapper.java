@@ -1754,7 +1754,8 @@ public final class TextFieldMapper extends FieldMapper {
         private static boolean keywordFieldSupportsSyntheticSource(final KeywordFieldMapper keyword) {
             // the field must be stored in some way, whether that be via store or doc values
             return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
-                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
+                && ((keyword.fieldType().hasDocValues() && keyword.fieldType().storedInBinaryDocValues() == false)
+                    || keyword.fieldType().isStored());
         }
     }
 }

@@ -209,6 +209,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
@@ -434,7 +435,8 @@ public class EsqlFunctionRegistry {
                 def(Trim.class, Trim::new, "trim"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") },
+                def(UrlDecode.class, UrlDecode::new, "url_decode"),
+                def(Chunk.class, bi(Chunk::new), "chunk") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, tric(DateDiff::new), "date_diff"),
@@ -534,20 +536,20 @@ public class EsqlFunctionRegistry {
             // time-series functions
             new FunctionDefinition[] {
                 defTS3(Rate.class, Rate::new, "rate"),
-                defTS(Irate.class, bi(Irate::new), "irate"),
-                defTS(Idelta.class, bi(Idelta::new), "idelta"),
-                defTS(Delta.class, bi(Delta::new), "delta"),
-                defTS(Increase.class, bi(Increase::new), "increase"),
-                defTS(Deriv.class, bi(Deriv::new), "deriv"),
+                defTS3(Irate.class, Irate::new, "irate"),
+                defTS3(Idelta.class, Idelta::new, "idelta"),
+                defTS3(Delta.class, Delta::new, "delta"),
+                defTS3(Increase.class, Increase::new, "increase"),
+                defTS3(Deriv.class, Deriv::new, "deriv"),
                 def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),
-                def(StdDevOverTime.class, uni(StdDevOverTime::new), "stddev_over_time"),
-                def(VarianceOverTime.class, uni(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
+                def(StdDevOverTime.class, bi(StdDevOverTime::new), "stddev_over_time"),
+                def(VarianceOverTime.class, bi(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
                 def(CountOverTime.class, bi(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
-                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
-                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
+                def(PresentOverTime.class, bi(PresentOverTime::new), "present_over_time"),
+                def(AbsentOverTime.class, bi(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, bi(AvgOverTime::new), "avg_over_time"),
                 defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
                 defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
@@ -573,7 +575,7 @@ public class EsqlFunctionRegistry {
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(Hamming.class, Hamming::new, "v_hamming"),
-                def(Chunk.class, bi(Chunk::new), "chunk") } };
+                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

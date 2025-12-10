@@ -65,9 +65,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
         this.maxConcurrentShardRequests = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
+        this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.allowPartialSearchResults = in.readBoolean();
         }
@@ -82,9 +80,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeVInt(maxConcurrentShardRequests);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(indexFilter);
-        }
+        out.writeOptionalWriteable(indexFilter);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeBoolean(allowPartialSearchResults);
         } else if (allowPartialSearchResults) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 
 import org.elasticsearch.ElasticsearchException;
@@ -1162,6 +1163,55 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(),
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                );
+
+                var result = listener.actionGet(TIMEOUT);
+
+                assertThat(result.asMap(), Matchers.is(buildExpectationCompletion(List.of("test result"))));
+            }
+        }
+    }
+
+    public void testInfer_SendsUnifiedRequest_ForChatCompletionModel() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
+            try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
+                var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
+                requestSender.enqueue(mockResults);
+
+                var model = AmazonBedrockChatCompletionModelTests.createModel(
+                    "id",
+                    "region",
+                    "model",
+                    AmazonBedrockProvider.AMAZONTITAN,
+                    "access",
+                    "secret"
+                );
+                PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+                service.unifiedCompletionInfer(
+                    model,
+                    UnifiedCompletionRequest.of(
+                        List.of(new UnifiedCompletionRequest
+                            .Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                    ),
+                    TIMEOUT,
                     listener
                 );
 

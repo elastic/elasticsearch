@@ -71,7 +71,7 @@ public class BulkInferenceRunnerTests extends ESTestCase {
     }
 
     public void testSuccessfulBulkExecutionOnEmptyRequest() throws Exception {
-        BulkInferenceRequestIterator requestIterator = mock(BulkInferenceRequestIterator.class);
+        BulkRequestItemIterator requestIterator = mock(BulkRequestItemIterator.class);
         when(requestIterator.hasNext()).thenReturn(false);
 
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
@@ -186,11 +186,11 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         return new BulkInferenceRunnerConfig(between(1, 100), between(1, 100));
     }
 
-    private BulkInferenceRequestIterator requestIterator(List<InferenceAction.Request> requests) {
+    private BulkRequestItemIterator requestIterator(List<InferenceAction.Request> requests) {
         final Iterator<InferenceAction.Request> delegate = requests.iterator();
-        BulkInferenceRequestIterator iterator = mock(BulkInferenceRequestIterator.class);
+        BulkRequestItemIterator iterator = mock(BulkRequestItemIterator.class);
         doAnswer(i -> delegate.hasNext()).when(iterator).hasNext();
-        doAnswer(i -> delegate.next()).when(iterator).next();
+        doAnswer(i -> new BulkRequestItem(delegate.next())).when(iterator).next();
         doAnswer(i -> requests.size()).when(iterator).estimatedSize();
         return iterator;
     }

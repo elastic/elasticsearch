@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItem;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,7 +33,8 @@ public class CompletionOperatorRequestIteratorTests extends ComputeTestCase {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext(); currentPos++) {
-                InferenceAction.Request request = requestIterator.next();
+                BulkRequestItem requestItem = requestIterator.next();
+                InferenceAction.Request request = requestItem.request();
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(currentPos), scratch);
                 assertThat(request.getInput().getFirst(), equalTo(scratch.utf8ToString()));

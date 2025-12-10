@@ -12,7 +12,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItemIterator;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -21,7 +22,7 @@ import java.util.NoSuchElementException;
  *  This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
  *  of type {@link TaskType#COMPLETION}.
  */
-class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
+class CompletionOperatorRequestIterator implements BulkRequestItemIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;
@@ -46,12 +47,12 @@ class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator 
     }
 
     @Override
-    public InferenceAction.Request next() {
+    public BulkRequestItem next() {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
-        return inferenceRequest(textReader.readText(currentPos++));
+        return new BulkRequestItem(inferenceRequest(textReader.readText(currentPos++)));
     }
 
     /**

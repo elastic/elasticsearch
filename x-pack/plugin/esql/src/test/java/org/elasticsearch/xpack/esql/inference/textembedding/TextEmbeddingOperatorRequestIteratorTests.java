@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItem;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -34,18 +35,24 @@ public class TextEmbeddingOperatorRequestIteratorTests extends ComputeTestCase {
             BytesRef scratch = new BytesRef();
 
             // First position: "before"
-            InferenceAction.Request request1 = requestIterator.next();
+            BulkRequestItem requestItem1 = requestIterator.next();
+            InferenceAction.Request request1 = requestItem1.request();
+
             assertThat(request1.getInferenceEntityId(), equalTo(inferenceId));
             assertThat(request1.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
             scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(0), scratch);
             assertThat(request1.getInput().get(0), equalTo(scratch.utf8ToString()));
 
             // Second position: null
-            InferenceAction.Request request2 = requestIterator.next();
+            BulkRequestItem requestItem2 = requestIterator.next();
+            InferenceAction.Request request2 = requestItem2.request();
+
             assertThat(request2, nullValue());
 
             // Third position: "after"
-            InferenceAction.Request request3 = requestIterator.next();
+            BulkRequestItem requestItem3 = requestIterator.next();
+            InferenceAction.Request request3 = requestItem3.request();
+
             assertThat(request3.getInferenceEntityId(), equalTo(inferenceId));
             assertThat(request3.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
             scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(2), scratch);
@@ -61,13 +68,15 @@ public class TextEmbeddingOperatorRequestIteratorTests extends ComputeTestCase {
 
         try (TextEmbeddingOperatorRequestIterator requestIterator = new TextEmbeddingOperatorRequestIterator(inputBlock, inferenceId)) {
             // First position: multi-value, keep only the first value
-            InferenceAction.Request request1 = requestIterator.next();
+            BulkRequestItem requestItem1 = requestIterator.next();
+            InferenceAction.Request request1 = requestItem1.request();
             assertThat(request1.getInferenceEntityId(), equalTo(inferenceId));
             assertThat(request1.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
             assertThat(request1.getInput().get(0), equalTo("first"));
 
             // Second position: single value
-            InferenceAction.Request request2 = requestIterator.next();
+            BulkRequestItem requestItem2 = requestIterator.next();
+            InferenceAction.Request request2 = requestItem2.request();
             assertThat(request2.getInferenceEntityId(), equalTo(inferenceId));
             assertThat(request2.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
             assertThat(request2.getInput().get(0), equalTo("single"));
@@ -116,7 +125,8 @@ public class TextEmbeddingOperatorRequestIteratorTests extends ComputeTestCase {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext(); currentPos++) {
-                InferenceAction.Request request = requestIterator.next();
+                BulkRequestItem requestItem = requestIterator.next();
+                InferenceAction.Request request = requestItem.request();
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));

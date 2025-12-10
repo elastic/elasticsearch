@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItem;
 
 import java.util.List;
 
@@ -37,7 +38,8 @@ public class RerankOperatorRequestIteratorTests extends ComputeTestCase {
             BytesRef scratch = new BytesRef();
 
             for (int currentPos = 0; requestIterator.hasNext();) {
-                InferenceAction.Request request = requestIterator.next();
+                BulkRequestItem requestItem = requestIterator.next();
+                InferenceAction.Request request = requestItem.request();
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getQuery(), equalTo(queryText));

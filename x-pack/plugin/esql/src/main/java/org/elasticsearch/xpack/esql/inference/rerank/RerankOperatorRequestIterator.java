@@ -13,7 +13,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItemIterator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +26,7 @@ import java.util.NoSuchElementException;
  * <p>This iterator reads from a {@link BytesRefBlock} containing input documents or items to be reranked. It slices the input into batches
  * of configurable size and converts each batch into an {@link InferenceAction.Request} with the task type {@link TaskType#RERANK}.
  */
-class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
+class RerankOperatorRequestIterator implements BulkRequestItemIterator {
     private final BytesRefBlock inputBlock;
     private final String inferenceId;
     private final String queryText;
@@ -46,7 +47,7 @@ class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
     }
 
     @Override
-    public InferenceAction.Request next() {
+    public BulkRequestItem next() {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
@@ -59,7 +60,7 @@ class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
 
         if (inputBlock.isNull(startIndex)) {
             remainingPositions -= 1;
-            return null;
+            return new BulkRequestItem(null);
         }
 
         for (int i = 0; i < maxInputSize; i++) {
@@ -73,7 +74,7 @@ class RerankOperatorRequestIterator implements BulkInferenceRequestIterator {
         }
 
         remainingPositions -= inputs.size();
-        return inferenceRequest(inputs);
+        return new BulkRequestItem(inferenceRequest(inputs));
     }
 
     @Override

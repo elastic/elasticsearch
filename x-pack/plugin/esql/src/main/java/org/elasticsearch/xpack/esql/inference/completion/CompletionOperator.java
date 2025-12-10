@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
@@ -54,7 +53,7 @@ public class CompletionOperator extends InferenceOperator {
      * @param inputPage The input data page.
      */
     @Override
-    protected BulkInferenceRequestIterator requests(Page inputPage) {
+    protected CompletionOperatorRequestIterator requests(Page inputPage) {
         return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 

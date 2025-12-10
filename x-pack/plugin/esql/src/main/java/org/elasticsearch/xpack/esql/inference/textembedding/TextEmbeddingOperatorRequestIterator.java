@@ -12,7 +12,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItem;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItemIterator;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -21,7 +22,7 @@ import java.util.NoSuchElementException;
  * This iterator reads text inputs from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
  * of type {@link TaskType#TEXT_EMBEDDING}.
  */
-class TextEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterator {
+class TextEmbeddingOperatorRequestIterator implements BulkRequestItemIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;
@@ -46,7 +47,7 @@ class TextEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterat
     }
 
     @Override
-    public InferenceAction.Request next() {
+    public BulkRequestItem next() {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
@@ -55,7 +56,7 @@ class TextEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterat
          * Keep only the first value in case of multi-valued fields.
          * TODO: check if it is consistent with how the query vector builder is working.
          */
-        return inferenceRequest(textReader.readText(currentPos++, 1));
+        return new BulkRequestItem(inferenceRequest(textReader.readText(currentPos++, 1)));
     }
 
     /**

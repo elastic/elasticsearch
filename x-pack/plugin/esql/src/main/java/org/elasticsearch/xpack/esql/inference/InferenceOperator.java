@@ -16,8 +16,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkRequestItemIterator;
 
 import java.util.List;
 
@@ -75,7 +75,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
         try {
-            BulkInferenceRequestIterator requests = requests(input);
+            BulkRequestItemIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
 
             bulkInferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
@@ -118,7 +118,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      *
      * @param input The input page to process.
      */
-    protected abstract BulkInferenceRequestIterator requests(Page input);
+    protected abstract BulkRequestItemIterator requests(Page input);
 
     /**
      * Creates a new {@link OutputBuilder} instance used to build the output page.

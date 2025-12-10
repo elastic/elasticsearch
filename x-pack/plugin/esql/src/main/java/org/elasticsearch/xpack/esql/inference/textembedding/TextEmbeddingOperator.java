@@ -16,7 +16,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
@@ -56,7 +55,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
      * @param inputPage The input data page.
      */
     @Override
-    protected BulkInferenceRequestIterator requests(Page inputPage) {
+    protected TextEmbeddingOperatorRequestIterator requests(Page inputPage) {
         return new TextEmbeddingOperatorRequestIterator((BytesRefBlock) textEvaluator.eval(inputPage), inferenceId());
     }
 

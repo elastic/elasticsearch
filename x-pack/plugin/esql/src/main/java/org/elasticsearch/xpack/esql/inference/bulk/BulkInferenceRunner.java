@@ -97,7 +97,7 @@ public class BulkInferenceRunner {
      * @param requests An iterator over the inference requests to execute
      * @param listener Called with the list of all responses in request order
      */
-    public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
+    public void executeBulk(BulkRequestItemIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
         List<InferenceAction.Response> responses = new ArrayList<>();
         executeBulk(requests, responses::add, listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(responses)));
     }
@@ -116,7 +116,7 @@ public class BulkInferenceRunner {
      * @param completionListener Called when all requests are complete or if any error occurs
      */
     public void executeBulk(
-        BulkInferenceRequestIterator requests,
+        BulkRequestItemIterator requests,
         Consumer<InferenceAction.Response> responseConsumer,
         ActionListener<Void> completionListener
     ) {
@@ -151,7 +151,7 @@ public class BulkInferenceRunner {
      * </p>
      */
     private class BulkInferenceRequest {
-        private final BulkInferenceRequestIterator requests;
+        private final BulkRequestItemIterator requests;
         private final Consumer<InferenceAction.Response> responseConsumer;
         private final ActionListener<Void> completionListener;
 
@@ -159,7 +159,7 @@ public class BulkInferenceRunner {
         private final AtomicBoolean responseSent = new AtomicBoolean(false);
 
         BulkInferenceRequest(
-            BulkInferenceRequestIterator requests,
+            BulkRequestItemIterator requests,
             Consumer<InferenceAction.Response> responseConsumer,
             ActionListener<Void> completionListener
         ) {
@@ -180,7 +180,7 @@ public class BulkInferenceRunner {
         private BulkRequestItem pollPendingRequest() {
             synchronized (requests) {
                 if (requests.hasNext()) {
-                    return new BulkRequestItem(executionState.generateSeqNo(), requests.next());
+                    return requests.next().withSeqNo(executionState.generateSeqNo());
                 }
             }
 
@@ -303,7 +303,7 @@ public class BulkInferenceRunner {
                         // Handle null requests (edge case in some iterators)
                         if (bulkRequestItem.request() == null) {
                             inferenceResponseListener.onResponse(null);
-                            return;
+                            continue;
                         }
 
                         // Execute the inference request with proper origin context
@@ -361,20 +361,6 @@ public class BulkInferenceRunner {
 
             completionListener.onFailure(executionState.getFailure());
         }
-    }
-
-    /**
-     * Encapsulates an inference request with its associated sequence number.
-     * <p>
-     * The sequence number is used for ordering responses and tracking completion
-     * in the bulk execution state.
-     * </p>
-     *
-     * @param seqNo   Unique sequence number for this request in the bulk operation
-     * @param request The actual inference request to execute
-     */
-    private record BulkRequestItem(long seqNo, InferenceAction.Request request) {
-
     }
 
     public static Factory factory(Client client) {

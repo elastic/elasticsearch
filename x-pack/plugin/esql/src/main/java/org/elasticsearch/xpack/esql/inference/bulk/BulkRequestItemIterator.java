@@ -12,12 +12,15 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.Iterator;
 
-public interface BulkInferenceRequestIterator extends Iterator<InferenceAction.Request>, Releasable {
+/**
+ * An iterator over {@link InferenceAction.Request} that can be released to free resources.
+ */
+public interface BulkRequestItemIterator extends Iterator<BulkRequestItem>, Releasable {
 
     /**
      * Returns an estimate of the number of requests that will be produced.
      *
-     * <p>This is typically used to pre-allocate buffers or output to th appropriate size.</p>
+     * <p>This is typically used to pre-allocate buffers or output to the appropriate size.</p>
      */
     int estimatedSize();
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,20 +38,14 @@ public class NodesStatsRequestParameters implements Writeable {
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
         requestedMetrics = in.readEnumSet(Metric.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            includeShardsStats = in.readBoolean();
-        } else {
-            includeShardsStats = true;
-        }
+        includeShardsStats = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
         out.writeEnumSet(requestedMetrics);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(includeShardsStats);
-        }
+        out.writeBoolean(includeShardsStats);
     }
 
     public CommonStatsFlags indices() {

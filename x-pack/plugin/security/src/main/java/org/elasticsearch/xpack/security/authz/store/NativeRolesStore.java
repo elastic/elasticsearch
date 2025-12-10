@@ -88,9 +88,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.NONE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
-import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.V_8_16_0;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
@@ -491,9 +491,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 );
             } else if (Arrays.stream(role.getConditionalClusterPrivileges())
                 .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
-                && clusterService.state().getMinTransportVersion().before(V_8_16_0)) {
+                && clusterService.state().getMinTransportVersion().before(MANAGE_ROLES_PRIVILEGE)) {
                     return new IllegalStateException(
-                        "all nodes must have version [" + V_8_16_0.toReleaseVersion() + "] or higher to support the manage roles privilege"
+                        "all nodes must have version ["
+                            + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                            + "] or higher to support the manage roles privilege"
                     );
                 }
         try {

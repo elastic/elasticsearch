@@ -57,8 +57,6 @@ public class TransportVersions {
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_12_0 = def(8_560_0_00);
-    public static final TransportVersion V_8_12_1 = def(8_560_0_01);
     public static final TransportVersion V_8_13_0 = def(8_595_0_00);
     public static final TransportVersion V_8_13_4 = def(8_595_0_01);
     public static final TransportVersion V_8_14_0 = def(8_636_0_01);

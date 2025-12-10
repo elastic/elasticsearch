@@ -90,7 +90,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private static final TransportVersion MAPPINGS_IN_DATA_STREAMS = TransportVersion.fromName("mappings_in_data_streams");
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
-    public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
@@ -301,9 +300,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var allowCustomRouting = in.readBoolean();
         var indexMode = in.readOptionalEnum(IndexMode.class);
         var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-        var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
-            ? readIndices(in)
-            : List.<Index>of();
+        var failureIndices = readIndices(in);
         var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
         backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
         if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
@@ -1471,9 +1468,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(allowCustomRouting);
         out.writeOptionalEnum(indexMode);
         out.writeOptionalWriteable(lifecycle);
-        if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-            out.writeCollection(failureIndices.indices);
-        }
+        out.writeCollection(failureIndices.indices);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(backingIndices.rolloverOnWrite);
         }

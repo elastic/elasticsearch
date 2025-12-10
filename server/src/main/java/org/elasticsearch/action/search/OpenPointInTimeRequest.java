@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -65,9 +64,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
         this.maxConcurrentShardRequests = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
+        this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.allowPartialSearchResults = in.readBoolean();
     }
 
@@ -80,9 +77,7 @@ public final class OpenPointInTimeRequest extends LegacyActionRequest implements
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeVInt(maxConcurrentShardRequests);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(indexFilter);
-        }
+        out.writeOptionalWriteable(indexFilter);
         out.writeBoolean(allowPartialSearchResults);
     }
 

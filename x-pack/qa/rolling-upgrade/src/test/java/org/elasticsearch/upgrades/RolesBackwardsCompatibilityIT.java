@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomManageRolesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
-import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.V_8_16_0;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -149,8 +149,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRolesWithManageRoles() throws Exception {
         assumeTrue(
-            "The manage roles privilege is supported after transport version: " + V_8_16_0,
-            minimumTransportVersion().before(V_8_16_0)
+            "The manage roles privilege is supported after transport version: " + MANAGE_ROLES_PRIVILEGE,
+            minimumTransportVersion().before(MANAGE_ROLES_PRIVILEGE)
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -181,7 +181,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, V_8_16_0));
+                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, MANAGE_ROLES_PRIVILEGE));
                     // succeed when role manage roles is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);
@@ -223,7 +223,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + V_8_16_0.toReleaseVersion()
+                                    + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );
@@ -237,7 +237,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + V_8_16_0.toReleaseVersion()
+                                    + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );

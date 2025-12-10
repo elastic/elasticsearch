@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -243,7 +242,7 @@ public class SearchUsageStatsTests extends AbstractWireSerializingTestCase<Searc
         for (TransportVersion version : TransportVersionUtils.allReleasedVersions()) {
             SearchUsageStats testInstance = new SearchUsageStats(
                 randomQueryUsage(QUERY_TYPES.size()),
-                version.onOrAfter(TransportVersions.V_8_12_0) ? randomRescorerUsage(RESCORER_TYPES.size()) : Map.of(),
+                randomRescorerUsage(RESCORER_TYPES.size()),
                 randomSectionsUsage(SECTIONS.size()),
                 randomRetrieversUsage(RETRIEVERS.size()),
                 version.supports(EXTENDED_SEARCH_USAGE_TELEMETRY) ? randomExtendedSearchUsage() : EMPTY,

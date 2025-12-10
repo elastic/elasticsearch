@@ -135,6 +135,12 @@ public class ViewService {
             listener.onFailure(e);
             return;
         }
+        // Check for a no-op existing view, in which case we can skip the cluster state update
+        final View existingView = getMetadata(metadata).views().get(view.name());
+        if (view.equals(existingView)) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {

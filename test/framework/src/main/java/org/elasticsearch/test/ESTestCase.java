@@ -1857,20 +1857,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return things;
     }
 
-    /**
-     * Apply a unique function to a random generation function, by keeping track of past values and filtering out repeats.
-     */
-    public static <T> Supplier<T> randomUniqueOnline(Supplier<T> supplier) {
-        final Set<T> seenValues = new HashSet<T>();
-        return () -> {
-            T randomValue;
-            do {
-                randomValue = supplier.get();
-            } while (seenValues.add(randomValue) == false);
-            return randomValue;
-        };
-    }
-
     public static String randomGeohash(int minPrecision, int maxPrecision) {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }

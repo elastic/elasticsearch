@@ -72,10 +72,6 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ProjectCu
         return new ViewMetadata(in.readMap(View::new));
     }
 
-    public ViewMetadata() {
-        this(Map.of());
-    }
-
     public ViewMetadata(Map<String, View> views) {
         this.views = Collections.unmodifiableMap(views);
     }

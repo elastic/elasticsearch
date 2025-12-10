@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,17 +68,11 @@ public class TopNOperatorStatus implements Operator.Status {
         this.occupiedRows = in.readVInt();
         this.ramBytesUsed = in.readVLong();
 
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.pagesReceived = in.readVInt();
-            this.pagesEmitted = in.readVInt();
-            this.rowsReceived = in.readVLong();
-            this.rowsEmitted = in.readVLong();
-        } else {
-            this.pagesReceived = 0;
-            this.pagesEmitted = 0;
-            this.rowsReceived = 0;
-            this.rowsEmitted = 0;
-        }
+        this.pagesReceived = in.readVInt();
+        this.pagesEmitted = in.readVInt();
+        this.rowsReceived = in.readVLong();
+        this.rowsEmitted = in.readVLong();
+
     }
 
     @Override
@@ -92,12 +85,10 @@ public class TopNOperatorStatus implements Operator.Status {
         out.writeVInt(occupiedRows);
         out.writeVLong(ramBytesUsed);
 
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeVInt(pagesReceived);
-            out.writeVInt(pagesEmitted);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
-        }
+        out.writeVInt(pagesReceived);
+        out.writeVInt(pagesEmitted);
+        out.writeVLong(rowsReceived);
+        out.writeVLong(rowsEmitted);
     }
 
     @Override
@@ -181,6 +172,6 @@ public class TopNOperatorStatus implements Operator.Status {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 }

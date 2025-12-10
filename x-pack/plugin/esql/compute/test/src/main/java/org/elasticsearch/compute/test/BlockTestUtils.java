@@ -27,24 +27,34 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
+import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
@@ -77,6 +87,7 @@ public class BlockTestUtils {
                 between(0, Integer.MAX_VALUE)
             );
             case EXPONENTIAL_HISTOGRAM -> randomExponentialHistogram();
+            case TDIGEST -> randomTDigest();
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
@@ -317,6 +328,7 @@ public class BlockTestUtils {
                         i++,
                         new ExponentialHistogramScratch()
                     );
+                    case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++);
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }
@@ -380,6 +392,7 @@ public class BlockTestUtils {
     public static ExponentialHistogram randomExponentialHistogram() {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
+        int numBuckets = randomIntBetween(4, 300);
         boolean hasNegativeValues = randomBoolean();
         boolean hasPositiveValues = randomBoolean();
         boolean hasZeroValues = randomBoolean();
@@ -390,14 +403,57 @@ public class BlockTestUtils {
             ),
             hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
-
-        int numBuckets = randomIntBetween(4, 300);
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(
             numBuckets,
             ExponentialHistogramCircuitBreaker.noop(),
             rawValues
         );
+        // Setup a proper zeroThreshold based on a random chance
+        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+            double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
+            double zeroThreshold = smallestNonZeroValue * randomDouble();
+            try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
+                ZeroBucket zeroBucket = ZeroBucket.create(zeroThreshold, histo.zeroBucket().count());
+                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, ExponentialHistogramCircuitBreaker.noop())
+                    .zeroBucket(zeroBucket);
+                histo = builder.build();
+            }
+        }
+        // Make the result histogram writeable to allow usage in Literals for testing
         return histo;
+    }
+
+    public static TDigestHolder randomTDigest() {
+        // TODO: This is mostly copied from TDigestFieldMapperTests and EsqlTestUtils; refactor it.
+        int size = between(1, 100);
+        // Note - we use TDigestState to build an actual t-digest for realistic values here
+        TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
+        for (int i = 0; i < size; i++) {
+            double sample = randomGaussianDouble();
+            int count = randomIntBetween(1, Integer.MAX_VALUE);
+            digest.add(sample, count);
+        }
+        List<Double> centroids = new ArrayList<>();
+        List<Long> counts = new ArrayList<>();
+        double sum = 0.0;
+        long valueCount = 0L;
+        for (Centroid c : digest.centroids()) {
+            centroids.add(c.mean());
+            counts.add(c.count());
+            sum += c.mean() * c.count();
+            valueCount += c.count();
+        }
+        double min = digest.getMin();
+        double max = digest.getMax();
+
+        TDigestHolder returnValue = null;
+        try {
+            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
+        } catch (IOException e) {
+            // This is a test util, so we're just going to fail the test here
+            fail(e);
+        }
+        return returnValue;
     }
 
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {

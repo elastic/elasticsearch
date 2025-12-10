@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
@@ -64,8 +66,10 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
@@ -79,8 +83,10 @@ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
+import org.elasticsearch.xpack.inference.action.TransportGetInferenceFieldsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAction;
@@ -149,21 +155,28 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMCache;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMIndex;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMInformedSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStorageService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
+import org.elasticsearch.xpack.inference.services.groq.GroqService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
@@ -195,6 +208,8 @@ public class InferencePlugin extends Plugin
         InternalSearchPlugin,
         ClusterPlugin,
         PersistentTaskPlugin {
+
+    private static final Logger logger = LogManager.getLogger(InferencePlugin.class);
 
     /**
      * When this setting is true the verification check that
@@ -275,7 +290,11 @@ public class InferencePlugin extends Plugin
             new ActionHandler(StoreInferenceEndpointsAction.INSTANCE, TransportStoreEndpointsAction.class),
             new ActionHandler(GetCCMConfigurationAction.INSTANCE, TransportGetCCMConfigurationAction.class),
             new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
-            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class)
+            new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
+            new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
+            new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
+            new ActionHandler(GetInferenceFieldsAction.INSTANCE, TransportGetInferenceFieldsAction.class),
+            new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class)
         );
     }
 
@@ -309,6 +328,9 @@ public class InferencePlugin extends Plugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         var components = new ArrayList<>();
+        ccmFeature.set(new CCMFeature(settings));
+        components.add(ccmFeature.get());
+
         var throttlerManager = new ThrottlerManager(settings, services.threadPool());
         throttlerManager.init(services.clusterService());
 
@@ -332,67 +354,54 @@ public class InferencePlugin extends Plugin
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
-        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        var inferenceServiceSettings = new CCMInformedSettings(settings, ccmFeature.get());
         inferenceServiceSettings.init(services.clusterService());
 
-        // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
-        var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
-            settings,
-            services.threadPool(),
-            services.clusterService(),
+        var eisRequestSenderFactoryComponents = createEisRequestSenderFactory(
+            services,
             throttlerManager,
-            getSslService(),
-            inferenceServiceSettings.getConnectionTtl()
+            inferenceServiceSettings,
+            ccmFeature.get()
         );
-
-        var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
-            serviceComponents.get(),
-            elasticInferenceServiceHttpClientManager,
-            services.clusterService()
-        );
-        elasticInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
-
-        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
-            inferenceServiceSettings.getElasticInferenceServiceUrl(),
-            services.threadPool()
-        );
-
-        var authTaskExecutor = AuthorizationTaskExecutor.create(
-            services.clusterService(),
-            new AuthorizationPoller.Parameters(
-                serviceComponents.get(),
-                authorizationHandler,
-                elasticInferenceServiceFactory.get().createSender(),
-                inferenceServiceSettings,
-                modelRegistry.get(),
-                services.client()
-            )
-        );
-        authorizationTaskExecutorRef.set(authTaskExecutor);
+        var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
+        elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
-        inferenceServices.add(
-            () -> List.of(
-                context -> new ElasticInferenceService(
-                    elasticInferenceServiceFactory.get(),
-                    serviceComponents.get(),
-                    inferenceServiceSettings,
-                    context
-                ),
-                context -> new SageMakerService(
-                    new SageMakerModelBuilder(sageMakerSchemas),
-                    new SageMakerClient(
-                        new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
-                        services.threadPool()
-                    ),
-                    sageMakerSchemas,
-                    services.threadPool(),
-                    sageMakerConfigurations::getOrCompute,
-                    context
-                )
-            )
+
+        var ccmRelatedComponents = createCCMDependentComponents(
+            services,
+            inferenceServiceSettings,
+            serviceComponents.get(),
+            elasticInferenceServiceFactory.get().createSender(),
+            modelRegistry.get(),
+            ccmFeature.get()
         );
+        components.addAll(ccmRelatedComponents.components());
+
+        inferenceServices.add(() -> List.of(context -> {
+            var eisService = new ElasticInferenceService(
+                elasticInferenceServiceFactory.get(),
+                serviceComponents.get(),
+                inferenceServiceSettings,
+                context,
+                ccmRelatedComponents.ccmAuthApplierFactory()
+            );
+            eisService.init();
+            return eisService;
+        },
+            context -> new SageMakerService(
+                new SageMakerModelBuilder(sageMakerSchemas),
+                new SageMakerClient(
+                    new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
+                    services.threadPool()
+                ),
+                sageMakerSchemas,
+                services.threadPool(),
+                sageMakerConfigurations::getOrCompute,
+                context
+            )
+        ));
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
         var inferenceStats = InferenceStats.create(meterRegistry);
@@ -430,7 +439,6 @@ public class InferencePlugin extends Plugin
             new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
         );
         components.add(inferenceStatsBinding);
-        components.add(authorizationHandler);
         components.add(new PluginComponentBinding<>(Sender.class, elasticInferenceServiceFactory.get().createSender()));
         components.add(
             new InferenceEndpointRegistry(
@@ -443,16 +451,103 @@ public class InferencePlugin extends Plugin
             )
         );
 
-        components.add(authTaskExecutor);
-        components.addAll(createCCMComponents(services));
-
         return components;
     }
 
-    private Collection<?> createCCMComponents(PluginServices services) {
-        ccmFeature.set(new CCMFeature(settings));
+    private record CCMRelatedComponents(Collection<?> components, CCMAuthenticationApplierFactory ccmAuthApplierFactory) {}
+
+    private CCMRelatedComponents createCCMDependentComponents(
+        PluginServices services,
+        ElasticInferenceServiceSettings inferenceServiceSettings,
+        ServiceComponents serviceComponents,
+        Sender sender,
+        ModelRegistry modelRegistry,
+        CCMFeature ccmFeature
+    ) {
+        var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
-        return List.of(new CCMService(ccmPersistentStorageService), ccmFeature.get(), ccmPersistentStorageService);
+        var ccmCache = new CCMCache(
+            ccmPersistentStorageService,
+            services.clusterService(),
+            settings,
+            services.featureService(),
+            services.projectResolver(),
+            services.client()
+        );
+        var ccmService = new CCMService(
+            ccmPersistentStorageService,
+            ccmEnablementService,
+            ccmCache,
+            services.projectResolver(),
+            services.client()
+        );
+        var ccmAuthApplierFactory = new CCMAuthenticationApplierFactory(ccmFeature, ccmService);
+
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            inferenceServiceSettings.getElasticInferenceServiceUrl(),
+            services.threadPool(),
+            ccmAuthApplierFactory
+        );
+
+        var authTaskExecutor = AuthorizationTaskExecutor.create(
+            services.clusterService(),
+            services.featureService(),
+            ccmEnablementService,
+            ccmFeature,
+            new AuthorizationPoller.Parameters(
+                serviceComponents,
+                authorizationHandler,
+                sender,
+                inferenceServiceSettings,
+                modelRegistry,
+                services.client(),
+                ccmFeature,
+                ccmService
+            )
+        );
+        authorizationTaskExecutorRef.set(authTaskExecutor);
+        authTaskExecutor.startAndLazilyCreateTask();
+
+        return new CCMRelatedComponents(
+            List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),
+            ccmAuthApplierFactory
+        );
+    }
+
+    private record EisRequestSenderComponents(HttpRequestSender.Factory factory, HttpClientManager httpClientManager) {}
+
+    private EisRequestSenderComponents createEisRequestSenderFactory(
+        PluginServices services,
+        ThrottlerManager throttlerManager,
+        ElasticInferenceServiceSettings inferenceServiceSettings,
+        CCMFeature ccmFeature
+    ) {
+        // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
+        HttpClientManager manager;
+        if (ccmFeature.isCcmSupportedEnvironment()) {
+            // If ccm is configurable then we aren't using mTLS so ignore the ssl service
+            manager = HttpClientManager.create(
+                settings,
+                services.threadPool(),
+                services.clusterService(),
+                throttlerManager,
+                inferenceServiceSettings.getConnectionTtl()
+            );
+        } else {
+            manager = HttpClientManager.create(
+                settings,
+                services.threadPool(),
+                services.clusterService(),
+                throttlerManager,
+                getSslService(),
+                inferenceServiceSettings.getConnectionTtl()
+            );
+        }
+
+        return new EisRequestSenderComponents(
+            new HttpRequestSender.Factory(serviceComponents.get(), manager, services.clusterService()),
+            manager
+        );
     }
 
     @Override
@@ -476,6 +571,7 @@ public class InferencePlugin extends Plugin
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GroqService(httpFactory.get(), serviceComponents.get(), context),
             context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
             context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
@@ -492,6 +588,8 @@ public class InferencePlugin extends Plugin
             context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
             context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
             context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
+            context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new NvidiaService(httpFactory.get(), serviceComponents.get(), context),
             ElasticsearchInternalService::new,
             context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
@@ -523,7 +621,8 @@ public class InferencePlugin extends Plugin
                 )
             ),
             InferenceNamedWriteablesProvider.getNamedWriteables(),
-            AuthorizationTaskExecutor.getNamedWriteables()
+            AuthorizationTaskExecutor.getNamedWriteables(),
+            CCMEnablementService.getNamedWriteables()
         ).flatMap(List::stream).toList();
 
     }
@@ -543,7 +642,8 @@ public class InferencePlugin extends Plugin
                     ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::fromXContent
                 )
             ),
-            AuthorizationTaskExecutor.getNamedXContentParsers()
+            AuthorizationTaskExecutor.getNamedXContentParsers(),
+            CCMEnablementService.getNamedXContentParsers()
         ).flatMap(List::stream).toList();
     }
 
@@ -651,6 +751,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         settings.addAll(CCMSettings.getSettingsDefinitions());
+        settings.addAll(CCMCache.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

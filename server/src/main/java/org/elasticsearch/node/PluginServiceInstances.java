@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,5 +60,6 @@ public record PluginServiceInstances(
     ProjectResolver projectResolver,
     SlowLogFieldProvider slowLogFieldProvider,
     IndexingPressure indexingPressure,
-    LinkedProjectConfigService linkedProjectConfigService
+    LinkedProjectConfigService linkedProjectConfigService,
+    ProjectRoutingResolver projectRoutingResolver
 ) implements Plugin.PluginServices {}

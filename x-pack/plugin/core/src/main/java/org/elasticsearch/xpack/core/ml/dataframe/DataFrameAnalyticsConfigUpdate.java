@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -83,12 +82,8 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::readFrom);
         this.allowLazyStart = in.readOptionalBoolean();
         this.maxNumThreads = in.readOptionalVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            Map<String, Object> readMeta = in.readGenericMap();
-            this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
-        } else {
-            this.meta = null;
-        }
+        Map<String, Object> readMeta = in.readGenericMap();
+        this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
     }
 
     @Override
@@ -98,9 +93,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         out.writeOptionalWriteable(modelMemoryLimit);
         out.writeOptionalBoolean(allowLazyStart);
         out.writeOptionalVInt(maxNumThreads);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeGenericMap(meta);
-        }
+        out.writeGenericMap(meta);
     }
 
     public String getId() {

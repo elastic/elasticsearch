@@ -396,12 +396,14 @@ module org.elasticsearch.server {
         to
             org.elasticsearch.inference,
             org.elasticsearch.metering,
-            org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.serverless.stateless,
             org.elasticsearch.internal.security,
-            org.elasticsearch.gpu;
+            org.elasticsearch.xpack.core,
+            org.elasticsearch.xpack.gpu,
+            org.elasticsearch.xpack.diskbbq;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
@@ -445,6 +447,7 @@ module org.elasticsearch.server {
 
     provides org.apache.lucene.codecs.PostingsFormat
         with
+            org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
@@ -465,8 +468,11 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat,
             org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat,
-            org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
@@ -491,12 +497,13 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
     exports org.elasticsearch.index.codec.perfield;
-    exports org.elasticsearch.index.codec.vectors to org.elasticsearch.test.knn, org.elasticsearch.gpu;
-    exports org.elasticsearch.index.codec.vectors.reflect to org.elasticsearch.gpu;
+    // TODO: revert to qualified exports when ModuleQualifiedExportsService supports libraries too
+    exports org.elasticsearch.index.codec.vectors; // to org.elasticsearch.test.knn, org.elasticsearch.gpu;
+    exports org.elasticsearch.index.codec.vectors.reflect; // to org.elasticsearch.gpu;
     exports org.elasticsearch.index.codec.vectors.es818 to org.elasticsearch.test.knn;
     exports org.elasticsearch.inference.telemetry;
-    exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn;
-    exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn;
+    exports org.elasticsearch.index.codec.vectors.diskbbq to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
+    exports org.elasticsearch.index.codec.vectors.diskbbq.next to org.elasticsearch.test.knn, org.elasticsearch.xpack.diskbbq;
     exports org.elasticsearch.index.codec.vectors.cluster to org.elasticsearch.test.knn;
     exports org.elasticsearch.index.codec.vectors.es93 to org.elasticsearch.test.knn;
     exports org.elasticsearch.search.crossproject;

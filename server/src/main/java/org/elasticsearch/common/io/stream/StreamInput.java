@@ -76,6 +76,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public abstract class StreamInput extends InputStream {
 
+    // required for backwards compatibility with objects that use older transport versions for persistent serialization
+    private static final TransportVersion V_8_7_0 = TransportVersion.fromId(8070099);
     private TransportVersion version = TransportVersion.current();
 
     /**
@@ -919,10 +921,10 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
+            case 9 -> getTransportVersion().onOrAfter(V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
+            case 10 -> getTransportVersion().onOrAfter(V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();
@@ -1194,6 +1196,17 @@ public abstract class StreamInput extends InputStream {
     @Nullable
     public <T extends Exception> T readException() throws IOException {
         return ElasticsearchException.readException(this);
+    }
+
+    /**
+     * Reads an optional {@link Exception}.
+     */
+    @Nullable
+    public <T extends Exception> T readOptionalException() throws IOException {
+        if (readBoolean()) {
+            return ElasticsearchException.readException(this);
+        }
+        return null;
     }
 
     /**

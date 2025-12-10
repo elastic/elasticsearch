@@ -34,6 +34,7 @@ tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   mapping from: /slf4j-.*/, to: 'slf4j'
+  mapping from: /log4j-.*/, to: 'log4j'
 }
 
 configurations {
@@ -76,7 +77,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   implementation project(":x-pack:plugin:core:template-resources")
 

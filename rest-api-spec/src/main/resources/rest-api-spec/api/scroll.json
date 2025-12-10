@@ -33,7 +33,10 @@
             "scroll_id": {
               "type": "string",
               "description": "The scroll ID",
-              "deprecated": true
+              "deprecated": {
+                "version": "7.0.0",
+                "description": "A scroll id can be quite large and should be specified as part of the body"
+              }
             }
           },
           "deprecated": {
@@ -50,6 +53,10 @@
         "description": "Specify how long a consistent view of the index should be maintained for scrolled search"
       },
       "scroll_id": {
+        "deprecated": {
+          "version": "7.0.0",
+          "description": "A scroll id can be quite large and should be specified as part of the body"
+        },
         "type": "string",
         "description": "The scroll ID for scrolled search"
       },

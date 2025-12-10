@@ -77,7 +77,7 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
         }
     }
 
-    private BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
+    public BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
         this.bytes = bytes;
         this.startOffsets = startOffsets;
         this.size = size;

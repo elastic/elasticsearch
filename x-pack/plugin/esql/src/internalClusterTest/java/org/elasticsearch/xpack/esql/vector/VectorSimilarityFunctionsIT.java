@@ -50,7 +50,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
 
-        for (ElementType elementType : Set.of(ElementType.FLOAT, ElementType.BYTE)) {
+        for (ElementType elementType : Set.of(ElementType.FLOAT, ElementType.BYTE, ElementType.BIT)) {
             if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
                 params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION, elementType });
             }
@@ -154,7 +154,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSimilarityWithOneDimVector() {
-        var randomVector = randomVector(1);
+        var randomVector = randomVector(elementType == ElementType.BIT ? Byte.SIZE : 1);
         var query = String.format(Locale.ROOT, """
                 FROM test
                 | EVAL similarity = %s(one_dim_vector, %s)
@@ -253,10 +253,9 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDifferentDimensions() {
-        // edge case where this might not throw is if all `left_vector` are null, but the chance is (hopefully!) low enough to ignore
-        var randomVector = randomValueOtherThan(
-            null,
-            () -> randomVector(randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * 2))
+        var randomVector = randomVector(
+            randomValueOtherThan(numDims, () -> randomIntBetween(32, 64) * (elementType == ElementType.BIT ? 8 : 2)),
+            false
         );
         var query = String.format(Locale.ROOT, """
                 FROM test
@@ -306,16 +305,16 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
+        numDims = randomIntBetween(10, 20) * (elementType == ElementType.BIT ? 8 : 2);
         createIndexWithDenseVector("test");
 
-        numDims = randomIntBetween(10, 20) * 2; // even number
         int numDocs = randomIntBetween(10, 100);
         this.leftVectors = new ArrayList<>();
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             List<Number> leftVector = randomVector();
             List<Number> rightVector = randomVector();
-            List<Number> oneDimVector = randomVector(1);
+            List<Number> oneDimVector = randomVector(elementType == ElementType.BIT ? Byte.SIZE : 1);
             docs[i] = prepareIndex("test").setId("" + i)
                 .setSource("id", String.valueOf(i), "left_vector", leftVector, "right_vector", rightVector, "one_dim_vector", oneDimVector);
             leftVectors.add(leftVector);
@@ -329,15 +328,36 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
     }
 
     private List<Number> randomVector(int numDims) {
+        return randomVector(numDims, true);
+    }
+
+    private List<Number> randomVector(int numDims, boolean allowNull) {
         assert numDims != 0 : "numDims must be set before calling randomVector()";
-        if (rarely()) {
+        if (allowNull && rarely()) {
             return null;
         }
-        List<Number> vector = new ArrayList<>(numDims);
-        for (int j = 0; j < numDims; j++) {
+        int dimensions = numDims;
+        if (elementType == ElementType.BIT) {
+            assert dimensions % 8 == 0 : "dimensions must be multiple of 8 for BIT element type but was " + dimensions;
+            dimensions = dimensions / 8;
+        }
+        List<Number> vector = new ArrayList<>(dimensions);
+        for (int j = 0; j < dimensions; j++) {
             switch (elementType) {
-                case FLOAT -> vector.add(randomFloat());
-                case BYTE, BIT -> vector.add((byte) randomIntBetween(-128, 127));
+                case FLOAT -> {
+                    if (dimensions == 1) {
+                        vector.add(randomValueOtherThan(0f, () -> randomFloat()));
+                    } else {
+                        vector.add(randomFloat());
+                    }
+                }
+                case BYTE, BIT -> {
+                    if (dimensions == 1) {
+                        vector.add(randomValueOtherThan((byte) 0, () -> (byte) randomIntBetween(-128, 127)));
+                    } else {
+                        vector.add((byte) randomIntBetween(-128, 127));
+                    }
+                }
                 default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
             }
         }
@@ -352,9 +372,9 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             .startObject("id")
             .field("type", "integer")
             .endObject();
-        createDenseVectorField(mapping, "left_vector");
-        createDenseVectorField(mapping, "right_vector");
-        createDenseVectorField(mapping, "one_dim_vector");
+        createDenseVectorField(mapping, "left_vector", elementType, numDims);
+        createDenseVectorField(mapping, "right_vector", elementType, numDims);
+        createDenseVectorField(mapping, "one_dim_vector", elementType, elementType == ElementType.BIT ? Byte.SIZE : 1);
         mapping.endObject().endObject();
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -364,9 +384,11 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         assertAcked(CreateRequest);
     }
 
-    private void createDenseVectorField(XContentBuilder mapping, String fieldName) throws IOException {
+    private static void createDenseVectorField(XContentBuilder mapping, String fieldName, ElementType elementType, int dims)
+        throws IOException {
         mapping.startObject(fieldName)
             .field("type", "dense_vector")
+            .field("dims", dims)
             .field("similarity", "l2_norm")
             .field("element_type", elementType.toString().toLowerCase(Locale.ROOT))
             .startObject("index_options")

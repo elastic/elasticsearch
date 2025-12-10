@@ -72,7 +72,10 @@ public class CrossProjectIndexExpressionsRewriter {
             if (canonicalExpressionsMap.containsKey(indexExpression)) {
                 continue;
             }
-            canonicalExpressionsMap.put(indexExpression, rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases));
+            canonicalExpressionsMap.put(
+                indexExpression,
+                rewriteIndexExpression(indexExpression, originProjectAlias, allProjectAliases, null)
+            );
         }
         return canonicalExpressionsMap;
     }
@@ -85,32 +88,37 @@ public class CrossProjectIndexExpressionsRewriter {
      *                           it can match on its actual alias and on the special alias "_origin". Any expression matched by the origin
      *                           project also cannot be qualified with its actual alias in the final rewritten expression.
      * @param allProjectAliases the list of all project aliases (linked and origin) consider for a request
+     * @param projectRouting the project routing that was applied to determine the origin and linked projects.
+     *                       {@code null} if no project routing was applied.
      * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
     public static IndexRewriteResult rewriteIndexExpression(
         String indexExpression,
         @Nullable String originProjectAlias,
-        Set<String> allProjectAliases
+        Set<String> allProjectAliases,
+        @Nullable String projectRouting
     ) {
         maybeThrowOnUnsupportedResource(indexExpression);
 
         // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
         // projects with qualified index patterns such as "missing-*:index".
         if (originProjectAlias == null && allProjectAliases.isEmpty()) {
-            // TODO: add project_routing string to the exception message
-            throw new NoMatchingProjectException("no matching project after applying project routing");
+            assert projectRouting != null;
+            throw new NoMatchingProjectException("no matching project after applying project routing [" + projectRouting + "]");
         }
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;
         if (isQualified) {
-            rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
+            rewrittenExpression = rewriteQualifiedExpression(indexExpression, originProjectAlias, allProjectAliases, projectRouting);
             logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         } else {
             rewrittenExpression = rewriteUnqualifiedExpression(indexExpression, originProjectAlias, allProjectAliases);
             logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, rewrittenExpression);
         }
+        // Empty rewritten expressions should have been thrown earlier
+        assert false == rewrittenExpression.isEmpty() : "rewritten index expression must not be empty";
         return rewrittenExpression;
     }
 
@@ -146,7 +154,8 @@ public class CrossProjectIndexExpressionsRewriter {
     private static IndexRewriteResult rewriteQualifiedExpression(
         String resource,
         @Nullable String originProjectAlias,
-        Set<String> allProjectAliases
+        Set<String> allProjectAliases,
+        @Nullable String projectRouting
     ) {
         String[] splitResource = RemoteClusterAware.splitIndexName(resource);
         assert splitResource.length == 2
@@ -167,7 +176,7 @@ public class CrossProjectIndexExpressionsRewriter {
 
         if (originProjectAlias == null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
             // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
-            throw new NoMatchingProjectException(requestedProjectAlias);
+            throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
         }
 
         try {
@@ -177,7 +186,7 @@ public class CrossProjectIndexExpressionsRewriter {
             );
 
             if (allProjectsMatchingAlias.isEmpty()) {
-                throw new NoMatchingProjectException(requestedProjectAlias);
+                throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
             }
 
             String localExpression = null;
@@ -193,7 +202,7 @@ public class CrossProjectIndexExpressionsRewriter {
             return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
         } catch (NoSuchRemoteClusterException ex) {
             logger.debug(ex.getMessage(), ex);
-            throw new NoMatchingProjectException(requestedProjectAlias);
+            throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
         }
     }
 
@@ -201,9 +210,6 @@ public class CrossProjectIndexExpressionsRewriter {
         // TODO To be handled in future PR.
         if (resource.startsWith(EXCLUSION)) {
             throw new IllegalArgumentException("Exclusions are not currently supported but was found in the expression [" + resource + "]");
-        }
-        if (resource.startsWith(DATE_MATH)) {
-            throw new IllegalArgumentException("Date math are not currently supported but was found in the expression [" + resource + "]");
         }
         if (IndexNameExpressionResolver.hasSelectorSuffix(resource)) {
             throw new IllegalArgumentException("Selectors are not currently supported but was found in the expression [" + resource + "]");
@@ -216,6 +222,10 @@ public class CrossProjectIndexExpressionsRewriter {
     public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
         public IndexRewriteResult(String localExpression) {
             this(localExpression, Set.of());
+        }
+
+        public boolean isEmpty() {
+            return localExpression == null && remoteExpressions.isEmpty();
         }
     }
 }

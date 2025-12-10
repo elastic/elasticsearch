@@ -1002,7 +1002,15 @@ public final class ServiceUtils {
     }
 
     public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
-        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+        throwUnsupportedTaskOperation(serviceName, "unified completion");
+    }
+
+    public static void throwUnsupportedEmbeddingOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "embedding");
+    }
+
+    private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
     public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {

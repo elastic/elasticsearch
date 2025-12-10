@@ -168,7 +168,7 @@ PUT my-index-000003
 ### Using ELSER on EIS
 
 ```{applies_to}
-stack: preview 9.1 ga 9.2
+stack: preview 9.1, ga 9.2
 deployment:
   self: unavailable
 serverless: ga
@@ -865,6 +865,7 @@ POST local-index,remote-cluster:remote-index/_search
   of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
 * `semantic_text` fields can’t currently be set as part
   of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
+* `semantic_text` fields are not supported in indices created prior to 8.11.0.
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) when [`ccs_minimize_roundtrips`](docs-content://solutions/search/cross-cluster-search.md#ccs-network-delays) is set to `false`.
 * `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://solutions/search/cross-cluster-search.md) in [ES|QL](/reference/query-languages/esql.md).
 * `semantic_text` fields do not support [Cross-Cluster Replication (CCR)](docs-content://deploy-manage/tools/cross-cluster-replication.md).

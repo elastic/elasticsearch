@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisshash;
+package org.elasticsearch.swisstable;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -36,13 +36,13 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 20)
-public class Ordinator64Tests extends ESTestCase {
+public class LongSwissTableTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (AddType addType : AddType.values()) {
             params.add(new Object[] { addType, "tiny", 5, 0, 1, 1 });
-            params.add(new Object[] { addType, "small", Ordinator64.INITIAL_CAPACITY / 2, 0, 1, 1 });
+            params.add(new Object[] { addType, "small", LongSwissTable.INITIAL_CAPACITY / 2, 0, 1, 1 });
             params.add(new Object[] { addType, "two key pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES, 1, 2, 1 });
             params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 2, 4, 2 });
             params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 16, 8 });
@@ -54,7 +54,7 @@ public class Ordinator64Tests extends ESTestCase {
     private enum AddType {
         SINGLE_VALUE,
         ARRAY,
-        // todo potentially remove this entirely, same as in ordinator64
+        // todo potentially remove this entirely, same as in LongSwissTable
         // BUILDER;
     }
 
@@ -65,7 +65,7 @@ public class Ordinator64Tests extends ESTestCase {
     private final int expectedKeyPageCount;
     private final int expectedIdPageCount;
 
-    public Ordinator64Tests(
+    public LongSwissTableTests(
         @Name("addType") AddType addType,
         @Name("name") String name,
         @Name("count") int count,
@@ -87,7 +87,7 @@ public class Ordinator64Tests extends ESTestCase {
 
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
+        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
             assertThat(ord.size(), equalTo(0));
 
             switch (addType) {
@@ -139,7 +139,7 @@ public class Ordinator64Tests extends ESTestCase {
             assertThat("Only currently used pages are open", recycler.open, hasSize(expectedKeyPageCount + expectedIdPageCount));
 
             Long[] iterated = new Long[count];
-            for (Ordinator64.Itr itr = ord.iterator(); itr.next();) {
+            for (LongSwissTable.Itr itr = ord.iterator(); itr.next();) {
                 assertThat(iterated[itr.id()], nullValue());
                 iterated[itr.id()] = itr.key();
             }
@@ -165,7 +165,7 @@ public class Ordinator64Tests extends ESTestCase {
         }
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
+            try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
                 switch (addType) {
                     case SINGLE_VALUE -> {
                         for (int i = 0; i < v.length; i++) {
@@ -203,8 +203,8 @@ public class Ordinator64Tests extends ESTestCase {
     private void testSameBucketCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
-            // mask must match the table mask used by Ordinator64
+        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
+            // mask must match the table mask used by LongSwissTable
             int mask = 0xFFFF; // oversized; we only need lower bits locked
             long base = randomLong();
 
@@ -238,7 +238,7 @@ public class Ordinator64Tests extends ESTestCase {
     private void testSameControlDataCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
+        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
             int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
             long[] keys = makeSameControlDataKeys(control, count);
             Map<Long, Integer> expected = new HashMap<>();
@@ -276,7 +276,7 @@ public class Ordinator64Tests extends ESTestCase {
     private void testWorstCaseCollisionClusterImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (Ordinator64 ord = new Ordinator64(recycler, breaker)) {
+        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
             // Pick a fixed 7-bit metadata and fixed low bits.
             int control = randomIntBetween(1, 120);
             long fixedBucketBits = randomLong() & 0xFFFF; // lock bucket range
@@ -332,22 +332,22 @@ public class Ordinator64Tests extends ESTestCase {
         return result;
     }
 
-    private void assertStatus(Ordinator64 ord) {
-        Ordinator.Status status = ord.status();
+    private void assertStatus(LongSwissTable ord) {
+        SwissTable.Status status = ord.status();
         assertThat(status.size(), equalTo(count));
         if (expectedGrowCount == 0) {
             assertThat(status.growCount(), equalTo(0));
-            assertThat(status.capacity(), equalTo(Ordinator64.INITIAL_CAPACITY));
-            assertThat(status.nextGrowSize(), equalTo((int) (Ordinator64.INITIAL_CAPACITY * Ordinator64.SmallCore.FILL_FACTOR)));
+            assertThat(status.capacity(), equalTo(LongSwissTable.INITIAL_CAPACITY));
+            assertThat(status.nextGrowSize(), equalTo((int) (LongSwissTable.INITIAL_CAPACITY * LongSwissTable.SmallCore.FILL_FACTOR)));
         } else {
             assertThat(status.growCount(), equalTo(expectedGrowCount));
-            assertThat(status.capacity(), equalTo(Ordinator64.INITIAL_CAPACITY << expectedGrowCount));
+            assertThat(status.capacity(), equalTo(LongSwissTable.INITIAL_CAPACITY << expectedGrowCount));
             assertThat(
                 status.nextGrowSize(),
-                equalTo((int) ((Ordinator64.INITIAL_CAPACITY << expectedGrowCount) * Ordinator64.BigCore.FILL_FACTOR))
+                equalTo((int) ((LongSwissTable.INITIAL_CAPACITY << expectedGrowCount) * LongSwissTable.BigCore.FILL_FACTOR))
             );
 
-            Ordinator.BigCoreStatus s = (Ordinator.BigCoreStatus) status;
+            SwissTable.BigCoreStatus s = (SwissTable.BigCoreStatus) status;
             assertThat(s.keyPages(), equalTo(expectedKeyPageCount));
             assertThat(s.idPages(), equalTo(expectedIdPageCount));
         }

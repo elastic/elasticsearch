@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisshash;
+package org.elasticsearch.swisstable;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -29,7 +29,7 @@ import java.util.Objects;
  * Superclass of table to assign {@code int} ids to various key types,
  * vending the ids in order they are added.
  */
-public abstract class Ordinator {
+public abstract class SwissTable {
     protected final PageCacheRecycler recycler;
     protected final CircuitBreaker breaker;
 
@@ -39,7 +39,7 @@ public abstract class Ordinator {
     protected int size;
     protected int growCount;
 
-    protected Ordinator(PageCacheRecycler recycler, CircuitBreaker breaker, int initialCapacity, float smallCoreFillFactor) {
+    protected SwissTable(PageCacheRecycler recycler, CircuitBreaker breaker, int initialCapacity, float smallCoreFillFactor) {
         this.breaker = Objects.requireNonNull(breaker);
         this.recycler = recycler == null ? PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler;
 
@@ -51,7 +51,7 @@ public abstract class Ordinator {
     }
 
     /**
-     * How many entries are in the {@link Ordinator64}.
+     * How many entries are in the {@link LongSwissTable}.
      */
     public final int size() {
         return size;
@@ -68,7 +68,7 @@ public abstract class Ordinator {
     public abstract Itr iterator();
 
     /**
-     * Performance information about the {@link Ordinator} hopefully useful for debugging.
+     * Performance information about the {@link SwissTable} hopefully useful for debugging.
      */
     public abstract static class Status implements NamedWriteable, ToXContentObject {
         private final int growCount;
@@ -88,21 +88,21 @@ public abstract class Ordinator {
         }
 
         /**
-         * The number of times this {@link Ordinator} has grown.
+         * The number of times this {@link SwissTable} has grown.
          */
         public int growCount() {
             return growCount;
         }
 
         /**
-         * The size of the {@link Ordinator}.
+         * The size of the {@link SwissTable}.
          */
         public int capacity() {
             return capacity;
         }
 
         /**
-         * Number of entries added to the {@link Ordinator}.
+         * Number of entries added to the {@link SwissTable}.
          */
         public int size() {
             return size;
@@ -158,7 +158,7 @@ public abstract class Ordinator {
 
     static class BigCoreStatus extends Status {
         /**
-         * The number of times and {@link Ordinator64#add} operation needed to probe additional
+         * The number of times and {@link LongSwissTable#add} operation needed to probe additional
          * entries. If all is right with the world this should be {@code 0}, meaning
          * every entry found an empty slot within {@code SIMD_WIDTH} slots from its
          * natural positions. Such hashes will never have to probe on read. More
@@ -234,7 +234,7 @@ public abstract class Ordinator {
         final List<Releasable> toClose = new ArrayList<>();
 
         byte[] grabPage() {
-            breaker.addEstimateBytesAndMaybeBreak(PageCacheRecycler.PAGE_SIZE_IN_BYTES, "ordinator");
+            breaker.addEstimateBytesAndMaybeBreak(PageCacheRecycler.PAGE_SIZE_IN_BYTES, "SwissTable.Core");
             toClose.add(() -> breaker.addWithoutBreaking(-PageCacheRecycler.PAGE_SIZE_IN_BYTES));
             Recycler.V<byte[]> page = recycler.bytePage(false);
             toClose.add(page);
@@ -259,13 +259,13 @@ public abstract class Ordinator {
     }
 
     /**
-     * Iterates the entries in the {@link Ordinator}.
+     * Iterates the entries in the {@link SwissTable}.
      */
     public abstract class Itr {
         protected int slot = -1;
 
         /**
-         * Advance to the next entry in the {@link Ordinator}, returning {@code false}
+         * Advance to the next entry in the {@link SwissTable}, returning {@code false}
          * if there aren't any more entries..
          */
         public abstract boolean next();

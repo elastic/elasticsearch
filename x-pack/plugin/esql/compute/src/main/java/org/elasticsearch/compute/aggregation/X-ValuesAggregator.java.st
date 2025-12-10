@@ -32,7 +32,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.swisshash.Ordinator64;
+import org.elasticsearch.swisstable.LongSwissTable;
 // end generated imports
 
 /**
@@ -203,7 +203,7 @@ $endif$
 $if(long||double)$
         private final LongLongHash hashes;
 $elseif(int)$
-        private final Ordinator64 hashes;
+        private final LongSwissTable hashes;
 $else$
         private final LongHash hashes;
 $endif$
@@ -214,7 +214,7 @@ $endif$
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
 $if(int)$
-            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker());
+            this.hashes = new LongSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker());
 
 $elseif(long||double)$
             this.hashes = new LongLongHash(1, blockFactory.bigArrays());

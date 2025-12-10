@@ -51,7 +51,7 @@ dependencies {
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
   implementation project(path: ':libs:simdvec')
-  implementation project(path: ':libs:swisshash')
+  implementation project(path: ':libs:swisstable')
   implementation project(path: ':libs:exponential-histogram')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))

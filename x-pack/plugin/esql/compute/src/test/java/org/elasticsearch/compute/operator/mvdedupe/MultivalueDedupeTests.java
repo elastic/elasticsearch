@@ -29,8 +29,8 @@ import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.swisshash.Ordinator64;
-import org.elasticsearch.swisshash.OrdinatorBytes;
+import org.elasticsearch.swisstable.BytesRefSwissTable;
+import org.elasticsearch.swisstable.LongSwissTable;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -308,9 +308,8 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     private void assertBytesRefHash(Set<BytesRef> previousValues, RandomBlock b) {
-        // BytesRefHash hashOld = new BytesRefHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         var bf = blockFactory();
-        try (var hash = new OrdinatorBytes(bf.bigArrays().recycler(), bf.breaker(), bf.bigArrays())) {
+        try (var hash = new BytesRefSwissTable(PageCacheRecycler.NON_RECYCLING_INSTANCE, bf.breaker(), bf.bigArrays())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hashAdd(blockFactory(), hash);
             try (IntBlock ords = hashes.ords()) {
@@ -335,7 +334,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     private void assertIntHash(Set<Integer> previousValues, RandomBlock b) {
-        try (Ordinator64 hash = new Ordinator64(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory().breaker())) {
+        try (LongSwissTable hash = new LongSwissTable(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory().breaker())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hashAdd(blockFactory(), hash);
             try (IntBlock ords = hashes.ords()) {
@@ -361,12 +360,12 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertLongHash(Set<Long> previousValues, RandomBlock b) {
         BlockFactory blockFactory = blockFactory();
-        try (Ordinator64 hash = new Ordinator64(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker())) {
+        try (LongSwissTable hash = new LongSwissTable(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hashAdd(blockFactory, hash);
 
             Map<Long, Long> idToKey = new HashMap<>();
-            Ordinator64.Itr itr = hash.iterator();
+            LongSwissTable.Itr itr = hash.iterator();
             while (itr.next()) {
                 idToKey.put((long) itr.id(), itr.key());
             }

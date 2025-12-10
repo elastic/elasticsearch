@@ -32,7 +32,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.swisshash.Ordinator64;
+import org.elasticsearch.swisstable.LongSwissTable;
 // end generated imports
 
 /**
@@ -126,14 +126,14 @@ class ValuesIntAggregator {
      */
     private static class NextValues implements Releasable {
         private final BlockFactory blockFactory;
-        private final Ordinator64 hashes;
+        private final LongSwissTable hashes;
         private int[] selectedCounts = null;
         private int[] ids = null;
         private long extraMemoryUsed = 0;
 
         private NextValues(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
-            this.hashes = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker());
+            this.hashes = new LongSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker());
 
         }
 

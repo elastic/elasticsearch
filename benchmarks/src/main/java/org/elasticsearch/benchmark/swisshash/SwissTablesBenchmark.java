@@ -14,7 +14,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.swisshash.Ordinator64;
+import org.elasticsearch.swisstable.LongSwissTable;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
@@ -56,7 +56,7 @@ public class SwissTablesBenchmark {
     long[] lookupKeys;
     int[] ids;
 
-    Ordinator64 ord;
+    LongSwissTable ord;
     LongHash longHash;
 
     @Setup(Level.Trial)
@@ -64,7 +64,7 @@ public class SwissTablesBenchmark {
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
 
-        ord = new Ordinator64(recycler, breaker);
+        ord = new LongSwissTable(recycler, breaker);
         longHash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         keys = generateKeys(uniqueKeys);
         lookupKeys = keys.clone();

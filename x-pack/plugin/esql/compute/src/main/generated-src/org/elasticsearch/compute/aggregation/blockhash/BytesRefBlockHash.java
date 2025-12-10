@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.swisshash.OrdinatorBytes;
+import org.elasticsearch.swisstable.BytesRefSwissTable;
 
 /**
  * Maps a {@link BytesRefBlock} column to group ids.
@@ -33,7 +33,7 @@ import org.elasticsearch.swisshash.OrdinatorBytes;
  */
 final class BytesRefBlockHash extends BlockHash {
     private final int channel;
-    final OrdinatorBytes hash;
+    final BytesRefSwissTable hash;
     /**
      * Have we seen any {@code null} values?
      * <p>
@@ -46,7 +46,7 @@ final class BytesRefBlockHash extends BlockHash {
     BytesRefBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new OrdinatorBytes(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
+        this.hash = new BytesRefSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
     }
 
     @Override

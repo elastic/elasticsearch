@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisshash;
+package org.elasticsearch.swisstable;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -34,13 +34,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class OrdinatorBytesTests extends ESTestCase {
+public class BytesRefSwissTableTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         // name, count, expectedGrowCount, expectedIdPageCount
         params.add(new Object[] { "tiny", 5, 0, 1 });
-        params.add(new Object[] { "small", OrdinatorBytes.INITIAL_CAPACITY / 2, 0, 1 });
+        params.add(new Object[] { "small", BytesRefSwissTable.INITIAL_CAPACITY / 2, 0, 1 });
         params.add(new Object[] { "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 1, 2 });
         params.add(new Object[] { "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 3, 8 });
         params.add(new Object[] { "huge", 100_000, 5, 32 });
@@ -52,7 +52,7 @@ public class OrdinatorBytesTests extends ESTestCase {
     private final int expectedGrowCount;
     private final int expectedIdPageCount;
 
-    public OrdinatorBytesTests(
+    public BytesRefSwissTableTests(
         @Name("name") String name,
         @Name("count") int count,
         @Name("expectedGrowCount") int expectedGrowCount,
@@ -72,7 +72,7 @@ public class OrdinatorBytesTests extends ESTestCase {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
-        try (OrdinatorBytes ord = new OrdinatorBytes(recycler, breaker, bigArrays)) {
+        try (BytesRefSwissTable ord = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
             assertThat(ord.size(), equalTo(0));
 
             for (int i = 0; i < v.length; i++) {
@@ -99,11 +99,11 @@ public class OrdinatorBytesTests extends ESTestCase {
 
             assertStatus(ord);
             // Note: we cannot easily assert recycler.open size because BigArrays (BytesRefArray) usage
-            // is mixed with Ordinator's usage. Ordinator uses explicit pages for IDs.
+            // is mixed with SwissTable's usage. SwissTable uses explicit pages for IDs.
 
             BytesRef[] iterated = new BytesRef[count];
             BytesRef scratch = new BytesRef();
-            for (OrdinatorBytes.Itr itr = ord.iterator(); itr.next();) {
+            for (BytesRefSwissTable.Itr itr = ord.iterator(); itr.next();) {
                 assertThat(iterated[itr.id()], nullValue());
                 iterated[itr.id()] = BytesRef.deepCopyOf(itr.key(scratch));
             }
@@ -130,8 +130,8 @@ public class OrdinatorBytesTests extends ESTestCase {
 
         try (BytesRefArray sharedArray = new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays)) {
             try (
-                OrdinatorBytes leftOrd = new OrdinatorBytes(recycler, breaker, sharedArray);
-                OrdinatorBytes rightOrd = new OrdinatorBytes(recycler, breaker, sharedArray);
+                BytesRefSwissTable leftOrd = new BytesRefSwissTable(recycler, breaker, sharedArray);
+                BytesRefSwissTable rightOrd = new BytesRefSwissTable(recycler, breaker, sharedArray);
             ) {
                 assertThat(leftOrd.size(), equalTo(0));
                 assertThat(rightOrd.size(), equalTo(0));
@@ -180,7 +180,7 @@ public class OrdinatorBytesTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (OrdinatorBytes ord = new OrdinatorBytes(recycler, breaker, bigArrays)) {
+            try (BytesRefSwissTable ord = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
                 for (int i = 0; i < v.length; i++) {
                     ord.add(v[i]);
                 }
@@ -190,20 +190,20 @@ public class OrdinatorBytesTests extends ESTestCase {
         assertThat(recycler.open, hasSize(0));
     }
 
-    private void assertStatus(OrdinatorBytes ord) {
-        Ordinator.Status status = ord.status();
+    private void assertStatus(BytesRefSwissTable ord) {
+        SwissTable.Status status = ord.status();
 
         if (expectedGrowCount == 0) {
             // In small core, capacity is fixed.
             assertThat(status.growCount(), equalTo(0));
-            assertThat(status.capacity(), equalTo(OrdinatorBytes.INITIAL_CAPACITY));
+            assertThat(status.capacity(), equalTo(BytesRefSwissTable.INITIAL_CAPACITY));
         } else {
             assertThat(status.growCount(), equalTo(expectedGrowCount));
-            assertThat(status.capacity(), equalTo(OrdinatorBytes.INITIAL_CAPACITY << expectedGrowCount));
+            assertThat(status.capacity(), equalTo(BytesRefSwissTable.INITIAL_CAPACITY << expectedGrowCount));
 
-            Ordinator.BigCoreStatus s = (Ordinator.BigCoreStatus) status;
+            SwissTable.BigCoreStatus s = (SwissTable.BigCoreStatus) status;
             assertThat(s.idPages(), equalTo(expectedIdPageCount));
-            // We don't assert keyPages because OrdinatorBytes doesn't track them (BytesRefArray does)
+            // We don't assert keyPages because BytesRefSwissTable doesn't track them (BytesRefArray does)
         }
     }
 

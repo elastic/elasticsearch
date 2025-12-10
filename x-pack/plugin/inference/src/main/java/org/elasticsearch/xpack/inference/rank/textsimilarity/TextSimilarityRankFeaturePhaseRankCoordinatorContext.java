@@ -146,8 +146,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         }
         List<RankFeatureDoc> docs = new ArrayList<>(originalDocs.length);
         for (RankFeatureDoc doc : originalDocs) {
-            doc.score = normalizeScore(doc.score);
-	    if (minScore == null || doc.score >= minScore) {
+            float normalizedScore = normalizeScore(doc.score);
+            if (minScore == null || normalizedScore >= minScore) {
+                doc.score = normalizedScore;
                 docs.add(doc);
             }
         }

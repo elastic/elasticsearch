@@ -1,5 +1,5 @@
 pr: 139272
-summary: Take TOP_SNIPPETS out of snapshot
+summary: ES|QL - Add TOP_SNIPPETS as tech preview
 area: ES|QL
 type: enhancement
 issues: []

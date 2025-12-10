@@ -389,7 +389,9 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final double maxp90 = randomDoubleBetween(maxp50, 30, true);
         final double maxp100 = randomDoubleBetween(maxp90, 50, true);
 
-        final var clusterInfo = ClusterInfo.builder().shardWriteLoads(randomWriteLoads(clusterState, maxp50, maxp90, maxp100)).build();
+        final var clusterInfo = ClusterInfo.builder()
+            .shardWriteLoads(generateRandomWriteLoads(clusterState, maxp50, maxp90, maxp100))
+            .build();
         return new TestInfrastructure(
             clusterService,
             meterRegistry,
@@ -462,7 +464,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         return measurements.stream().filter(m -> m.attributes().get("es_node_id").equals(nodeId)).findFirst().orElseThrow();
     }
 
-    private static Map<ShardId, Double> randomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
+    private static Map<ShardId, Double> generateRandomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
         final var node1Shards = shardsOnNode(clusterState, "index_0");
         final var node2Shards = shardsOnNode(clusterState, "index_1");
         assertEquals(100, node1Shards.size());

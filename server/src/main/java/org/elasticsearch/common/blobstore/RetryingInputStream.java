@@ -130,7 +130,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
             blobStoreServices.onRetryStarted(StreamAction.OPEN);
         }
         final long delayInMillis = maybeLogAndComputeRetryDelay(StreamAction.OPEN, exception);
-        delayBeforeRetry(delayInMillis);
+        delayBeforeRetry(StreamAction.OPEN, exception, delayInMillis);
     }
 
     @Override
@@ -197,14 +197,14 @@ public abstract class RetryingInputStream<V> extends InputStream {
         final long delayInMillis = maybeLogAndComputeRetryDelay(READ, e);
         IOUtils.closeWhileHandlingException(currentStream);
 
-        delayBeforeRetry(delayInMillis);
+        delayBeforeRetry(READ, e, delayInMillis);
         openStreamWithRetry();
     }
 
     // The method throws if the operation should *not* be retried. Otherwise, it keeps a record for the attempt and associated failure
     // and compute the delay before retry.
     private <T extends Exception> long maybeLogAndComputeRetryDelay(StreamAction action, T e) throws T {
-        if (blobStoreServices.isRetryableException(action, e) == false || shouldRetry(attempt) == false) {
+        if (shouldRetry(action, e, attempt) == false) {
             final var finalException = addSuppressedExceptions(e);
             logForFailure(action, finalException);
             throw finalException;
@@ -276,7 +276,10 @@ public abstract class RetryingInputStream<V> extends InputStream {
         return Math.subtractExact(Math.addExact(start, offset), currentStream.getFirstOffset());
     }
 
-    private boolean shouldRetry(int attempt) {
+    private boolean shouldRetry(StreamAction action, Exception exception, int attempt) {
+        if (blobStoreServices.isRetryableException(action, exception) == false) {
+            return false;
+        }
         if (purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
             return false;
         }
@@ -291,9 +294,9 @@ public abstract class RetryingInputStream<V> extends InputStream {
         return purpose == OperationPurpose.INDICES ? Integer.MAX_VALUE : (blobStoreServices.getMaxRetries() + 1);
     }
 
-    private void delayBeforeRetry(long delayInMillis) {
+    private void delayBeforeRetry(StreamAction action, Exception exception, long delayInMillis) {
         try {
-            assert shouldRetry(attempt - 1) : "should not have retried";
+            assert shouldRetry(action, exception, attempt - 1) : "should not have retried";
             Thread.sleep(delayInMillis);
         } catch (InterruptedException e) {
             logger.info("retrying input stream delay interrupted", e);

@@ -1207,6 +1207,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
     private final ScriptCompiler scriptCompiler;
+    private final SourceKeepMode sourceKeepMode;
 
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
@@ -1239,6 +1240,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
     }
 
     @Override
@@ -1470,7 +1472,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean docValuesSupportNativeSyntheticSource = fieldType().storedInBinaryDocValues() == false
-            || indexSettings.sourceKeepMode() == SourceKeepMode.NONE;
+            || sourceKeepMode == SourceKeepMode.NONE;
 
         if (fieldType.stored() || (docValuesParameters.enabled() && docValuesSupportNativeSyntheticSource)) {
             return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
@@ -1512,7 +1514,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             } else {
                 assert offsetsFieldName == null;
-                assert indexSettings.sourceKeepMode() == SourceKeepMode.NONE;
+                assert sourceKeepMode == SourceKeepMode.NONE;
                 layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
             }
         }

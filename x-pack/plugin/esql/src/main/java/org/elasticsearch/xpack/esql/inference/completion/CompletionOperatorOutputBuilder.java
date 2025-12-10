@@ -38,7 +38,6 @@ class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder
         Releasables.close(outputBlockBuilder);
     }
 
-
     @Override
     public void addInferenceResponse(BulkInferenceResponse bulkInferenceResponse) {
         List<ChatCompletionResults.Result> results = inferenceResults(bulkInferenceResponse.response());

@@ -35,7 +35,6 @@ class CompletionInferenceRequestIterator implements BulkInferenceRequestItemIter
 
     private int currentPos = 0;
 
-
     /**
      * Constructs a new iterator from the given block of prompts.
      *

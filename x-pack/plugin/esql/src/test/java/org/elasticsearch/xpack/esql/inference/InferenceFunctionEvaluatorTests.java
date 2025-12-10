@@ -170,9 +170,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
             Literal.keyword(Source.EMPTY, "test model")
         );
 
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            (f, driverContext) -> mock(Operator.class)
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> mock(Operator.class));
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -371,9 +369,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
             Literal.keyword(Source.EMPTY, "test model")
         );
 
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            (f, driverContext) -> mock(Operator.class)
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> mock(Operator.class));
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(completionFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));

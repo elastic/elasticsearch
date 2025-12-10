@@ -157,7 +157,7 @@ public class SamlRestTestCase extends ESRestTestCase {
     }
 
     private static void configureMetadataResource(int realmNumber) throws CertificateException, IOException, URISyntaxException {
-        metadataAvailable.putIfAbsent(realmNumber, false);
+        metadataAvailable.put(realmNumber, false);
 
         var signingCert = getDataResource(SAML_SIGNING_CRT);
         var metadataBody = new SamlIdpMetadataBuilder().entityId(getIdpEntityId(realmNumber)).sign(signingCert).asString();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -145,12 +144,6 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         });
     }
 
-    // A transport version to mark when doc-values extraction is supported for geo-grid functions
-    // Needed to disable this optimization when communicating with older versions of Elasticsearch nodes
-    public static final TransportVersion SPATIAL_DOC_VALUES_EXTRACTION_GEOGRID = TransportVersion.fromName(
-        "esql_spatial_doc_values_extraction_geogrid"
-    );
-
     private Set<FieldAttribute> findAttributesFromAggregatesAndEvals(UnaryExec exec, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = new HashSet<FieldAttribute>();
         // Search for STATS with spatial aggregations
@@ -165,24 +158,23 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
             }
         });
         // Search for spatial grid functions in EVALs
-        if (TransportVersion.current().supports(SPATIAL_DOC_VALUES_EXTRACTION_GEOGRID)) {
-            exec.forEachDown(EvalExec.class, evalExec -> {
-                for (Alias field : evalExec.fields()) {
-                    field.forEachDown(SpatialGridFunction.class, spatialAggFunc -> {
-                        if (spatialAggFunc.spatialField() instanceof FieldAttribute fieldAttribute
-                            && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
-                            foundAttributes.add(fieldAttribute);
-                        }
-                    });
-                }
-            });
-            exec.output().forEach(attribute -> {
-                if (attribute instanceof FieldAttribute fieldAttribute) {
-                    // Any field that will be returned to the coordinator cannot be loaded from doc-values
-                    foundAttributes.remove(fieldAttribute);
-                }
-            });
-        }
+        exec.forEachDown(EvalExec.class, evalExec -> {
+            for (Alias field : evalExec.fields()) {
+                field.forEachDown(SpatialGridFunction.class, spatialAggFunc -> {
+                    if (spatialAggFunc.spatialField() instanceof FieldAttribute fieldAttribute
+                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
+                        foundAttributes.add(fieldAttribute);
+                    }
+                });
+            }
+        });
+        // Remove any fields that will be returned to the coordinator, since we must use source for those
+        exec.output().forEach(attribute -> {
+            if (attribute instanceof FieldAttribute fieldAttribute) {
+                // Any field that will be returned to the coordinator cannot be loaded from doc-values
+                foundAttributes.remove(fieldAttribute);
+            }
+        });
         return foundAttributes;
     }
 

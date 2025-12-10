@@ -300,12 +300,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 validationException
             );
         }
-        if (allowPartialSearchResults) {
-            validationException = addValidationError(
-                "cannot specify [" + getName() + "] and [allow_partial_search_results]",
-                validationException
-            );
-        }
         if (isScroll) {
             validationException = addValidationError("cannot specify [" + getName() + "] and [scroll]", validationException);
         }

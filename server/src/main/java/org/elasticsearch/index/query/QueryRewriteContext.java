@@ -93,10 +93,56 @@ public class QueryRewriteContext {
     private final boolean isProfile;
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
+    private final boolean allowPartialSearchResults;
 
-    // FIXME: somehow this has to be wired through for at least retrievers ... but goodnight there's a lot of spidered ways in which these
-    // contexts get created.
-    private final boolean allowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final MapperService mapperService,
+        final MappingLookup mappingLookup,
+        final Map<String, MappedFieldType> runtimeMappings,
+        final IndexSettings indexSettings,
+        final TransportVersion minTransportVersion,
+        final String localClusterAlias,
+        final Index fullyQualifiedIndex,
+        final Predicate<String> indexNameMatcher,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final ValuesSourceRegistry valuesSourceRegistry,
+        final BooleanSupplier allowExpensiveQueries,
+        final ScriptCompiler scriptService,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final Boolean ccsMinimizeRoundTrips,
+        final boolean isExplain,
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
+    ) {
+        this.parserConfiguration = parserConfiguration;
+        this.client = client;
+        this.nowInMillis = nowInMillis;
+        this.mapperService = mapperService;
+        this.mappingLookup = Objects.requireNonNull(mappingLookup);
+        this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
+        this.runtimeMappings = runtimeMappings;
+        this.indexSettings = indexSettings;
+        this.minTransportVersion = minTransportVersion;
+        this.localClusterAlias = localClusterAlias;
+        this.fullyQualifiedIndex = fullyQualifiedIndex;
+        this.indexNameMatcher = indexNameMatcher;
+        this.writeableRegistry = namedWriteableRegistry;
+        this.valuesSourceRegistry = valuesSourceRegistry;
+        this.allowExpensiveQueries = allowExpensiveQueries;
+        this.scriptService = scriptService;
+        this.resolvedIndices = resolvedIndices;
+        this.pit = pit;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
+        this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
+        this.isExplain = isExplain;
+        this.isProfile = isProfile;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+    }
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -121,29 +167,30 @@ public class QueryRewriteContext {
         final boolean isExplain,
         final boolean isProfile
     ) {
-
-        this.parserConfiguration = parserConfiguration;
-        this.client = client;
-        this.nowInMillis = nowInMillis;
-        this.mapperService = mapperService;
-        this.mappingLookup = Objects.requireNonNull(mappingLookup);
-        this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
-        this.runtimeMappings = runtimeMappings;
-        this.indexSettings = indexSettings;
-        this.minTransportVersion = minTransportVersion;
-        this.localClusterAlias = localClusterAlias;
-        this.fullyQualifiedIndex = fullyQualifiedIndex;
-        this.indexNameMatcher = indexNameMatcher;
-        this.writeableRegistry = namedWriteableRegistry;
-        this.valuesSourceRegistry = valuesSourceRegistry;
-        this.allowExpensiveQueries = allowExpensiveQueries;
-        this.scriptService = scriptService;
-        this.resolvedIndices = resolvedIndices;
-        this.pit = pit;
-        this.queryRewriteInterceptor = queryRewriteInterceptor;
-        this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
-        this.isExplain = isExplain;
-        this.isProfile = isProfile;
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            Objects.requireNonNull(mappingLookup),
+            runtimeMappings,
+            indexSettings,
+            minTransportVersion,
+            localClusterAlias,
+            fullyQualifiedIndex,
+            indexNameMatcher,
+            namedWriteableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
+            isExplain,
+            isProfile,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -168,7 +215,8 @@ public class QueryRewriteContext {
             null,
             null,
             false,
-            false
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 
@@ -194,7 +242,48 @@ public class QueryRewriteContext {
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
             false,
-            false
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final TransportVersion minTransportVersion,
+        final String localClusterAlias,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final Boolean ccsMinimizeRoundTrips,
+        final boolean isExplain,
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            minTransportVersion,
+            localClusterAlias,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
         );
     }
 
@@ -232,7 +321,8 @@ public class QueryRewriteContext {
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
             isExplain,
-            isProfile
+            isProfile,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 

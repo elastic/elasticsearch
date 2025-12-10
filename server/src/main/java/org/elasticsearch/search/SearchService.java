@@ -2228,7 +2228,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips
     ) {
-        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false, false);
+        return getRewriteContext(
+            nowInMillis,
+            minTransportVersion,
+            clusterAlias,
+            resolvedIndices,
+            pit,
+            ccsMinimizeRoundTrips,
+            false,
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
     }
 
     /**
@@ -2242,7 +2252,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain,
-        final boolean isProfile
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         return indicesService.getRewriteContext(
             nowInMillis,
@@ -2252,7 +2263,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             pit,
             ccsMinimizeRoundTrips,
             isExplain,
-            isProfile
+            isProfile,
+            allowPartialSearchResults
         );
     }
 

@@ -1861,7 +1861,8 @@ public class IndicesService extends AbstractLifecycleComponent
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain,
-        final boolean isProfile
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         return new QueryRewriteContext(
             parserConfig,
@@ -1874,7 +1875,8 @@ public class IndicesService extends AbstractLifecycleComponent
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
             isExplain,
-            isProfile
+            isProfile,
+            allowPartialSearchResults
         );
     }
 

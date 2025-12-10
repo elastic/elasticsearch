@@ -359,7 +359,7 @@ public class KnnIndexTester {
                 "recall",
                 "visited",
                 "filter_selectivity",
-                "method",
+                "filter_method",
                 "filter_cached",
                 "oversampling_factor"
             };

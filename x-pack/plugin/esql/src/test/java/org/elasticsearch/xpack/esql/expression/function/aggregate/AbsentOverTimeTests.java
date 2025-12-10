@@ -30,6 +30,6 @@ public class AbsentOverTimeTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new AbsentOverTime(source, args.get(0));
+        return new AbsentOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 }

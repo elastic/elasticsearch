@@ -801,19 +801,19 @@ circularRefComplexEnrich
 // https://github.com/elastic/elasticsearch/issues/138346
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-from firewall_logs*,languages_lookup 
-| where true
-| rename language_name as message 
-| lookup join message_types_lookup on message 
-| sort language_code ASC NULLS LAST, source.IP, destination.IP DESC NULLS LAST 
-| where  NOT language_code > 50 OR  NOT false AND false AND  NOT language_code == 50 
-| dissect type "%{UbYnrgOqj}" 
-| dissect message "%{CFDuYXDQ}" 
-| keep source.*, `CFDuYXDQ`, `message`, `destination.IP`, `@timestamp` 
-| enrich languages_policy on CFDuYXDQ
-| rename message as message 
-| lookup join message_types_lookup on message 
-| stats  `3JfBf9ds` = count_distinct(@timestamp), `@timestamp` = count_distinct(@timestamp), CFDuYXDQ = count(to_lower(language_name)), sUSfCRAxYb = count_distinct(language_name) by destination.IP;
+FROM firewall_logs*,languages_lookup 
+| WHERE true
+| RENAME language_name AS message 
+| LOOKUP JOIN message_types_lookup ON message 
+| SORT language_code ASC NULLS LAST, source.IP, destination.IP DESC NULLS LAST 
+| WHERE  NOT language_code > 50 OR  NOT false AND false AND  NOT language_code == 50 
+| DISSECT type "%{UbYnrgOqj}" 
+| DISSECT message "%{CFDuYXDQ}" 
+| KEEP source.*, `CFDuYXDQ`, `message`, `destination.IP`, `@timestamp` 
+| ENRICH languages_policy ON CFDuYXDQ
+| RENAME message AS message 
+| LOOKUP JOIN message_types_lookup ON message 
+| STATS  `3JfBf9ds` = count_distinct(@timestamp), `@timestamp` = count_distinct(@timestamp), CFDuYXDQ = count(to_lower(language_name)), sUSfCRAxYb = count_distinct(language_name) BY destination.IP;
 
 3JfBf9ds:long   | @timestamp:long   | CFDuYXDQ:long | sUSfCRAxYb:long   | destination.IP:ip
 0               | 0                 | 0             | 0                 | null
@@ -824,12 +824,12 @@ circularRefEnrichDissect
 // https://github.com/elastic/elasticsearch/issues/138346
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-from firewall_logs*,languages_lookup 
-| rename language_name as message 
-| lookup join message_types_lookup on message 
-| dissect message "%{a}"
-| enrich languages_policy on a 
-| stats a = count(to_lower(language_name)), sUSfCRAxYb = count_distinct(language_name) by destination.IP;
+FROM firewall_logs*,languages_lookup 
+| RENAME language_name AS message 
+| LOOKUP JOIN message_types_lookup ON message 
+| DISSECT message "%{a}"
+| ENRICH languages_policy ON a 
+| STATS a = count(to_lower(language_name)), sUSfCRAxYb = count_distinct(language_name) BY destination.IP;
 
 a:long  | sUSfCRAxYb:long    | destination.IP:ip
 0       | 0                  | null

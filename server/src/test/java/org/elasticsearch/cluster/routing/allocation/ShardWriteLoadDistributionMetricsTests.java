@@ -95,13 +95,21 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         assertEquals(2, p90writeLoadMeasurements.size());
         assertEquals(2, p100writeLoadMeasurements.size());
         for (String nodeId : List.of("index_0", "index_1")) {
-            assertThat(measurementForNode(p0writeLoadMeasurements, nodeId).getDouble(), greaterThanOrEqualTo(0.0));
+            final double p0WriteLoad = measurementForNode(p0writeLoadMeasurements, nodeId).getDouble();
+            final double p50WriteLoad = measurementForNode(p50writeLoadMeasurements, nodeId).getDouble();
             assertRoughlyInRange(
                 testInfrastructure.numberOfSignificantDigits,
-                measurementForNode(p50writeLoadMeasurements, nodeId).getDouble(),
-                0.0,
+                p0WriteLoad,
+                testInfrastructure.minimumWriteLoad,
                 testInfrastructure.maxP50
             );
+            assertRoughlyInRange(
+                testInfrastructure.numberOfSignificantDigits,
+                p50WriteLoad,
+                testInfrastructure.minimumWriteLoad,
+                testInfrastructure.maxP50
+            );
+            assertThat(p0WriteLoad, lessThanOrEqualTo(p50WriteLoad));
             assertRoughlyInRange(
                 testInfrastructure.numberOfSignificantDigits,
                 measurementForNode(p90writeLoadMeasurements, nodeId).getDouble(),
@@ -385,12 +393,13 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             90,
             100
         );
-        final double maxp50 = randomDoubleBetween(0, 10, true);
+        final double minimumWriteLoad = randomDoubleBetween(1, 3, true);
+        final double maxp50 = randomDoubleBetween(minimumWriteLoad, 10, true);
         final double maxp90 = randomDoubleBetween(maxp50, 30, true);
         final double maxp100 = randomDoubleBetween(maxp90, 50, true);
 
         final var clusterInfo = ClusterInfo.builder()
-            .shardWriteLoads(generateRandomWriteLoads(clusterState, maxp50, maxp90, maxp100))
+            .shardWriteLoads(generateRandomWriteLoads(clusterState, minimumWriteLoad, maxp50, maxp90, maxp100))
             .build();
         return new TestInfrastructure(
             clusterService,
@@ -398,6 +407,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             clusterInfo,
             shardWriteLoadDistributionMetrics,
             numberOfSignificantDigits,
+            minimumWriteLoad,
             maxp50,
             maxp90,
             maxp100
@@ -410,6 +420,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         ClusterInfo clusterInfo,
         ShardWriteLoadDistributionMetrics shardWriteLoadDistributionMetrics,
         int numberOfSignificantDigits,
+        double minimumWriteLoad,
         double maxP50,
         double maxP90,
         double maxP100
@@ -464,7 +475,13 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         return measurements.stream().filter(m -> m.attributes().get("es_node_id").equals(nodeId)).findFirst().orElseThrow();
     }
 
-    private static Map<ShardId, Double> generateRandomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
+    private static Map<ShardId, Double> generateRandomWriteLoads(
+        ClusterState clusterState,
+        double minimumWriteLoad,
+        double p50,
+        double p90,
+        double p100
+    ) {
         final var node1Shards = getShardsOnNode(clusterState, "index_0");
         final var node2Shards = getShardsOnNode(clusterState, "index_1");
         assertEquals(100, node1Shards.size());
@@ -474,7 +491,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         for (List<ShardId> shardIds : List.of(node1Shards, node2Shards)) {
             final var shardIterator = shardIds.iterator();
             for (int i = 0; i < 50; i++) {
-                shardWriteLoads.put(shardIterator.next(), randomDoubleBetween(0, p50, true));
+                shardWriteLoads.put(shardIterator.next(), randomDoubleBetween(minimumWriteLoad, p50, true));
             }
             for (int i = 0; i < 40; i++) {
                 shardWriteLoads.put(shardIterator.next(), randomDoubleBetween(p50, p90, true));

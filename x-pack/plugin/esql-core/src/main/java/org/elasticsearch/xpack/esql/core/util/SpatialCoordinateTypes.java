@@ -145,7 +145,7 @@ public enum SpatialCoordinateTypes {
                 var topRight = new Coordinate(rect.getMaxX(), rect.getMaxY());
                 var topLeft = new Coordinate(rect.getMinX(), rect.getMaxY());
 
-                var coordinates = new Coordinate[] { bottomLeft, topLeft, topRight, bottomRight, bottomLeft };
+                var coordinates = new Coordinate[] { bottomLeft, bottomRight, topRight, topLeft, bottomLeft };
                 var geomFactory = new GeometryFactory();
                 var linearRing = new LinearRing(new CoordinateArraySequence(coordinates), geomFactory);
                 return new Polygon(linearRing, null, geomFactory);

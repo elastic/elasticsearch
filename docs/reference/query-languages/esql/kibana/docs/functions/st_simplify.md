@@ -4,5 +4,6 @@
 Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the simplified shape are removed. Note that the resulting geometry may be invalid, even if the original input was valid.
 
 ```esql
-null
+ROW wkt = "POLYGON ((7.998 53.827, 9.470 53.068, 15.754 53.801, 16.523 57.160, 11.162 57.868, 8.064 57.445, 6.219 55.317, 7.998 53.827))"
+| EVAL simplified = ST_SIMPLIFY(TO_GEOSHAPE(wkt), 0.7)
 ```

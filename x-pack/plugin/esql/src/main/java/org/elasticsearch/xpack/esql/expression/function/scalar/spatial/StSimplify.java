@@ -65,7 +65,7 @@ public class StSimplify extends EsqlScalarFunction {
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        examples = @Example(file = "spatial", tag = "st_simplify")
+        examples = @Example(file = "spatial-jts", tag = "st_simplify")
     )
     public StSimplify(
         Source source,

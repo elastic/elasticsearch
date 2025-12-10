@@ -222,7 +222,6 @@ class ValuesFloatAggregator {
              */
             reserveBytesForIntArray(total);
 
-            // more appropriate to call this slots for ordinator64
             this.ids = new int[total];
 
             for (int id = 0; id < hashes.size(); id++) {

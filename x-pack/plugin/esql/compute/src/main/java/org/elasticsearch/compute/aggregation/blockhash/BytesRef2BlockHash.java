@@ -151,7 +151,7 @@ final class BytesRef2BlockHash extends BlockHash {
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {
-                        // b1.appendBytesRef(hash1.hash.get(k1 - 1, scratch)); TODO
+                        b1.appendBytesRef(hash1.hash.get(k1 - 1, scratch));
                     }
                 }
                 outputBlocks[0] = b1.build();
@@ -162,7 +162,7 @@ final class BytesRef2BlockHash extends BlockHash {
                     if (k2 == 0) {
                         b2.appendNull();
                     } else {
-                        // b2.appendBytesRef(hash2.hash.get(k2 - 1, scratch)); TODO
+                        b2.appendBytesRef(hash2.hash.get(k2 - 1, scratch));
                     }
                 }
                 outputBlocks[1] = b2.build();

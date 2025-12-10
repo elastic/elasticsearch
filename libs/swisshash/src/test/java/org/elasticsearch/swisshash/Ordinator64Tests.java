@@ -95,6 +95,7 @@ public class Ordinator64Tests extends ESTestCase {
                     for (int i = 0; i < v.length; i++) {
                         assertThat(ord.add(v[i]), equalTo(i));
                         assertThat(ord.size(), equalTo(i + 1));
+                        assertThat(ord.get(i), equalTo(v[i]));
                         assertThat(ord.add(v[i]), equalTo(i));
                         assertThat(ord.size(), equalTo(i + 1));
                     }
@@ -144,6 +145,10 @@ public class Ordinator64Tests extends ESTestCase {
             }
             for (int i = 0; i < v.length; i++) {
                 assertThat(iterated[i], equalTo(v[i]));
+            }
+            // values densely pack into the keys array will be store in insertion order
+            for (int i = 0; i < v.length; i++) {
+                assertThat(ord.get(i), equalTo(v[i]));
             }
         }
         assertThat(recycler.open, hasSize(0));

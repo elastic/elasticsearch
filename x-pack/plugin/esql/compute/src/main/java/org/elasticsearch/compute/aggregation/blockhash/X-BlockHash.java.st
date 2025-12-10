@@ -288,51 +288,33 @@ $if(BytesRef)$
         if (seenNull) {
             try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
                 builder.appendNull();
-$if(OrdinatorBytes)$
-                OrdinatorBytes.Itr itr = hash.iterator();
-                while (itr.next()) {
-                    builder.appendBytesRef(itr.key(spare));
-                }
-$else$
                 for (long i = 0; i < hash.size(); i++) {
                     builder.appendBytesRef(hash.get(i, spare));
                 }
-$endif$
                 return new BytesRefBlock[] { builder.build() };
             }
         }
         try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
-$if(OrdinatorBytes)$
-            OrdinatorBytes.Itr itr = hash.iterator();
-            while (itr.next()) {
-                builder.appendBytesRef(itr.key(spare));
-            }
-$else$
             for (long i = 0; i < hash.size(); i++) {
                 builder.appendBytesRef(hash.get(i, spare));
             }
-$endif$
-
             return new BytesRefBlock[] { builder.build() };
         }
 $else$
         if (seenNull) {
             final int size = Math.toIntExact(hash.size() + 1);
             final $type$[] keys = new $type$[size];
-$if(Ordinator64)$
-            Ordinator64.Itr itr = hash.iterator();
-            while (itr.next()) {
-                keys[itr.id() + 1] = $if(int)$(int) $endif$itr.key();
-            }
-$else$
             for (int i = 1; i < size; i++) {
-$if(double)$
+$if(int)$
+                keys[i] = (int) hash.get(i - 1);
+$elseif(double)$
                 keys[i] = Double.longBitsToDouble(hash.get(i - 1));
+$elseif(long)$
+                keys[i] = hash.get(i - 1);
 $else$
                 syntax error because we didn't cover this case
 $endif$
             }
-$endif$
             BitSet nulls = new BitSet(1);
             nulls.set(0);
             return new $Type$Block[] {
@@ -340,20 +322,17 @@ $endif$
         }
         final int size = Math.toIntExact(hash.size());
         final $type$[] keys = new $type$[size];
-$if(Ordinator64)$
-        Ordinator64.Itr itr = hash.iterator();
-        while (itr.next()) {
-            keys[itr.id()] = $if(int)$(int) $endif$itr.key();
-        }
-$else$
         for (int i = 0; i < size; i++) {
-$if(double)$
+$if(int)$
+            keys[i] = (int) hash.get(i);
+$elseif(double)$
             keys[i] = Double.longBitsToDouble(hash.get(i));
+$elseif(long)$
+            keys[i] = hash.get(i);
 $else$
             syntax error because we didn't cover this case
 $endif$
         }
-$endif$
         return new $Type$Block[] { blockFactory.new$Type$ArrayVector(keys, keys.length).asBlock() };
 $endif$
     }

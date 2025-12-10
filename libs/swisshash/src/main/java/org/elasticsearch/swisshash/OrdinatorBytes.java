@@ -13,6 +13,7 @@ import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -58,6 +59,12 @@ import java.util.Arrays;
  * slots store the {@code id} which indexes into the {@link BytesRefArray}.
  */
 public final class OrdinatorBytes extends Ordinator implements Accountable, Releasable {
+
+    // base size of the bytes ref hash
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(OrdinatorBytes.class)
+        // spare BytesRef
+        + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+
     private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
 
     private static final int BYTE_VECTOR_LANES = VECTOR_UTILS.byteVectorLanes();
@@ -528,22 +535,29 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
         return bytesRefs.get(id, dest);
     }
 
-    /**
-     * Fills the scratch BytesRef with the key at the specified slot.
-     * This is compliant with the pattern used in Ordinator64, though here it involves
-     * an indirect lookup via the ID.
-     */
-    public void key(int slot, BytesRef dest) {
-        int id;
-        if (this.bigCore == null) {
-            id = this.smallCore.id(slot);
-        } else {
-            id = bigCore.id(slot);
-        }
-        if (id >= 0) {
-            bytesRefs.get(id, dest);
-        }
+    public BytesRefArray getBytesRefs() {
+        return bytesRefs;
     }
+
+    //
+    // /**
+    // * Fills the scratch BytesRef with the key at the specified slot.
+    // * This is compliant with the pattern used in Ordinator64, though here it involves
+    // * an indirect lookup via the ID.
+    // * @return the given BytesRef, dest
+    // */
+    // public BytesRef key(int index, BytesRef dest) {
+    ////        int id;
+////        if (this.bigCore == null) {
+////            id = this.smallCore.id(index);
+////        } else {
+////            id = bigCore.id(slot);
+////        }
+//        //if (index >= 0) {
+    // bytesRefs.get(index, dest);
+    // //}
+    // return dest;
+    // }
 
     int id(int slot) {
         if (this.bigCore == null) {
@@ -570,6 +584,7 @@ public final class OrdinatorBytes extends Ordinator implements Accountable, Rele
 
     @Override
     public long ramBytesUsed() {
-        return bytesRefs.ramBytesUsed(); // TODO: complete
+        long keys = smallCore != null ? smallCore.idPage.length : Arrays.stream(bigCore.idPages).mapToLong(b -> b.length).sum();
+        return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + keys;
     }
 }

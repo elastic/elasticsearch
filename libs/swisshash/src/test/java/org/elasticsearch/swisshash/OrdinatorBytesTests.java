@@ -110,6 +110,10 @@ public class OrdinatorBytesTests extends ESTestCase {
             for (int i = 0; i < v.length; i++) {
                 assertThat(iterated[i], equalTo(v[i]));
             }
+            // values densely pack into the keys array will be store in insertion order
+            for (int i = 0; i < v.length; i++) {
+                assertThat(ord.get(i, scratch), equalTo(v[i]));
+            }
         }
         assertThat(recycler.open, hasSize(0));
     }

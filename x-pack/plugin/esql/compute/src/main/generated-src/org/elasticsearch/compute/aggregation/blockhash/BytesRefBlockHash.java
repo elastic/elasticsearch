@@ -212,17 +212,15 @@ final class BytesRefBlockHash extends BlockHash {
         if (seenNull) {
             try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
                 builder.appendNull();
-                OrdinatorBytes.Itr itr = hash.iterator();
-                while (itr.next()) {
-                    builder.appendBytesRef(itr.key(spare));
+                for (long i = 0; i < hash.size(); i++) {
+                    builder.appendBytesRef(hash.get(i, spare));
                 }
                 return new BytesRefBlock[] { builder.build() };
             }
         }
         try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
-            OrdinatorBytes.Itr itr = hash.iterator();
-            while (itr.next()) {
-                builder.appendBytesRef(itr.key(spare));
+            for (long i = 0; i < hash.size(); i++) {
+                builder.appendBytesRef(hash.get(i, spare));
             }
             return new BytesRefBlock[] { builder.build() };
         }

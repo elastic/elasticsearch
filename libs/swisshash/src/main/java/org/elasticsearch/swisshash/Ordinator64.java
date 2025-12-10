@@ -11,7 +11,6 @@ package org.elasticsearch.swisshash;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -608,20 +607,20 @@ public final class Ordinator64 extends Ordinator implements Releasable {
 
     /**
      * Returns the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
-     * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
-    public long key(final int id) {
+    public long get(final int index) {
         if (this.bigCore == null) {
-            return this.smallCore.key(id);
+            // return this.smallCore.key(id(slot));
+            return this.smallCore.key(index);
         }
-        return bigCore.key(id);
+        return bigCore.key(index);  // TODO: get id from slot???
     }
 
-    int id(final int slot) {
+    public int id(final int index) {
         if (this.bigCore == null) {
-            return this.smallCore.id(slot);
+            return this.smallCore.id(index);
         }
-        return bigCore.id(slot);
+        return bigCore.id(index);
     }
 
     private int keyOffset(final int id) {

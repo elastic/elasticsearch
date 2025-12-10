@@ -161,7 +161,7 @@ public final class BytesRefLongBlockHash extends BlockHash {
                     longs.appendLong(finalHash.getKey2(p));
                 }
                 // TODO: make takeOwnershipOf work?
-                BytesRefArray bytes = null; // BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs()); TODO
+                BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
                 BytesRefVector dict = null;
 
                 try {
@@ -189,7 +189,7 @@ public final class BytesRefLongBlockHash extends BlockHash {
                     if (h1 == 0) {
                         keys1.appendNull();
                     } else {
-                        // keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch)); TODO
+                        keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch));
                     }
                     keys2.appendLong(finalHash.getKey2(i));
                 }

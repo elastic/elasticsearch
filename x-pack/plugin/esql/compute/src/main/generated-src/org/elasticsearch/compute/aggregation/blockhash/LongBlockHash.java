@@ -139,9 +139,8 @@ final class LongBlockHash extends BlockHash {
         if (seenNull) {
             final int size = Math.toIntExact(hash.size() + 1);
             final long[] keys = new long[size];
-            Ordinator64.Itr itr = hash.iterator();
-            while (itr.next()) {
-                keys[itr.id() + 1] = itr.key();
+            for (int i = 1; i < size; i++) {
+                keys[i] = hash.get(i - 1);
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
@@ -150,9 +149,8 @@ final class LongBlockHash extends BlockHash {
         }
         final int size = Math.toIntExact(hash.size());
         final long[] keys = new long[size];
-        Ordinator64.Itr itr = hash.iterator();
-        while (itr.next()) {
-            keys[itr.id()] = itr.key();
+        for (int i = 0; i < size; i++) {
+            keys[i] = hash.get(i);
         }
         return new LongBlock[] { blockFactory.newLongArrayVector(keys, keys.length).asBlock() };
     }

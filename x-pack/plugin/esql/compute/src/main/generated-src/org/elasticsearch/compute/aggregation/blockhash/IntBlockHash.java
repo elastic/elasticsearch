@@ -137,9 +137,8 @@ final class IntBlockHash extends BlockHash {
         if (seenNull) {
             final int size = Math.toIntExact(hash.size() + 1);
             final int[] keys = new int[size];
-            Ordinator64.Itr itr = hash.iterator();
-            while (itr.next()) {
-                keys[itr.id() + 1] = (int) itr.key();
+            for (int i = 1; i < size; i++) {
+                keys[i] = (int) hash.get(i - 1);
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
@@ -148,9 +147,8 @@ final class IntBlockHash extends BlockHash {
         }
         final int size = Math.toIntExact(hash.size());
         final int[] keys = new int[size];
-        Ordinator64.Itr itr = hash.iterator();
-        while (itr.next()) {
-            keys[itr.id()] = (int) itr.key();
+        for (int i = 0; i < size; i++) {
+            keys[i] = (int) hash.get(i);
         }
         return new IntBlock[] { blockFactory.newIntArrayVector(keys, keys.length).asBlock() };
     }

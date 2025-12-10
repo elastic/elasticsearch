@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
@@ -251,6 +252,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
                         || type == DATE_RANGE // need special handling for loads at the moment
+                        || type == TDIGEST
                         || type == GEOHASH
                         || type == GEOTILE
                         || type == GEOHEX

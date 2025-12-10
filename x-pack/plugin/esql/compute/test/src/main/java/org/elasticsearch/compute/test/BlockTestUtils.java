@@ -454,7 +454,7 @@ public class BlockTestUtils {
     }
 
     public static TDigestHolder randomTDigest() {
-        // TODO: This is mostly copied from TDigestFieldMapperTests; refactor it.
+        // TODO: This is mostly copied from TDigestFieldMapperTests and EsqlTestUtils; refactor it.
         int size = between(1, 100);
         // Note - we use TDigestState to build an actual t-digest for realistic values here
         TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);

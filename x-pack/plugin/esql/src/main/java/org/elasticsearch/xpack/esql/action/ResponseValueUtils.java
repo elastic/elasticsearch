@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -149,6 +150,7 @@ public final class ResponseValueUtils {
                 var to = ((LongRangeBlock) block).getToBlock().getLong(offset);
                 yield dateRangeToString(from, to);
             }
+            case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(offset);
             case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);

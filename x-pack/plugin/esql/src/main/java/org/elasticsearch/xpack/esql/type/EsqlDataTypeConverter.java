@@ -24,6 +24,8 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -819,6 +821,15 @@ public class EsqlDataTypeConverter {
     public static String exponentialHistogramBlockToString(ExponentialHistogramBlock histoBlock, int index) {
         ExponentialHistogram histo = histoBlock.getExponentialHistogram(index, new ExponentialHistogramScratch());
         return exponentialHistogramToString(histo);
+    }
+
+    public static String tDigestBlockToString(TDigestBlock tDigestBlock, int index) {
+        TDigestHolder digest = tDigestBlock.getTDigestHolder(index);
+        return tDigestToString(digest);
+    }
+
+    public static String tDigestToString(TDigestHolder digest) {
+        return digest.toString();
     }
 
     public static String aggregateMetricDoubleLiteralToString(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {

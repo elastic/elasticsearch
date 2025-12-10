@@ -792,6 +792,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
         shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
         shouldBeSupported.remove(DataType.DATE_RANGE);
+        shouldBeSupported.remove(DataType.TDIGEST);
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }

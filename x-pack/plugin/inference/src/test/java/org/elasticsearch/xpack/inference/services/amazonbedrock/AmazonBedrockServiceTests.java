@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 
 import org.elasticsearch.ElasticsearchException;
@@ -33,6 +32,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -329,14 +329,19 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    private void assertTopKParameter_NotAvailable(TaskType taskType, AmazonBedrockService service, ActionListener<Model> modelVerificationListener) {
+    private void assertTopKParameter_NotAvailable(
+        TaskType taskType,
+        AmazonBedrockService service,
+        ActionListener<Model> modelVerificationListener
+    ) {
         service.parseRequestConfig(
             "id",
             taskType,
             getRequestConfigMap(
                 createChatCompletionRequestSettingsMap("region", "model", "amazontitan"),
                 getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128),
-                getAmazonBedrockSecretSettingsMap("access", "secret")),
+                getAmazonBedrockSecretSettingsMap("access", "secret")
+            ),
             modelVerificationListener
         );
     }
@@ -419,10 +424,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     private void parseRequestConfig(TaskType taskType, AmazonBedrockService service, Map<String, Object> config) {
         ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
             assertThat(e, instanceOf(ElasticsearchStatusException.class));
-            assertThat(
-                e.getMessage(),
-                is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
-            );
+            assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service"));
         });
 
         service.parseRequestConfig("id", taskType, config, modelVerificationListener);
@@ -766,12 +768,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
         var persistedConfig = getPersistedConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
 
-        var model = service.parsePersistedConfigWithSecrets(
-            "id",
-            taskType,
-            persistedConfig.config(),
-            persistedConfig.secrets()
-        );
+        var model = service.parsePersistedConfigWithSecrets("id", taskType, persistedConfig.config(), persistedConfig.secrets());
 
         assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
 
@@ -1208,8 +1205,9 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 service.unifiedCompletionInfer(
                     model,
                     UnifiedCompletionRequest.of(
-                        List.of(new UnifiedCompletionRequest
-                            .Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                        List.of(
+                            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)
+                        )
                     ),
                     TIMEOUT,
                     listener

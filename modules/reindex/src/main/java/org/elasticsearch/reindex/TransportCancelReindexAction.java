@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -69,36 +70,14 @@ public class TransportCancelReindexAction extends TransportTasksAction<
 
     @Override
     protected List<CancellableTask> processTasks(final CancelReindexRequest request) {
-        final TaskId taskId = request.getTargetTaskId();
-        assert taskId.isSet() : "task id must be provided";
-
-        final CancellableTask task = taskManager.getCancellableTask(taskId.getId());
-        if (task == null) {
-            LOG.debug("Task is missing. taskId='{}'", taskId);
+        final TaskId requestedTaskId = request.getTargetTaskId();
+        final CancellableTask requestedTask = taskManager.getCancellableTask(requestedTaskId.getId());
+        final ReasonTaskCannotBeCancelled reason = reasonForTaskNotBeingEligibleForCancellation(requestedTask, projectResolver.getProjectId());
+        if (reason != null) {
+            LOG.debug("Task not eligible for cancellation. reason={}", reason);
             return List.of();
         }
-        if (ReindexAction.NAME.equals(task.getAction()) == false) {
-            LOG.debug("Task is not an reindex task. taskId='{}'", taskId);
-            return List.of();
-        }
-        if (task.getParentTaskId().isSet()) {
-            LOG.debug("Provided taskId is sub-task, can't cancel. taskId='{}'", taskId);
-            return List.of();
-        }
-
-        final ProjectId requestProjectId = projectResolver.getProjectId();
-        final String taskProjectId = task.getProjectId();
-        if (taskProjectId == null) {
-            if (ProjectId.DEFAULT.equals(requestProjectId) == false) {
-                LOG.debug("requestProjectId={} != taskProjectId=null", requestProjectId);
-                return List.of();
-            }
-        } else if (Objects.equals(requestProjectId.id(), taskProjectId) == false) {
-            LOG.debug("requestProjectId={} != taskProjectId={}", requestProjectId, taskProjectId);
-            return List.of();
-        }
-
-        return List.of(task);
+        return List.of(requestedTask);
     }
 
     @Override
@@ -142,5 +121,37 @@ public class TransportCancelReindexAction extends TransportTasksAction<
             throw notFoundSupplier.get();
         }
         return response;
+    }
+
+    // visible for testing
+    enum ReasonTaskCannotBeCancelled {
+        MISSING,
+        NOT_REINDEX,
+        IS_SUBTASK,
+        TASK_PROJECT_MISSING_REQUEST_NON_DEFAULT,
+        TASK_PROJECT_MISMATCH
+    }
+
+    // visible for testing
+    @Nullable
+    static ReasonTaskCannotBeCancelled reasonForTaskNotBeingEligibleForCancellation(@Nullable final CancellableTask task,
+                                                                                    final ProjectId requestProjectId) {
+        if (task == null) {
+            return ReasonTaskCannotBeCancelled.MISSING;
+        } else if (ReindexAction.NAME.equals(task.getAction()) == false) {
+            return ReasonTaskCannotBeCancelled.NOT_REINDEX;
+        } else if (task.getParentTaskId().isSet()) {
+            return ReasonTaskCannotBeCancelled.IS_SUBTASK;
+        }
+
+        final String taskProjectId = task.getProjectId();
+        if (taskProjectId == null) {
+            if (ProjectId.DEFAULT.equals(requestProjectId) == false) {
+                return ReasonTaskCannotBeCancelled.TASK_PROJECT_MISSING_REQUEST_NON_DEFAULT;
+            }
+        } else if (Objects.equals(requestProjectId.id(), taskProjectId) == false) {
+            return ReasonTaskCannotBeCancelled.TASK_PROJECT_MISMATCH;
+        }
+        return null;
     }
 }

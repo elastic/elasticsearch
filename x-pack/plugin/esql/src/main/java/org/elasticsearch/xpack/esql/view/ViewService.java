@@ -139,7 +139,7 @@ public class ViewService {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
-                final ViewMetadata viewMetadata = project.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+                final ViewMetadata viewMetadata = getMetadata(project);
                 final View currentView = viewMetadata.getView(view.name());
                 if (view.equals(currentView)) {
                     // The update is a no-op, so no change is necessary

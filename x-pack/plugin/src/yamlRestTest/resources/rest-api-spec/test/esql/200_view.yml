@@ -56,6 +56,7 @@ setup:
 
   - match: { views.0.name: "dogs" }
   - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
+  - length: { views: 1 }
 
   - do:
       esql.put_view:
@@ -69,6 +70,7 @@ setup:
 
   - match: { views.0.name: "dogs" }
   - match: { views.0.query: 'FROM test | WHERE animal == "pooch"' }
+  - length: { views: 1 }
 
   - do:
       esql.delete_view:
@@ -78,6 +80,7 @@ setup:
       esql.get_view: { }
 
   - match: { views: [] }
+  - length: { views: 0 }
 
 ---
 "invalid-views":

@@ -13,7 +13,7 @@ id:l | bfloat16_vector:dense_vector
 0    | [1.0, 2.0, 3.0]
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
-3    | [0.053955078, 0.031982422, 0.012023926]
+3    | [0.5, 0.3, 0.1]
 ;
 
 denseBFloat16VectorWithEval
@@ -31,8 +31,7 @@ id:l | v:dense_vector
 0    | [1.0, 2.0, 3.0]
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
-3    | [0.054, 0.032, 0.012]
-
+3    | [0.5, 0.3, 0.1]
 ;
 
 denseBFloat16VectorWithRenameAndDrop
@@ -51,7 +50,7 @@ id:l | new_vector:dense_vector
 0    | [1.0, 2.0, 3.0]
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
-3    | [0.054, 0.032, 0.012]
+3    | [0.5, 0.3, 0.1]
 ;
 
 #convertIntsToDenseVector

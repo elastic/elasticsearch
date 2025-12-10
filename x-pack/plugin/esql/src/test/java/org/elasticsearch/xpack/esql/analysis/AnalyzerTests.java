@@ -2518,9 +2518,14 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
+        checkDenseVectorImplicitCastingSimilarityFunction(similarityFunction, expectedElems, CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR.indexName()).mappingFileName());
+
+    }
+
+    private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems, String mappingFile) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval similarity = %s
-            """, similarityFunction), "mapping-dense_vector.json");
+            """, similarityFunction), mappingFile);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);

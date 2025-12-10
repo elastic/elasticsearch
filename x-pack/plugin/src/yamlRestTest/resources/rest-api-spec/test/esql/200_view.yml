@@ -1,8 +1,11 @@
 ---
 setup:
   - requires:
-      cluster_features: [ "esql.esql_views" ]
-      reason: requires esql views to be enabled
+      capabilities:
+        - method: GET
+          path: /_query/view
+      test_runner_features: capabilities
+      reason: "ES|QL views introduced"
 
   - do:
       indices.create:

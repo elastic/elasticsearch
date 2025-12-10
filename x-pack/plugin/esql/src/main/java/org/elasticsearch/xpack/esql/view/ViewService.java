@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
@@ -169,10 +168,6 @@ public class ViewService {
             return;
         }
         final String name = request.name();
-        MetadataCreateIndexService.validateIndexOrAliasName(
-            name,
-            (viewName, error) -> new IllegalArgumentException("invalid view name [" + name + "], " + error)
-        );
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
         if (viewMetadata.getView(name) == null) {

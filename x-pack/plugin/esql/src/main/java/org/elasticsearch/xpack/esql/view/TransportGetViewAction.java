@@ -26,7 +26,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public class TransportGetViewAction extends TransportLocalProjectMetadataAction<GetViewAction.Request, GetViewAction.Response> {
@@ -60,18 +59,19 @@ public class TransportGetViewAction extends TransportLocalProjectMetadataAction<
         ActionListener<GetViewAction.Response> listener
     ) {
         ProjectId projectId = project.projectId();
-        List<View> views = new ArrayList<>();
+        Collection<View> views = new ArrayList<>();
         List<String> missing = new ArrayList<>();
-        Collection<String> names = request.names();
+        List<String> names = request.names();
         if (names.isEmpty()) {
-            names = Collections.unmodifiableSet(viewService.list(projectId));
-        }
-        for (String name : names) {
-            View view = viewService.get(projectId, name);
-            if (view == null) {
-                missing.add(name);
-            } else {
-                views.add(view);
+            views = viewService.getMetadata(projectId).views().values();
+        } else {
+            for (String name : names) {
+                View view = viewService.get(projectId, name);
+                if (view == null) {
+                    missing.add(name);
+                } else {
+                    views.add(view);
+                }
             }
         }
         if (missing.isEmpty() == false) {

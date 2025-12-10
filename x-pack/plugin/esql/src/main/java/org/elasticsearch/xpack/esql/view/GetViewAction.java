@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -68,14 +69,14 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final List<View> views;
+        private final Collection<View> views;
 
-        public Response(List<View> views) {
+        public Response(Collection<View> views) {
             Objects.requireNonNull(views, "views cannot be null");
-            this.views = Collections.unmodifiableList(views);
+            this.views = Collections.unmodifiableCollection(views);
         }
 
-        public List<View> getViews() {
+        public Collection<View> getViews() {
             return views;
         }
 

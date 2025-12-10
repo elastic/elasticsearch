@@ -22,7 +22,6 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -189,7 +188,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_12_0;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

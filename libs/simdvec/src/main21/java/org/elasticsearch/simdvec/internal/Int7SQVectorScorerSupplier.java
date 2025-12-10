@@ -28,6 +28,8 @@ import static org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarit
 
 public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier, QuantizedByteVectorValuesAccess {
 
+    public static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+
     static final byte BITS = 7;
 
     final int dims;
@@ -36,8 +38,6 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final MemorySegmentAccessInput input;
     final QuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
     final ScalarQuantizedVectorSimilarity fallbackScorer;
-
-    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     protected Int7SQVectorScorerSupplier(
         MemorySegmentAccessInput input,

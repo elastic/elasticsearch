@@ -220,6 +220,17 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         assertNoMetricsPublished(writeLoadPrioritisationThresholdMeasurements, additionalNodeId);
         assertNoMetricsPublished(countAboveThresholdMeasurements, additionalNodeId);
         assertThat(measurementForNode(shardWriteLoadSumMeasurements, additionalNodeId).getDouble(), Matchers.is(0.0));
+
+        // The original nodes should publish metrics however
+        for (String nodeId : List.of("index_0", "index_1")) {
+            assertMetricsPublished(p0writeLoadMeasurements, nodeId);
+            assertMetricsPublished(p50writeLoadMeasurements, nodeId);
+            assertMetricsPublished(p90writeLoadMeasurements, nodeId);
+            assertMetricsPublished(p100writeLoadMeasurements, nodeId);
+            assertMetricsPublished(writeLoadPrioritisationThresholdMeasurements, nodeId);
+            assertMetricsPublished(countAboveThresholdMeasurements, nodeId);
+            assertThat(measurementForNode(shardWriteLoadSumMeasurements, nodeId).getDouble(), Matchers.greaterThan(0.0));
+        }
     }
 
     public void testMetricsAreNotReportedForNonIndexNodes() {
@@ -337,6 +348,10 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
 
     private static void assertNoMetricsPublished(List<Measurement> measurements, String nodeId) {
         assertThat(measurements.stream().filter(m -> m.attributes().get("es_node_id").equals(nodeId)).toList(), empty());
+    }
+
+    private static void assertMetricsPublished(List<Measurement> measurements, String nodeId) {
+        assertThat(measurements.stream().filter(m -> m.attributes().get("es_node_id").equals(nodeId)).toList(), not(empty()));
     }
 
     private static void assertNoMetricsPublished(TestInfrastructure testInfrastructure) {

@@ -160,9 +160,17 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         }
 
         switch (conditionalOperation) {
-            case ConditionalOperation.IfMatch ifMatch -> assertEquals(ifMatch.etag(), request.ifMatch());
-            case ConditionalOperation.IfNoneMatch ignored -> assertEquals("*", request.ifNoneMatch());
+            case ConditionalOperation.IfMatch ifMatch -> {
+                assertEquals(ifMatch.etag(), request.ifMatch());
+                assertNull(request.ifNoneMatch());
+            }
+            case ConditionalOperation.IfNoneMatch ignored -> {
+                assertNull(request.ifMatch());
+                assertEquals("*", request.ifNoneMatch());
+            }
             case ConditionalOperation.None ignored -> {
+                assertNull(request.ifMatch());
+                assertNull(request.ifNoneMatch());
             }
         }
 
@@ -377,9 +385,17 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertEquals(uploadId, compRequest.uploadId());
 
         switch (conditionalOperation) {
-            case ConditionalOperation.IfMatch ifMatch -> assertEquals(ifMatch.etag(), compRequest.ifMatch());
-            case ConditionalOperation.IfNoneMatch ignored -> assertEquals("*", compRequest.ifNoneMatch());
+            case ConditionalOperation.IfMatch ifMatch -> {
+                assertEquals(ifMatch.etag(), compRequest.ifMatch());
+                assertNull(compRequest.ifNoneMatch());
+            }
+            case ConditionalOperation.IfNoneMatch ignored -> {
+                assertNull(compRequest.ifMatch());
+                assertEquals("*", compRequest.ifNoneMatch());
+            }
             case ConditionalOperation.None ignored -> {
+                assertNull(compRequest.ifMatch());
+                assertNull(compRequest.ifNoneMatch());
             }
         }
 

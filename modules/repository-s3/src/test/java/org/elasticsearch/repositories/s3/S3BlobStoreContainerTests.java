@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.s3.S3BlobContainer.ConditionalOperation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -132,7 +133,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final boolean failIfAlreadyExists = randomBoolean();
+        final ConditionalOperation conditionalOperation = randomCondition();
 
         final S3Client client = configureMockClient(blobStore);
 
@@ -142,7 +143,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(client.putObject(requestCaptor.capture(), bodyCaptor.capture())).thenReturn(PutObjectResponse.builder().build());
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[blobSize]);
-        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, randomCondition());
+        blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, conditionalOperation);
 
         final PutObjectRequest request = requestCaptor.getValue();
         assertEquals(bucketName, request.bucket());
@@ -158,8 +159,11 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             );
         }
 
-        if (failIfAlreadyExists) {
-            assertEquals("*", request.ifNoneMatch());
+        switch (conditionalOperation) {
+            case ConditionalOperation.IfMatch ifMatch -> assertEquals(ifMatch.etag(), request.ifMatch());
+            case ConditionalOperation.IfNoneMatch ignored -> assertEquals("*", request.ifNoneMatch());
+            case ConditionalOperation.None ignored -> {
+            }
         }
 
         final RequestBody requestBody = bodyCaptor.getValue();
@@ -255,7 +259,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final boolean failIfAlreadyExists = doCopy ? false : randomBoolean();
+        final ConditionalOperation conditionalOperation = doCopy ? ConditionalOperation.NONE : randomCondition();
 
         final S3Client client = configureMockClient(blobStore);
 
@@ -305,7 +309,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         if (doCopy) {
             blobContainer.executeMultipartCopy(randomPurpose(), sourceContainer, sourceBlobName, blobName, blobSize);
         } else {
-            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, randomCondition());
+            blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize, conditionalOperation);
         }
 
         final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestCaptor.getValue();
@@ -372,8 +376,11 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertEquals(blobPath.buildAsString() + blobName, compRequest.key());
         assertEquals(uploadId, compRequest.uploadId());
 
-        if (failIfAlreadyExists) {
-            assertEquals("*", compRequest.ifNoneMatch());
+        switch (conditionalOperation) {
+            case ConditionalOperation.IfMatch ifMatch -> assertEquals(ifMatch.etag(), compRequest.ifMatch());
+            case ConditionalOperation.IfNoneMatch ignored -> assertEquals("*", compRequest.ifNoneMatch());
+            case ConditionalOperation.None ignored -> {
+            }
         }
 
         final List<String> actualETags = compRequest.multipartUpload()
@@ -559,9 +566,9 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
     private S3BlobContainer.ConditionalOperation randomCondition() {
         return switch (between(0, 2)) {
-            case 0 -> S3BlobContainer.ConditionalOperation.NONE;
-            case 1 -> S3BlobContainer.ConditionalOperation.IF_NONE_MATCH;
-            default -> S3BlobContainer.ConditionalOperation.ifMatch(randomAlphanumericOfLength(128));
+            case 0 -> ConditionalOperation.NONE;
+            case 1 -> ConditionalOperation.IF_NONE_MATCH;
+            default -> ConditionalOperation.ifMatch(randomAlphanumericOfLength(128));
         };
     }
 

@@ -602,7 +602,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final long blobSize,
         final ConditionalOperation condition
     ) throws IOException {
-        try (var clientReference = s3BlobStore.clientReference()) {
+        try {
             // Extra safety checks
             if (blobSize > MAX_FILE_SIZE.getBytes()) {
                 throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);

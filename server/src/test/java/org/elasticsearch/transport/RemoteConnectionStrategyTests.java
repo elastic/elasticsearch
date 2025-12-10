@@ -267,15 +267,18 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         final var measurement = measurements.getLast();
                         assertThat(measurement.getLong(), equalTo(1L));
                         final var attributes = measurement.attributes();
-                        final var keySet = Set.of("linked_project_id", "linked_project_alias", "attempt", "strategy");
+                        final var keySet = Set.of(
+                            RemoteConnectionStrategy.linkedProjectIdLabel,
+                            RemoteConnectionStrategy.linkedProjectAliasLabel,
+                            RemoteConnectionStrategy.connectionAtemptLabel
+                        );
                         final var expectedAttemptType = isInitialConnectAttempt
                             ? RemoteConnectionStrategy.ConnectionAttempt.initial
                             : RemoteConnectionStrategy.ConnectionAttempt.reconnect;
                         assertThat(attributes.keySet(), equalTo(keySet));
-                        assertThat(attributes.get("linked_project_id"), equalTo(linkedProjectId.toString()));
-                        assertThat(attributes.get("linked_project_alias"), equalTo(alias));
-                        assertThat(attributes.get("attempt"), equalTo(expectedAttemptType.toString()));
-                        assertThat(attributes.get("strategy"), equalTo(strategy.strategyType().toString()));
+                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectIdLabel), equalTo(linkedProjectId.toString()));
+                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectAliasLabel), equalTo(alias));
+                        assertThat(attributes.get(RemoteConnectionStrategy.connectionAtemptLabel), equalTo(expectedAttemptType.toString()));
                     }
                 }
             }

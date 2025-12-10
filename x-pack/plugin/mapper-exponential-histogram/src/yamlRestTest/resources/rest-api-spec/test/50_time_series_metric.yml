@@ -1,0 +1,104 @@
+# TODO we need to add "requires capability" when the feature flag is removed
+---
+"Create time series metric with exponential histogram":
+  - do:
+      indices.create:
+        index: test_exponential_histogram_metric
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            properties:
+              my_metric:
+                type: exponential_histogram
+                time_series_metric: histogram
+  - is_true: shards_acknowledged
+
+  - do:
+      indices.get_mapping:
+        index: test_exponential_histogram_metric
+  - match: { test_exponential_histogram_metric.mappings.properties.my_metric.type: exponential_histogram }
+  - match: { test_exponential_histogram_metric.mappings.properties.my_metric.time_series_metric: histogram }
+
+---
+"Merging templates with time series metric":
+  - do:
+      cluster.put_component_template:
+        name: metric-histogram
+        body:
+          template:
+            mappings:
+              properties:
+                my_histogram:
+                  type: exponential_histogram
+                  time_series_metric: histogram
+
+
+  - is_true: acknowledged
+
+  - do:
+      indices.put_index_template:
+        name: only-histogram
+        body:
+          index_patterns: [ my-templated-index ]
+          composed_of: [ metric-histogram ]
+          template:
+            mappings:
+              properties:
+                my_counter:
+                  type: long
+                  time_series_metric: counter
+
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: my-templated-index
+  - is_true: shards_acknowledged
+
+  - do:
+      indices.get_mapping:
+        index: my-templated-index
+  - match: { my-templated-index.mappings.properties.my_histogram.type: exponential_histogram }
+  - match: { my-templated-index.mappings.properties.my_histogram.time_series_metric: histogram }
+  - match: { my-templated-index.mappings.properties.my_counter.type: long }
+  - match: { my-templated-index.mappings.properties.my_counter.time_series_metric: counter }
+
+---
+"Exponential histogram cannot be a gauge":
+  - do:
+      catch: /Unknown value \[gauge\] for field \[time_series_metric\] - accepted values are \[histogram\]/
+      indices.create:
+        index: invalid_exponential_histogram_metric
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            properties:
+              my_metric:
+                type: exponential_histogram
+                time_series_metric: gauge
+
+---
+"Exponential histogram cannot be a counter":
+  - do:
+      catch: /Unknown value \[counter\] for field \[time_series_metric\] - accepted values are \[histogram\]/
+      indices.create:
+        index: invalid_exponential_histogram_metric
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+          mappings:
+            properties:
+              my_metric:
+                type: exponential_histogram
+                time_series_metric: counter

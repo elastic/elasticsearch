@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,7 +67,7 @@ import java.util.stream.Collectors;
  */
 public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
-    public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = TransportVersions.V_8_15_0;
+    public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = TransportVersion.fromId(8702002);
     public static final TransportVersion ROLE_MONITOR_STATS = TransportVersion.fromId(8797002);
 
     public static final String NAME = "remote_cluster_permissions";

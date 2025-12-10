@@ -18,6 +18,7 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -66,7 +67,6 @@ import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -2634,7 +2634,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException {
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws IOException {
         boolean followLinks = true;
         for (LinkOption option : options) {
             if (option == LinkOption.NOFOLLOW_LINKS) {

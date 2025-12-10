@@ -34,20 +34,20 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
-public class GPUIndexIT extends ESIntegTestCase {
+public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
-    private static boolean isGpuIndexingFeatureAllowed = true;
+    protected static boolean isGpuIndexingFeatureAllowed = true;
 
-    private String similarity;
+    protected String similarity;
 
     public static class TestGPUPlugin extends GPUPlugin {
-        public TestGPUPlugin() {
-            super(Settings.builder().put("vectors.indexing.use_gpu", GpuMode.TRUE.name()).build());
+        public TestGPUPlugin(Settings settings) {
+            super(settings);
         }
 
         @Override
         protected boolean isGpuIndexingFeatureAllowed() {
-            return GPUIndexIT.isGpuIndexingFeatureAllowed;
+            return isGpuIndexingFeatureAllowed;
         }
     }
 
@@ -60,6 +60,18 @@ public class GPUIndexIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(TestGPUPlugin.class);
+    }
+
+    protected boolean alwaysUseGpu() {
+        return true;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        var useGpu = nodeOrdinal == 0 || alwaysUseGpu()
+            ? GPUPlugin.GpuMode.TRUE.name()
+            : randomFrom(GPUPlugin.GpuMode.TRUE.name(), GPUPlugin.GpuMode.FALSE.name());
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("vectors.indexing.use_gpu", useGpu).build();
     }
 
     @BeforeClass
@@ -112,6 +124,8 @@ public class GPUIndexIT extends ESIntegTestCase {
     }
 
     public void testSortedIndexReturnsSameResultsAsUnsorted() {
+        assumeTrue("Sort not consistent if graph built in different ways", alwaysUseGpu());
+
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";
         final int dims = randomIntBetween(4, 128);
@@ -287,6 +301,8 @@ public class GPUIndexIT extends ESIntegTestCase {
     }
 
     public void testInt8HnswMaxInnerProductProductFails() {
+        assumeTrue("Sort not consistent if graph built in different ways", alwaysUseGpu());
+
         String indexName = "index_int8_max_inner_product_fails";
         final int dims = randomIntBetween(4, 128);
 
@@ -323,7 +339,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         );
     }
 
-    private void createIndex(String indexName, int dims, boolean sorted) {
+    protected void createIndex(String indexName, int dims, boolean sorted) {
         var settings = Settings.builder().put(indexSettings());
         settings.put("index.number_of_shards", 1);
         if (sorted) {
@@ -356,7 +372,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         ensureGreen();
     }
 
-    private void indexDocs(String indexName, int numDocs, int dims, int startDoc) {
+    protected void indexDocs(String indexName, int numDocs, int dims, int startDoc) {
         BulkRequestBuilder bulkRequest = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             String id = String.valueOf(startDoc + i);
@@ -369,7 +385,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         assertFalse("Bulk request failed: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
     }
 
-    private void assertSearch(String indexName, float[] queryVector, int totalDocs) {
+    protected void assertSearch(String indexName, float[] queryVector, int totalDocs) {
         int k = Math.min(randomIntBetween(1, 20), totalDocs);
         int numCandidates = k * 10;
         assertNoFailuresAndResponse(
@@ -381,7 +397,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         );
     }
 
-    private static float[] randomNonUnitFloatVector(int dims) {
+    protected static float[] randomNonUnitFloatVector(int dims) {
         float[] vector = new float[dims];
         for (int i = 0; i < dims; i++) {
             vector[i] = randomFloat();
@@ -389,7 +405,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         return vector;
     }
 
-    private static float[] randomUnitVector(int dims) {
+    protected static float[] randomUnitVector(int dims) {
         float[] vector = new float[dims];
         double sumSquares = 0.0;
         for (int i = 0; i < dims; i++) {
@@ -405,7 +421,7 @@ public class GPUIndexIT extends ESIntegTestCase {
         return vector;
     }
 
-    private float[] randomFloatVector(int dims) {
+    protected float[] randomFloatVector(int dims) {
         boolean useUnitVectors = "dot_product".equals(similarity);
         return useUnitVectors ? randomUnitVector(dims) : randomNonUnitFloatVector(dims);
     }
@@ -413,7 +429,7 @@ public class GPUIndexIT extends ESIntegTestCase {
     /**
      * Asserts that at least N out of K hits have matching IDs between two result sets.
      */
-    private static void assertAtLeastNOutOfKMatches(SearchHit[] hits1, SearchHit[] hits2, int minMatches, int k) {
+    protected static void assertAtLeastNOutOfKMatches(SearchHit[] hits1, SearchHit[] hits2, int minMatches, int k) {
         Assert.assertEquals("Both result sets should have k hits", k, hits1.length);
         Assert.assertEquals("Both result sets should have k hits", k, hits2.length);
         Set<String> ids1 = new HashSet<>();
@@ -447,7 +463,7 @@ public class GPUIndexIT extends ESIntegTestCase {
      * Used for exact (brute-force) KNN search which should be deterministic.
      * Expects k out of k matches.
      */
-    private static void assertExactMatches(SearchHit[] hits1, SearchHit[] hits2, int k) {
+    protected static void assertExactMatches(SearchHit[] hits1, SearchHit[] hits2, int k) {
         Assert.assertEquals("Both result sets should have k hits", k, hits1.length);
         Assert.assertEquals("Both result sets should have k hits", k, hits2.length);
 

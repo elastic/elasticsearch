@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -259,11 +260,17 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     private XContentBuilder arrayToSource(Object[] array) throws IOException {
         var source = jsonBuilder().startObject();
         if (array != null) {
-            source.startArray("field");
-            for (Object arrayValue : array) {
-                source.value(arrayValue);
+            // collapse array if it only consists of one element
+            // if the only element is null, then we'll skip synthesizing source for that field
+            if (array.length == 1 && array[0] != null) {
+                source.field("field", array[0]);
+            } else {
+                source.startArray("field");
+                for (Object arrayValue : array) {
+                    source.value(arrayValue);
+                }
+                source.endArray();
             }
-            source.endArray();
         } else {
             source.field("field").nullValue();
         }
@@ -313,7 +320,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
                 assertThat(storedFieldNames, contains(expectedStoredFields));
             }
-            var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("field.offsets");
+            var fieldInfos = getFieldInfos(reader);
+            var fieldInfo = fieldInfos.fieldInfo("field.offsets");
+            assertThat(fieldInfo, notNullValue());
             assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
@@ -432,9 +441,18 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
                 assertThat(storedFieldNames, contains("_id"));
             }
-            var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("object.field.offsets");
+            var fieldInfos = getFieldInfos(reader);
+            var fieldInfo = fieldInfos.fieldInfo("object.field.offsets");
+            assertThat(fieldInfo, notNullValue());
             assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
 
+    private FieldInfos getFieldInfos(DirectoryReader reader) {
+        var fieldInfos = FieldInfos.getMergedFieldInfos(reader);
+        for (FieldInfo fieldInfo : fieldInfos) {
+            logger.info("field name: {}, {}", fieldInfo.name, fieldInfo.attributes());
+        }
+        return fieldInfos;
+    }
 }

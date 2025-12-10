@@ -984,6 +984,11 @@ public class EsqlCapabilities {
         INLINE_STATS,
 
         /**
+         * Added support for having INLINE STATS preceded by a SORT clause, now executable in certain cases.
+         */
+        INLINE_STATS_PRECEEDED_BY_SORT,
+
+        /**
          * Support partial_results
          */
         SUPPORT_PARTIAL_RESULTS,
@@ -1520,6 +1525,7 @@ public class EsqlCapabilities {
         VARIANCE_STDDEV_OVER_TIME,
         TS_LINREG_DERIVATIVE,
         TS_RATE_DATENANOS,
+        TS_RATE_DATENANOS_2,
         TS_DERIV_DATENANOS,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
@@ -1582,7 +1588,7 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
-        TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY(T_DIGEST_ESQL_SUPPORT),
+        TDIGEST_FIELD_TYPE_SUPPORT_V1(T_DIGEST_ESQL_SUPPORT),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1662,6 +1668,11 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_EQUALS_FIELD,
 
         /**
+         * Support for base conversion in TO_LONG and TO_INTEGER
+         */
+        BASE_CONVERSION,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
          * https://github.com/elastic/elasticsearch/issues/137019.
          */
@@ -1722,6 +1733,11 @@ public class EsqlCapabilities {
          * with all the dimensions.
          */
         METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
+
+        /**
+         * Returns the top snippets for given text content and associated query.
+         */
+        TOP_SNIPPETS_FUNCTION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

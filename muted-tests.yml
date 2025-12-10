@@ -475,6 +475,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.saml.SamlServiceProviderMetadataIT
   method: testAuthenticationWhenMetadataIsUnreliable
   issue: https://github.com/elastic/elasticsearch/issues/139067
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/138764
 
 # Examples:
 #

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.NewRate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
@@ -535,6 +536,7 @@ public class EsqlFunctionRegistry {
             // time-series functions
             new FunctionDefinition[] {
                 defTS3(Rate.class, Rate::new, "rate"),
+                defTS3(NewRate.class, NewRate::new, "new_rate"),
                 defTS(Irate.class, bi(Irate::new), "irate"),
                 defTS(Idelta.class, bi(Idelta::new), "idelta"),
                 defTS(Delta.class, bi(Delta::new), "delta"),

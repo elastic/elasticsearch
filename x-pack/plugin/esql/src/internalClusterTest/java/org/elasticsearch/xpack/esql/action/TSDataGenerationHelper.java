@@ -59,6 +59,8 @@ class TSDataGenerationHelper {
         );
         var maxTimeSeries = (int) Math.sqrt(numDocs);
         var minTimeSeries = Math.max(1, maxTimeSeries / 4);
+        // TODO - pabloem - Re-enable multiple time series generation
+        // numTimeSeries = 1;
         numTimeSeries = ESTestCase.randomIntBetween(minTimeSeries, maxTimeSeries);
         Set<String> usedAttributeNames = new HashSet<>();
         // allTimeSeries contains the list of dimension-values for each time series.

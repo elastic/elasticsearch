@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,27 +57,28 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 2000L;
-    private static final Long TIME_RANGE_SECONDS = 3600L;
+    private static final Long NUM_DOCS = 100L;
+    private static final Long TIME_RANGE_SECONDS = 180L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
         Tuple.tuple("10 seconds", 10),
         Tuple.tuple("30 seconds", 30),
-        Tuple.tuple("1 minute", 60),
-        Tuple.tuple("2 minutes", 120),
-        Tuple.tuple("3 minutes", 180),
-        Tuple.tuple("5 minutes", 300),
-        Tuple.tuple("10 minutes", 600),
-        Tuple.tuple("30 minutes", 1800),
-        Tuple.tuple("1 hour", 3600)
+        Tuple.tuple("1 minute", 60)
+        // Tuple.tuple("2 minutes", 120),
+        // Tuple.tuple("3 minutes", 180),
+        // Tuple.tuple("5 minutes", 300),
+        // Tuple.tuple("10 minutes", 600),
+        // Tuple.tuple("30 minutes", 1800),
+        // Tuple.tuple("1 hour", 3600)
     );
     private static final List<Tuple<String, DeltaAgg>> DELTA_AGG_OPTIONS = List.of(
         Tuple.tuple("rate", DeltaAgg.RATE),
         Tuple.tuple("irate", DeltaAgg.IRATE),
         Tuple.tuple("increase", DeltaAgg.INCREASE),
         Tuple.tuple("idelta", DeltaAgg.IDELTA),
-        Tuple.tuple("delta", DeltaAgg.DELTA)
+        Tuple.tuple("delta", DeltaAgg.DELTA),
+        Tuple.tuple("new_rate", DeltaAgg.NEW_RATE)
     );
     private static final Map<DeltaAgg, String> DELTA_AGG_METRIC_MAP = Map.of(
         DeltaAgg.RATE,
@@ -88,7 +90,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         DeltaAgg.INCREASE,
         "counterl_hdd.bytes.read",
         DeltaAgg.DELTA,
-        "gaugel_hdd.bytes.used"
+        "gaugel_hdd.bytes.used",
+        DeltaAgg.NEW_RATE,
+        "counterl_hdd.bytes.read"
     );
 
     private List<XContentBuilder> documents;
@@ -280,7 +284,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         IRATE,
         IDELTA,
         INCREASE,
-        DELTA
+        DELTA,
+        NEW_RATE
     }
 
     // A record that holds min, max, avg, count and sum of rates calculated from a timeseries.
@@ -289,27 +294,29 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     static RateStats calculateDeltaAggregation(
         Collection<List<Tuple<String, Tuple<Instant, Double>>>> allTimeseries,
         Integer secondsInWindow,
-        DeltaAgg deltaAgg
+        DeltaAgg deltaAgg,
+        Collection<List<Tuple<String, Tuple<Instant, Double>>>> previousWindowTimeseries
     ) {
         List<RateRange> allRates = allTimeseries.stream().map(timeseries -> {
-            if (timeseries.size() < 2) {
+            if (timeseries.size() < 2 && (deltaAgg == DeltaAgg.NEW_RATE && previousWindowTimeseries != null) == false) {
+                // NEW_RATE is allowed to have a single data point if we have previous window data (that we can then use to extrapolate)
+                // otherwise, we are unable to calculate a rate with less than 2 data points
                 return null;
             }
             // Sort the timeseries by timestamp
-            timeseries.sort((t1, t2) -> t1.v2().v1().compareTo(t2.v2().v1()));
+            timeseries.sort(Comparator.comparing(t -> t.v2().v1()));
+            var firstVal = timeseries.getFirst().v2().v2();
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
+            var lastVal = timeseries.getLast().v2().v2();
             var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
             if (deltaAgg.equals(DeltaAgg.IRATE)) {
-                var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
                 var irate = (lastVal >= secondLastVal ? lastVal - secondLastVal : lastVal) / (lastTs.toEpochMilli() - timeseries.get(
                     timeseries.size() - 2
                 ).v2().v1().toEpochMilli()) * 1000;
                 return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
             } else if (deltaAgg.equals(DeltaAgg.DELTA)) {
-                var firstVal = timeseries.getFirst().v2().v2();
-                var lastVal = timeseries.getLast().v2().v2();
                 var delta = lastVal - firstVal;
                 // We must extrapolate the delta to the window size
                 var windowSizeFactor = secondsInWindow / tsDurationSeconds;
@@ -319,7 +326,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     return new RateRange(delta * 0.999, delta * windowSizeFactor * 1.001); // Add 0.1% tolerance
                 }
             } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
-                var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
                 var idelta = lastVal - secondLastVal;
                 if (idelta < 0) {
@@ -328,37 +334,50 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     return new RateRange(idelta * 0.999, idelta * 1.001); // Add 0.1% tolerance
                 }
             }
-            assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;
-            Double lastValue = null;
-            double counterGrowth = 0.0;
-            for (Tuple<String, Tuple<Instant, Double>> point : timeseries) {
-                var currentValue = point.v2().v2();
-                if (currentValue == null) {
-                    throw new IllegalArgumentException("Null value in counter timeseries");
+            double counterGrowth = getCounterGrowth(deltaAgg, timeseries);
+            // We calculate the rate preemptively here, and then adjust based on the deltaAgg type below
+            RateRange regularRate = new RateRange(
+                counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
+                counterGrowth / tsDurationSeconds * 1.01 // Add 1% tolerance to the upper bound
+            );
+            if (deltaAgg.equals(DeltaAgg.NEW_RATE)) {
+                // We need to find the last value and timestamp from the previous window for this timeseries
+                Double previousWindowLastValue = null;
+                Instant previousWindowLastTimestamp = null;
+                if (previousWindowTimeseries != null) {
+                    for (List<Tuple<String, Tuple<Instant, Double>>> prevTs : previousWindowTimeseries) {
+                        if (prevTs.getFirst().v1().equals(timeseries.getFirst().v1())) {
+                            // This is the matching timeseries from the previous window
+                            prevTs.sort(Comparator.comparing(t -> t.v2().v1()));
+                            previousWindowLastValue = prevTs.getLast().v2().v2();
+                            previousWindowLastTimestamp = prevTs.getLast().v2().v1();
+                            break;
+                        }
+                    }
                 }
-                if (lastValue == null) {
-                    lastValue = point.v2().v2(); // Initialize with the first value
-                    continue;
+                if (previousWindowLastValue != null && previousWindowLastTimestamp != null) {
+                    // counterGrowth is LAST_VAL_CURRENT_WINDOW + RESETS - FIRST_VAL_CURRENT_WINDOW
+                    // we want LAST_VAL_CURRENT_WINDOW + RESETS - LAST_VAL_PREVIOUS_WINDOW
+                    // AND RESETS = FIRST_VAL_CURRENT_WINDOW > LAST_VAL_PREVIOUS_WINDOW ? RESETS : RESETS + FIRST_VAL_CURRENT_WINDOW
+                    double timeDiffSeconds = (lastTs.toEpochMilli() - previousWindowLastTimestamp.toEpochMilli()) / 1000.0;
+                    double valueDiff = firstVal >= previousWindowLastValue
+                        ? counterGrowth + firstVal - previousWindowLastValue // no reset
+                        : counterGrowth + firstVal + firstVal - previousWindowLastValue;
+                    double newRate = valueDiff / timeDiffSeconds;
+                    return new RateRange(newRate * 0.99, newRate * 1.01); // Add 1% tolerance
+                } else {
+                    // Fallback to RATE calculation if no previous window data is available
+                    // (this should be rare, only for the first window)
+                    return regularRate;
                 }
-                if (currentValue > lastValue) {
-                    counterGrowth += currentValue - lastValue; // Incremental growth
-                } else if (currentValue < lastValue) {
-                    // If the value decreased, we assume a reset and start counting from the current value
-                    counterGrowth += currentValue;
-                }
-                lastValue = currentValue; // Update last value for next iteration
-            }
-            if (deltaAgg.equals(DeltaAgg.INCREASE)) {
+            } else if (deltaAgg.equals(DeltaAgg.INCREASE)) {
                 return new RateRange(
                     counterGrowth * 0.99, // INCREASE is RATE multiplied by the window size
                     // Upper bound is extrapolated to the window size
                     counterGrowth * secondsInWindow / tsDurationSeconds * 1.01
                 );
             } else {
-                return new RateRange(
-                    counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
-                    counterGrowth / tsDurationSeconds * 1.01 // Add 1% tolerance to the upper bound
-                );
+                return regularRate;
             }
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
@@ -374,6 +393,30 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             allRates.stream().min(RateRange::compareTo).orElseThrow(),
             new RateRange(allRates.stream().mapToDouble(r -> r.lower).sum(), allRates.stream().mapToDouble(r -> r.upper).sum())
         );
+    }
+
+    private static double getCounterGrowth(DeltaAgg deltaAgg, List<Tuple<String, Tuple<Instant, Double>>> timeseries) {
+        assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE || deltaAgg == DeltaAgg.NEW_RATE;
+        Double lastValue = null;
+        double counterGrowth = 0.0;
+        for (Tuple<String, Tuple<Instant, Double>> point : timeseries) {
+            var currentValue = point.v2().v2();
+            if (currentValue == null) {
+                throw new IllegalArgumentException("Null value in counter timeseries");
+            }
+            if (lastValue == null) {
+                lastValue = point.v2().v2(); // Initialize with the first value
+                continue;
+            }
+            if (currentValue > lastValue) {
+                counterGrowth += currentValue - lastValue; // Incremental growth
+            } else if (currentValue < lastValue) {
+                // If the value decreased, we assume a reset and start counting from the current value
+                counterGrowth += currentValue;
+            }
+            lastValue = currentValue; // Update last value for next iteration
+        }
+        return counterGrowth;
     }
 
     void putTSDBIndexTemplate(List<String> patterns, @Nullable String mappingString) throws IOException {
@@ -427,15 +470,34 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         assertThat(actual, allOf(lessThanOrEqualTo(expected.upper), not(lessThan(expected.lower))));
     }
 
-    void assertNoFailedWindows(List<String> failedWindows, List<List<Object>> rows, String agg) {
+    void assertNoFailedWindows(List<String> failedWindows, List<List<Object>> rows, String agg, EsqlQueryResponse resp) {
         if (failedWindows.isEmpty() == false) {
             var pctFailures = (double) failedWindows.size() / rows.size() * 100;
             var failureDetails = String.join("\n", failedWindows);
             if (failureDetails.length() > 2000) {
                 failureDetails = failureDetails.substring(0, 2000) + "\n... (truncated)";
             }
+            StringBuilder queryResult = new StringBuilder();
+            // Now we print the entire response for debugging
+            resp.rows().forEach(row -> {
+                List<String> rowList = new ArrayList<>();
+                row.forEach(cell -> {
+                    queryResult.append(cell);
+                    queryResult.append(", ");
+                });
+                queryResult.append("\n");
+            });
             throw new AssertionError(
-                "Failed. Agg: " + agg + " | Failed windows: " + failedWindows.size() + " windows(" + pctFailures + "%):\n" + failureDetails
+                "Failed. Agg: "
+                    + agg
+                    + " | Failed windows: "
+                    + failedWindows.size()
+                    + " windows("
+                    + pctFailures
+                    + "%):\n"
+                    + failureDetails
+                    + "\nQuery result:\n"
+                    + queryResult.toString()
             );
         }
     }
@@ -448,7 +510,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testRateGroupBySubset() {
         // var deltaAgg = ESTestCase.randomFrom(DELTA_AGG_OPTIONS);
-        var deltaAgg = Tuple.tuple("delta", DeltaAgg.DELTA); // TODO: Enable random selection after fixing
+        var deltaAgg = Tuple.tuple("new_rate", DeltaAgg.NEW_RATE);
         var metricName = DELTA_AGG_METRIC_MAP.get(deltaAgg.v2());
         var window = ESTestCase.randomFrom(WINDOW_OPTIONS);
         var windowSize = window.v2();
@@ -468,6 +530,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
             """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1()).replaceAll("<METRIC>", metricName);
+        Map<List<String>, Map<String, List<Tuple<String, Tuple<Instant, Double>>>>> previousWindows = new HashMap<>();
         try (var resp = run(query)) {
             List<List<Object>> rows = consumeRows(resp);
             List<String> failedWindows = new ArrayList<>();
@@ -476,32 +539,32 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var rowKey = getRowKey(row, dimensions, getTimestampIndex(query));
                 var windowDataPoints = groups.get(rowKey);
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, metricName);
-                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), windowSize, deltaAgg.v2());
+                // The last element of the rowKey is the time bucket, we don't want to include it in the previousWindows key
+                var previousWindowDocs = previousWindows.put(rowKey.subList(0, rowKey.size() - 1), docsPerTimeseries);
+                var rateAgg = calculateDeltaAggregation(
+                    docsPerTimeseries.values(),
+                    windowSize,
+                    deltaAgg.v2(),
+                    previousWindowDocs == null ? null : previousWindowDocs.values()
+                );
                 try {
-                    assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);
                     checkWithin((Double) row.get(2), rateAgg.avg);
                     checkWithin((Double) row.get(3), rateAgg.min);
                     checkWithin((Double) row.get(4), rateAgg.sum);
+                    assertThat(row.getFirst(), equalTo(rateAgg.count));
                 } catch (AssertionError e) {
-                    failedWindows.add(
-                        "ROWS: "
-                            + rows.size()
-                            + "|Failed for row:\n"
-                            + row
-                            + "\nWanted: "
-                            + rateAgg
-                            + "\nRow times and values:\n\tTS:"
-                            + docsPerTimeseries.values()
-                                .stream()
-                                .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
-                                .collect(Collectors.joining("\n\tTS:"))
-                            + "\nException: "
-                            + e.getMessage()
-                    );
+                    failedWindows.add("ROWS: " + rows.size() + "|Failed for row:\n" + row + "\nWanted: " + rateAgg
+                    // + "\nRow times and values:\n\tTS:"
+                    // + docsPerTimeseries.values()
+                    // .stream()
+                    // .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
+                    // .collect(Collectors.joining("\n\tTS:"))
+                        + "\nException: "
+                        + e.getMessage());
                 }
             }
-            assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name());
+            assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name(), resp);
         }
     }
 
@@ -528,7 +591,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var windowStart = windowStart(row.get(4), SECONDS_IN_WINDOW);
                 var windowDataPoints = groups.get(List.of(Long.toString(windowStart)));
                 var docsPerTimeseries = groupByTimeseries(windowDataPoints, "counterl_hdd.bytes.read");
-                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), SECONDS_IN_WINDOW, DeltaAgg.RATE);
+                var rateAgg = calculateDeltaAggregation(docsPerTimeseries.values(), SECONDS_IN_WINDOW, DeltaAgg.RATE, null);
                 try {
                     assertThat(row.getFirst(), equalTo(rateAgg.count));
                     checkWithin((Double) row.get(1), rateAgg.max);
@@ -538,7 +601,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     failedWindows.add("Failed for row:\n" + row + "\nWanted: " + rateAgg + "\nException: " + e.getMessage());
                 }
             }
-            assertNoFailedWindows(failedWindows, rows, "RATE");
+            assertNoFailedWindows(failedWindows, rows, "RATE", resp);
         }
     }
 

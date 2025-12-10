@@ -90,7 +90,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private static final TransportVersion MAPPINGS_IN_DATA_STREAMS = TransportVersion.fromName("mappings_in_data_streams");
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
-    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
@@ -304,9 +303,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var failureIndices = readIndices(in);
         var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
         backingIndicesBuilder.setRolloverOnWrite(in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
-            backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
-        }
+        backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
             boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
@@ -1478,9 +1475,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeOptionalWriteable(lifecycle);
         out.writeCollection(failureIndices.indices);
         out.writeBoolean(backingIndices.rolloverOnWrite);
-        if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
-            out.writeOptionalWriteable(backingIndices.autoShardingEvent);
-        }
+        out.writeOptionalWriteable(backingIndices.autoShardingEvent);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(failureIndices.rolloverOnWrite);
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);

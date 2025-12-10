@@ -70,11 +70,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         this.scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
         this.fieldName = in.readOptionalString();
         if (in.readBoolean()) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                this.queryVector = in.readOptionalWriteable(VectorData::new);
-            } else {
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-            }
+            this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
             this.queryVector = null;
         }
@@ -117,11 +113,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         out.writeOptionalString(fieldName);
         if (queryVector != null) {
             out.writeBoolean(true);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(queryVector);
-            } else {
-                out.writeFloatArray(queryVector.asFloatVector());
-            }
+            out.writeOptionalWriteable(queryVector);
         } else {
             out.writeBoolean(false);
         }

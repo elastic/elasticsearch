@@ -180,7 +180,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

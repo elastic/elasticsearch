@@ -49,11 +49,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     public ExactKnnQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.query = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.query = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.query = in.readOptionalWriteable(VectorData::new);
         this.field = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.vectorSimilarity = in.readOptionalFloat();
@@ -81,11 +77,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(query);
-        } else {
-            out.writeFloatArray(query.asFloatVector());
-        }
+        out.writeOptionalWriteable(query);
         out.writeString(field);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalFloat(vectorSimilarity);

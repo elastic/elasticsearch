@@ -264,9 +264,7 @@ public class GetDataStreamLifecycleAction {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(globalRetention);
-            }
+            out.writeOptionalWriteable(globalRetention);
         }
 
         @Override

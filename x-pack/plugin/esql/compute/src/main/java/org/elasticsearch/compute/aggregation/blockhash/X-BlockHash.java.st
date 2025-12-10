@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 $if(Ordinator64)$
+$elseif(OrdinatorBytes)$
 $else$
 import org.elasticsearch.common.util.$Hash$;
 $endif$
@@ -57,6 +58,9 @@ import org.elasticsearch.core.ReleasableIterator;
 $if(Ordinator64)$
 import org.elasticsearch.swisshash.Ordinator64;
 
+$elseif(OrdinatorBytes)$
+import org.elasticsearch.swisshash.OrdinatorBytes;
+
 $else$
 $endif$
 
@@ -73,6 +77,8 @@ final class $Type$BlockHash extends BlockHash {
     private final int channel;
 $if(Ordinator64)$
     final Ordinator64 hash;
+$elseif(OrdinatorBytes)$
+    final OrdinatorBytes hash;
 $else$
     final $Hash$ hash;
 $endif$
@@ -91,6 +97,8 @@ $endif$
         this.channel = channel;
 $if(Ordinator64)$
         this.hash = new Ordinator64(blockFactory.bigArrays().recycler(), blockFactory.breaker(), new Ordinator64.IdSpace());
+$elseif(OrdinatorBytes)$
+        this.hash = new OrdinatorBytes(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
 $else$
         this.hash = new $Hash$(1, blockFactory.bigArrays());
 $endif$
@@ -280,16 +288,31 @@ $if(BytesRef)$
         if (seenNull) {
             try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
                 builder.appendNull();
+$if(OrdinatorBytes)$
+                OrdinatorBytes.Itr itr = hash.iterator();
+                while (itr.next()) {
+                    builder.appendBytesRef(itr.key(spare));
+                }
+$else$
                 for (long i = 0; i < hash.size(); i++) {
                     builder.appendBytesRef(hash.get(i, spare));
                 }
+$endif$
                 return new BytesRefBlock[] { builder.build() };
             }
         }
         try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
+$if(OrdinatorBytes)$
+            OrdinatorBytes.Itr itr = hash.iterator();
+            while (itr.next()) {
+                builder.appendBytesRef(itr.key(spare));
+            }
+$else$
             for (long i = 0; i < hash.size(); i++) {
                 builder.appendBytesRef(hash.get(i, spare));
             }
+$endif$
+
             return new BytesRefBlock[] { builder.build() };
         }
 $else$

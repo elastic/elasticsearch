@@ -10,8 +10,8 @@ package org.elasticsearch.compute.operator.mvdedupe;
 import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefHash;
 $elseif(Ordinator64)$
+$elseif(OrdinatorBytes)$
 $else$
 import org.elasticsearch.common.util.LongHash;
 $endif$
@@ -27,10 +27,14 @@ import org.elasticsearch.compute.data.LongBlock;
 $else$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
-
 $endif$
 $if(Ordinator64)$
 import org.elasticsearch.swisshash.Ordinator64;
+
+$elseif(OrdinatorBytes)$
+import org.elasticsearch.swisshash.OrdinatorBytes;
+
+$else$
 $endif$
 
 import java.util.Arrays;
@@ -226,7 +230,7 @@ $endif$
      * to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefHash hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, OrdinatorBytes hash) {
 $elseif(Ordinator64)$
     public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, Ordinator64 hash) {
 $else$
@@ -270,7 +274,7 @@ $endif$
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefHash hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, OrdinatorBytes hash) {
 $elseif(Ordinator64)$
     public IntBlock hashLookup(BlockFactory blockFactory, Ordinator64 hash) {
 $else$
@@ -498,7 +502,7 @@ $endif$
      * Writes an already deduplicated {@link #work} to a hash.
      */
 $if(BytesRef)$
-    private void hashAddUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
 $elseif(Ordinator64)$
     private void hashAddUniquedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
@@ -519,7 +523,7 @@ $endif$
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
 $if(BytesRef)$
-    private void hashAddSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
 $elseif(Ordinator64)$
     private void hashAddSortedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
@@ -545,7 +549,7 @@ $endif$
      * Looks up an already deduplicated {@link #work} to a hash.
      */
 $if(BytesRef)$
-    private void hashLookupUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
 $elseif(Ordinator64)$
     private void hashLookupUniquedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
@@ -610,7 +614,7 @@ $endif$
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
 $if(BytesRef)$
-    private void hashLookupSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
 $elseif(Ordinator64)$
     private void hashLookupSortedWork(Ordinator64 hash, IntBlock.Builder builder) {
 $else$
@@ -737,7 +741,7 @@ $if(BytesRef)$
 $endif$
 
 $if(BytesRef)$
-    private void hashAdd(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
+    private void hashAdd(IntBlock.Builder builder, OrdinatorBytes hash, BytesRef v) {
 $elseif(Ordinator64)$
     private void hashAdd(IntBlock.Builder builder, Ordinator64 hash, $type$ v) {
 $else$
@@ -751,7 +755,7 @@ $endif$
     }
 
 $if(BytesRef)$
-    private long hashLookup(BytesRefHash hash, BytesRef v) {
+    private long hashLookup(OrdinatorBytes hash, BytesRef v) {
 $elseif(Ordinator64)$
     private long hashLookup(Ordinator64 hash, $type$ v) {
 $else$
@@ -765,7 +769,7 @@ $endif$
     }
 
 $if(BytesRef)$
-    private void hashLookupSingle(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
+    private void hashLookupSingle(IntBlock.Builder builder, OrdinatorBytes hash, BytesRef v) {
 $elseif(Ordinator64)$
     private void hashLookupSingle(IntBlock.Builder builder, Ordinator64 hash, $type$ v) {
 $else$

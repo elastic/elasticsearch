@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -26,6 +25,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.swisshash.OrdinatorBytes;
 
 /**
  * Maps a {@link BytesRefBlock} column to group ids.
@@ -33,8 +33,7 @@ import org.elasticsearch.core.ReleasableIterator;
  */
 final class BytesRefBlockHash extends BlockHash {
     private final int channel;
-    final BytesRefHash hash;
-
+    final OrdinatorBytes hash;
     /**
      * Have we seen any {@code null} values?
      * <p>
@@ -47,7 +46,7 @@ final class BytesRefBlockHash extends BlockHash {
     BytesRefBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new BytesRefHash(1, blockFactory.bigArrays());
+        this.hash = new OrdinatorBytes(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
     }
 
     @Override
@@ -213,15 +212,17 @@ final class BytesRefBlockHash extends BlockHash {
         if (seenNull) {
             try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
                 builder.appendNull();
-                for (long i = 0; i < hash.size(); i++) {
-                    builder.appendBytesRef(hash.get(i, spare));
+                OrdinatorBytes.Itr itr = hash.iterator();
+                while (itr.next()) {
+                    builder.appendBytesRef(itr.key(spare));
                 }
                 return new BytesRefBlock[] { builder.build() };
             }
         }
         try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
-            for (long i = 0; i < hash.size(); i++) {
-                builder.appendBytesRef(hash.get(i, spare));
+            OrdinatorBytes.Itr itr = hash.iterator();
+            while (itr.next()) {
+                builder.appendBytesRef(itr.key(spare));
             }
             return new BytesRefBlock[] { builder.build() };
         }

@@ -11,6 +11,7 @@ package org.elasticsearch.swisshash;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -60,7 +61,7 @@ import java.util.Arrays;
  *     slots store the {@code id} which indexes into the {@link BytesRefArray}.
  * </p>
  */
-public final class OrdinatorBytes extends Ordinator implements Releasable {
+public final class OrdinatorBytes extends Ordinator implements Accountable, Releasable {
     private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
 
     private static final int BYTE_VECTOR_LANES = VECTOR_UTILS.byteVectorLanes();
@@ -524,6 +525,14 @@ public final class OrdinatorBytes extends Ordinator implements Releasable {
     }
 
     /**
+     * Return the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
+     * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
+     */
+    public BytesRef get(long id, BytesRef dest) {
+        return bytesRefs.get(id, dest);
+    }
+
+    /**
      * Fills the scratch BytesRef with the key at the specified slot.
      * This is compliant with the pattern used in Ordinator64, though here it involves
      * an indirect lookup via the ID.
@@ -561,5 +570,10 @@ public final class OrdinatorBytes extends Ordinator implements Releasable {
 
     private boolean matches(BytesRef key, int id) {
         return key.bytesEquals(bytesRefs.get(id, scratch));
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return bytesRefs.ramBytesUsed(); // TODO: complete
     }
 }

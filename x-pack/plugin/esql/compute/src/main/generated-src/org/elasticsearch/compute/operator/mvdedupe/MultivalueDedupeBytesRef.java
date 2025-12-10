@@ -9,13 +9,13 @@ package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.swisshash.OrdinatorBytes;
 
 import java.util.Arrays;
 
@@ -184,7 +184,7 @@ public class MultivalueDedupeBytesRef {
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefHash hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, OrdinatorBytes hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -218,7 +218,7 @@ public class MultivalueDedupeBytesRef {
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefHash hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, OrdinatorBytes hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -401,7 +401,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -416,7 +416,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -436,7 +436,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -495,7 +495,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(OrdinatorBytes hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -604,15 +604,15 @@ public class MultivalueDedupeBytesRef {
         }
     }
 
-    private void hashAdd(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
+    private void hashAdd(IntBlock.Builder builder, OrdinatorBytes hash, BytesRef v) {
         appendFound(builder, hash.add(v));
     }
 
-    private long hashLookup(BytesRefHash hash, BytesRef v) {
+    private long hashLookup(OrdinatorBytes hash, BytesRef v) {
         return hash.find(v);
     }
 
-    private void hashLookupSingle(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
+    private void hashLookupSingle(IntBlock.Builder builder, OrdinatorBytes hash, BytesRef v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);

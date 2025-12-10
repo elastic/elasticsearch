@@ -158,7 +158,7 @@ final class BytesRef3BlockHash extends BlockHash {
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {
-                        b1.appendBytesRef(hash1.hash.get(k1 - 1, scratch));
+                        // b1.appendBytesRef(hash1.hash.get(k1 - 1, scratch)); TODO
                     }
                 }
                 outputBlocks[0] = b1.build();
@@ -169,7 +169,7 @@ final class BytesRef3BlockHash extends BlockHash {
                     if (k2 == 0) {
                         b2.appendNull();
                     } else {
-                        b2.appendBytesRef(hash2.hash.get(k2 - 1, scratch));
+                        // b2.appendBytesRef(hash2.hash.get(k2 - 1, scratch)); TODO
                     }
                 }
                 outputBlocks[1] = b2.build();
@@ -180,7 +180,7 @@ final class BytesRef3BlockHash extends BlockHash {
                     if (k3 == 0) {
                         b3.appendNull();
                     } else {
-                        b3.appendBytesRef(hash3.hash.get(k3 - 1, scratch));
+                        // b3.appendBytesRef(hash3.hash.get(k3 - 1, scratch)); TODO
                     }
                 }
                 outputBlocks[2] = b3.build();

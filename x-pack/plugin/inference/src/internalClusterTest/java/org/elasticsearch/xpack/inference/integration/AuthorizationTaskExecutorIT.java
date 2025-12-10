@@ -111,6 +111,9 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             // Ensure that the polling logic only occurs once so we can deterministically control when an authorization response is
             // received
             .put(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), false)
+            // Use very short intervals for testing purposes so that waiting for the task to be recreated is fast
+            .put(ElasticInferenceServiceSettings.AUTHORIZATION_REQUEST_INTERVAL.getKey(), TimeValue.timeValueMillis(1))
+            .put(ElasticInferenceServiceSettings.MAX_AUTHORIZATION_REQUEST_JITTER.getKey(), TimeValue.timeValueMillis(1))
             .build();
     }
 

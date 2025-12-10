@@ -56,8 +56,10 @@ dependencies {
   }
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('inference'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('inference'))
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
@@ -73,6 +75,8 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
 }
 
 tasks.named("dependencyLicenses").configure {

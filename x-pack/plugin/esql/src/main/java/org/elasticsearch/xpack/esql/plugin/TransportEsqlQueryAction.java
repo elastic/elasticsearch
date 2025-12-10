@@ -254,7 +254,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
         PlanRunner planRunner = new PlanRunner() {
             @Override
-            public void run(PhysicalPlan plan, Configuration configuration, FoldContext foldCtx, PlanTimeProfile planTimeProfile, ActionListener<Result> resultListener) {
+            public void run(
+                PhysicalPlan plan,
+                Configuration configuration,
+                FoldContext foldCtx,
+                PlanTimeProfile planTimeProfile,
+                ActionListener<Result> resultListener
+            ) {
                 computeService.execute(
                     sessionId,
                     (CancellableTask) task,

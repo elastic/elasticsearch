@@ -104,6 +104,9 @@ public final class CsvTestUtils {
     public record Range(Object lowerBound, Object upperBound) {
         @SuppressWarnings("unchecked")
         <T extends Comparable<T>> boolean includes(Object value) {
+            if (value == null) {
+                return false;
+            }
             try {
                 return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
             } catch (ClassCastException e) {

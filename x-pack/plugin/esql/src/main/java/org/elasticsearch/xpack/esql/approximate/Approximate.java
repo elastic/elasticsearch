@@ -408,7 +408,13 @@ public class Approximate {
                 } else {
                     result.pages().forEach(Page::close);
                     runner.reset();
-                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, planTimeProfile, sourceCountListener(listener));
+                    runner.run(
+                        toPhysicalPlan.apply(sourceCountPlan()),
+                        configuration,
+                        foldContext,
+                        planTimeProfile,
+                        sourceCountListener(listener)
+                    );
                 }
             }
 
@@ -416,7 +422,13 @@ public class Approximate {
             public void onFailure(Exception e) {
                 if (isCausedByUnsupported(e)) {
                     runner.reset();
-                    runner.run(toPhysicalPlan.apply(sourceCountPlan()), configuration, foldContext, planTimeProfile, sourceCountListener(listener));
+                    runner.run(
+                        toPhysicalPlan.apply(sourceCountPlan()),
+                        configuration,
+                        foldContext,
+                        planTimeProfile,
+                        sourceCountListener(listener)
+                    );
                 } else {
                     logger.debug("stats query failed; returning error", e);
                     listener.onFailure(e);
@@ -560,7 +572,13 @@ public class Approximate {
                 );
             } else {
                 runner.reset();
-                runner.run(toPhysicalPlan.apply(approximatePlan(newSampleProbability)), configuration, foldContext, planTimeProfile, listener);
+                runner.run(
+                    toPhysicalPlan.apply(approximatePlan(newSampleProbability)),
+                    configuration,
+                    foldContext,
+                    planTimeProfile,
+                    listener
+                );
             }
         });
     }

@@ -937,6 +937,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 UNSUPPORTED,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
+                // TODO(b/133393): Once we remove the feature-flag of the tdigest field type (!= ES|QL type),
+                // replace this with a capability check
+                TDIGEST,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false);

@@ -37,6 +37,7 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
         var docValues = leafReader.getBinaryDocValues(name);
         if (docValues == null) {
             bytesValues = null;
+            hasValue = false;
             return null;
         }
 

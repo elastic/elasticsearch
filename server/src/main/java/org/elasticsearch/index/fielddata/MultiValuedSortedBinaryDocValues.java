@@ -23,6 +23,9 @@ public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
 
     BinaryDocValues values;
     int count;
+
+    // the binary doc values for a document are all encoded in a single binary array, which this stream knows how to read
+    // the doc values in the array take the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
     final ByteArrayStreamInput in = new ByteArrayStreamInput();
     final BytesRef scratch = new BytesRef();
 

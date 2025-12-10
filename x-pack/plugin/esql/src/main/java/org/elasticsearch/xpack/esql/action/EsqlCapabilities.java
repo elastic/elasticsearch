@@ -1588,7 +1588,7 @@ public class EsqlCapabilities {
          */
         EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
 
-        TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY(T_DIGEST_ESQL_SUPPORT),
+        TDIGEST_FIELD_TYPE_SUPPORT_V1(T_DIGEST_ESQL_SUPPORT),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1666,6 +1666,11 @@ public class EsqlCapabilities {
         INLINE_STATS_WITH_NO_COLUMNS(INLINE_STATS.enabled),
 
         FIX_MV_CONSTANT_EQUALS_FIELD,
+
+        /**
+         * Support for base conversion in TO_LONG and TO_INTEGER
+         */
+        BASE_CONVERSION,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.

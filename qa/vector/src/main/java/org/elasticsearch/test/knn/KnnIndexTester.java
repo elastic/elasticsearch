@@ -361,8 +361,7 @@ public class KnnIndexTester {
                 "filter_selectivity",
                 "filter_method",
                 "filter_cached",
-                "oversampling_factor"
-            };
+                "oversampling_factor" };
 
             // Calculate appropriate column widths based on headers and data
 

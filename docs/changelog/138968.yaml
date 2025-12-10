@@ -11,9 +11,9 @@ highlight:
 
     Exponential histograms offer an efficient way to collect distributions (e.g. response times) at a high compression
     ratio while still maintaining good accuracy for percentile estimation. They can be easily collected via
-    OpenTelemetry SDKs, as the only required configuration is a budget for the number of buckets. The actual buckets will be
+    OpenTelemetry SDKs, as the only required configuration is the maximum allowed number of buckets. The actual buckets will be
     chosen automatically based on the observed values.
 
-    The new `exponential_histogram` field type is supported in ES|QL, both in the `FROM` and `TS` source commands.
+    The new `exponential_histogram` field type is supported in ES|QL.
     It can be aggregated using the `PERCENTILES`, `AVG`, `MIN`, `MAX` and `SUM` functions.
   notable: true

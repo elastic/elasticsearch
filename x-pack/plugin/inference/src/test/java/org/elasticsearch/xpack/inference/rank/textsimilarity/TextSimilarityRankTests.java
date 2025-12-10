@@ -166,7 +166,12 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 // Verify order, rank and score of results
                 assertThat(
                     response.getHits().getHits(),
-                    arrayContaining(searchHitWith(1, 4.0f + 1f, "4"), searchHitWith(2, 3.0f + 1f, "3"), searchHitWith(3, 2.0f + 1f, "2"), searchHitWith(4, 1.0f + 1f, "1"))
+                    arrayContaining(
+                        searchHitWith(1, 4.0f + 1f, "4"),
+                        searchHitWith(2, 3.0f + 1f, "3"),
+                        searchHitWith(3, 2.0f + 1f, "2"),
+                        searchHitWith(4, 1.0f + 1f, "1")
+                    )
                 );
             }
         );

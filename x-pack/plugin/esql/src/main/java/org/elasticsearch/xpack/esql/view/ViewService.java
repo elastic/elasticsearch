@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -206,11 +204,6 @@ public class ViewService {
      * Validates that a view may be inserted into the cluster state
      */
     void validatePutView(ProjectMetadata metadata, View view) {
-        PutViewAction.Request r = new PutViewAction.Request(TimeValue.MINUS_ONE, TimeValue.MINUS_ONE, view);
-        ActionRequestValidationException e = r.validate();
-        if (e != null) {
-            throw e;
-        }
         if (view.query().length() > this.maxViewLength) {
             throw new IllegalArgumentException(
                 "view query is too large: " + view.query().length() + " characters, the maximum allowed is " + this.maxViewLength

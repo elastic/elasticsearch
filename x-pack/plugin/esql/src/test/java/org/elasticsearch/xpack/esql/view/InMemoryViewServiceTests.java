@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -162,30 +161,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             assertThat(e.getMessage(), containsString("view query is too large: 7 characters, the maximum allowed is 6"));
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
-        }
-    }
-
-    public void testInvalidViewNames() {
-        try (InMemoryViewService customViewService = new InMemoryViewService()) {
-            for (var name : Map.of(
-                "viewX",
-                "invalid view name [viewX], must be lowercase",
-                ".",
-                "invalid view name [.], must not be '.' or '..'",
-                "..",
-                "invalid view name [..], must not be '.' or '..'",
-                "invalid name",
-                "invalid view name [invalid name], must not contain the following characters",
-                "invalid*name",
-                "invalid view name [invalid*name], must not contain the following characters"
-            ).entrySet()) {
-                expectThrows(
-                    "Expected '" + name.getKey() + "' to be an invalid name, but it was not",
-                    Exception.class,
-                    containsString(name.getValue()),
-                    () -> addView(name.getKey(), "from aa", customViewService)
-                );
-            }
         }
     }
 

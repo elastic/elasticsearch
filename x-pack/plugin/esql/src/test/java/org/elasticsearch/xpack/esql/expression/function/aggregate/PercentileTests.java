@@ -12,9 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Types;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,11 +22,9 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.compute.aggregation.ExponentialHistogramStates.MAX_BUCKET_COUNT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercentileTests extends AbstractAggregationTestCase {

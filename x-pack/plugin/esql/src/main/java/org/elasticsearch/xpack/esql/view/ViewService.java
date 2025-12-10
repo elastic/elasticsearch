@@ -179,7 +179,7 @@ public class ViewService {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
-                final ViewMetadata viewMetadata = project.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+                final ViewMetadata viewMetadata = getMetadata(project);
                 final View currentView = viewMetadata.getView(name);
                 if (currentView == null) {
                     // The update is a no-op, because we're trying to remove the view, but it doesn't exist, so no change is necessary

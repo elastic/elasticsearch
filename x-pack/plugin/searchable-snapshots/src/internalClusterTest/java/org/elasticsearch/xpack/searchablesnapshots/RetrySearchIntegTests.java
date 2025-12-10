@@ -30,7 +30,6 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,10 +44,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestIssueLogging(
-    issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
-    value = "org.elasticsearch.action.search:DEBUG," + "org.elasticsearch.search:TRACE"
-)
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -268,7 +263,6 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final int numberOfReplicas = between(0, 2);
-        logger.info("---> number of replicas: " + numberOfReplicas);
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
 

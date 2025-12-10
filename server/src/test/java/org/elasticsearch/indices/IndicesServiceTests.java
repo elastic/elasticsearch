@@ -894,7 +894,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     /**
      * Tests that the mapper service created for validation reuses the existing document mapper from the index service (if present).
      */
-    public void testCheckIndicesServiceMapper() throws IOException {
+    public void testMapperServiceForValidationReusesExistingDocumentMapper() throws IOException {
         IndicesService indicesService = getIndicesService();
 
         IndexMetadata indexMetadata = IndexMetadata.builder("test")

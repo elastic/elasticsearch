@@ -18,18 +18,16 @@ public class Clusters {
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT))
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT))
+            .withNode(node -> node.version(oldVersionString, isDetachedVersion).setting("node.roles", "[master,data,ingest]"))
+            .withNode(node -> node.version(Version.CURRENT).setting("node.roles", "[data,ingest]"))
+            .withNode(node -> node.version(oldVersionString, isDetachedVersion).setting("node.roles", "[master,data,ingest]"))
+            .withNode(node -> node.version(Version.CURRENT).setting("node.roles", "[data,ingest]"))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial");
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
-        // Temporarily disable DocumentMapper and MapperService assertions for #138796
-        // TODO set back to: 8.18.0
-        if (oldVersion.before(Version.fromString("9.3.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

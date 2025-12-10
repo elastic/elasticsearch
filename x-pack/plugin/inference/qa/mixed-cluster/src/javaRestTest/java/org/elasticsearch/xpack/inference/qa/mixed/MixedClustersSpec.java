@@ -17,8 +17,8 @@ public class MixedClustersSpec {
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(oldVersion, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT))
+            .withNode(node -> node.version(oldVersion, isDetachedVersion).setting("node.roles", "[master,data,ingest]"))
+            .withNode(node -> node.version(Version.CURRENT).setting("node.roles", "[data,ingest]"))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .build();

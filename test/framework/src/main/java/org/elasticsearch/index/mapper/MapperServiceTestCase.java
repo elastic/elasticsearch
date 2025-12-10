@@ -338,7 +338,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
                 scriptCompiler,
                 bitsetFilterCache::getBitSetProducer,
-                mapperMetrics
+                mapperMetrics,
+                null
             );
 
             if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping(indexSettings) != null) {

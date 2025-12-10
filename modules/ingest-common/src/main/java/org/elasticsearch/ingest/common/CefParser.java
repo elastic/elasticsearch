@@ -383,6 +383,8 @@ final class CefParser {
                     buffer.append('\n'); // emit a newline
                 } else if (next == 'r') { // a 'carriage return'
                     buffer.append('\r'); // emit a carriage return
+                } else if (next == 't') { // a 'tab' -- the spec doesn't actually mention \t being escaped into a tab, but we do it anyway
+                    buffer.append('\t'); // emit a tab
                 } else {
                     throw new IllegalArgumentException("Illegal escape sequence '\\" + next + "'"); // TODO gross on \n, for example ugh
                 }

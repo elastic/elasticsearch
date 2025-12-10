@@ -125,7 +125,7 @@ The following {{infer}} endpoint configurations are available:
 
 - [Custom endpoints](./semantic-text-setup-configuration.md#using-custom-endpoint): Create your own {{infer}} endpoint using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
 
-If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search). 
+If you use a [custom {{infer}} endpoint](./semantic-text-setup-configuration.md#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search). 
 
 {applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
 

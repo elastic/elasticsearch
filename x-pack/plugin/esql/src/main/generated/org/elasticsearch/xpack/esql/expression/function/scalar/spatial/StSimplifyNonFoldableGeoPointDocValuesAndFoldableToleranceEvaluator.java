@@ -4,12 +4,14 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -21,12 +23,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StSimplify}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.class);
+public final class StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator geometry;
+  private final EvalOperator.ExpressionEvaluator point;
 
   private final double tolerance;
 
@@ -34,33 +36,33 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
 
   private Warnings warnings;
 
-  public StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator geometry, double tolerance, DriverContext driverContext) {
+  public StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator point, double tolerance, DriverContext driverContext) {
     this.source = source;
-    this.geometry = geometry;
+    this.point = point;
     this.tolerance = tolerance;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock geometryBlock = (BytesRefBlock) geometry.eval(page)) {
-      return eval(page.getPositionCount(), geometryBlock);
+    try (LongBlock pointBlock = (LongBlock) point.eval(page)) {
+      return eval(page.getPositionCount(), pointBlock);
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += geometry.baseRamBytesUsed();
+    baseRamBytesUsed += point.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock geometryBlock) {
+  public BytesRefBlock eval(int positionCount, LongBlock pointBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (!geometryBlock.isNull(p)) {
+        if (!pointBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
@@ -68,8 +70,8 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
           continue position;
         }
         try {
-          StSimplify.processNonFoldableGeometryAndConstantTolerance(result, p, geometryBlock, this.tolerance);
-        } catch (IllegalArgumentException e) {
+          StSimplify.processGeoPointDocValuesAndConstantTolerance(result, p, pointBlock, this.tolerance);
+        } catch (IllegalArgumentException | IOException e) {
           warnings().registerException(e);
           result.appendNull();
         }
@@ -80,12 +82,12 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
 
   @Override
   public String toString() {
-    return "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
+    return "StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator[" + "point=" + point + ", tolerance=" + tolerance + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(geometry);
+    Releasables.closeExpectNoException(point);
   }
 
   private Warnings warnings() {
@@ -103,25 +105,26 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory geometry;
+    private final EvalOperator.ExpressionEvaluator.Factory point;
 
     private final double tolerance;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory geometry,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory point,
         double tolerance) {
       this.source = source;
-      this.geometry = geometry;
+      this.point = point;
       this.tolerance = tolerance;
     }
 
     @Override
-    public StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator get(DriverContext context) {
-      return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator(source, geometry.get(context), tolerance, context);
+    public StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator get(
+        DriverContext context) {
+      return new StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator(source, point.get(context), tolerance, context);
     }
 
     @Override
     public String toString() {
-      return "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
+      return "StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator[" + "point=" + point + ", tolerance=" + tolerance + "]";
     }
   }
 }

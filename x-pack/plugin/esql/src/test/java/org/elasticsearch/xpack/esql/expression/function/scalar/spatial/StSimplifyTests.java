@@ -86,7 +86,7 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
             double tolerance = randomDoubleBetween(0, 100, true);
             TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, DOUBLE, "tolerance");
             toleranceData = toleranceData.forceLiteral();
-            String evaluatorName = "NonFoldableGeometryAndFoldableToleranceEvaluator[inputGeometry=Attribute[channel=0], inputTolerance="
+            String evaluatorName = "NonFoldableGeometryAndFoldableToleranceEvaluator[geometry=Attribute[channel=0], tolerance="
                 + tolerance
                 + "]";
             var expectedResult = expectedValue.apply(geometry, tolerance);

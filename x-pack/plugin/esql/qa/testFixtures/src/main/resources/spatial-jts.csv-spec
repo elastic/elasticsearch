@@ -47,30 +47,26 @@ FROM airport_city_boundaries
 ;
 
 // tag::st_simplify_city_boundaries-result[]
-city:keyword | o_len:long | s_len:long | city_boundary:geo_shape
-Copenhagen   | 265        | 76         | POLYGON ((12.453 55.7122, 12.5332 55.6318, 12.6398 55.7224, 12.453 55.7122))
-Gothenburg   | 112        | 78         | POLYGON ((11.8941 57.6889, 12.0885 57.6823, 12.0541 57.7338, 11.8941 57.6889))
-Norderstedt  | 221        | 75         | POLYGON ((9.9348 53.6785, 10.0729 53.7097, 9.9833 53.7595, 9.9348 53.6785))
+city:keyword | o_len:i | s_len:i | city_boundary:geo_shape
+Copenhagen   | 265     | 76      | POLYGON ((12.453 55.7122, 12.5332 55.6318, 12.6398 55.7224, 12.453 55.7122))
+Gothenburg   | 112     | 78      | POLYGON ((11.8941 57.6889, 12.0885 57.6823, 12.0541 57.7338, 11.8941 57.6889))
+Norderstedt  | 221     | 75      | POLYGON ((9.9348 53.6785, 10.0729 53.7097, 9.9833 53.7595, 9.9348 53.6785))
 // end::st_simplify_city_boundaries-result[]
 ;
 
 stSimplifyMultiRowWithPoints
 required_capability: st_simplify
-required_capability: st_simplify_multivalue
 
-// tag::st_simplify_multipoint[]
 FROM airports
 | SORT name
-| LIMIT 50
-| STATS points = VALUES(location)
+| STATS count = COUNT(location), points = VALUES(location)
 | EVAL result = ST_SIMPLIFY(points, 1)
-// end::st_simplify_multipoint[]
+| EVAL result_length = LENGTH(TO_STRING(result))
+| KEEP count, result_length
 ;
 
-// tag::st_simplify_multipoint-result[]
-points:geo_point
-POINT (41.857756722253 9.61267784753569)
-// end::st_simplify_multipoint-result[]
+count:long | result_length:i
+891        | 37442
 ;
 
 stSimplifyNoSimplification

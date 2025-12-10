@@ -264,7 +264,7 @@ public class KnnSearchRequestParser {
             if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
                 throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
             }
-            return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, null, null, null);
+            return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, null, null);
         }
 
         @Override

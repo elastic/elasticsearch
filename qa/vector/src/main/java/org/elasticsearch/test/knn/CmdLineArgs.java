@@ -95,7 +95,6 @@ record CmdLineArgs(
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
-    static final ParseField POST_FILTERING_THRESHOLD_FIELD = new ParseField("post_filtering_threshold");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -143,7 +142,6 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
         PARSER.declareBoolean(Builder::setFilterCached, FILTER_CACHED);
-        PARSER.declareFloat(Builder::setPostFilteringThreshold, POST_FILTERING_THRESHOLD_FIELD);
     }
 
     @Override

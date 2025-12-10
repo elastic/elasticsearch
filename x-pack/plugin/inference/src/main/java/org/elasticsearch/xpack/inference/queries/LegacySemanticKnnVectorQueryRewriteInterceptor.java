@@ -143,8 +143,7 @@ public class LegacySemanticKnnVectorQueryRewriteInterceptor extends LegacySemant
                 original.k(),
                 original.numCands(),
                 original.visitPercentage(),
-                original.getVectorSimilarity(),
-                original.getPostFilteringThreshold()
+                original.getVectorSimilarity()
             );
         } else {
             copy = new KnnVectorQueryBuilder(
@@ -154,8 +153,7 @@ public class LegacySemanticKnnVectorQueryRewriteInterceptor extends LegacySemant
                 original.numCands(),
                 original.visitPercentage(),
                 original.rescoreVectorBuilder(),
-                original.getVectorSimilarity(),
-                original.getPostFilteringThreshold()
+                original.getVectorSimilarity()
             );
         }
 
@@ -186,8 +184,7 @@ public class LegacySemanticKnnVectorQueryRewriteInterceptor extends LegacySemant
                 original.k(),
                 original.numCands(),
                 original.visitPercentage(),
-                original.getVectorSimilarity(),
-                original.getPostFilteringThreshold()
+                original.getVectorSimilarity()
             );
         } else {
             newQueryBuilder = new KnnVectorQueryBuilder(
@@ -197,8 +194,7 @@ public class LegacySemanticKnnVectorQueryRewriteInterceptor extends LegacySemant
                 original.numCands(),
                 original.visitPercentage(),
                 original.rescoreVectorBuilder(),
-                original.getVectorSimilarity(),
-                original.getPostFilteringThreshold()
+                original.getVectorSimilarity()
             );
         }
 

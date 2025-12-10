@@ -30,10 +30,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private final float[] query;
 
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
-        this(field, query, k, numCands, filter, visitRatio, .75f);
-    }
-
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
@@ -42,18 +38,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
-     * @param postFilteringThreshold the dynamic post filter transform value
      */
-    public IVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query filter,
-        float visitRatio,
-        float postFilteringThreshold
-    ) {
-        super(field, visitRatio, k, numCands, filter, postFilteringThreshold);
+    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
+        super(field, visitRatio, k, numCands, filter);
         this.query = query;
     }
 
@@ -100,8 +87,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         AcceptDocs filterDocs,
         int visitedLimit,
         IVFCollectorManager knnCollectorManager,
-        float visitRatio,
-        float postFilteringThreshold
+        float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
         FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
@@ -124,7 +110,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
                 visitedLimit,
                 strategy,
                 context,
-                Math.round((1 + (3 * (1 - postFilteringThreshold))) * k)
+                Math.round(
+                    (1 + (3 * (1f - (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues
+                        .size()))) * k
+                )
             )
             : knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {

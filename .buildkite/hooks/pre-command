@@ -174,13 +174,13 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
           # Add random delay to prevent API rate limiting from parallel retries
           sleep $((RANDOM % 5))
 
-          if curl --request GET \
+          if curl --compressed --request GET \
             --url "$DEVELOCITY_FAILED_TEST_API_URL" \
             --max-filesize 10485760 \
             --max-time 30 \
             --header 'accept: application/json' \
             --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
-            --header 'content-type: application/json' 2>/dev/null | gunzip | jq '.' &> .failed-test-history.json; then
+            --header 'content-type: application/json' 2>/dev/null | jq '.' &> .failed-test-history.json; then
 
             # Set secure file permissions
             chmod 600 .failed-test-history.json

@@ -653,7 +653,10 @@ public class Lucene {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
         } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource fcs) {
             SortField newSortField = new SortField(sortField.getField(), fcs.reducedType(), sortField.getReverse());
-            newSortField.setMissingValue(fcs.missingValue(sortField.getReverse()));
+            Object missingValue = fcs.missingValue(sortField.getReverse());
+            if (missingValue != null) {
+                newSortField.setMissingValue(missingValue);
+            }
             return newSortField;
         } else {
             return sortField;

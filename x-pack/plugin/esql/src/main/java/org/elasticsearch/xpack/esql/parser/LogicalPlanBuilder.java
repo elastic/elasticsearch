@@ -1085,7 +1085,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     throw new ParsingException(source(fuseConfigurationContext), "Only one KEY BY can be specified");
                 }
 
-                keys = visitGrouping(fuseConfigurationContext.key);
+                keys = visitList(this, fuseConfigurationContext.key.qualifiedName(), NamedExpression.class);
             }
         }
 
@@ -1112,16 +1112,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
         Source source = source(ctx);
+
+        if (context.inferenceSettings().rerankEnabled() == false) {
+            throw new ParsingException(source, "RERANK command is disabled in settings.");
+        }
+
         List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
         if (scoreAttribute.qualifier() != null) {
             throw qualifiersUnsupportedInFieldDefinitions(scoreAttribute.source(), ctx.targetField.getText());
         }
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().rerankRowLimit());
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
+            return applyRerankOptions(
+                new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
+                ctx.commandNamedParameters()
+            );
         };
     }
 
@@ -1153,6 +1162,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);
+
+        if (context.inferenceSettings().completionEnabled() == false) {
+            throw new ParsingException(source, "COMPLETION command is disabled in settings.");
+        }
+
         Expression prompt = expression(ctx.prompt);
         Attribute targetField = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, Completion.DEFAULT_OUTPUT_FIELD_NAME));
 
@@ -1160,9 +1174,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw qualifiersUnsupportedInFieldDefinitions(targetField.source(), ctx.targetField.getText());
         }
 
+        Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
+
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
+            return applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
         };
     }
 

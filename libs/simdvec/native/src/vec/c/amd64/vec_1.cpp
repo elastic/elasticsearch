@@ -15,6 +15,8 @@
 #include <stdint.h>
 #include <math.h>
 #include "vec.h"
+#include "vec_common.h"
+#include "amd64/amd64_vec_common.h"
 
 #include <emmintrin.h>
 #include <immintrin.h>
@@ -167,39 +169,54 @@ static inline void dot7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    if (dims > STRIDE_BYTES_LEN) {
-        const int limit = dims & ~(STRIDE_BYTES_LEN - 1);
-        for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
-            int i = limit;
-            int32_t res = dot7u_inner(a0, b, i);
-            for (; i < dims; i++) {
-                res += a0[i] * b[i];
-            }
-            results[c] = (f32_t)res;
+    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* a0 = safe_mapper_offset<0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<1, mapper>(a, pitch, offsets, count);
+
+    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy. For this "older" generation of x64 processors
+    // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
+    // is ideal -- more, and it starts to hurt performances due to bandwidth
+    for (; c + 3 < count; c += 2) {
+        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a1, lines_to_fetch);
+
+        int32_t res0 = 0;
+        int32_t res1 = 0;
+        int i = 0;
+        if (dims > STRIDE_BYTES_LEN) {
+            i = blk;
+            res0 = dot7u_inner(a0, b, i);
+            res1 = dot7u_inner(a1, b, i);
         }
-    } else {
-        for (int32_t c = 0; c < count; c++) {
-            const int8_t* a0 = a + (mapper(c, offsets) * pitch);
-            int32_t res = 0;
-            for (int32_t i = 0; i < dims; i++) {
-                res += a0[i] * b[i];
-            }
-            results[c] = (f32_t)res;
+        for (; i < dims; i++) {
+            const int8_t bb = b[i];
+            res0 += a0[i] * bb;
+            res1 += a1[i] * bb;
         }
+        results[c + 0] = (f32_t)res0;
+        results[c + 1] = (f32_t)res1;
+        a0 = next_a0;
+        a1 = next_a1;
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_dot7u(a0, b, dims);
     }
 }
 
-static inline int64_t identity(const int32_t i, const int32_t* offsets) {
-   return i;
-}
-
-static inline int64_t index(const int32_t i, const int32_t* offsets) {
-   return offsets[i];
-}
-
 EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+    dot7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dot7u_bulk_offsets(
@@ -210,7 +227,7 @@ EXPORT void vec_dot7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
+    dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {

@@ -16,6 +16,8 @@
 #include <arm_neon.h>
 #include <math.h>
 #include "vec.h"
+#include "vec_common.h"
+#include "aarch64/aarch64_vec_common.h"
 
 #ifndef DOT7U_STRIDE_BYTES_LEN
 #define DOT7U_STRIDE_BYTES_LEN 32 // Must be a power of 2
@@ -110,12 +112,16 @@ static inline void dot7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    size_t blk = dims & ~15;
-    size_t c = 0;
+    const int blk = dims & ~15;
+    int c = 0;
 
-    // f32_t first_offset = int_bits_to_float(*((const int32_t*)(b + dims)));
-
-    // Process 4 vectors at a time
+    // Process 4 vectors at a time; this helps the CPU scheduler/prefetcher.
+    // Loading multiple memory locations while computing gives the prefetcher
+    // information on where the data to load will be next, and keeps the CPU
+    // execution units busy.
+    // Our benchmarks show that this "hint" is more effective than using
+    // explicit prefetch instructions (e.g. __builtin_prefetch) on many ARM
+    // processors (e.g. Graviton)
     for (; c + 3 < count; c += 4) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         const int8_t* a1 = a + mapper(c + 1, offsets) * pitch;
@@ -177,30 +183,21 @@ static inline void dot7u_inner_bulk(
                 acc_scalar3 += a3[t] * bb;
             }
         }
-        // f32_t second_offset_0 = int_bits_to_float(*((const int32_t*)(a0 + dims)));
         results[c + 0] = (f32_t)acc_scalar0;
         results[c + 1] = (f32_t)acc_scalar1;
         results[c + 2] = (f32_t)acc_scalar2;
         results[c + 3] = (f32_t)acc_scalar3;
     }
 
-    // Tail-handling: remaining 0..3 vectors
+    // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_dot7u(a0, b, dims);
     }
 }
 
-static inline int64_t identity(const int32_t i, const int32_t* offsets) {
-   return i;
-}
-
-static inline int64_t index(const int32_t i, const int32_t* offsets) {
-   return offsets[i];
-}
-
 EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+    dot7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dot7u_bulk_offsets(
@@ -211,7 +208,7 @@ EXPORT void vec_dot7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dot7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
+    dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {

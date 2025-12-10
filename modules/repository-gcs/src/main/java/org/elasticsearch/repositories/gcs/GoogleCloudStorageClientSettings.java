@@ -227,12 +227,13 @@ public class GoogleCloudStorageClientSettings {
             && Objects.equals(readTimeout, that.readTimeout)
             && Objects.equals(applicationName, that.applicationName)
             && Objects.equals(tokenUri, that.tokenUri)
-            && Objects.equals(proxy, that.proxy);
+            && Objects.equals(proxy, that.proxy)
+            && maxRetries == that.maxRetries;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy);
+        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy, maxRetries);
     }
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {

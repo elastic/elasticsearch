@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeSerializer;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
@@ -77,7 +76,7 @@ public class MetadataAttribute extends TypedAttribute {
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             out.writeString(name());
-            DataTypeSerializer.writeTo(dataType(), out);
+            dataType().writeTo(out);
             out.writeOptionalString(null); // qualifier, no longer used
             out.writeEnum(nullable());
             id().writeTo(out);
@@ -98,7 +97,7 @@ public class MetadataAttribute extends TypedAttribute {
         return ((PlanStreamInput) in).readAttributeWithCache(stream -> {
             Source source = Source.readFrom((StreamInput & PlanStreamInput) stream);
             String name = stream.readString();
-            DataType dataType = DataTypeSerializer.readFrom(stream);
+            DataType dataType = DataType.readFrom(stream);
             String qualifier = stream.readOptionalString(); // qualifier, no longer used
             Nullability nullability = stream.readEnum(Nullability.class);
             NameId id = NameId.readFrom((StreamInput & PlanStreamInput) stream);

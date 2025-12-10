@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeSerializer;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.io.IOException;
@@ -51,14 +50,14 @@ public final class MatchConfig implements Writeable {
     }
 
     public MatchConfig(StreamInput in) throws IOException {
-        this(in.readString(), in.readInt(), DataTypeSerializer.readFrom(in));
+        this(in.readString(), in.readInt(), DataType.readFrom(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeInt(channel);
-        DataTypeSerializer.writeTo(type, out);
+        type.writeTo(out);
     }
 
     public String fieldName() {

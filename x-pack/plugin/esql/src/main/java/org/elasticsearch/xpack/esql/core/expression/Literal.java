@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeSerializer;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -80,7 +79,7 @@ public class Literal extends LeafExpression implements Accountable {
     private static Literal readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
         Object value = in.readGenericValue();
-        DataType dataType = DataTypeSerializer.readFrom(in);
+        DataType dataType = DataType.readFrom(in);
         return new Literal(source, value, dataType);
     }
 
@@ -88,7 +87,7 @@ public class Literal extends LeafExpression implements Accountable {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeGenericValue(value);
-        DataTypeSerializer.writeTo(dataType, out);
+        dataType.writeTo(out);
     }
 
     @Override

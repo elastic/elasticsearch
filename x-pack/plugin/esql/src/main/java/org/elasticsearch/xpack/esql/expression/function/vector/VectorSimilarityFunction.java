@@ -219,7 +219,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         return (plan, failures) -> {
             plan.forEachUp(LogicalPlan.class, lp -> {
                 if (lp instanceof Fork) {
-                    failures.add(Failure.fail(plan,"Vector similarity functions cannot be added after FORK or Subqueries"));
+                    failures.add(Failure.fail(plan, "Vector similarity functions cannot be added after FORK or Subqueries"));
                 }
             });
         };

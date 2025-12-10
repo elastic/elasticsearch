@@ -97,6 +97,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -235,12 +236,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
             @Override
             InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                if (position < 0L) {
-                    throw new IllegalArgumentException("position must be non-negative");
-                }
-                if (length < 0) {
-                    throw new IllegalArgumentException("length must be non-negative");
-                }
+                assertThat(position, greaterThanOrEqualTo(0L));
+                assertThat(length, greaterThanOrEqualTo(0L));
                 if (length == 0) {
                     return new ByteArrayInputStream(new byte[0]);
                 } else {

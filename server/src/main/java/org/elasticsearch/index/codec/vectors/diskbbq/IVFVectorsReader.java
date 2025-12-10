@@ -276,13 +276,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        assert filterDocs instanceof ESAcceptDocs;
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
         // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
-        float approximateCost = filterDocs instanceof ESAcceptDocs.ESAcceptDocsAll
-            ? numVectors
+        float approximateCost = false == (filterDocs instanceof ESAcceptDocs) ? (float) filterDocs.cost()
+            : filterDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
             : ((ESAcceptDocs) filterDocs).approximateCost();
+
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)

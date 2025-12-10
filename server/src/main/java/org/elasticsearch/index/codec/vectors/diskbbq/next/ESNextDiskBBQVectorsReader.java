@@ -598,7 +598,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             this.indexInput = indexInput;
             this.entry = entry;
             this.fieldInfo = fieldInfo;
-            assert filterDocs instanceof ESAcceptDocs;
             this.filterDocs = filterDocs;
             centroid = new float[fieldInfo.getVectorDimension()];
             scratch = new float[target.length];

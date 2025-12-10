@@ -243,7 +243,6 @@ EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
         res = sqr7u_inner(a, b, i);
     }
     for (; i < dims; i++) {
-        // TODO: define
         int32_t dist = a[i] - b[i];
         res += dist * dist;
     }
@@ -267,7 +266,8 @@ static inline void sqr7u_inner_bulk(
             int i = limit;
             int32_t res = sqr7u_inner(a0, b, i);
             for (; i < dims; i++) {
-                res += a0[i] * b[i];
+                int32_t dist = a0[i] - b[i];
+                res += dist * dist;
             }
             results[c] = (f32_t)res;
         }
@@ -276,7 +276,8 @@ static inline void sqr7u_inner_bulk(
             const int8_t* a0 = a + (mapper(c, offsets) * pitch);
             int32_t res = 0;
             for (int32_t i = 0; i < dims; i++) {
-                res += a0[i] * b[i];
+                int32_t dist = a0[i] - b[i];
+                res += dist * dist;
             }
             results[c] = (f32_t)res;
         }

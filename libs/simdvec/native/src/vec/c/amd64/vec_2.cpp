@@ -277,7 +277,8 @@ static inline void sqr7u_inner_bulk(
             int i = limit;
             int32_t res = sqr7u_inner_avx512(a0, b, i);
             for (; i < dims; i++) {
-                res += a0[i] * b[i];
+                int32_t dist = a0[i] - b[i];
+                res += dist * dist;
             }
             results[c] = (f32_t)res;
         }
@@ -285,9 +286,9 @@ static inline void sqr7u_inner_bulk(
         for (int32_t c = 0; c < count; c++) {
             const int8_t* a0 = a + (mapper(c, offsets) * pitch);
             int32_t res = 0;
-            // TODO: define
             for (int32_t i = 0; i < dims; i++) {
-                res += a0[i] * b[i];
+                int32_t dist = a0[i] - b[i];
+                res += dist * dist;
             }
             results[c] = (f32_t)res;
         }

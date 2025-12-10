@@ -36,6 +36,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+
+import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_MAX_CONN;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -63,7 +67,7 @@ public class PerFieldFormatSupplier {
     }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private static final KnnVectorsFormat knnVectorsFormat = new ES93HnswVectorsFormat();
+    private final KnnVectorsFormat knnVectorsFormat;
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(
         TSDB_USE_LARGE_NUMERIC_BLOCKS
@@ -82,6 +86,21 @@ public class PerFieldFormatSupplier {
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
+        ExecutorService mergingExecutorService = null;
+        int maxMergingWorkers = 1;
+        if (threadPool != null && this.mapperService.getIndexSettings().isIntraMergeParallelismEnabled()) {
+            maxMergingWorkers = threadPool.info(ThreadPool.Names.MERGE).getMax();
+            if (maxMergingWorkers > 1) {
+                mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
+            }
+        }
+        this.knnVectorsFormat = new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            maxMergingWorkers,
+            mergingExecutorService
+        );
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {

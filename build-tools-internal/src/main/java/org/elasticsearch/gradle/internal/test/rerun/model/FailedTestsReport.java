@@ -18,14 +18,9 @@ import java.util.List;
  * `api/tests/build/<buildId>?testOutcomes=failed`
  * */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class FailedTestsReport {
-    private List<WorkUnit> workUnits;
+public record FailedTestsReport(List<WorkUnit> workUnits) {
 
-    public List<WorkUnit> getWorkUnits() {
-        return workUnits != null ? workUnits : java.util.Collections.emptyList();
-    }
-
-    public void setWorkUnits(List<WorkUnit> workUnits) {
-        this.workUnits = workUnits;
+    public FailedTestsReport(List<WorkUnit> workUnits) {
+        this.workUnits = workUnits != null ? workUnits : java.util.Collections.emptyList();
     }
 }

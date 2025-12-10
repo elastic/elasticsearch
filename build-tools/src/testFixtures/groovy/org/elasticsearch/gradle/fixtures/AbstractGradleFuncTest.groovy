@@ -328,10 +328,6 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
             return new File(projectDir, 'build.gradle')
         };
 
-        File createFailedTest(String clazzName) {
-            createTest(clazzName, testMethodContent(false, true, 1))
-        }
-
         File file(String path) {
             def file = new File(projectDir, path)
             file.parentFile.mkdirs()

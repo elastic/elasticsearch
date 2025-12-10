@@ -14,32 +14,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class WorkUnit {
-    private String name;
-    private String outcome;
-    private List<TestCase> tests;
+public record WorkUnit(String name, String outcome, List<TestCase> tests) {
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
+    public WorkUnit(String name, String outcome, List<TestCase> tests) {
         this.name = name;
-    }
-
-    public String getOutcome() {
-        return outcome;
-    }
-
-    public void setOutcome(String outcome) {
         this.outcome = outcome;
-    }
-
-    public List<TestCase> getTests() {
-        return tests != null ? tests : java.util.Collections.emptyList();
-    }
-
-    public void setTests(List<TestCase> tests) {
-        this.tests = tests;
+        this.tests = tests != null ? tests : java.util.Collections.emptyList();
     }
 }

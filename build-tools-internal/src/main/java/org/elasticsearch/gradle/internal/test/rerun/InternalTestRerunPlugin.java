@@ -79,23 +79,23 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
 
         WorkUnit workUnit = testsBuildServiceProvider.get().getWorkUnitForTask(test.getPath());
         if (workUnit != null) {
-            List<TestCase> tests = workUnit.getTests();
-            int totalTestCount = tests.stream().mapToInt(tc -> tc.getChildren().size()).sum();
+            List<TestCase> tests = workUnit.tests();
+            int totalTestCount = tests.stream().mapToInt(tc -> tc.children().size()).sum();
             test.getLogger().lifecycle("Smart retry: filtering to {} failed test classes ({} test methods)", tests.size(), totalTestCount);
 
             test.filter(testFilter -> {
                 for (TestCase testClassCase : tests) {
-                    if (testClassCase.getName() == null) {
+                    if (testClassCase.name() == null) {
                         test.getLogger().warn("Skipping test class with null name in smart retry filter");
                         continue;
                     }
-                    List<TestCase> children = testClassCase.getChildren();
+                    List<TestCase> children = testClassCase.children();
                     for (TestCase child : children) {
-                        if (child.getName() == null) {
-                            test.getLogger().warn("Skipping test method with null name in class {}", testClassCase.getName());
+                        if (child.name() == null) {
+                            test.getLogger().warn("Skipping test method with null name in class {}", testClassCase.name());
                             continue;
                         }
-                        testFilter.includeTest(testClassCase.getName(), child.getName());
+                        testFilter.includeTest(testClassCase.name(), child.name());
                     }
                 }
             });
@@ -132,9 +132,9 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
                     this.failureReport = objectMapper.readValue(failedTestsJsonFile, FailedTestsReport.class);
 
                     // Build a HashMap for O(1) lookup instead of O(n) stream filtering
-                    this.workUnitsByPath = this.failureReport.getWorkUnits()
+                    this.workUnitsByPath = this.failureReport.workUnits()
                         .stream()
-                        .collect(Collectors.toMap(WorkUnit::getName, Function.identity()));
+                        .collect(Collectors.toMap(WorkUnit::name, Function.identity()));
                 } catch (IOException e) {
                     throw new RuntimeException(String.format("Failed to parse %s", FAILED_TEST_HISTORY_FILENAME), e);
                 }

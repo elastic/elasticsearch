@@ -12,32 +12,4 @@ package org.elasticsearch.gradle.internal.test.rerun.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Outcome {
-    private String overall;
-    private String own;
-    private String children;
-
-    public String getOverall() {
-        return overall;
-    }
-
-    public void setOverall(String overall) {
-        this.overall = overall;
-    }
-
-    public String getOwn() {
-        return own;
-    }
-
-    public void setOwn(String own) {
-        this.own = own;
-    }
-
-    public String getChildren() {
-        return children;
-    }
-
-    public void setChildren(String children) {
-        this.children = children;
-    }
-}
+public record Outcome(String overall, String own, String children) {}

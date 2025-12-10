@@ -116,7 +116,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
                 );
                 return;
             } catch (NoSuchFileException | RequestedRangeNotSatisfiedException e) {
-                throw e;
+                throw addSuppressedExceptions(e);
             } catch (RuntimeException e) {
                 retryOrAbortOnOpen(e);
             } catch (IOException e) {

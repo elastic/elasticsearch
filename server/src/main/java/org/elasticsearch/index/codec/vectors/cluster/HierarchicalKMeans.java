@@ -37,15 +37,7 @@ public class HierarchicalKMeans {
     private final TaskExecutor executor;
     private final int numWorkers;
 
-    public HierarchicalKMeans(int dimension) {
-        this(dimension, null, 1, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
-    }
-
-    public HierarchicalKMeans(int dimension, TaskExecutor executor, int numWorkers) {
-        this(dimension, executor, numWorkers, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
-    }
-
-    public HierarchicalKMeans(
+    private HierarchicalKMeans(
         int dimension,
         TaskExecutor executor,
         int numWorkers,
@@ -61,6 +53,53 @@ public class HierarchicalKMeans {
         this.samplesPerCluster = samplesPerCluster;
         this.clustersPerNeighborhood = clustersPerNeighborhood;
         this.soarLambda = soarLambda;
+    }
+
+    public static HierarchicalKMeans ofSerial(int dimension) {
+        return ofSerial(dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
+    }
+
+    public static HierarchicalKMeans ofSerial(
+        int dimension,
+        int maxIterations,
+        int samplesPerCluster,
+        int clustersPerNeighborhood,
+        float soarLambda
+    ) {
+        return new HierarchicalKMeans(dimension, null, 1, maxIterations, samplesPerCluster, clustersPerNeighborhood, soarLambda);
+    }
+
+    public static HierarchicalKMeans ofConcurrent(int dimension, TaskExecutor executor, int numWorkers) {
+        return ofConcurrent(
+            dimension,
+            executor,
+            numWorkers,
+            MAX_ITERATIONS_DEFAULT,
+            SAMPLES_PER_CLUSTER_DEFAULT,
+            MAXK,
+            DEFAULT_SOAR_LAMBDA
+        );
+    }
+
+    public static HierarchicalKMeans ofConcurrent(
+        int dimension,
+        TaskExecutor executor,
+        int numWorkers,
+        int maxIterations,
+        int samplesPerCluster,
+        int clustersPerNeighborhood,
+        float soarLambda
+    ) {
+        return new HierarchicalKMeans(
+            dimension,
+            executor,
+            numWorkers,
+            maxIterations,
+            samplesPerCluster,
+            clustersPerNeighborhood,
+            soarLambda
+        );
+
     }
 
     /**

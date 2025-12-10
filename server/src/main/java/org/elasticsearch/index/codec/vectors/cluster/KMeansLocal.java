@@ -144,12 +144,13 @@ abstract class KMeansLocal {
             final int assignment = assignments[translateOrd.apply(idx)];
             if (centroidChanged.get(assignment)) {
                 float[] centroid = centroids[assignment];
-                if (centroidCounts[assignment]++ == 0) {
-                    Arrays.fill(centroid, 0.0f);
-                }
                 float[] vector = vectors.vectorValue(idx);
-                for (int d = 0; d < dim; d++) {
-                    centroid[d] += vector[d];
+                if (centroidCounts[assignment]++ == 0) {
+                    System.arraycopy(vector, 0, centroid, 0, dim);
+                } else {
+                    for (int d = 0; d < dim; d++) {
+                        centroid[d] += vector[d];
+                    }
                 }
             }
         }

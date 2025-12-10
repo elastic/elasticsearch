@@ -16,9 +16,13 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -119,15 +123,45 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             }
         });
 
-        if (chunkScorerConfig != null && chunkScorerConfig.chunkingSettings() == null) {
-            GetRerankerWindowSizeAction.Request req = new GetRerankerWindowSizeAction.Request(inferenceId);
-            ActionListener<GetRerankerWindowSizeAction.Response> windowSizeListener = resolvedConfigListener.map(
-                r -> resolveChunkingSettings(r.getWindowSize())
-            );
-            client.execute(GetRerankerWindowSizeAction.INSTANCE, req, windowSizeListener);
-        } else {
-            resolvedConfigListener.onResponse(resolveChunkingSettings(-1));
-        }
+        ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+            Integer configuredTopN = null;
+            if (r.getEndpoints().isEmpty() == false) {
+                var taskSettings = r.getEndpoints().get(0).getTaskSettings();
+                if (taskSettings instanceof CohereRerankTaskSettings cohere) {
+                    configuredTopN = cohere.getTopNDocumentsOnly();
+                } else if (taskSettings instanceof GoogleVertexAiRerankTaskSettings google) {
+                    configuredTopN = google.topN();
+                } else if (taskSettings instanceof HuggingFaceRerankTaskSettings hf) {
+                    configuredTopN = hf.getTopNDocumentsOnly();
+                }
+            }
+            if (configuredTopN != null && configuredTopN < rankWindowSize) {
+                l.onFailure(
+                    new IllegalArgumentException(
+                        "Inference endpoint ["
+                            + inferenceId
+                            + "] is configured to return the top ["
+                            + configuredTopN
+                            + "] results, but rank_window_size is ["
+                            + rankWindowSize
+                            + "]. Reduce rank_window_size to be less than or equal to the configured top N value."
+                    )
+                );
+                return;
+            }
+
+            if (chunkScorerConfig != null && chunkScorerConfig.chunkingSettings() == null) {
+                GetRerankerWindowSizeAction.Request req = new GetRerankerWindowSizeAction.Request(inferenceId);
+                ActionListener<GetRerankerWindowSizeAction.Response> windowSizeListener = resolvedConfigListener.map(
+                    r2 -> resolveChunkingSettings(r2.getWindowSize())
+                );
+                client.execute(GetRerankerWindowSizeAction.INSTANCE, req, windowSizeListener);
+            } else {
+                resolvedConfigListener.onResponse(resolveChunkingSettings(-1));
+            }
+        });
+        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
+        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, topNListener);
     }
 
     /**

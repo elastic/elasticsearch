@@ -42,13 +42,7 @@ public class TDigestHolder implements GenericNamedWriteable {
     private static final TDigestHolder EMPTY;
     static {
         try {
-            EMPTY = new TDigestHolder(
-                encodeCentroidsAndCounts(List.of(), List.of()),
-                Double.NaN,
-                Double.NaN,
-                Double.NaN,
-                0L
-            );
+            EMPTY = new TDigestHolder(encodeCentroidsAndCounts(List.of(), List.of()), Double.NaN, Double.NaN, Double.NaN, 0L);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -159,7 +153,7 @@ public class TDigestHolder implements GenericNamedWriteable {
         // TODO: This is copied from the method of the same name in TDigestFieldMapper. It would be nice to find a way to reuse that code
         BytesStreamOutput streamOutput = new BytesStreamOutput();
 
-        for (Iterator<Centroid> it = rawTDigest.uniqueCentroids(); it.hasNext(); ) {
+        for (Iterator<Centroid> it = rawTDigest.uniqueCentroids(); it.hasNext();) {
             Centroid centroid = it.next();
             if (centroid.count() > 0) {
                 streamOutput.writeVLong(centroid.count());
@@ -170,7 +164,6 @@ public class TDigestHolder implements GenericNamedWriteable {
         BytesRef docValue = streamOutput.bytes().toBytesRef();
         return docValue;
     }
-
 
     public void addTo(TDigestState state) {
         try {

@@ -193,7 +193,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
         final var eTag = randomUUID();
 
-        final var services = new BlobStoreServicesAdapter(0) {
+        final var services = new BlobStoreServicesAdapter(numberOfFailures) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -206,7 +206,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        copyToBytes(new RetryingInputStream<>(services, OperationPurpose.INDICES) {
+        copyToBytes(new RetryingInputStream<>(services, randomRetryingPurpose()) {
         });
     }
 

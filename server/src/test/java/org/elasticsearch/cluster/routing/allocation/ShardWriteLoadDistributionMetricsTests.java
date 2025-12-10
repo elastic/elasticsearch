@@ -165,6 +165,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         when(testInfrastructure.clusterService.lifecycleState()).thenReturn(
             randomFrom(Lifecycle.State.INITIALIZED, Lifecycle.State.STOPPED)
         );
+        testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         assertNoMetricsPublished(testInfrastructure);

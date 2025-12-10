@@ -26,6 +26,7 @@ public class HierarchicalKMeans {
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
     public static final int NO_SOAR_ASSIGNMENT = -1;
+    private static final int MIN_VECTORS_PRE_THREAD = 64;
 
     final int dimension;
     final int maxIterations;
@@ -33,12 +34,29 @@ public class HierarchicalKMeans {
     final int clustersPerNeighborhood;
     final float soarLambda;
 
+    private final TaskExecutor executor;
+    private final int numWorkers;
+
     public HierarchicalKMeans(int dimension) {
-        this(dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
+        this(dimension, null, 1, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
     }
 
-    public HierarchicalKMeans(int dimension, int maxIterations, int samplesPerCluster, int clustersPerNeighborhood, float soarLambda) {
+    public HierarchicalKMeans(int dimension, TaskExecutor executor, int numWorkers) {
+        this(dimension, executor, numWorkers, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
+    }
+
+    public HierarchicalKMeans(
+        int dimension,
+        TaskExecutor executor,
+        int numWorkers,
+        int maxIterations,
+        int samplesPerCluster,
+        int clustersPerNeighborhood,
+        float soarLambda
+    ) {
         this.dimension = dimension;
+        this.executor = executor;
+        this.numWorkers = numWorkers;
         this.maxIterations = maxIterations;
         this.samplesPerCluster = samplesPerCluster;
         this.clustersPerNeighborhood = clustersPerNeighborhood;
@@ -55,21 +73,6 @@ public class HierarchicalKMeans {
      * @throws IOException is thrown if vectors is inaccessible
      */
     public KMeansResult cluster(FloatVectorValues vectors, int targetSize) throws IOException {
-        return cluster(vectors, targetSize, null, 1);
-    }
-
-    /**
-     * Similar to {@link #cluster(FloatVectorValues, int)} but allows to specify a custom executor to use for parallelism.
-     *
-     * @param vectors the vectors to cluster
-     * @param targetSize the rough number of vectors that should be attached to a cluster
-     * @param executor the executor to use for parallelism, or null to use a single thread.
-     * @param numWorkers the number of workers to use for parallelism. This parameter is ignored if executor is null.
-     * @return the centroids and the vectors assignments and SOAR (spilled from nearby neighborhoods) assignments
-     * @throws IOException is thrown if vectors is inaccessible
-     */
-    public KMeansResult cluster(FloatVectorValues vectors, int targetSize, TaskExecutor executor, int numWorkers) throws IOException {
-
         if (vectors.size() == 0) {
             return new KMeansIntermediate();
         }
@@ -92,17 +95,16 @@ public class HierarchicalKMeans {
         }
 
         // partition the space
-        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize, executor, numWorkers);
+        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
-            KMeansLocal kMeansLocal = buildKmeansLocal(executor, numWorkers, localSampleSize, maxIterations, vectors.size());
+            KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size());
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
         return kMeansIntermediate;
     }
 
-    KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize, TaskExecutor executor, int numWorkers)
-        throws IOException {
+    private KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
@@ -116,7 +118,7 @@ public class HierarchicalKMeans {
         Arrays.fill(assignments, -1);
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, k);
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
-        KMeansLocal kMeansLocal = buildKmeansLocal(executor, numWorkers, m, maxIterations, vectors.size());
+        KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size());
         kMeansLocal.cluster(vectors, kMeansIntermediate);
 
         // TODO: consider adding cluster size counts to the kmeans algo
@@ -152,11 +154,7 @@ public class HierarchicalKMeans {
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                updateAssignmentsWithRecursiveSplit(
-                    kMeansIntermediate,
-                    adjustedCentroid,
-                    clusterAndSplit(sample, targetSize, executor, numWorkers)
-                );
+                updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, clusterAndSplit(sample, targetSize));
             } else if (count == 0) {
                 // remove empty clusters
                 final int newSize = kMeansIntermediate.centroids().length - 1;
@@ -183,11 +181,12 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    private static KMeansLocal buildKmeansLocal(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations, int numVectors) {
-        // if there is no executor or the number of vectors is small use a serial implementation
-        return executor == null || numVectors < numWorkers * 4
-            ? new KMeansLocalSerial(sampleSize, maxIterations)
-            : new KMeansLocalConcurrent(executor, numWorkers, sampleSize, maxIterations);
+    private KMeansLocal buildKmeansLocal(int numVectors) {
+        int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PRE_THREAD);
+        // if there is no executor or there is no enough vectors for more than one thread, use the serial version
+        return executor == null || numWorkers <= 1
+            ? new KMeansLocalSerial(samplesPerCluster, maxIterations)
+            : new KMeansLocalConcurrent(executor, numWorkers, samplesPerCluster, maxIterations);
     }
 
     static FloatVectorValues createClusterSlice(int clusterSize, int cluster, FloatVectorValues vectors, int[] assignments) {

@@ -34,7 +34,6 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -206,7 +205,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
     public void checkFileRead(Class<?> callerClass, Path path) {
         try {
             checkFileRead(callerClass, path, false);
-        } catch (NoSuchFileException e) {
+        } catch (IOException e) {
             assert false : "NoSuchFileException should only be thrown when following links";
             var notEntitledException = new NotEntitledException(e.getMessage());
             notEntitledException.addSuppressed(e);
@@ -215,7 +214,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
     }
 
     @Override
-    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws NoSuchFileException {
+    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws IOException {
         if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
@@ -229,15 +228,9 @@ public class PolicyCheckerImpl implements PolicyChecker {
         Path realPath = null;
         boolean canRead = entitlements.fileAccess().canRead(path);
         if (canRead && followLinks) {
-            try {
-                realPath = path.toRealPath();
-                if (realPath.equals(path) == false) {
-                    canRead = entitlements.fileAccess().canRead(realPath);
-                }
-            } catch (NoSuchFileException e) {
-                throw e; // rethrow
-            } catch (IOException e) {
-                canRead = false;
+            realPath = path.toRealPath();
+            if (realPath.equals(path) == false) {
+                canRead = entitlements.fileAccess().canRead(realPath);
             }
         }
 

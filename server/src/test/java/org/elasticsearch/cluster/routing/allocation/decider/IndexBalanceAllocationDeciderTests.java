@@ -42,7 +42,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX;
@@ -77,12 +81,12 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     private List<RoutingNode> indexTier;
     private List<RoutingNode> searchIier;
 
-    private void setup(Settings settings) {
+    private void setup(Settings clusterSettings, Supplier<Settings> indexSettings) {
         final String indexName = "IndexBalanceAllocationDeciderIndex";
         final Map<DiscoveryNode, List<ShardRouting>> nodeToShardRoutings = new HashMap<>();
 
         Settings.Builder builder = Settings.builder()
-            .put(settings)
+            .put(clusterSettings)
             .put("stateless.enabled", "true")
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true");
 
@@ -111,10 +115,9 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         indexMetadata = IndexMetadata.builder(indexName)
             .settings(
-                indexSettings(IndexVersion.current(), numberOfPrimaryShards, replicationFactor).put(
-                    SETTING_CREATION_DATE,
-                    System.currentTimeMillis()
-                ).build()
+                indexSettings(IndexVersion.current(), numberOfPrimaryShards, replicationFactor).put(indexSettings.get())
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                    .build()
             )
             .timestampRange(IndexLongFieldRange.UNKNOWN)
             .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
@@ -211,8 +214,8 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateUnderThresholdWithExcessShards() {
-        Settings settings = allowExcessShards(Settings.EMPTY);
-        setup(settings);
+        Settings clusterSettings = allowExcessShards(Settings.EMPTY);
+        setup(clusterSettings, () -> Settings.EMPTY);
 
         ShardRouting newIndexShardRouting = TestShardRouting.newShardRouting(
             new ShardId("newIndex", "uuid", 1),
@@ -279,7 +282,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateExceedThreshold() {
-        setup(Settings.EMPTY);
+        setup(Settings.EMPTY, () -> Settings.EMPTY);
 
         int ideal = numberOfPrimaryShards / 2;
         int current = numberOfPrimaryShards / 2;
@@ -316,11 +319,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAllocateHasDiscoveryNodeFilters() {
-        Settings settings = addRandomFilterSetting(Settings.EMPTY);
+        Settings clusterSettings = addRandomFilterSetting(Settings.EMPTY);
         if (randomBoolean()) {
-            settings = allowExcessShards(settings);
+            clusterSettings = allowExcessShards(clusterSettings);
         }
-        setup(settings);
+        setup(clusterSettings, () -> Settings.EMPTY);
 
         for (RoutingNode routingNode : indexTier) {
             assertDecisionMatches(
@@ -337,6 +340,28 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                 indexBalanceAllocationDecider.canAllocate(searchTierShardRouting, routingNode, routingAllocation),
                 Decision.Type.YES,
                 "Decider is disabled."
+            );
+        }
+    }
+
+    public void testCanAllocateHasIndexRoutingFilters() {
+        setup(Settings.EMPTY, this::addRandomIndexRoutingFilters);
+
+        for (RoutingNode routingNode : indexTier) {
+            assertDecisionMatches(
+                "Having DiscoveryNodeFilters disables this decider",
+                indexBalanceAllocationDecider.canAllocate(indexTierShardRouting, routingNode, routingAllocation),
+                Decision.Type.YES,
+                "Decider is disabled for index level allocation filters."
+            );
+        }
+
+        for (RoutingNode routingNode : searchIier) {
+            assertDecisionMatches(
+                "Having DiscoveryNodeFilters disables this decider",
+                indexBalanceAllocationDecider.canAllocate(searchTierShardRouting, routingNode, routingAllocation),
+                Decision.Type.YES,
+                "Decider is disabled for index level allocation filters."
             );
         }
     }
@@ -360,6 +385,31 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             .put(settings)
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_EXCESS_SHARDS.getKey(), excessShards)
             .build();
+    }
+
+    public Settings addRandomIndexRoutingFilters() {
+        String setting = randomFrom(
+            INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
+            INDEX_ROUTING_INCLUDE_GROUP_PREFIX,
+            INDEX_ROUTING_EXCLUDE_GROUP_PREFIX
+        );
+        String attribute = randomFrom("_ip", "_host", "_id");
+        String ip = randomFrom("192.168.0.1", "192.168.0.2", "192.168.7.1", "10.17.0.1");
+        String id = randomFrom(indexNodeOne.getId(), indexNodeTwo.getId(), searchNodeOne.getId(), searchNodeTwo.getId());
+        String hostName = randomFrom(
+            indexNodeOne.getHostName(),
+            indexNodeTwo.getHostName(),
+            searchNodeOne.getHostName(),
+            searchNodeTwo.getHostName()
+        );
+
+        String value = switch (attribute) {
+            case "_ip" -> ip;
+            case "_host" -> hostName;
+            case "_id" -> id;
+            default -> throw new IllegalStateException("Unexpected value: " + attribute);
+        };
+        return Settings.builder().put(setting + "." + attribute, value).build();
     }
 
 }

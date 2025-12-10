@@ -10,10 +10,11 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNull;
 
@@ -49,17 +51,25 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
     }
 
     /**
-     * Create a GetReindexResponse from a TaskResult.
+     * Only selected fields are exposed, to hide task related implementation details
      */
-    public static GetReindexResponse fromTaskResult(TaskResult taskResult) {
-        return new GetReindexResponse(taskResult);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        TaskInfo taskInfo = task.getTask();
         builder.startObject();
-        // Only expose selected fields, hide task implementation details
         builder.field("completed", task.isCompleted());
+        if (taskInfo.description() != null) {
+            builder.field("description", taskInfo.description());
+        }
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
+        if (builder.humanReadable()) {
+            builder.field("running_time", new TimeValue(taskInfo.runningTimeNanos(), TimeUnit.NANOSECONDS).toString());
+        }
+        builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
+        builder.field("cancelled", taskInfo.cancelled());
+        if (taskInfo.status() != null) {
+            builder.field("status", taskInfo.status(), params);
+        }
         if (task.getError() != null) {
             XContentHelper.writeRawField("error", task.getError(), XContentType.JSON, builder, params);
         }
@@ -68,11 +78,6 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 
     @Override

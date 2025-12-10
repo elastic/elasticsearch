@@ -64,7 +64,7 @@ public class GetReindexRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (taskId.isSet() == false) {
+        if (taskId == null || taskId.isSet() == false) {
             validationException = addValidationError("id is required", validationException);
         }
         return validationException;

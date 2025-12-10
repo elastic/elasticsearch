@@ -30,6 +30,11 @@
         task_id: taskId
         wait_for_completion: true
   - is_true: completed
+  - is_true: description
+  - is_true: start_time_in_millis
+  - is_true: running_time_in_nanos
+  - is_true: cancelled
+  - is_true: status
   - is_true: response
 
 ---

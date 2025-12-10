@@ -17,7 +17,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -63,19 +62,17 @@ public class HistogramFieldBlockLoaderTests extends BlockLoaderTestCase {
             if (request.fieldType().equals(HistogramFieldMapper.CONTENT_TYPE) == false) {
                 return null;
             }
-            return new DataSourceResponse.FieldDataGenerator(
-                mapping -> {
-                    List<Double> values = randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
-                    values.sort(Double::compareTo);
-                    return Map.of(
-                        "values",
-                        values,
-                        "counts",
-                        // Note - we need the three parameter version of random list here to ensure it's always the same length as values
-                        randomList(values.size(), values.size(), ESTestCase::randomNonNegativeLong)
-                    );
-                }
-            );
+            return new DataSourceResponse.FieldDataGenerator(mapping -> {
+                List<Double> values = randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+                values.sort(Double::compareTo);
+                return Map.of(
+                    "values",
+                    values,
+                    "counts",
+                    // Note - we need the three parameter version of random list here to ensure it's always the same length as values
+                    randomList(values.size(), values.size(), ESTestCase::randomNonNegativeLong)
+                );
+            });
         }
     };
 

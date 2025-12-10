@@ -875,7 +875,8 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata verifiedMetaData = indexMetadataVerifier.verifyIndexMetadata(
             idxMetaData,
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
         );
         assertEquals(idxMetaData, verifiedMetaData);
         assertWarnings(

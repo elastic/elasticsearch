@@ -1325,7 +1325,8 @@ public class MetadataIndexStateService {
                     newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
                         newIndexMetadata,
                         minIndexCompatibilityVersion,
-                        minReadOnlyIndexCompatibilityVersion
+                        minReadOnlyIndexCompatibilityVersion,
+                        IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
                     );
                     try {
                         indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);

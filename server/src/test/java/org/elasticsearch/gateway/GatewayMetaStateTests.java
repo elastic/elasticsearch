@@ -298,7 +298,8 @@ public class GatewayMetaStateTests extends ESTestCase {
         public IndexMetadata verifyIndexMetadata(
             IndexMetadata indexMetadata,
             IndexVersion minimumIndexCompatibilityVersion,
-            IndexVersion minimumReadOnlyIndexCompatibilityVersion
+            IndexVersion minimumReadOnlyIndexCompatibilityVersion,
+            MetadataVerificationMode metadataVerificationMode
         ) {
             return upgrade ? IndexMetadata.builder(indexMetadata).build() : indexMetadata;
         }

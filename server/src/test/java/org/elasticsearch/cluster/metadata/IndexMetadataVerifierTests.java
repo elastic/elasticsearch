@@ -102,7 +102,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 .build()
         );
         // The random IndexMetadata.SETTING_VERSION_CREATED in IndexMetadata can be as low as MINIMUM_READONLY_COMPATIBLE
-        service.verifyIndexMetadata(src, IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+        service.verifyIndexMetadata(
+            src,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+        );
     }
 
     public void testIncompatibleVersion() {
@@ -115,7 +120,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         );
         String message = expectThrows(
             IllegalStateException.class,
-            () -> service.verifyIndexMetadata(metadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+            () -> service.verifyIndexMetadata(
+                metadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+            )
         ).getMessage();
         assertThat(
             message,
@@ -137,7 +147,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
         indexCreated = randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated).build());
-        service.verifyIndexMetadata(goodMeta, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+        service.verifyIndexMetadata(
+            goodMeta,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+        );
     }
 
     public void testReadOnlyVersionCompatibility() {
@@ -154,7 +169,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             );
             String message = expectThrows(
                 IllegalStateException.class,
-                () -> service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                () -> service.verifyIndexMetadata(
+                    idxMetadata,
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+                )
             ).getMessage();
             assertThat(
                 message,
@@ -185,7 +205,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
                     .build()
             );
-            service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+            service.verifyIndexMetadata(
+                idxMetadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+            );
         }
         {
             var settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated);
@@ -199,7 +224,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             var idxMetadata = newIndexMeta("regular-no-write-block", settings.build());
             String message = expectThrows(
                 IllegalStateException.class,
-                () -> service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                () -> service.verifyIndexMetadata(
+                    idxMetadata,
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+                )
             ).getMessage();
             assertThat(
                 message,
@@ -228,7 +258,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             var idxMetadata = newIndexMeta("regular-not-read-only-verified", settings.build());
             String message = expectThrows(
                 IllegalStateException.class,
-                () -> service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                () -> service.verifyIndexMetadata(
+                    idxMetadata,
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+                )
             ).getMessage();
             assertThat(
                 message,
@@ -254,7 +289,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                     .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
                     .build()
             );
-            service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+            service.verifyIndexMetadata(
+                idxMetadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+            );
         }
         {
             var idxMetadata = newIndexMeta(
@@ -265,7 +305,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, indexCreated)
                     .build()
             );
-            service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
+            service.verifyIndexMetadata(
+                idxMetadata,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+            );
         }
         {
             var idxMetadata = newIndexMeta(
@@ -277,7 +322,12 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             );
             String message = expectThrows(
                 IllegalStateException.class,
-                () -> service.verifyIndexMetadata(idxMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                () -> service.verifyIndexMetadata(
+                    idxMetadata,
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+                )
             ).getMessage();
             assertThat(
                 message,
@@ -292,6 +342,27 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testNoUpgradeModePreservesBrokenSettings() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
+        IndexMetadata src = newIndexMeta(
+            "foo",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put("index.refresh_interval", "-200")
+                .build()
+        );
+
+        IndexMetadata result = service.verifyIndexMetadata(
+            src,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexMetadataVerifier.MetadataVerificationMode.NO_UPGRADE
+        );
+
+        assertEquals("-200", result.getSettings().get("index.refresh_interval"));
+        assertNull(result.getSettings().get("archived.index.refresh_interval"));
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {

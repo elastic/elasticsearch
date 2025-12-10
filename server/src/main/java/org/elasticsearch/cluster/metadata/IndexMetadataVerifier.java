@@ -64,6 +64,14 @@ public class IndexMetadataVerifier {
     private final ScriptCompiler scriptService;
     private final MapperMetrics mapperMetrics;
 
+    /**
+     * Verification can upgrade metadata and archive broken settings if selected.
+     */
+    public enum MetadataVerificationMode {
+        WITH_UPGRADE,
+        NO_UPGRADE
+    }
+
     public IndexMetadataVerifier(
         Settings settings,
         ClusterService clusterService,
@@ -88,12 +96,13 @@ public class IndexMetadataVerifier {
      *
      * <p>
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
-     * cannot be updated the method throws an exception.
+     * cannot be updated the method throws an exception. Also archived unsupported settings.
      */
     public IndexMetadata verifyIndexMetadata(
         IndexMetadata indexMetadata,
         IndexVersion minimumIndexCompatibilityVersion,
-        IndexVersion minimumReadOnlyIndexCompatibilityVersion
+        IndexVersion minimumReadOnlyIndexCompatibilityVersion,
+        MetadataVerificationMode metadataVerificationMode
     ) {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion);
 
@@ -103,10 +112,13 @@ public class IndexMetadataVerifier {
         // invalid settings, since they are now removed the FilterAllocationDecider treats them as
         // regular attribute filters, and shards cannot be allocated.
         newMetadata = removeTierFiltering(newMetadata);
-        // Next we have to run this otherwise if we try to create IndexSettings
-        // with broken settings it would fail in checkMappingsCompatibility
-        newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
-        checkMappingsCompatibility(newMetadata);
+        if (metadataVerificationMode == MetadataVerificationMode.WITH_UPGRADE) {
+            // Next we have to run this otherwise if we try to create IndexSettings
+            // with broken settings it would fail in checkMappingsCompatibility
+            newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
+            // TODO This is also skipped if the upgrade/archive step is skipped as it could fail. To be discussed
+            checkMappingsCompatibility(newMetadata);
+        }
         return newMetadata;
     }
 
@@ -314,6 +326,7 @@ public class IndexMetadataVerifier {
         final Settings newSettings;
 
         if (indexMetadata.isSystem()) {
+            // TODO This is also skipped if the upgrade/archive step is skipped. To be discussed
             newSettings = indexScopedSettings.deleteUnknownOrInvalidSettings(
                 settings,
                 e -> logger.warn(

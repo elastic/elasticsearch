@@ -410,12 +410,4 @@ public abstract class RetryingInputStream<V> extends InputStream {
             return clazz.cast(in);
         }
     }
-
-    public static boolean willRetry(OperationPurpose purpose) {
-        return purpose != OperationPurpose.REPOSITORY_ANALYSIS;
-    }
-
-    public static boolean willRetryForever(OperationPurpose purpose) {
-        return purpose == OperationPurpose.INDICES;
-    }
 }

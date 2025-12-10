@@ -477,14 +477,17 @@ public final class BlobStoreTestUtil {
      * Random {@link OperationPurpose} that will be retried by {@link RetryingInputStream}
      */
     public static OperationPurpose randomRetryingPurpose() {
-        return randomValueOtherThanMany(purpose -> RetryingInputStream.willRetry(purpose) == false, BlobStoreTestUtil::randomPurpose);
+        return randomValueOtherThanMany(
+            purpose -> purpose != OperationPurpose.REPOSITORY_ANALYSIS == false,
+            BlobStoreTestUtil::randomPurpose
+        );
     }
 
     /**
      * Random {@link OperationPurpose} that will be retried a finite number of times by {@link RetryingInputStream}
      */
     public static OperationPurpose randomFiniteRetryingPurpose() {
-        return randomValueOtherThanMany(RetryingInputStream::willRetryForever, BlobStoreTestUtil::randomRetryingPurpose);
+        return randomValueOtherThanMany(purpose -> purpose == OperationPurpose.INDICES, BlobStoreTestUtil::randomRetryingPurpose);
     }
 
     public static OperationPurpose randomNonDataPurpose() {

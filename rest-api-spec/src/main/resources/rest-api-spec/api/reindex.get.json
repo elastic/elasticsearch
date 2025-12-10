@@ -1,0 +1,43 @@
+{
+  "reindex.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex",
+      "description": "Get information for a reindex operation"
+    },
+    "stability": "beta",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_reindex/{task_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "task_id": {
+              "type": "string",
+              "description": "Return the reindex operation with specified id (node_id:task_number)"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": false,
+        "description": "Wait for the reindex operation to complete (default: false)"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
+    }
+  }
+}

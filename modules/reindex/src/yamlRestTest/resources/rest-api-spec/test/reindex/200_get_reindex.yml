@@ -1,21 +1,22 @@
----
-"Get reindex task by task id":
+setup:
   - requires:
+      test_runner_features: capabilities
+      reason: Reindex GET is added as part of reindex resilience feature
       capabilities:
         - method: GET
           path: /_reindex/{task_id}
           capabilities: [reindex_resilience]
-      test_runner_features: [capabilities]
-      reason: "Reindex resilience capability required to run test"
 
   - do:
       index:
         index:   source
         refresh: true
-        body:    { "text": "test" }
-
+        body:    { "test": "test" }
+---
+"Get reindex by id":
   - do:
       reindex:
+        # need to be async to get the task id
         wait_for_completion: false
         body:
           source:
@@ -26,27 +27,41 @@
   - set: { task: taskId }
 
   - do:
-      reindex_get:
-        task_id: taskId
+      reindex.get:
+        task_id: $taskId
+        # wait for task to complete to ensure we get consistent result
         wait_for_completion: true
+        human: true
   - is_true: completed
-  - is_true: description
-  - is_true: start_time_in_millis
-  - is_true: running_time_in_nanos
-  - is_true: cancelled
-  - is_true: status
-  - is_true: response
-
+  - exists: description
+  - match: { cancelled: false }
+  - exists: start_time
+  - exists: start_time_in_millis
+  - exists: running_time
+  - exists: running_time_in_nanos
+  - exists: status
+  - is_false: error
+  - match: { response.total: 1 }
+  - gt: { response.took: 0 }
+  - match: { response.batches: 1 }
+  - match: { response.failures: [ ] }
+  - match: { response.timed_out: false }
 ---
-"Reindex task not found":
-  - requires:
-      capabilities:
-        - method: GET
-          path: /_reindex/{task_id}
-          capabilities: [reindex_resilience]
-      test_runner_features: [capabilities]
-      reason: "Reindex resilience capability required to run test"
+"Get reindex - invalid task id":
+    - do:
+        reindex.get:
+            task_id: invalid_task_id
+        catch: bad_request
+    - is_true: error
+    - match: { error.type: 'illegal_argument_exception' }
+    - match: { error.reason: 'malformed task id invalid_task_id' }
+---
+"Get reindex - task does not exist":
   - do:
+      reindex.get:
+        task_id: "node0:123"
       catch: missing
-      reindex_get:
-        task_id: "nonexistent:99999"
+  - is_true: error
+  - match: { error.type: 'resource_not_found_exception' }
+  - match: { error.reason: 'Reindex operation [node0:123] not found' }
+

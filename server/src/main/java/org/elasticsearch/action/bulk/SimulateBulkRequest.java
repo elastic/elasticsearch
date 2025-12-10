@@ -151,11 +151,7 @@ public class SimulateBulkRequest extends BulkRequest {
             componentTemplateSubstitutions = Map.of();
             indexTemplateSubstitutions = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            this.mappingAddition = (Map<String, Object>) in.readGenericValue();
-        } else {
-            mappingAddition = Map.of();
-        }
+        this.mappingAddition = (Map<String, Object>) in.readGenericValue();
         if (in.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             mappingMergeType = in.readOptionalString();
         } else {
@@ -171,9 +167,7 @@ public class SimulateBulkRequest extends BulkRequest {
             out.writeGenericValue(componentTemplateSubstitutions);
             out.writeGenericValue(indexTemplateSubstitutions);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeGenericValue(mappingAddition);
-        }
+        out.writeGenericValue(mappingAddition);
         if (out.getTransportVersion().supports(SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
             out.writeOptionalString(mappingMergeType);
         }

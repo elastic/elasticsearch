@@ -760,16 +760,23 @@ public final class IndexSettings {
             if (DiscoveryNode.isStateless(s)) {
                 if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
                     return "true";
+                } else {
+                    return "false";
                 }
-            } else if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+            }
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
+                return "true";
+            }
+            return "false";
+        } else {
+            if (DiscoveryNode.isStateless(s)) {
+                return "false";
+            }
+            if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
                 return "true";
             }
             return "false";
         }
-        if (iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
-            return "true";
-        }
-        return "false";
     }, Property.IndexScope, Property.Final);
 
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(

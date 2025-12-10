@@ -29,10 +29,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
-/**
- * This IT indexes some dense vector on an old node, then update its mapping and, once upgraded, checks that KNN search still works
- * before and after further data indexing.
- */
 public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
 
     private static String generateBulkData(int upgradedNodes, int dimensions) {
@@ -63,6 +59,10 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         this.upgradedNodes = upgradedNodes;
     }
 
+    /**
+     * This indexes some dense vector on an old node, then update its mapping and, once upgraded, checks that KNN search still works
+     * before and after further data indexing.
+     */
     public void testDenseVectorMappingUpdateOnOldCluster() throws IOException {
         String indexName = "test_index_type_change";
         if (isOldCluster()) {
@@ -148,9 +148,12 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         new Index(true, "int4_flat", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO),
         new Index(true, "bbq_hnsw", FLOAT_ELEMENT_TYPES, SUPPORTS_DIRECT_IO),
         new Index(true, "bbq_flat", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO)
-        //new Index(true, "bbq_disk", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO)
+        // new Index(true, "bbq_disk", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO)
     );
 
+    /**
+     * This verifies that all dense_vector index types can be read and added to after an upgrade
+     */
     public void testDenseVectorIndexOverUpgrade() throws IOException {
         if (isOldCluster()) {
             boolean useSyntheticSource = randomBoolean();
@@ -183,7 +186,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                             if (directIO) {
                                 payload.field("on_disk_rescore", true);
                             }
-                                payload.endObject();
+                            payload.endObject();
                         }
                         payload.endObject().endObject().endObject().endObject();
                         createIndex.setJsonEntity(Strings.toString(payload));

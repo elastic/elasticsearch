@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCloudApiKeyAuthentication;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
-import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -1105,11 +1104,7 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version that will only remove one of the two privileges
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            ROLE_REMOTE_CLUSTER_PRIVS,
-            TransportVersionUtils.getPreviousVersion(ROLE_MONITOR_STATS)
-        );
+        final TransportVersion olderVersion = TransportVersion.fromId(8772001);
 
         Map<String, Object> rewrittenMetadata = with2privs.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();
         assertThat(rewrittenMetadata.keySet(), equalTo(with2privs.getAuthenticatingSubject().getMetadata().keySet()));

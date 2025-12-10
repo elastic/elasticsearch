@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,6 +37,9 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest implements C
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    @Nullable
+    private String projectRouting;
 
     public MultiSearchTemplateRequest() {}
 
@@ -153,4 +157,16 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest implements C
         return output.toByteArray();
     }
 
+    public void setProjectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing already set");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
+    @Nullable
+    public String getProjectRouting() {
+        return projectRouting;
+    }
 }

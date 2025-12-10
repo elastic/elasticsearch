@@ -70,12 +70,12 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      */
     public MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+
         if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            restRequest.param("project_routing");
+            multiRequest.setProjectRouting(restRequest.param("project_routing"));
         }
 
-        MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
@@ -86,6 +86,18 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             allowExplicitIndex,
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
+                if (crossProjectEnabled) {
+                    /*
+                     * If project_routing is set in the request body, it gets overwritten when parsing the body.
+                     * See SearchTemplateRequest#fromXContent() and SearchTemplateRequest#PROJECT_ROUTING_FIELD.
+                     */
+                    searchTemplateRequest.setProjectRouting(multiRequest.getProjectRouting());
+                } else {
+                    // project_routing is specified in the body and we're not in a CPS environment.
+                    if (searchTemplateRequest.getProjectRouting() != null) {
+                        throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+                    }
+                }
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
                     multiRequest.add(searchTemplateRequest);

@@ -64,10 +64,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
-        }
 
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
@@ -86,6 +82,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
+
+        if (searchRequest.indicesOptions().resolveCrossProjectIndexExpression() == false
+            && searchTemplateRequest.getProjectRouting() != null) {
+            throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+        }
+
         searchTemplateRequest.setRequest(searchRequest);
         // This param is parsed within the search request
         if (searchRequest.source().explain() != null) {

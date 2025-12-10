@@ -127,11 +127,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             inferenceTimeout = in.readOptionalTimeValue();
             highPriority = in.readBoolean();
             textInput = in.readOptionalStringCollectionAsList();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
-            } else {
-                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
-            }
+            prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 chunkResults = in.readBoolean();
             } else {
@@ -219,9 +215,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeOptionalTimeValue(inferenceTimeout);
             out.writeBoolean(highPriority);
             out.writeOptionalStringCollection(textInput);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeEnum(prefixType);
-            }
+            out.writeEnum(prefixType);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeBoolean(chunkResults);
             }

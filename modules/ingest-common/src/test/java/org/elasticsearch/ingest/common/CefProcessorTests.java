@@ -9,13 +9,12 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.runners.model.TestClass;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.time.Instant;
@@ -32,14 +31,19 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CefProcessorTests extends ESTestCase {
-    private static String readCefMessageFile(String fileName) throws IOException, URISyntaxException {
-        URL resource = TestClass.class.getResource("/" + fileName);
-        return Files.readString(PathUtils.get((Objects.requireNonNull(resource).toURI())));
+
+    private static String readCefMessageFile(String fileName) {
+        try {
+            URL resource = TestClass.class.getResource("/" + fileName);
+            return Files.readString(PathUtils.get((Objects.requireNonNull(resource).toURI())));
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
     private IngestDocument document;
 
-    public void testParse() throws IOException, URISyntaxException {
+    public void testParse() {
         String message;
         List<String> headers;
         Map<String, String> extensions;
@@ -66,7 +70,7 @@ public class CefProcessorTests extends ESTestCase {
         }
     }
 
-    public void testExecute() throws IOException, URISyntaxException {
+    public void testExecute() {
         Map<String, Object> source = new HashMap<>();
         String message = readCefMessageFile("message_execute.cef.txt");
         source.put("message", message);
@@ -116,7 +120,7 @@ public class CefProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> processor.execute(invalidIngestDocument));
     }
 
-    public void testStandardMessage() throws IOException, URISyntaxException {
+    public void testStandardMessage() {
         String message = readCefMessageFile("standard_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -147,7 +151,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testHeaderOnly() throws IOException, URISyntaxException {
+    public void testHeaderOnly() {
         String message = readCefMessageFile("header_only.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -176,7 +180,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEmptyDeviceFields() throws IOException, URISyntaxException {
+    public void testEmptyDeviceFields() {
         String message = readCefMessageFile("empty_device_fields.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -204,7 +208,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEscapedPipeInHeader() throws IOException, URISyntaxException {
+    public void testEscapedPipeInHeader() {
         String message = readCefMessageFile("escaped_pipe_in_header.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -235,7 +239,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEqualsSignInHeader() throws IOException, URISyntaxException {
+    public void testEqualsSignInHeader() {
         String message = readCefMessageFile("equals_in_header.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -266,7 +270,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEmptyExtensionValue() throws IOException, URISyntaxException {
+    public void testEmptyExtensionValue() {
         String message = readCefMessageFile("empty_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -296,7 +300,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testLeadingWhitespace() throws IOException, URISyntaxException {
+    public void testLeadingWhitespace() {
         String message = readCefMessageFile("leading_whitespace.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -327,7 +331,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEscapedPipeInExtension() throws IOException, URISyntaxException {
+    public void testEscapedPipeInExtension() {
         String message = readCefMessageFile("escaped_pipe_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -336,7 +340,7 @@ public class CefProcessorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
     }
 
-    public void testPipeInMessage() throws IOException, URISyntaxException {
+    public void testPipeInMessage() {
         String message = readCefMessageFile("pipe_in_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -366,7 +370,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testEqualsInMessage() throws IOException, URISyntaxException {
+    public void testEqualsInMessage() {
         String message = readCefMessageFile("equals_in_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -376,7 +380,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
-    public void testEscapesInExtension() throws IOException, URISyntaxException {
+    public void testEscapesInExtension() {
         String message = readCefMessageFile("escapes_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -406,7 +410,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testMalformedExtensionEscape() throws IOException, URISyntaxException {
+    public void testMalformedExtensionEscape() {
         String message = readCefMessageFile("malformed_extension_escape.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -416,7 +420,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
-    public void testMultipleMalformedExtensionValues() throws IOException, URISyntaxException {
+    public void testMultipleMalformedExtensionValues() {
         String message = readCefMessageFile("multiple_malformed_extension_values.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -426,7 +430,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
-    public void testPaddedMessage() throws IOException, URISyntaxException {
+    public void testPaddedMessage() {
         String message = readCefMessageFile("padded_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -456,7 +460,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testCrlfMessage() throws IOException, URISyntaxException {
+    public void testCrlfMessage() {
         String message = readCefMessageFile("crlf_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -486,7 +490,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testTabMessage() throws IOException, URISyntaxException {
+    public void testTabMessage() {
         String message = readCefMessageFile("tab_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -516,7 +520,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testTabNoSepMessage() throws IOException, URISyntaxException {
+    public void testTabNoSepMessage() {
         String message = readCefMessageFile("tab_no_sep_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -526,7 +530,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("CEF extensions contain unescaped equals sign"));
     }
 
-    public void testEscapedMessage() throws IOException, URISyntaxException {
+    public void testEscapedMessage() {
         String message = readCefMessageFile("escaped_message.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -562,7 +566,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testTruncatedHeader() throws IOException, URISyntaxException {
+    public void testTruncatedHeader() {
         String message = readCefMessageFile("truncated_header.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -572,7 +576,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Incomplete CEF header"));
     }
 
-    public void testIgnoreEmptyValuesInExtension() throws IOException, URISyntaxException {
+    public void testIgnoreEmptyValuesInExtension() {
         String message = readCefMessageFile("ignore_empty_values_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -602,7 +606,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testHyphenInExtensionKey() throws IOException, URISyntaxException {
+    public void testHyphenInExtensionKey() {
         String message = readCefMessageFile("hyphen_in_extension_key.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
@@ -632,7 +636,7 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    public void testAllFieldsInExtension() throws IOException, URISyntaxException {
+    public void testAllFieldsInExtension() {
         String message = readCefMessageFile("all_fields_in_extension.cef.txt");
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);

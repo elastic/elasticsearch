@@ -13,7 +13,6 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
@@ -27,8 +26,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.util.List;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
-
-    public static final FeatureFlag GPU_FORMAT = new FeatureFlag("gpu_vectors_indexing");
 
     private static final License.OperationMode MINIMUM_ALLOWED_LICENSE = License.OperationMode.ENTERPRISE;
 
@@ -65,11 +62,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public List<Setting<?>> getSettings() {
-        if (GPU_FORMAT.isEnabled()) {
-            return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING);
-        } else {
-            return List.of();
-        }
+        return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING);
     }
 
     // Allow tests to override the license state
@@ -80,11 +73,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        if (GPU_FORMAT.isEnabled()) {
-            return List.of(new GpuModeBootstrapCheck());
-        } else {
-            return List.of();
-        }
+        return List.of(new GpuModeBootstrapCheck());
     }
 
     /**
@@ -115,7 +104,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
         return (indexSettings, indexOptions, similarity, elementType) -> {
-            if (GPU_FORMAT.isEnabled() && isGpuIndexingFeatureAllowed()) {
+            if (isGpuIndexingFeatureAllowed()) {
                 if ((gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported()))
                     && vectorIndexAndElementTypeSupported(indexOptions.getType(), elementType)) {
                     return getVectorsFormat(indexOptions, similarity);

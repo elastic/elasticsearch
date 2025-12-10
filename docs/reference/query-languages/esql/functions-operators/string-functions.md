@@ -87,9 +87,6 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/substring.md
 :::
 
-:::{include} ../_snippets/functions/layout/top_snippets.md
-:::
-
 :::{include} ../_snippets/functions/layout/to_base64.md
 :::
 

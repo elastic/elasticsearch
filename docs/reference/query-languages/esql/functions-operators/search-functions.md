@@ -59,6 +59,9 @@ for information on the limitations of full text search.
 :::{include} ../_snippets/functions/layout/decay.md
 :::
 
+:::{include} ../_snippets/functions/layout/top_snippets.md
+:::
+
 % TERM is currently a hidden feature
 % To make it visible again, uncomment this and the line in
 lists/search-functions.md

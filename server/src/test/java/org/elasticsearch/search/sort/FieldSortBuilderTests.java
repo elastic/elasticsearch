@@ -695,7 +695,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             SortField.Type.LONG
         );
         assertIntegerSortRewrite(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, IndexVersions.UPGRADE_TO_LUCENE_10_0_0),
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            ),
             SortField.Type.INT
         );
         assertIntegerSortRewrite(

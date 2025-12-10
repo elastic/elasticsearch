@@ -486,6 +486,28 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
+    public void testSpecVarianceForLiteralWhitespace() {
+        String message = readCefMessageFile("special_white_characters_variance.cef.txt");
+        // this is string substitution at runtime to avoid git messing with our line endings.
+        // the single '\' characters here are escaped literal whitespace characters via the normal java rules,
+        // the double '\\' characters are ordinary cef rules
+        message = message.replace("MAGICHERE", "and out-of-spec literal whitespace characters \t \n \r!  \t \n \r \\t \\n \\r");
+
+        // the cef spec seems to be mute about how to handle non-escaped actual whitespace characters in a cef message.
+        // we choose to be lax, and pass them through unmodified. however, they are still subject to the
+        // 'truncate whitespace at the end of the last value' rule.
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("message", message);
+        document = new IngestDocument("index", "id", 1L, null, null, source);
+        CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true, null);
+        processor.execute(document);
+        assertThat(
+            document.getSource().get("message"),
+            equalTo("This has both in-spec escaped whitespace\t \r\n characters, and out-of-spec literal whitespace characters \t \n \r!")
+        );
+    }
+
     public void testTabMessage() {
         String message = readCefMessageFile("tab_message.cef.txt");
         Map<String, Object> source = new HashMap<>();

@@ -300,6 +300,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     @Override
     public synchronized void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
         final var connectionMap = getConnectionsMapForProject(originProjectId);
+        // Remove the entry so no new incoming requests attempt to use the connection while we are closing it.
         final var remote = connectionMap.remove(linkedProjectAlias);
         try {
             IOUtils.close(remote);

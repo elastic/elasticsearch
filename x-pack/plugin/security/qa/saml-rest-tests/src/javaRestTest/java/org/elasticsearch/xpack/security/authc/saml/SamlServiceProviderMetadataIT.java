@@ -26,11 +26,11 @@ import static org.hamcrest.Matchers.is;
 public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
 
     /**
-     * Within this class we explicitly need the metadata not to be enabled at the start of each test
+     * Within this class we the metadata not to be enabled at the start of each test
      */
     @Override
-    protected void enableMetadataBeforeTestIfNeeded() {
-        // do not enable metadata
+    protected boolean isMetadataAvailable() {
+        return false;
     }
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {

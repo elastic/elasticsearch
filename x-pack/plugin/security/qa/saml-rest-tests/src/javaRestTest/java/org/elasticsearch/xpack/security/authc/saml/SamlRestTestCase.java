@@ -197,11 +197,15 @@ public class SamlRestTestCase extends ESRestTestCase {
      */
     @Before
     public void initMetadata() {
-        enableMetadataBeforeTestIfNeeded();
+        if (isMetadataAvailable()) {
+            makeMetadataAvailable(1, 2, 3);
+        } else {
+            makeAllMetadataUnavailable();
+        }
     }
 
-    protected void enableMetadataBeforeTestIfNeeded() {
-        makeMetadataAvailable(1, 2, 3);
+    protected boolean isMetadataAvailable() {
+        return true;
     }
 
     @Override

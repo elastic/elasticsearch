@@ -2,5 +2,11 @@
 
 **Description**
 
-Converts an input value to a long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to long. Boolean `true` will be converted to long `1`, `false` to `0`.
+Converts the input value to a long. If the input parameter is of a date type, its value will be interpreted as milliseconds since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to long. Boolean `true` will be converted to long `1`, `false` to `0`.
+
+When given two arguments, a string value and a whole number base,
+the string is parsed as a long in the given base.
+If parsing fails a warning is generated as described below and the result is null.
+A leading '0x' prefix is allowed for base 16.
+{applies_to}`stack: ga 9.3`
 

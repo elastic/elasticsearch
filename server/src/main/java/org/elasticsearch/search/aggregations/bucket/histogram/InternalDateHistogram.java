@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -204,10 +203,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         this.downsampledResultsOffset = downsampledResultsOffset;
     }
 
-    boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_13_0) || version.isPatchFrom(TransportVersions.V_8_12_1);
-    }
-
     /**
      * Stream from a stream.
      */
@@ -223,11 +218,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         offset = in.readLong();
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        if (versionSupportsDownsamplingTimezone(in.getTransportVersion())) {
-            downsampledResultsOffset = in.readBoolean();
-        } else {
-            downsampledResultsOffset = false;
-        }
+        downsampledResultsOffset = in.readBoolean();
         buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
         // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
         if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
@@ -246,9 +237,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         out.writeLong(offset);
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        if (versionSupportsDownsamplingTimezone(out.getTransportVersion())) {
-            out.writeBoolean(downsampledResultsOffset);
-        }
+        out.writeBoolean(downsampledResultsOffset);
         out.writeCollection(buckets);
     }
 

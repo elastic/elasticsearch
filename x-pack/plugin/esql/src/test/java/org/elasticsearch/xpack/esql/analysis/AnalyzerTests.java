@@ -2476,6 +2476,10 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+
+            if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3), CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+            }
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
@@ -2483,6 +2487,10 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+
+            if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3), CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+            }
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
@@ -2490,6 +2498,10 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+
+            if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3), CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+            }
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
@@ -2501,9 +2513,9 @@ public class AnalyzerTests extends ESTestCase {
             if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
                 checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
             }
-            // if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-            // checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bfloat16_vector, [1, 2])", List.of(1, 2));
-            // }
+            if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
+                checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3), CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+            }
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
@@ -2533,8 +2545,8 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        // assertThat(List.of("float_vector", "bfloat16_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
-        assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
+        assertThat(List.of("float_vector", "bfloat16_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
+        //assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
         var right = as(similarity.right(), ToDenseVector.class);
         var literal = as(right.field(), Literal.class);
         assertThat(literal.value(), equalTo(expectedElems));

@@ -382,6 +382,13 @@ public enum DataType implements Writeable {
     ),
 
     /**
+     * Data type for representing histogram data without an associated data structure
+     */
+    HISTOGRAM(builder().esType("histogram")
+        .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+        .docValues().underConstruction(DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE)),
+
+    /**
      * Fields with this type are dense vectors, represented as an array of float values.
      */
     DENSE_VECTOR(
@@ -1049,6 +1056,10 @@ public enum DataType implements Writeable {
         );
 
         private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+        /**
+         * Development version for histogram support
+         */
+        public static final TransportVersion ESQL_HISTOGRAM_DATATYPE = TransportVersion.fromName("esql_histogram_datatype");
 
     }
 }

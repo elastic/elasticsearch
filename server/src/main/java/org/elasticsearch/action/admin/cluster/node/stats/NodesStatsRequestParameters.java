@@ -39,20 +39,14 @@ public class NodesStatsRequestParameters implements Writeable {
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
         requestedMetrics = Metric.readSetFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            includeShardsStats = in.readBoolean();
-        } else {
-            includeShardsStats = true;
-        }
+        includeShardsStats = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
         Metric.writeSetTo(out, requestedMetrics);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(includeShardsStats);
-        }
+        out.writeBoolean(includeShardsStats);
     }
 
     public CommonStatsFlags indices() {

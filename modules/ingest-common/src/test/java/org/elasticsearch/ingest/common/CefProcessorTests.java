@@ -10,13 +10,10 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.runners.model.TestClass;
 
-import java.net.URL;
-import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -33,9 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CefProcessorTests extends ESTestCase {
 
     private static String readCefMessageFile(String fileName) {
-        try {
-            URL resource = TestClass.class.getResource("/" + fileName);
-            return Files.readString(PathUtils.get((Objects.requireNonNull(resource).toURI())));
+        try (var resource = CefProcessorTests.class.getResourceAsStream("/" + fileName)) {
+            return new String(Objects.requireNonNull(resource).readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }

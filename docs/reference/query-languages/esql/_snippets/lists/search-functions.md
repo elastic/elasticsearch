@@ -1,5 +1,5 @@
 * [`DECAY`](../../functions-operators/search-functions.md#esql-decay) {applies_to}`stack: preview` {applies_to}`serverless: preview`
-* * [`KQL`](../../functions-operators/search-functions.md#esql-kql)
+* [`KQL`](../../functions-operators/search-functions.md#esql-kql)
 * [`MATCH`](../../functions-operators/search-functions.md#esql-match)
 * [`MATCH_PHRASE`](../../functions-operators/search-functions.md#esql-match_phrase)
 * [`QSTR`](../../functions-operators/search-functions.md#esql-qstr)

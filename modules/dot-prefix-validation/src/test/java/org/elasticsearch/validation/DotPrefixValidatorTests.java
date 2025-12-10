@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -136,7 +137,8 @@ public class DotPrefixValidatorTests extends ESTestCase {
         );
 
         var statelessValidator = new NonOperatorValidator<>(statelessClusterService, false);
-        assertThrows(IllegalArgumentException.class, () -> statelessValidator.validateIndices(indices));
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> statelessValidator.validateIndices(indices));
+        assertThat(error.getMessage(), containsString("name beginning with a dot (.) is not allowed"));
     }
 
     private void assertIgnored(Set<String> indices) {

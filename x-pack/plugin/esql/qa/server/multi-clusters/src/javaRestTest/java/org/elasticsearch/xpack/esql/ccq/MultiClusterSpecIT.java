@@ -383,19 +383,19 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
     }
 
-
     @Override
     protected boolean supportsBFloat16ElementType() {
         try {
             return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()))
                 && RestEsqlTestCase.hasCapabilities(
-                remoteClusterClient(),
-                List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName())
-            );
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName())
+                );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
+
     /**
      * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case.
      */

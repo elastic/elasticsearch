@@ -161,4 +161,17 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      * @see <a href="https://man7.org/linux/man-pages/man3/errno.3.html">errno manpage</a>
      */
     int errno();
+
+    /**
+     * Return a system configuration parameter.
+     *
+     * @param name identifies the system configuration parameter.
+     * @see <a href="https://man7.org/linux/man-pages/man3/sysconf.3.html">sysconf manpage</a>
+     */
+    long sysconf(int name);
+
+    /**
+     * Identifier of the jiffies-per-second system configuration parameter for use in {@link #sysconf}.
+     */
+    int _SC_CLK_TCK = 2;
 }

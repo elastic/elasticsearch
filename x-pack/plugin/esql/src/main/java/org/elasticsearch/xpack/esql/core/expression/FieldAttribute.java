@@ -127,7 +127,7 @@ public class FieldAttribute extends TypedAttribute {
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
             ((PlanStreamOutput) out).writeCachedString(name());
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {
-                DataType.writeTo(dataType(), out);
+                dataType().writeTo(out);
             }
             field.writeTo(out);
             if (out.getTransportVersion().supports(ESQL_FIELD_ATTRIBUTE_DROP_TYPE) == false) {

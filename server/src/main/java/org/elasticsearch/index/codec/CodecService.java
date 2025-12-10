@@ -62,7 +62,6 @@ public class CodecService implements CodecProvider {
         } else {
             codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
         }
-
         codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
 
         codecs.put(
@@ -70,10 +69,8 @@ public class CodecService implements CodecProvider {
             new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
         );
 
-        codecs.put(
-            LEGACY_BEST_COMPRESSION_CODEC,
-            new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays)
-        );
+        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
+        codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

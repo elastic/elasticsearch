@@ -19,6 +19,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -29,12 +32,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -48,7 +54,8 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
     implements
         EvaluatorMapper,
         VectorFunction,
-        BlockLoaderExpression {
+        BlockLoaderExpression,
+        PostAnalysisPlanVerificationAware {
 
     protected VectorSimilarityFunction(Source source, Expression left, Expression right) {
         super(source, left, right);
@@ -205,6 +212,17 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
         public void close() {
             Releasables.close(left, right);
         }
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (plan, failures) -> {
+            plan.forEachUp(LogicalPlan.class, lp -> {
+                if (lp instanceof Fork) {
+                    failures.add(Failure.fail(plan,"Vector similarity functions cannot be added after FORK or Subqueries"));
+                }
+            });
+        };
     }
 
     @Override

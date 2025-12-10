@@ -3437,6 +3437,43 @@ public class VerifierTests extends ESTestCase {
 
     }
 
+    public void testVectorSimilarityFunctionsWithForkAndSubqueries() {
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            testVectorSimilarityFunctionWithForkAndSubqueries("V_DOT_PRODUCT");
+        }
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            testVectorSimilarityFunctionWithForkAndSubqueries("V_COSINE");
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            testVectorSimilarityFunctionWithForkAndSubqueries("V_L1_NORM");
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            testVectorSimilarityFunctionWithForkAndSubqueries("V_L2_NORM");
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            testVectorSimilarityFunctionWithForkAndSubqueries("V_HAMMING");
+        }
+    }
+
+    private void testVectorSimilarityFunctionWithForkAndSubqueries(String vectorFunction) {
+        assertThat(
+            error(
+                "from test, (from test) | EVAL score = " + vectorFunction + "(vector, [0, 1, 2])",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            containsString("Vector similarity functions cannot be added after FORK or Subqueries")
+        );
+        assertThat(
+            error(
+                "from test | FORK (EVAL x = 1) (EVAL y = 2) | EVAL score = " + vectorFunction + "(vector, [0, 1, 2])",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            containsString("Vector similarity functions cannot be added after FORK or Subqueries")
+        );
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

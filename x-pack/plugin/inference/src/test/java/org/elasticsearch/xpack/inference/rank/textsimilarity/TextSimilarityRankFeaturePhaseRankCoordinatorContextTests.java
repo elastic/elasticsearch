@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
@@ -103,7 +104,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         featureDoc.featureData(featureData);
         return featureDoc;
     }
-
+    
     public void testComputeScoresWithAutoResolveChunkingSettings() {
         ChunkScorerConfig configWithNullSettings = new ChunkScorerConfig(3, "test query", null);
         TextSimilarityRankFeaturePhaseRankCoordinatorContext context = new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
@@ -121,8 +122,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContextTests extends E
         context.computeScores(new RankFeatureDoc[0], assertNoFailureListener(scores -> {}));
 
         verify(mockClient).execute(
-            eq(GetRerankerWindowSizeAction.INSTANCE),
-            argThat(request -> "my-inference-id".equals(((GetRerankerWindowSizeAction.Request) request).getInferenceEntityId())),
+            eq(GetInferenceModelAction.INSTANCE),
+            argThat(request -> "my-inference-id".equals(((GetInferenceModelAction.Request) request).getInferenceEntityId())),
             any()
         );
     }

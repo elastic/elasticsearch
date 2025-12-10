@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -1019,7 +1017,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_9_X;
 
         private final String reason;
         private final long unassigned;
@@ -1057,13 +1054,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.assigned = in.readLong();
             unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
             assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
-            if (in.getTransportVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
-                unassignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
-                assignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
-            } else {
-                unassignedNodeDecisions = Map.of();
-                assignedNodeDecisions = Map.of();
-            }
+            unassignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
+            assignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
         }
 
         @Override
@@ -1107,10 +1099,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             out.writeLong(assigned);
             out.writeCollection(unassignedShardIds);
             out.writeCollection(assignedShardIds);
-            if (out.getTransportVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
-                out.writeMap(unassignedNodeDecisions);
-                out.writeMap(assignedNodeDecisions);
-            }
+            out.writeMap(unassignedNodeDecisions);
+            out.writeMap(assignedNodeDecisions);
         }
 
         @Override

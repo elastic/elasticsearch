@@ -154,6 +154,7 @@ public class MappingParsingBenchmark {
                 },
                 bitsetFilterCache::getBitSetProducer,
                 MapperMetrics.NOOP,
+                null,
                 null
             );
 

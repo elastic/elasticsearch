@@ -229,6 +229,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper,
         @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         this(
@@ -243,6 +244,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             bitSetProducer,
             mapperMetrics,
+            documentMapper,
             projectMetadataSupplier
         );
     }
@@ -260,6 +262,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
+        @Nullable DocumentMapper documentMapper,
         @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         super(indexSettings);
@@ -283,7 +286,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             projectMetadataSupplier
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
-
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -295,6 +297,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
+        this.mapper = documentMapper;
     }
 
     public boolean hasNested() {

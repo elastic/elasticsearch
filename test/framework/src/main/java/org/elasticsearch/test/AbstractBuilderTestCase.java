@@ -505,6 +505,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
                 MapperMetrics.NOOP,
+                null,
                 null
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {

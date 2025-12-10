@@ -45,6 +45,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -657,7 +658,8 @@ public final class IndexModule {
         ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
-        ScriptService scriptService
+        ScriptService scriptService,
+        DocumentMapper documentMapper
     ) throws IOException {
         return new MapperService(
             clusterService,
@@ -675,6 +677,7 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             mapperMetrics,
+            documentMapper,
             null
         );
     }

@@ -241,6 +241,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,
+                null,
                 () -> client.projectResolver().hasProject(clusterService.state())
                     ? client.projectResolver().getProjectMetadata(clusterService.state())
                     : null

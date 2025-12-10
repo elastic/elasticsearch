@@ -51,8 +51,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
-import org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -125,7 +123,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.common.Strings.format;
@@ -1861,9 +1858,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            if (elementType.equals(ElementType.BIT)) {
-                return new ES815BitFlatVectorFormat();
-            }
             return new ES93FlatVectorFormat(elementType);
         }
 
@@ -3287,10 +3281,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         }
         final KnnVectorsFormat format;
+        ElementType elementType = fieldType().element.elementType();
         if (indexOptions == null) {
-            format = fieldType().element.elementType() == ElementType.BIT
-                ? new ES815HnswBitVectorsFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, maxMergingWorkers, mergingExecutorService)
-                : defaultFormat;
+            format = switch (elementType) {
+                case BYTE, FLOAT -> defaultFormat;
+                case BIT, BFLOAT16 -> new ES93HnswVectorsFormat(
+                    DEFAULT_MAX_CONN,
+                    DEFAULT_MAX_CONN,
+                    elementType,
+                    maxMergingWorkers,
+                    mergingExecutorService
+                );
+            };
         } else {
             // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
             KnnVectorsFormat extraKnnFormat = null;
@@ -3299,7 +3301,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexSettings,
                     indexOptions,
                     fieldType().similarity(),
-                    fieldType().element.elementType()
+                    elementType
                 );
                 if (extraKnnFormat != null) {
                     break;
@@ -3307,7 +3309,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             format = extraKnnFormat != null
                 ? extraKnnFormat
-                : indexOptions.getVectorsFormat(fieldType().element.elementType(), mergingExecutorService, maxMergingWorkers);
+                : indexOptions.getVectorsFormat(elementType, mergingExecutorService, maxMergingWorkers);
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

@@ -468,10 +468,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         }
     }
 
-    private void testCcsWithDataSelectorIsSupported(
-        boolean ccsMinimizeRoundtrips,
-        String backingDataIndexName
-    ) throws IOException {
+    private void testCcsWithDataSelectorIsSupported(boolean ccsMinimizeRoundtrips, String backingDataIndexName) throws IOException {
         final String[] users = { FAILURE_STORE_ACCESS, DATA_ACCESS, ALL_ACCESS };
         for (String user : users) {
             // query remote cluster using ::data selector should succeed
@@ -495,10 +492,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
     }
 
     private void testCcsWithFailuresSelectorIsSupported(boolean ccsMinimizeRoundtrips, String backingDataIndexName) throws IOException {
-        final String[] users = {
-            FAILURE_STORE_ACCESS,
-            ALL_ACCESS,
-            MANAGE_FAILURE_STORE_ACCESS };
+        final String[] users = { FAILURE_STORE_ACCESS, ALL_ACCESS, MANAGE_FAILURE_STORE_ACCESS };
         for (String user : users) {
             // query remote cluster using ::failures selector should succeed
             final Request dataSearchRequest = new Request(

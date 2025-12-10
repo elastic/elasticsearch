@@ -222,27 +222,17 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
 
     private void setupDataStream(String clusterName, String dataStreamName, int numShards) throws IOException {
         Settings settings = indexSettings(numShards, randomIntBetween(0, 1)).build();
-        putComposableIndexTemplate(
-            clusterName,
-            dataStreamName + "-template",
-            """
-               {
-                 "properties": {
-                   "f": {
-                     "type": "text"
-                   },
-                   "@timestamp": {
-                     "type": "date"
-                   }
-                 }
-               }""",
-            List.of(dataStreamName),
-            settings,
-            null,
-            null,
-            null,
-            true
-        );
+        putComposableIndexTemplate(clusterName, dataStreamName + "-template", """
+            {
+              "properties": {
+                "f": {
+                  "type": "text"
+                },
+                "@timestamp": {
+                  "type": "date"
+                }
+              }
+            }""", List.of(dataStreamName), settings, null, null, null, true);
         indexDocs(client(clusterName), dataStreamName);
         indexFailureDocs(client(clusterName), dataStreamName);
     }

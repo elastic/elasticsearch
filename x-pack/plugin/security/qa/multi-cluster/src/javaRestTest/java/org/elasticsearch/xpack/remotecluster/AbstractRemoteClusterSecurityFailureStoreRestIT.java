@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
@@ -24,7 +23,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

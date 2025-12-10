@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;

@@ -198,12 +198,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                 () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
             );
             final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:data/read/search[phase/query]";
-            assertActionUnauthorized(
-                exception,
-                action,
-                backingFailureIndexName,
-                "read,all"
-            );
+            assertActionUnauthorized(exception, action, backingFailureIndexName, "read,all");
         }
     }
 
@@ -243,12 +238,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
         assertOK(adminClient().performRequest(putUserRequest));
     }
 
-    private static void assertActionUnauthorized(
-        ResponseException exception,
-        String action,
-        String indexName,
-        String expectedPrivileges
-    ) {
+    private static void assertActionUnauthorized(ResponseException exception, String action, String indexName, String expectedPrivileges) {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(
             exception.getMessage(),

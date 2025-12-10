@@ -38,7 +38,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -79,7 +78,7 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         String remoteDS = "logs-remote";
         TestClusterInfo testClusterInfo = setupClusters(List.of(localDS), List.of(remoteDS));
 
-        SearchRequest searchRequest = new SearchRequest(localDS, remoteResource(remoteDS));
+        SearchRequest searchRequest = new SearchRequest(localDS, REMOTE_CLUSTER + ":" + remoteDS);
         if (randomBoolean()) {
             searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
         }
@@ -140,7 +139,7 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         String remoteDS = "logs-remote";
         TestClusterInfo testClusterInfo = setupClusters(List.of(localDS), List.of(remoteDS));
 
-        SearchRequest searchRequest = new SearchRequest(localDS + "::failures", remoteResource(remoteDS) + "::failures");
+        SearchRequest searchRequest = new SearchRequest(localDS + "::failures", REMOTE_CLUSTER + ":" + remoteDS + "::failures");
         if (randomBoolean()) {
             searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
         }
@@ -174,7 +173,7 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             assertNotNull(localClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-            assertThat(localClusterSearchInfo.getIndexExpression(), equalTo(localDS));
+            assertThat(localClusterSearchInfo.getIndexExpression(), equalTo(localDS + "::failures"));
             assertThat(localClusterSearchInfo.getTotalShards(), equalTo(testClusterInfo.localNumShards));
             assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(testClusterInfo.localNumShards));
             assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
@@ -185,7 +184,7 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo(remoteDS));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo(remoteDS + "::failures"));
             assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(testClusterInfo.remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(testClusterInfo.remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));

@@ -96,11 +96,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
@@ -209,6 +213,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
@@ -494,8 +499,8 @@ public class EsqlFunctionRegistry {
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
                 def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
                 def(ToIp.class, ToIp::new, "to_ip"),
-                def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
-                def(ToLong.class, ToLong::new, "to_long"),
+                def(ToIntegerSurrogate.class, ToIntegerSurrogate::new, "to_integer", "to_int"),
+                def(ToLongSurrogate.class, ToLongSurrogate::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
@@ -573,7 +578,8 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming") } };
+                def(Hamming.class, Hamming::new, "v_hamming"),
+                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -951,6 +957,12 @@ public class EsqlFunctionRegistry {
         names.put(ToIpLeadingZerosRejected.class, "TO_IP");
         names.put(ToIpLeadingZerosDecimal.class, "TO_IP");
         names.put(ToIpLeadingZerosOctal.class, "TO_IP");
+
+        names.put(ToLongBase.class, "TO_LONG");
+        names.put(ToLong.class, "TO_LONG");
+
+        names.put(ToIntegerBase.class, "TO_INTEGER");
+        names.put(ToInteger.class, "TO_INTEGER");
     }
 
     protected interface FunctionBuilder {

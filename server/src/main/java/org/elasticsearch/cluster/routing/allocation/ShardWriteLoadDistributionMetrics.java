@@ -169,7 +169,7 @@ public class ShardWriteLoadDistributionMetrics {
             /*
              * Only publish distribution and prioritization threshold metrics if the node contains at least one shard
              */
-            if (Double.isFinite(maxShardWriteLoad)) {
+            if (maxShardWriteLoad > Double.NEGATIVE_INFINITY) {
                 for (int i = 0; i < percentiles.length; i++) {
                     writeLoadDistributionValues[i].add(
                         new DoubleWithAttributes(shardWeightHistogram.getValueAtPercentile(percentiles[i]), nodeAttrs)

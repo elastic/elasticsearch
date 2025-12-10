@@ -17,7 +17,7 @@ import java.util.Collection;
  * aggregate metric double or a sub metric of one, any other producers will trigger an error.
  */
 final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer {
-    private final Collection<AbstractDownsampleFieldProducer> producers;
+    private final Collection<AbstractDownsampleFieldProducer<?>> producers;
     private final String name;
 
     /**
@@ -26,7 +26,7 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
      * @param producers a collection of {@link AbstractDownsampleFieldProducer} instances with the subfields
      *                  of the aggregate_metric_double field.
      */
-    AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer> producers) {
+    AggregateMetricFieldSerializer(String name, Collection<AbstractDownsampleFieldProducer<?>> producers) {
         this.name = name;
         this.producers = producers;
     }
@@ -38,19 +38,19 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
         }
 
         builder.startObject(name);
-        for (AbstractDownsampleFieldProducer fieldProducer : producers) {
+        for (AbstractDownsampleFieldProducer<?> fieldProducer : producers) {
             assert name.equals(fieldProducer.name()) : "producer has a different name";
             if (fieldProducer.isEmpty()) {
                 continue;
             }
             switch (fieldProducer) {
-                case MetricFieldProducer.AggregateGaugeMetricFieldProducer producer -> {
+                case NumericMetricFieldProducer.AggregateGaugeMetricFieldProducer producer -> {
                     builder.field("max", producer.max);
                     builder.field("min", producer.min);
                     builder.field("sum", producer.sum.value());
                     builder.field("value_count", producer.count);
                 }
-                case MetricFieldProducer.AggregateSubMetricFieldProducer producer -> {
+                case NumericMetricFieldProducer.AggregateSubMetricFieldProducer producer -> {
                     switch (producer.metric) {
                         case max -> builder.field("max", producer.max);
                         case min -> builder.field("min", producer.min);
@@ -73,7 +73,7 @@ final class AggregateMetricFieldSerializer implements DownsampleFieldSerializer 
     }
 
     private boolean isEmpty() {
-        for (AbstractDownsampleFieldProducer p : producers) {
+        for (AbstractDownsampleFieldProducer<?> p : producers) {
             if (p.isEmpty() == false) {
                 return false;
             }

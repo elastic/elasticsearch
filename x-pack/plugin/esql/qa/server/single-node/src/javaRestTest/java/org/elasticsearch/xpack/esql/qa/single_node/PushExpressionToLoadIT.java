@@ -772,6 +772,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             columnMatcher,
             matchesList().item(expectedValue)

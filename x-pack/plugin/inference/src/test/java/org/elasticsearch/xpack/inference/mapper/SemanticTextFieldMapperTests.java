@@ -442,19 +442,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING) {
                 continue;
             }
-            Exception e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(
-                    fieldMapping(
-                        b -> b.field("type", "semantic_text")
-                            .field(INFERENCE_ID_FIELD, "test1")
-                            .startObject("model_settings")
-                            .field("task_type", taskType)
-                            .endObject()
-                    ),
-                    useLegacyFormat
-                )
-            );
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text")
+                    .field(INFERENCE_ID_FIELD, "test1")
+                    .startObject("model_settings")
+                    .field("task_type", taskType);
+                if (taskType == TaskType.EMBEDDING) {
+                    // These fields are required in order to create MinimalServiceSettings for the EMBEDDING task
+                    b.field("service", "myService").field("dimensions", 128).field("similarity", "cosine").field("element_type", "float");
+                }
+                b.endObject();
+            }), useLegacyFormat));
             assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding or sparse_embedding"));
         }
     }
@@ -1593,6 +1591,22 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             )
         );
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
+
+        var e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperServiceForFieldWithModelSettings(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.BFLOAT16
+                )
+            )
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testSettingAndUpdatingChunkingSettings() throws IOException {
@@ -2373,5 +2387,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

@@ -441,7 +441,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FieldType resolveFieldType(final boolean forceDocValuesSkipper, final String fullFieldName) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            if (forceDocValuesSkipper || shouldUseHostnameSkipper(fullFieldName) || shouldUseTimeSeriesSkipper()) {
+            if (forceDocValuesSkipper
+                || shouldUseHostnameSkipper(fullFieldName)
+                || shouldUseTimeSeriesSkipper()
+                || shouldUseStandardSkipper()) {
                 fieldtype = new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
@@ -472,6 +475,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && IndexMode.LOGSDB.equals(indexSettings.getMode())
                 && HOST_NAME.equals(fullFieldName)
                 && indexSortConfigByHostName(indexSettings.getIndexSortConfig());
+        }
+
+        private boolean shouldUseStandardSkipper() {
+            return hasDocValues.get()
+                && indexed.get() == false
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
+                && indexSettings.useDocValuesSkipper();
         }
 
         private static boolean indexSortConfigByHostName(final IndexSortConfig indexSortConfig) {
@@ -1066,6 +1076,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean forceDocValuesSkipper;
     private final String offsetsFieldName;
 
+    private final IndexVersion indexCreatedVersion;
+
     private KeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -1089,6 +1101,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexSettings = builder.indexSettings;
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
@@ -1165,13 +1178,18 @@ public final class KeywordFieldMapper extends FieldMapper {
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
-                // store the value in a binary doc values field, create one if it doesn't exist
-                MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
-                if (field == null) {
-                    field = new MultiValuedBinaryDocValuesField(fieldName);
-                    context.doc().addWithKey(fieldName, field);
+                if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
+                    // store the value in a binary doc values field, create one if it doesn't exist
+                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+                    if (field == null) {
+                        field = new MultiValuedBinaryDocValuesField(fieldName);
+                        context.doc().addWithKey(fieldName, field);
+                    }
+                    field.add(bytesRef);
+                } else {
+                    // otherwise for bwc, store the value in a stored fields like we used to
+                    context.doc().add(new StoredField(fieldName, bytesRef));
                 }
-                field.add(bytesRef);
             }
 
             return false;
@@ -1216,6 +1234,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         return true;
+    }
+
+    private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
+        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
@@ -1334,7 +1356,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         // extra copy of the field for supporting synthetic source. This layer will check that copy.
         if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
+
+            if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
+                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
+            } else {
+                // old indices, stored ignored values in stored fields
+                layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
+                    @Override
+                    protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                        BytesRef ref = (BytesRef) value;
+                        b.utf8Value(ref.bytes, ref.offset, ref.length);
+                    }
+                });
+            }
         }
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);

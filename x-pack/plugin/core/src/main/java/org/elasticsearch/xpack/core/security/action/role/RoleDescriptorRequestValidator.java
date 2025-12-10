@@ -64,17 +64,6 @@ public class RoleDescriptorRequestValidator {
             if (Arrays.asList(ridp.remoteClusters()).contains("")) {
                 validationException = addValidationError("remote index cluster alias cannot be an empty string", validationException);
             }
-            try {
-                Set<IndexPrivilege> privileges = IndexPrivilege.resolveBySelectorAccess(Set.of(ridp.indicesPrivileges().getPrivileges()));
-                if (privileges.stream().anyMatch(p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES)) {
-                    validationException = addValidationError(
-                        "remote index privileges cannot contain privileges that grant access to the failure store",
-                        validationException
-                    );
-                }
-            } catch (IllegalArgumentException ile) {
-                validationException = addValidationError(ile.getMessage(), validationException);
-            }
             for (String indexName : ridp.indicesPrivileges().getIndices()) {
                 validationException = validateIndexNameExpression(indexName, validationException);
             }

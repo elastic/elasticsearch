@@ -52,6 +52,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
+                // PRTODO: Does not grant failure store access?
                 API_KEY_MAP_REF.compareAndSet(null, createCrossClusterAccessApiKey("""
                     {
                         "search": [
@@ -200,6 +201,42 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:data/read/search[phase/query]";
             assertActionUnauthorized(exception, action, backingFailureIndexName, "read,all");
         }
+
+        // PRTODO: This remaining test code relies on RCS2.0 support for failure store access, which does not seem to exist yet.
+        // Committing it for now, and will revisit it later.
+        // Update role to include failure store privileges and test access again.
+        addFailureIndexAccessToUserAndRoleOnQueryCluster();
+
+        // query remote cluster using ::failures selector should succeed now
+        {
+            var request = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("test1::failures", "test*::failures", "*::failures"),
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final String[] expectedIndices = new String[] { backingFailureIndexName };
+            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(request), expectedIndices);
+        }
+        {
+            // direct access to backing failure index should be allowed since they belong to authorized data stream and read failure store
+            // is enabled on the role.
+            Request failureIndexSearchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
+                    backingFailureIndexName,
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final String[] expectedIndices = new String[] { backingFailureIndexName };
+            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(failureIndexSearchRequest), expectedIndices);
+        }
+
     }
 
     private static void setupLocalDataOnQueryCluster() throws IOException {
@@ -236,6 +273,28 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
               "roles" : ["remote_search"]
             }""");
         assertOK(adminClient().performRequest(putUserRequest));
+    }
+
+    private static void addFailureIndexAccessToUserAndRoleOnQueryCluster() throws IOException {
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "description": "Role with privileges for remote and local indices.",
+              "indices": [
+                {
+                  "names": ["local_index"],
+                  "privileges": ["read"]
+                }
+              ],
+              "remote_indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read", "read_cross_cluster", "read_failure_store"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
     }
 
     private static void assertActionUnauthorized(ResponseException exception, String action, String indexName, String expectedPrivileges) {

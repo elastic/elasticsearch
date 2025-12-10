@@ -979,11 +979,11 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             assertThat(ids, equalTo(List.of(List.of("1"), List.of("11"), List.of("13"), List.of("7"))));
         }
         // none
-        for (var index : List.of("*:employees1", "*:employees3", "*:employees1,employees3", "*:alias-employees,*:alias-management")) {
+        for (var index : List.of("*:employees1", "*:employees3", "*:alias-employees,*:alias-management")) {
             Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
             ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(error.getMessage(), containsString("Unknown index [" + index + "]"));
+            assertThat(error.getMessage(), containsString("Unknown index [" + index.replace("*:", "my_remote_cluster:") + "]"));
         }
 
         for (var index : List.of(

@@ -301,7 +301,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     public void testInt8HnswMaxInnerProductProductFails() {
-        assumeTrue("Sort not consistent if graph built in different ways", alwaysUseGpu());
+        assumeTrue("CPU indexing nodes will not fail", alwaysUseGpu());
 
         String indexName = "index_int8_max_inner_product_fails";
         final int dims = randomIntBetween(4, 128);

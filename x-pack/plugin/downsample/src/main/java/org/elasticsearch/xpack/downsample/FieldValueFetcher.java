@@ -79,9 +79,9 @@ class FieldValueFetcher {
     }
 
     private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
-        assert "aggregate_metric_double".equals(fieldType.typeName()) == false
+        assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
-        if ("exponential_histogram".equals(fieldType.typeName())) {
+        if (ExponentialHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
             return ExponentialHistogramFieldProducer.create(name(), samplingMethod);
         }
         if (fieldType.getMetricType() != null) {

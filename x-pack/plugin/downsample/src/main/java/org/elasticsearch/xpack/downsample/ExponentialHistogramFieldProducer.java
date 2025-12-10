@@ -22,6 +22,7 @@ import java.io.IOException;
  * A producer that can be used for downsampling ONLY an exponential histogram field whether it's a metric or a label.
  */
 abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleFieldProducer<ExponentialHistogramValuesReader> {
+    static final String TYPE = "exponential_histogram";
 
     ExponentialHistogramFieldProducer(String name) {
         super(name);

@@ -89,7 +89,7 @@ public class StSimplifyUnitTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("tolerance for st_simplify must be an integer or floating-point number"));
     }
 
-    public void testINegativeTolerance() {
+    public void testNegativeTolerance() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process(polygonWkt, -1.0));
         assertThat(ex.getMessage(), containsString("tolerance must not be negative"));
     }
@@ -198,4 +198,6 @@ public class StSimplifyUnitTests extends ESTestCase {
         // It gets simplified to an empty polygon
         assertEquals("POLYGON EMPTY", result);
     }
+
+
 }

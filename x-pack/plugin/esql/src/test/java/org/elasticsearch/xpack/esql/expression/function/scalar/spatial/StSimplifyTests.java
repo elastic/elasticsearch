@@ -66,12 +66,6 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
         };
     }
 
-    private static String getFunctionClassName() {
-        Class<?> testClass = getTestClass();
-        String testClassName = testClass.getSimpleName();
-        return testClassName.replace("Tests", "");
-    }
-
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
         DataType spatialType,
@@ -86,14 +80,14 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
             double tolerance = randomDoubleBetween(0, 100, true);
             TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, DOUBLE, "tolerance");
             toleranceData = toleranceData.forceLiteral();
-            String evaluatorName = "NonFoldableGeometryAndFoldableToleranceEvaluator[inputGeometry=Attribute[channel=0], inputTolerance="
+            String evaluatorName = "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[inputGeometry=Attribute[channel=0], inputTolerance="
                 + tolerance
                 + "]";
             var expectedResult = expectedValue.apply(geometry, tolerance);
 
             return new TestCaseSupplier.TestCase(
                 List.of(geoTypedData, toleranceData),
-                getFunctionClassName() + evaluatorName,
+                evaluatorName,
                 spatialType,
                 Matchers.equalTo(expectedResult)
             );

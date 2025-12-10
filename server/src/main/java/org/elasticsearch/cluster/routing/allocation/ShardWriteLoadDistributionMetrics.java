@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.HdrHistogram.ShortCountsHistogram;
+import org.HdrHistogram.IntCountsHistogram;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -80,8 +80,7 @@ public class ShardWriteLoadDistributionMetrics {
         this.clusterService.getClusterSettings()
             .initializeAndWatch(SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING, value -> this.metricsEnabled = value);
 
-        // We can use ShortCountsHistogram because we don't expect any count to exceed Short.MAX_VALUE on a single node
-        this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, ShortCountsHistogram.class);
+        this.shardWeightHistogram = new DoubleHistogram(numberOfSignificantDigits, IntCountsHistogram.class);
         this.percentiles = percentiles;
         this.lastWriteLoadDistributionValues = new AtomicReferenceArray<>(percentiles.length);
         IntStream.range(0, percentiles.length).forEach(percentileIndex -> {

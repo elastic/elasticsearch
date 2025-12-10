@@ -102,7 +102,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         DENSE_VECTOR,
         DATE_RANGE };
 
-
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
     // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.

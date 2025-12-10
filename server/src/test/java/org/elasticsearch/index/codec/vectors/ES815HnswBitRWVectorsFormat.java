@@ -10,12 +10,16 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
 public class ES815HnswBitRWVectorsFormat extends ES815HnswBitVectorsFormat {
+
+    private static final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatRWVectorsFormat();
+
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new Lucene99HnswVectorsWriter(state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state), numMergeWorkers, mergeExec);

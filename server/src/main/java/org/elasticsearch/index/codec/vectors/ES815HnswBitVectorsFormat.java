@@ -22,7 +22,7 @@ public class ES815HnswBitVectorsFormat extends AbstractHnswVectorsFormat {
 
     static final String NAME = "ES815HnswBitVectorsFormat";
 
-    static final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
+    private static final FlatVectorsFormat flatVectorsFormat = new ES815BitFlatVectorsFormat();
 
     public ES815HnswBitVectorsFormat() {
         super(NAME);

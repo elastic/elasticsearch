@@ -121,7 +121,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
             );
             assertThat(measurementForNode(countAboveThresholdMeasurements, nodeId).getLong(), greaterThan(0L));
             assertEquals(
-                getTotalWriteLoadForNode(testInfrastructure.clusterInfo, testInfrastructure.clusterService.state(), nodeId),
+                getTotalWriteLoadForNode(testInfrastructure.clusterInfo, testInfrastructure.mockClusterService.state(), nodeId),
                 measurementForNode(shardWriteLoadSumMeasurements, nodeId).getDouble(),
                 0.001
             );
@@ -138,8 +138,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
 
     public void testShardWriteLoadDistributionMetricsDisabled() {
         final var testInfrastructure = createTestInfrastructure();
-        testInfrastructure.clusterService()
-            .getClusterSettings()
+        testInfrastructure.mockClusterService.getClusterSettings()
             .applySettings(
                 Settings.builder().put(ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING.getKey(), false).build()
             );
@@ -162,7 +161,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     public void testShardWriteLoadDistributionMetricsClusterNotStarted() {
         final var testInfrastructure = createTestInfrastructure();
 
-        when(testInfrastructure.clusterService.lifecycleState()).thenReturn(
+        when(testInfrastructure.mockClusterService.lifecycleState()).thenReturn(
             randomFrom(Lifecycle.State.INITIALIZED, Lifecycle.State.STOPPED)
         );
         testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
@@ -174,13 +173,13 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     public void testMetricsForNodeWithNoShards() {
         final var testInfrastructure = createTestInfrastructure();
 
-        final var originalClusterState = testInfrastructure.clusterService.state();
+        final var originalClusterState = testInfrastructure.mockClusterService.state();
         final var additionalNodeId = "index_2";
         final var nodesWithNodeAdded = DiscoveryNodes.builder(originalClusterState.nodes())
             .add(DiscoveryNodeUtils.builder(additionalNodeId).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
             .build();
         final var clusterStateWithNodeAdded = ClusterState.builder(originalClusterState).nodes(nodesWithNodeAdded).build();
-        when(testInfrastructure.clusterService.state()).thenReturn(clusterStateWithNodeAdded);
+        when(testInfrastructure.mockClusterService.state()).thenReturn(clusterStateWithNodeAdded);
 
         testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);
         testInfrastructure.meterRegistry.getRecorder().collect();
@@ -241,7 +240,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.WRITE_LOAD_SUM_METRIC_NAME);
 
-        final var nonIndexNodes = testInfrastructure.clusterService.state()
+        final var nonIndexNodes = testInfrastructure.mockClusterService.state()
             .nodes()
             .stream()
             .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false)
@@ -404,7 +403,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     }
 
     public record TestInfrastructure(
-        ClusterService clusterService,
+        ClusterService mockClusterService,
         RecordingMeterRegistry meterRegistry,
         ClusterInfo clusterInfo,
         ShardWriteLoadDistributionMetrics shardWriteLoadDistributionMetrics,

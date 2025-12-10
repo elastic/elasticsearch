@@ -278,7 +278,6 @@ public class RandomSearchRequestGenerator {
                         numCands,
                         visitPercentage,
                         rescoreVectorBuilder,
-                        randomBoolean() ? null : randomFloat(),
                         randomBoolean() ? null : randomFloat()
                     )
                 );

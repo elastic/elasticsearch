@@ -85,7 +85,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             performSearch(
                 new SearchSourceBuilder().retriever(
-                    new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f, null, null, null)
+                    new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f, null, null)
                 )
             );
         }
@@ -101,7 +101,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             performSearch(
                 new SearchSourceBuilder().retriever(
-                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null, null))
+                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null))
                 )
             );
         }
@@ -117,7 +117,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             performSearch(
                 new SearchSourceBuilder().knnSearch(
-                    List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null, null))
+                    List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null ))
                 )
             );
         }

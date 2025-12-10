@@ -116,7 +116,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
-    private static final TransportVersion POST_FILTERING_THRESHOLD = TransportVersion.fromName("post_filtering_threshold");
 
     final String field;
     final VectorData queryVector;

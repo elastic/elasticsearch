@@ -59,3 +59,17 @@ title:text                      | completion:keyword
 War and Peace                   | THIS IS A PROMPT: WAR AND PEACE
 War and Peace (Signet Classics) | THIS IS A PROMPT: WAR AND PEACE (SIGNET CLASSICS)
 ;                                                                                                                       
+
+completion followed by stats
+required_capability: completion
+required_capability: match_operator_colon
+
+FROM books METADATA _score
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| COMPLETION CONCAT("This is a prompt: ", title) WITH { "inference_id" : "test_completion" }
+| STATS count=COUNT(*), avg_completion_length = AVG(LENGTH(completion))
+;
+
+count:long | avg_completion_length:double
+4          | 50.75
+;

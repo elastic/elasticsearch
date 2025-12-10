@@ -94,6 +94,18 @@ es(_<segment>)+
 Attributes that represent an entity should be named in singular.
 If the attribute value represents a collection, it should be named in plural.
 
+### Migration of existing, invalid attributes
+
+Unfortunately, validation of attribute names was only introduced retrospectively.
+Existing attributes, that do not comply with naming conventions, are tracked in a skip list to not fail validation.
+However, their usage will be logged when running with assertions enabled.
+
+Please migrate usage of such attributes following these steps:
+1. Check if the attribute is used on dashboards or alerts (elasticsearch-o11y-resources). If not, rename the attribute following above conventions; otherwise continue.
+2. Duplicate the attribute using a name following above conventions.
+3. Once there's sufficient history, update alerts and dashboards to use the new attribute.
+4. Remove the old attribute from the skip list and delete all usages.
+
 ## Inspect registered metrics
 
 To inspect currently registered metrics, run ES using:

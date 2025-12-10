@@ -1421,6 +1421,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         }
 
+        if (modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BFLOAT16) {
+            throw new IllegalArgumentException("semantic_text does not support bfloat16");
+        }
+
         assert modelSettings.dimensions() != null : "Model settings should have dimensions set by now for text embedding models";
         denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
         denseVectorMapperBuilder.elementType(modelSettings.elementType());

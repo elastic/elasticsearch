@@ -14,6 +14,10 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.Before;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
+import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceAuthorizationRequest.AUTHORIZATION_PATH;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -42,5 +46,17 @@ public class ElasticInferenceServiceAuthorizationRequestTests extends ESTestCase
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), containsString("Failed to create URI for service"));
+    }
+
+    public void testCreateUri_CreatesUri() throws URISyntaxException {
+        String url = "https://inference.us-east-1.aws.svc.elastic.cloud";
+
+        var request = new ElasticInferenceServiceAuthorizationRequest(
+            url,
+            traceContext,
+            randomElasticInferenceServiceRequestMetadata(),
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
+        );
+        assertThat(request.getURI(), is(new URI(url + AUTHORIZATION_PATH)));
     }
 }

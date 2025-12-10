@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
@@ -40,8 +42,9 @@ public class Clamp extends EsqlScalarFunction implements SurrogateExpression {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
-        description = "Clamps the values of all samples to have a lower limit of min and an upper limit of max.",
-        examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") }
+        description = "Limits (or clamps) the values of all samples to have a lower limit of min and an upper limit of max.",
+        examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public Clamp(
         Source source,

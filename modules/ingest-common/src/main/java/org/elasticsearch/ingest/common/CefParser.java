@@ -51,11 +51,11 @@ import static org.elasticsearch.ingest.common.CefParser.DataType.StringType;
 import static org.elasticsearch.ingest.common.CefParser.DataType.TimestampType;
 
 final class CefParser {
-    private final boolean removeEmptyValues;
+    private final boolean ignoreEmptyValues;
     private final ZoneId timezone;
 
-    CefParser(ZoneId timezone, boolean removeEmptyValues) {
-        this.removeEmptyValues = removeEmptyValues;
+    CefParser(ZoneId timezone, boolean ignoreEmptyValues) {
+        this.ignoreEmptyValues = ignoreEmptyValues;
         this.timezone = timezone;
     }
 
@@ -415,7 +415,7 @@ final class CefParser {
 
     private void processExtensions(Map<String, String> parsedExtensions, CefEvent event) {
         // Cleanup empty values in extensions
-        if (removeEmptyValues) {
+        if (ignoreEmptyValues) {
             removeEmptyValues(parsedExtensions);
         }
         // Translate extensions to possible ECS fields

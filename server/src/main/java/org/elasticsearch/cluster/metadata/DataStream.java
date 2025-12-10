@@ -302,7 +302,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
         var failureIndices = readIndices(in);
         var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
-        backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
+        backingIndicesBuilder.setRolloverOnWrite(in.readBoolean());
         if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
@@ -1469,9 +1469,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeOptionalEnum(indexMode);
         out.writeOptionalWriteable(lifecycle);
         out.writeCollection(failureIndices.indices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(backingIndices.rolloverOnWrite);
-        }
+        out.writeBoolean(backingIndices.rolloverOnWrite);
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             out.writeOptionalWriteable(backingIndices.autoShardingEvent);
         }

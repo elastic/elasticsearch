@@ -12,7 +12,7 @@ FROM tdigest_standard_index | WHERE STARTS_WITH(instance, "hand-rolled")
 
 
 ungroupedPercentiles
-required_capability: tdigest_field_type_support_v1
+required_capability: tdigest_percentiles
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -28,7 +28,7 @@ p0:double | p50:double | p99:double | p100:double
 
 
 groupedPercentiles
-required_capability: tdigest_field_type_support_v1
+required_capability: tdigest_percentiles
 
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -47,7 +47,7 @@ instance-2       | 2.2E-4    | 6.325E-4   | 0.090286   | 2.744054
 
 
 percentileOnEmptyTDigest
-required_capability: tdigest_field_type_support_v1
+required_capability: tdigest_percentiles
 
 FROM tdigest_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -62,7 +62,7 @@ NULL
 
 
 allAggsFiltered
-required_capability: tdigest_field_type_support_v1
+required_capability: tdigest_percentiles
 
 FROM tdigest_standard_index 
  | STATS p75 = PERCENTILE(responseTime,75) WHERE instance == "instance-0"
@@ -77,7 +77,7 @@ p75:double
 
 
 allAggsGroupedFiltered
-required_capability: tdigest_field_type_support_v1
+required_capability: tdigest_percentiles
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -96,7 +96,7 @@ instance-2       | null
 
 
 allAggsGroupedEmptyGroups
-required_capability: tdigest_field_type_support_v1
+required_capability: tdigest_percentiles
 
 FROM tdigest_standard_index 
  | STATS p75 = PERCENTILE(responseTime,75) WHERE instance == "idontexist"

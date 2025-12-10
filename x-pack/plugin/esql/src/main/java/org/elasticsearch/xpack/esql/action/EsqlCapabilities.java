@@ -1590,6 +1590,8 @@ public class EsqlCapabilities {
 
         TDIGEST_FIELD_TYPE_SUPPORT_V1(T_DIGEST_ESQL_SUPPORT),
 
+        TDIGEST_PERCENTILES(T_DIGEST_ESQL_SUPPORT),
+
         /**
          * Create new block when filtering OrdinalBytesRefBlock
          */

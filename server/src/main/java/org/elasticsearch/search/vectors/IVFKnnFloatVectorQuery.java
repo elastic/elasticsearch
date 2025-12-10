@@ -98,7 +98,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         if (floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }
-        assert filterDocs instanceof ESAcceptDocs;
 
         // Check if we should apply true post-filtering
         boolean applyPostFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;

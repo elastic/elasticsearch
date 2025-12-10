@@ -202,6 +202,7 @@ public class IndexVersions {
     public static final IndexVersion GENERIC_DENSE_VECTOR_FORMAT = def(9_051_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion SKIPPER_DEFAULTS_ONLY_ON_TSDB = def(9_052_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion DISK_BBQ_LICENSE_ENFORCEMENT = def(9_053_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES = def(9_054_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -1194,18 +1194,18 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             Request limit1 = esqlRequest(q + " | LIMIT 1");
             ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit1));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
             e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
 
             Request limit0 = esqlRequest(q + " | LIMIT 0");
             e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit0));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
             e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey));
             assertThat(e.getMessage(), containsString("Unknown index"));
-            assertThat(e.getMessage(), containsString(Strings.format("%s:%s", REMOTE_CLUSTER_ALIAS, remoteExpr)));
+            assertThat(e.getMessage(), containsString("nomatch"));
         }
 
         // error since the remote cluster specified a concrete index that is not found

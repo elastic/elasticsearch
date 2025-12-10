@@ -68,7 +68,6 @@ public class CodecService implements CodecProvider {
             BEST_COMPRESSION_CODEC,
             new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
         );
-
         Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
         codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 

@@ -465,8 +465,8 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
     }
 
     private static Map<ShardId, Double> generateRandomWriteLoads(ClusterState clusterState, double p50, double p90, double p100) {
-        final var node1Shards = shardsOnNode(clusterState, "index_0");
-        final var node2Shards = shardsOnNode(clusterState, "index_1");
+        final var node1Shards = getShardsOnNode(clusterState, "index_0");
+        final var node2Shards = getShardsOnNode(clusterState, "index_1");
         assertEquals(100, node1Shards.size());
         assertEquals(100, node2Shards.size());
 
@@ -488,7 +488,7 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         return shardWriteLoads;
     }
 
-    private static List<ShardId> shardsOnNode(ClusterState clusterState, String nodeId) {
+    private static List<ShardId> getShardsOnNode(ClusterState clusterState, String nodeId) {
         return clusterState.routingTable(ProjectId.DEFAULT)
             .allShards()
             .filter(shardRouting -> nodeId.equals(shardRouting.currentNodeId()))

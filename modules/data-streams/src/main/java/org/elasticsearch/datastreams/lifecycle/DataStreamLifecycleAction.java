@@ -16,8 +16,14 @@ import org.elasticsearch.index.Index;
 
 import java.util.Set;
 
-@FunctionalInterface
 public interface DataStreamLifecycleAction {
+    enum State {
+        NOT_READY,
+        READY,
+        RUNNING,
+        COMPLETE
+    };
+
     /**
      * This takes some action on the data stream. The action is expected to be fast, or run asynchronously. It returns a set of indices
      * that ought to be ignored by subsequent actions in the current pass.
@@ -27,6 +33,14 @@ public interface DataStreamLifecycleAction {
      * @param indicesToExcludeForRemainingRun A set of indices that ought to be ignored by this action.
      */
     Set<Index> apply(
+        ProjectState projectState,
+        DataStream dataStream,
+        Set<Index> indicesToExcludeForRemainingRun,
+        Client client,
+        DataStreamLifecycleErrorStore errorStore
+    );
+
+    State getState(
         ProjectState projectState,
         DataStream dataStream,
         Set<Index> indicesToExcludeForRemainingRun,

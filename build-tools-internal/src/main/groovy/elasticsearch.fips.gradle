@@ -33,15 +33,15 @@ if (buildParams.inFipsJvm) {
 
     if (isFips140_3) {
       // FIPS 140-3 certified BouncyCastle libraries
-      bcFips = dependencies.create('org.bouncycastle:bc-fips:2.1.2')
-      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.1.22')
-      bcUtilFips = dependencies.create('org.bouncycastle:bcutil-fips:2.1.5')
+      bcFips = dependencies.create('org.bouncycastle:bc-fips:2.0.1')
+      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.0.22')
+      bcUtilFips = dependencies.create('org.bouncycastle:bcutil-fips:2.0.5')
       if (manualDebug) {
-        bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:2.1.2')
-        bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.1.22'){
+        bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:2.0.1')
+        bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.0.22'){
           exclude group: 'org.bouncycastle', module: 'bcutil-fips'  // to avoid jar hell
         }
-        bcUtilFips = dependencies.create('org.bouncycastle:bcutil-fips:2.1.5'){
+        bcUtilFips = dependencies.create('org.bouncycastle:bcutil-fips:2.0.5'){
           exclude group: 'org.bouncycastle', module: 'bc-fips'  // to avoid jar hell
         }
       }

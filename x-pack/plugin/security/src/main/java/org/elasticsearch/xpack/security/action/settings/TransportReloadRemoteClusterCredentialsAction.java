@@ -130,15 +130,20 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         Settings mergedSettings,
         RefCountingRunnable connectionRefs
     ) {
-        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings) == false
-            || false == remoteClusterService.getRegisteredRemoteClusterNames(projectId).contains(clusterAlias)) {
-            // The connection has been disabled or a credential was added or removed before a remote connection was configured.
+        if (false == remoteClusterService.getRegisteredRemoteClusterNames(projectId).contains(clusterAlias)) {
+            // A credential was added or removed before a remote connection was configured.
             // Without an existing connection, there is nothing to rebuild.
             logger.info(
                 "project [{}] no connection rebuild required for remote cluster [{}] after credentials change",
                 projectId,
                 clusterAlias
             );
+            return;
+        }
+
+        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings) == false) {
+            logger.info("project [{}] remote cluster connection [{}] not enabled after credentials change", projectId, clusterAlias);
+            remoteClusterService.remove(projectId, ProjectId.DEFAULT, clusterAlias);
             return;
         }
 

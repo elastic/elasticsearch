@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.swisshash;
+package org.elasticsearch.benchmark.swisstable;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -31,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @Warmup(iterations = 3, time = 2)
 @Measurement(iterations = 5, time = 3)
 @Fork(value = 1)
-public class SwissTablesBenchmark {
+public class LongSwissTableBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized

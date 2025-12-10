@@ -79,6 +79,15 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
 }
 
+tasks.named('splitPackagesAudit').configure {
+  // TODO: Remove these exclusions by renaming the esql-core packages
+  ignoreClasses(
+    "org.elasticsearch.xpack.esql.core.util.*",
+    "org.elasticsearch.xpack.esql.core.plugin.AbstractTransportQlAsyncGetResultsAction",
+    "org.elasticsearch.xpack.esql.core.package-info"
+  )
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }

@@ -86,21 +86,7 @@ public class PerFieldFormatSupplier {
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.threadPool = threadPool;
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
-        ExecutorService mergingExecutorService = null;
-        int maxMergingWorkers = 1;
-        if (threadPool != null && this.mapperService.getIndexSettings().isIntraMergeParallelismEnabled()) {
-            maxMergingWorkers = threadPool.info(ThreadPool.Names.MERGE).getMax();
-            if (maxMergingWorkers > 1) {
-                mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
-            }
-        }
-        this.knnVectorsFormat = new ES93HnswVectorsFormat(
-            DEFAULT_MAX_CONN,
-            DEFAULT_BEAM_WIDTH,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            maxMergingWorkers,
-            mergingExecutorService
-        );
+        this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -116,6 +102,24 @@ public class PerFieldFormatSupplier {
             // our own posting format using PFOR, used for logsdb and tsdb indices by default
             return es812PostingsFormat;
         }
+    }
+
+    private static KnnVectorsFormat getDefaultKnnVectorsFormat(final MapperService mapperService, final ThreadPool threadPool) {
+        ExecutorService mergingExecutorService = null;
+        int maxMergingWorkers = 1;
+        if (threadPool != null && mapperService != null && mapperService.getIndexSettings().isIntraMergeParallelismEnabled()) {
+            maxMergingWorkers = threadPool.info(ThreadPool.Names.MERGE).getMax();
+            if (maxMergingWorkers > 1) {
+                mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);
+            }
+        }
+        return new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            maxMergingWorkers,
+            mergingExecutorService
+        );
     }
 
     public PostingsFormat getPostingsFormatForField(String field) {

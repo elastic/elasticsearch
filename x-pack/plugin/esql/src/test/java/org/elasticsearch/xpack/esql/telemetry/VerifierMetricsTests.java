@@ -52,8 +52,6 @@ import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
 
-    private EsqlParser parser = new EsqlParser();
-
     public void testDissectQuery() {
         Counters c = esql("from employees | dissect concat(first_name, \" \", last_name) \"%{a} %{b}\"");
         assertEquals(1L, dissect(c));
@@ -816,10 +814,9 @@ public class VerifierMetricsTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "unresolved @timestamp field")
     public void testPromql() {
-        assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V2.isEnabled());
+        assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.isEnabled());
         Counters c = esql("""
-            TS metrics
-            | PROMQL step 5m (sum(salary))""");
+            PROMQL metrics step 5m (sum(salary))""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -957,7 +954,7 @@ public class VerifierMetricsTests extends ESTestCase {
         }
         IndexResolution metricsIndex = loadMapping("mapping-basic.json", "metrics", IndexMode.TIME_SERIES);
         IndexResolution employees = loadMapping("mapping-basic.json", "employees");
-        analyzer(indexResolutions(metricsIndex, employees), verifier).analyze(parser.createStatement(esql));
+        analyzer(indexResolutions(metricsIndex, employees), verifier).analyze(EsqlParser.INSTANCE.parseQuery(esql));
 
         return metrics == null ? null : metrics.stats();
     }

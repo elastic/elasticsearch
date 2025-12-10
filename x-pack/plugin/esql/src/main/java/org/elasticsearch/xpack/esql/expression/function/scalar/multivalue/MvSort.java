@@ -52,7 +52,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 
@@ -127,7 +127,11 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(field, sourceText(), FIRST);
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(
+            field,
+            sourceText(),
+            FIRST
+        );
 
         if (resolution.unresolved()) {
             return resolution;

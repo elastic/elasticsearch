@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class MMRResultDiversificationTests extends ESTestCase {
 
@@ -70,7 +71,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
 
-        var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
+        Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
         diversificationContext.setFieldVectors(
             Map.of(
@@ -89,7 +90,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
             )
         );
 
-        expectedDocIds.addAll(List.of(1, 3, 6));
+        expectedDocIds.addAll(List.of(3, 4, 6));
 
         return diversificationContext;
     }
@@ -105,7 +106,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.BYTE);
 
-        var queryVectorData = new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
+        Supplier<VectorData> queryVectorData = () -> new VectorData(new byte[] { 0x50, 0x20, 0x40, 0x40 });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.3f, 3, queryVectorData);
         diversificationContext.setFieldVectors(
             Map.of(
@@ -124,7 +125,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
             )
         );
 
-        expectedDocIds.addAll(List.of(1, 3, 6));
+        expectedDocIds.addAll(List.of(2, 3, 6));
 
         return diversificationContext;
     }
@@ -141,7 +142,7 @@ public class MMRResultDiversificationTests extends ESTestCase {
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
 
-        var queryVectorData = new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
+        Supplier<VectorData> queryVectorData = () -> new VectorData(new float[] { 0.5f, 0.2f, 0.4f, 0.4f });
         var diversificationContext = new MMRResultDiversificationContext("dense_vector_field", 0.6f, 10, queryVectorData);
         RankDoc[] emptyDocs = new RankDoc[0];
 

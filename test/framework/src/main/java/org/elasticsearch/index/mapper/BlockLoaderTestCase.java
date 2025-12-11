@@ -284,6 +284,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     public static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
-        return (boolean) fieldMapping.getOrDefault("doc_values", defaultValue);
+        Object value = fieldMapping.getOrDefault("doc_values", defaultValue);
+        if (value instanceof Boolean b) {
+            return b;
+        } else if (value instanceof Map) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("Unexpected value [" + value + "] for mapping parameter [doc_values]");
+        }
     }
 }

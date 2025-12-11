@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractStatementParserTests extends ESTestCase {
 
-    final EsqlParser parser = EsqlParser.INSTANCE;
+    protected final EsqlParser parser = EsqlParser.INSTANCE;
 
     void assertQuery(String query, LogicalPlan expected) {
         final LogicalPlan actual;

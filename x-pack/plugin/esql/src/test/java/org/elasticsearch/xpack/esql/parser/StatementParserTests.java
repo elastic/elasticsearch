@@ -669,6 +669,30 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
                     command + " <logstash-{now/M{yyyy.MM}}>::data, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures\""
                 );
+
+                assertStringAsIndexPattern("cluster:foo::data", command + " cluster:foo::data");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:foo::failures");
+
+                assertStringAsIndexPattern("cluster:foo::data", command + " \"cluster:foo::data\"");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " \"cluster:foo::failures\"");
+
+                // Wildcards
+                assertStringAsIndexPattern("cluster:*::data", command + " cluster:*::data");
+                assertStringAsIndexPattern("cluster:*::failures", command + " cluster:*::failures");
+                assertStringAsIndexPattern("*:index::data", command + " *:index::data");
+                assertStringAsIndexPattern("*:index::failures", command + " *:index::failures");
+                assertStringAsIndexPattern("*:index*::data", command + " *:index*::data");
+                assertStringAsIndexPattern("*:index*::failures", command + " *:index*::failures");
+                assertStringAsIndexPattern("*:*::data", command + " *:*::data");
+                assertStringAsIndexPattern("*:*::failures", command + " *:*::failures");
+                assertStringAsIndexPattern("cluster:*::data", command + " \"cluster:*::data\"");
+                assertStringAsIndexPattern("cluster:*::failures", command + " \"cluster:*::failures\"");
+                assertStringAsIndexPattern("*:index::data", command + " \"*:index::data\"");
+                assertStringAsIndexPattern("*:index::failures", command + " \"*:index::failures\"");
+                assertStringAsIndexPattern("*:index*::data", command + " \"*:index*::data\"");
+                assertStringAsIndexPattern("*:index*::failures", command + " \"*:index*::failures\"");
+                assertStringAsIndexPattern("*:*::data", command + " \"*:*::data\"");
+                assertStringAsIndexPattern("*:*::failures", command + " \"*:*::failures\"");
             }
         }
     }
@@ -756,15 +780,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::dat", lineNumber);
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
 
-                // Cluster name cannot be combined with selector yet.
-                int parseLineNumber = 6;
-                if (command.startsWith("TS")) {
-                    parseLineNumber = 4;
-                }
-
-                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
-                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
-
                 // Index pattern cannot be quoted if cluster string is present.
                 expectErrorWithLineNumber(
                     command,
@@ -779,46 +794,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "mismatched input '\"foo\"' expecting UNQUOTED_SOURCE"
                 );
 
+                // Index pattern cannot be clubbed together with cluster string without including selector if present
+                int parseLineNumber = 6;
+                if (command.startsWith("TS")) {
+                    parseLineNumber = 4;
+                }
+
                 expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
                 expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
-
-                expectErrorWithLineNumber(
-                    command,
-                    "\"cluster:foo::data\"",
-                    lineNumber,
-                    "Invalid index name [cluster:foo::data], Selectors are not yet supported on remote cluster patterns"
-                );
-                expectErrorWithLineNumber(
-                    command,
-                    "\"cluster:foo::failures\"",
-                    lineNumber,
-                    "Invalid index name [cluster:foo::failures], Selectors are not yet supported on remote cluster patterns"
-                );
-
-                // Wildcards
-                expectDoubleColonErrorWithLineNumber(command, "cluster:*::data", parseLineNumber + 9);
-                expectDoubleColonErrorWithLineNumber(command, "cluster:*::failures", parseLineNumber + 9);
-                expectDoubleColonErrorWithLineNumber(command, "*:index::data", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index::failures", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index*::data", parseLineNumber + 8);
-                expectDoubleColonErrorWithLineNumber(command, "*:index*::failures", parseLineNumber + 8);
-                expectDoubleColonErrorWithLineNumber(command, "*:*::data", parseLineNumber + 3);
-                expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
 
                 // Too many colons
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"index:::data\"",
                     lineNumber,
-                    "index:::data",
-                    "Selectors are not yet supported on remote cluster patterns"
+                    "index:",
+                    "must not contain ':'"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"index::::data\"",
                     lineNumber,
                     "index::::data",
-                    "Invalid usage of :: separator"
+                    "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
 
                 expectErrorWithLineNumber(
@@ -3196,7 +3194,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
         Map<String, String> commands = Map.ofEntries(
-            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', ',', 'metadata'}"),
+            Map.entry("from {}", "line 1:7: mismatched input '\"option1\"' expecting {<EOF>, '|', '::', ',', 'metadata'}"),
             Map.entry("row x = {}", "line 1:9: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("eval x = {}", "line 1:22: extraneous input '{' expecting {QUOTED_STRING, INTEGER_LITERAL"),
             Map.entry("where x > {}", "line 1:23: no viable alternative at input 'x > {'"),
@@ -3359,18 +3357,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
-            // If a stream in on a remote and the pattern is entirely quoted, we should be able to validate it.
-            // Note: invalid selector syntax is covered in a different test.
-            {
-                var fromPattern = randomIndexPattern();
-                var malformedIndexSelectorPattern = quote(
-                    (randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(INDEX_SELECTOR, without(CROSS_CLUSTER)))
-                );
-                // Format: FROM <some index>, "<cluster alias>:<some index>::<data|failures>"
-                var query = "FROM " + fromPattern + "," + malformedIndexSelectorPattern;
-                expectError(query, "Selectors are not yet supported on remote cluster patterns");
-            }
-
             // If a stream in on a remote and the cluster alias and index pattern are separately quoted, we should
             // still be able to validate it.
             // Note: invalid selector syntax is covered in a different test.
@@ -4116,7 +4102,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
 
         expectError("from test)", "line -1:-1: Invalid query [from test)]");
-        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', ',', 'metadata'");
+        expectError("from te()st", "line 1:8: mismatched input '(' expecting {<EOF>, '|', '::', ',', 'metadata'");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
         if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {

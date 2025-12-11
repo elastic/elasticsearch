@@ -3335,8 +3335,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTopSnippetsFunctionInvalidInputs() {
-        assumeTrue("Requires top snippet function", EsqlCapabilities.Cap.TOP_SNIPPETS_FUNCTION.isEnabled());
-
         // Null field allowed
         query("from test | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
 

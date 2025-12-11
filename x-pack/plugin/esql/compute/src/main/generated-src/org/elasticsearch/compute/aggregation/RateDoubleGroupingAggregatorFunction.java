@@ -793,15 +793,15 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
         final double slope = (endValue - startValue) / (endTs - startTs);
         if (isLowerBoundary) {
-            assert startTs < tbucketStart : "expected startTs < firstTsSec, got " + startTs + " < " + tbucketStart;
-            if (endValue > startValue) {
+            assert startTs <= tbucketStart : "expected startTs <= firstTsSec, got " + startTs + " <= " + tbucketStart;
+            if (endValue >= startValue) {
                 return startValue + slope * (tbucketStart - startTs);
             } else {
                 return 0;
             }
         } else {
-            assert tbucketEnd < endTs : "expected lastTsSec < endTs, got " + tbucketEnd + " < " + endTs;
-            if (endValue > startValue) {
+            assert tbucketEnd <= endTs : "expected lastTsSec <= endTs, got " + tbucketEnd + " <= " + endTs;
+            if (endValue >= startValue) {
                 return startValue + slope * (endTs - tbucketEnd);
             } else {
                 return startValue;

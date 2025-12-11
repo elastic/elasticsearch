@@ -37,6 +37,7 @@ import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -80,19 +81,14 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         BulkInferenceRunner bulkInferenceRunner = mock(BulkInferenceRunner.class);
 
         doAnswer(i -> {
-            threadPool.schedule(
-                () -> i.getArgument(1, ActionListener.class)
-                    .onResponse(
-                        List.of(
-                            new BulkInferenceResponse(new BulkInferenceRequestItem(null, new int[] { 1 }), inferenceResponse(embedding))
-                        )
-                    ),
-                TimeValue.timeValueMillis(between(1, 10)),
-                threadPool.generic()
-            );
+            threadPool.schedule(() -> {
+                i.getArgument(1, Consumer.class)
+                    .accept(new BulkInferenceResponse(new BulkInferenceRequestItem(null, new int[] { 1 }), inferenceResponse(embedding)));
+                i.getArgument(2, ActionListener.class).onResponse(null);
+            }, TimeValue.timeValueMillis(between(1, 10)), threadPool.generic());
 
             return null;
-        }).when(bulkInferenceRunner).executeBulk(any(), any());
+        }).when(bulkInferenceRunner).executeBulk(any(), any(), any());
         when(bulkInferenceRunner.threadPool()).thenReturn(threadPool);
 
         when(inferenceService.bulkInferenceRunner()).thenReturn(bulkInferenceRunner);
@@ -275,23 +271,16 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         BulkInferenceRunner bulkInferenceRunner = mock(BulkInferenceRunner.class);
 
         doAnswer(i -> {
-            threadPool.schedule(
-
-                () -> i.getArgument(1, ActionListener.class)
-                    .onResponse(
-                        List.of(
-                            new BulkInferenceResponse(
-                                new BulkInferenceRequestItem(null, new int[] { 1 }),
-                                completionResponse(completionText)
-                            )
-                        )
-                    ),
-                TimeValue.timeValueMillis(between(1, 10)),
-                threadPool.generic()
-            );
+            threadPool.schedule(() -> {
+                i.getArgument(1, Consumer.class)
+                    .accept(
+                        new BulkInferenceResponse(new BulkInferenceRequestItem(null, new int[] { 1 }), completionResponse(completionText))
+                    );
+                i.getArgument(2, ActionListener.class).onResponse(null);
+            }, TimeValue.timeValueMillis(between(1, 10)), threadPool.generic());
 
             return null;
-        }).when(bulkInferenceRunner).executeBulk(any(), any());
+        }).when(bulkInferenceRunner).executeBulk(any(), any(), any());
         when(bulkInferenceRunner.threadPool()).thenReturn(threadPool);
 
         when(inferenceService.bulkInferenceRunner()).thenReturn(bulkInferenceRunner);

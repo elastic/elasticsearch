@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestItemItera
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceResponse;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -79,7 +80,13 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             BulkInferenceRequestItemIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
 
-            bulkInferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
+            OngoingInferenceResult result = new OngoingInferenceResult(input, new ArrayList<>());
+            listener = listener.delegateResponse((l, e) -> {
+                Releasables.close(result);
+                l.onFailure(e);
+            });
+
+            bulkInferenceRunner.executeBulk(requests, result.responses()::add, listener.map(responses -> result));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -170,9 +177,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     /**
      * Represents the result of an ongoing inference operation, including the original input page
      * and the list of inference responses.
-     *
-     * @param inputPage The input page used to generate inference requests.
-     * @param responses The inference responses returned by the inference service.
      */
     public record OngoingInferenceResult(Page inputPage, List<BulkInferenceResponse> responses) implements Releasable {
 

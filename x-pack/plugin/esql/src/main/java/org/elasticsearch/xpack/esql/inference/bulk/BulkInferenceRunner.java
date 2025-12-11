@@ -14,8 +14,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -89,17 +87,6 @@ public class BulkInferenceRunner {
         this.permits = new Semaphore(maxRunningTasks);
         this.client = client;
         this.executor = client.threadPool().executor(ThreadPool.Names.SEARCH);
-    }
-
-    /**
-     * Executes multiple inference requests in bulk and collects all responses.
-     *
-     * @param requests An iterator over the inference requests to execute
-     * @param listener Called with the list of all responses in request order
-     */
-    public void executeBulk(BulkInferenceRequestItemIterator requests, ActionListener<List<BulkInferenceResponse>> listener) {
-        List<BulkInferenceResponse> responses = new ArrayList<>();
-        executeBulk(requests, responses::add, listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(responses)));
     }
 
     /**

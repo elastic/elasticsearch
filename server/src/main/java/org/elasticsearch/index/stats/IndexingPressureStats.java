@@ -85,11 +85,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         primaryDocumentRejections = in.readVLong();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            totalCoordinatingRequests = in.readVLong();
-        } else {
-            totalCoordinatingRequests = -1L;
-        }
+        totalCoordinatingRequests = in.readVLong();
 
         lowWaterMarkSplits = in.readVLong();
         highWaterMarkSplits = in.readVLong();
@@ -178,9 +174,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         out.writeVLong(primaryDocumentRejections);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeVLong(totalCoordinatingRequests);
-        }
+        out.writeVLong(totalCoordinatingRequests);
 
         out.writeVLong(lowWaterMarkSplits);
         out.writeVLong(highWaterMarkSplits);

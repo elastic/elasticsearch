@@ -334,11 +334,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.queryName = in.readOptionalString();
-        } else {
-            this.queryName = null;
-        }
+        this.queryName = in.readOptionalString();
         this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.querySupplier = null;
         this.similarity = in.readOptionalFloat();
@@ -587,9 +583,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeOptionalWriteable(queryVector);
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalString(queryName);
-        }
+        out.writeOptionalString(queryName);
         out.writeOptionalNamedWriteable(queryVectorBuilder);
         out.writeOptionalFloat(similarity);
         out.writeOptionalWriteable(innerHitBuilder);

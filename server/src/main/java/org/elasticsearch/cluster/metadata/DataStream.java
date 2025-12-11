@@ -18,7 +18,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -303,17 +302,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
         backingIndicesBuilder.setRolloverOnWrite(in.readBoolean());
         backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
-            boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
-            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
-                .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
-        } else {
-            // If we are reading from an older version that does not have these fields, just default
-            // to a reasonable value for rollover on write for the failure store
-            boolean failureStoreRolloverOnWrite = replicated == false && failureIndices.isEmpty();
-            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite);
-        }
+        // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
+        boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
+        failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
+            .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         DataStreamOptions dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
         final Settings settings;
         if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
@@ -1468,10 +1460,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeCollection(failureIndices.indices);
         out.writeBoolean(backingIndices.rolloverOnWrite);
         out.writeOptionalWriteable(backingIndices.autoShardingEvent);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(failureIndices.rolloverOnWrite);
-            out.writeOptionalWriteable(failureIndices.autoShardingEvent);
-        }
+        out.writeBoolean(failureIndices.rolloverOnWrite);
+        out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings.writeTo(out);

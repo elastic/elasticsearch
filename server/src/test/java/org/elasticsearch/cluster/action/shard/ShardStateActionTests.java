@@ -63,6 +63,8 @@ import java.util.function.LongConsumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -597,11 +599,7 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             assertThat(deserialized.timestampRange, equalTo(timestampRange));
-            if (version.before(TransportVersions.V_8_15_0)) {
-                assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
-            } else {
-                assertThat(deserialized.eventIngestedRange, equalTo(eventIngestedRange));
-            }
+            assertThat(deserialized.eventIngestedRange, equalTo(eventIngestedRange));
         }
     }
 

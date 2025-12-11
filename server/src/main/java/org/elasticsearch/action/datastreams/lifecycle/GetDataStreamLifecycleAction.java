@@ -185,9 +185,7 @@ public class GetDataStreamLifecycleAction {
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
                 out.writeOptionalWriteable(lifecycle);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                    out.writeBoolean(isInternalDataStream);
-                }
+                out.writeBoolean(isInternalDataStream);
             }
 
             @Override

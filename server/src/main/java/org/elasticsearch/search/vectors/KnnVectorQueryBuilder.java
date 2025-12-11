@@ -257,11 +257,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.k = in.readOptionalVInt();
-        } else {
-            this.k = null;
-        }
+        this.k = in.readOptionalVInt();
         this.numCands = in.readOptionalVInt();
         if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
@@ -340,9 +336,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             throw new IllegalStateException("missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalVInt(k);
-        }
+        out.writeOptionalVInt(k);
         out.writeOptionalVInt(numCands);
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);

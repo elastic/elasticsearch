@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -111,11 +110,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         } else {
             this.metadata = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.deprecated = in.readOptionalBoolean();
-        } else {
-            deprecated = null;
-        }
+        this.deprecated = in.readOptionalBoolean();
         if (in.getTransportVersion().supports(COMPONENT_TEMPLATE_TRACKING_INFO)) {
             this.createdDateMillis = in.readOptionalLong();
             this.modifiedDateMillis = in.readOptionalLong();
@@ -165,9 +160,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeBoolean(true);
             out.writeGenericMap(this.metadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalBoolean(this.deprecated);
-        }
+        out.writeOptionalBoolean(this.deprecated);
         if (out.getTransportVersion().supports(COMPONENT_TEMPLATE_TRACKING_INFO)) {
             out.writeOptionalLong(this.createdDateMillis);
             out.writeOptionalLong(this.modifiedDateMillis);

@@ -115,7 +115,7 @@ public class ReplicationSplitHelper<
         private final ProjectMetadata project;
         private final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference;
         private final Request originalRequest;
-        private final PrimaryRequestExecutor<Request,ReplicaRequest, Response> doPrimaryRequest;
+        private final PrimaryRequestExecutor<Request, ReplicaRequest, Response> doPrimaryRequest;
         private final ActionListener<Response> onCompletionListener;
 
         public SplitCoordinator(
@@ -124,7 +124,7 @@ public class ReplicationSplitHelper<
             ProjectMetadata project,
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
             Request originalRequest,
-            PrimaryRequestExecutor<Request, ReplicaRequest,Response> doPrimaryRequest,
+            PrimaryRequestExecutor<Request, ReplicaRequest, Response> doPrimaryRequest,
             ActionListener<Response> onCompletionListener
         ) {
             this.action = action;

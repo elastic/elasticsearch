@@ -10,7 +10,6 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -51,7 +50,7 @@ public record HealthInfo(
         this(
             input.readMap(DiskHealthInfo::new),
             input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new),
-            input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of(),
+            input.readMap(RepositoriesHealthInfo::new),
             input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
                 : INDETERMINATE
@@ -62,9 +61,7 @@ public record HealthInfo(
     public void writeTo(StreamOutput output) throws IOException {
         output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
         output.writeOptionalWriteable(dslHealthInfo);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
-        }
+        output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
         if (output.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
             output.writeOptionalWriteable(fileSettingsHealthInfo);
         }

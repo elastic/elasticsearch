@@ -38,8 +38,8 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     /**
      * Creates a query builder.
      *
-     * @param query    the query vector
-     * @param field    the field that was used for the kNN query
+     * @param query the query vector
+     * @param field the field that was used for the kNN query
      */
     public ExactKnnQueryBuilder(VectorData query, String field, Float vectorSimilarity) {
         this.query = query;
@@ -136,6 +136,6 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 }

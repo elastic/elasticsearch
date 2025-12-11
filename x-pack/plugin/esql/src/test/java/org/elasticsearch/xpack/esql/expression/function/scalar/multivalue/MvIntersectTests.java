@@ -23,6 +23,7 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -70,7 +71,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.BOOLEAN), () -> {
             List<Boolean> field1 = randomList(1, 10, () -> randomBoolean());
             List<Boolean> field2 = randomList(1, 10, () -> randomBoolean());
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -88,7 +89,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             List<Integer> field1 = randomList(1, 10, () -> randomIntBetween(1, 10));
             List<Integer> field2 = randomList(1, 10, () -> randomIntBetween(1, 10));
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -113,7 +114,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG), () -> {
             List<Long> field1 = randomList(1, 10, ESTestCase::randomLong);
             List<Long> field2 = randomList(1, 10, ESTestCase::randomLong);
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -132,7 +133,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(dataType, dataType), () -> {
             List<Long> field1 = randomList(1, 10, longSupplier);
             List<Long> field2 = randomList(1, 10, longSupplier);
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -151,7 +152,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             List<Double> field1 = randomList(1, 10, () -> randomDouble());
             List<Double> field2 = randomList(1, 10, () -> randomDouble());
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -172,7 +173,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                 suppliers.add(new TestCaseSupplier(List.of(lhs, rhs), () -> {
                     List<Object> field1 = randomList(1, 10, () -> randomLiteral(lhs).value());
                     List<Object> field2 = randomList(1, 10, () -> randomLiteral(rhs).value());
-                    var result = new HashSet<>(field1);
+                    var result = new LinkedHashSet<>(field1);
                     result.retainAll(field2);
 
                     return new TestCaseSupplier.TestCase(
@@ -190,7 +191,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.IP), () -> {
             List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
             List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -207,7 +208,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.VERSION), () -> {
             List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
             List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -224,7 +225,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_POINT, DataType.GEO_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -241,7 +242,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -258,7 +259,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_SHAPE, DataType.GEO_SHAPE), () -> {
             var field1 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
             var field2 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(
@@ -275,7 +276,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_SHAPE, DataType.CARTESIAN_SHAPE), () -> {
             var field1 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean(), 500))));
             var field2 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean(), 500))));
-            var result = new HashSet<>(field1);
+            var result = new LinkedHashSet<>(field1);
             result.retainAll(field2);
 
             return new TestCaseSupplier.TestCase(

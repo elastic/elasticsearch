@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -168,7 +169,7 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
-        Set<Boolean> values = new HashSet<>();
+        Set<Boolean> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
             values.add(field1.getBoolean(firstValueIndex + i));
         }
@@ -204,7 +205,7 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
-        Set<BytesRef> values = new HashSet<>();
+        Set<BytesRef> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
             BytesRef value = new BytesRef();
             values.add(field1.getBytesRef(firstValueIndex + i, value));
@@ -242,7 +243,7 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
-        Set<Integer> values = new HashSet<>();
+        Set<Integer> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
             values.add(field1.getInt(firstValueIndex + i));
         }
@@ -278,7 +279,7 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
-        Set<Long> values = new HashSet<>();
+        Set<Long> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
             values.add(field1.getLong(firstValueIndex + i));
         }
@@ -314,7 +315,7 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
-        Set<Double> values = new HashSet<>();
+        Set<Double> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
             values.add(field1.getDouble(firstValueIndex + i));
         }

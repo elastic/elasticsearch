@@ -32,7 +32,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
             "modelName",
             JinaAIEmbeddingType.FLOAT,
-            512
+            512,
+            true
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -51,7 +52,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             new JinaAIEmbeddingsTaskSettings(null, false),
             "model",
             null,
-            null
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -73,7 +75,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             new JinaAIEmbeddingsTaskSettings(null, true),
             "model",
             null,
-            null
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -101,7 +104,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             new JinaAIEmbeddingsTaskSettings(InputType.SEARCH, null),
             "model",
             null,
-            null
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -118,8 +122,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             null,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.FLOAT,
-            null
+            null,
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -127,7 +132,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"float"}"""));
+            {"input":["abc"],"model":"model"}"""));
     }
 
     public void testXContent_EmbeddingTypesBit() throws IOException {
@@ -137,7 +142,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.BIT,
-            null
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -155,7 +161,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.BINARY,
-            null
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -164,5 +171,24 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","embedding_type":"binary","task":"retrieval.query"}"""));
+    }
+
+    public void testXContent_doesNotWriteDimensions_whenDimensionsSetByUserIsFalse() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            "modelName",
+            null,
+            512,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"modelName"}"""));
     }
 }

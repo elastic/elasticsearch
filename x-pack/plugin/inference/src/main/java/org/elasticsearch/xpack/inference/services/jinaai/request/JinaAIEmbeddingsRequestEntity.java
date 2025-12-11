@@ -27,7 +27,8 @@ public record JinaAIEmbeddingsRequestEntity(
     JinaAIEmbeddingsTaskSettings taskSettings,
     @Nullable String model,
     @Nullable JinaAIEmbeddingType embeddingType,
-    Integer dimensions
+    Integer dimensions,
+    boolean dimensionsSetByUser
 ) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "retrieval.passage";
@@ -71,7 +72,7 @@ public record JinaAIEmbeddingsRequestEntity(
             builder.field(LATE_CHUNKING, taskSettings.getLateChunking() && getInputWordCount() <= MAX_WORD_COUNT_FOR_LATE_CHUNKING);
         }
 
-        if (dimensions != null) {
+        if (dimensionsSetByUser && dimensions != null) {
             builder.field(DIMENSIONS_FIELD, dimensions);
         }
 

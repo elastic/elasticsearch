@@ -55,7 +55,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "exponential_histogram", "double", "integer", "long" },
+            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" },
             description = "Expression that outputs values to average."
         ) Expression field
     ) {
@@ -75,10 +75,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == AGGREGATE_METRIC_DOUBLE || dt == EXPONENTIAL_HISTOGRAM,
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == AGGREGATE_METRIC_DOUBLE || dt == EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
-            "aggregate_metric_double, exponential_histogram or numeric except unsigned_long or counter types"
+            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
         );
     }
 
@@ -133,7 +133,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
                 new Count(s, field, filter(), window()).surrogate()
             );
         }
-        if (field.dataType() == EXPONENTIAL_HISTOGRAM) {
+        if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
             Sum valuesSum = new Sum(s, field, filter(), window(), summationMode);
             Sum totalCount = new Sum(
                 s,

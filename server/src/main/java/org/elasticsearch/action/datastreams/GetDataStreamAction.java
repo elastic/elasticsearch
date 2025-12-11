@@ -124,11 +124,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             this.includeDefaults = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.verbose = in.readBoolean();
-            } else {
-                this.verbose = false;
-            }
+            this.verbose = in.readBoolean();
         }
 
         @Override
@@ -341,9 +337,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalWriteable(timeSeries);
                 out.writeMap(indexSettingsValues);
                 out.writeBoolean(templatePreferIlmValue);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                    out.writeOptionalVLong(maximumTimestamp);
-                }
+                out.writeOptionalVLong(maximumTimestamp);
                 if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }

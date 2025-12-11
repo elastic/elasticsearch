@@ -92,6 +92,66 @@ teardown:
   - match: { result: "created" }
 
 ---
+"Allowed Params Only - Bulk with serverlessRequest Should Succeed":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        serverlessRequest: true
+        body: |
+          { "index": { "_index": "logs"} }
+          { "foo": "bar" }
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }
+
+---
+"Allowed Params Only - Bulk with operatorRequest Should Succeed":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        operatorRequest: true
+        body: |
+          { "index": { "_index": "logs"} }
+          { "foo": "bar" }
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }
+
+---
+"Allowed Params Only - Single Doc with serverlessRequest Should Succeed":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: logs
+        serverlessRequest: true
+        body: |
+          { "foo": "bar" }
+  - match: { _index: "logs" }
+  - match: { result: "created" }
+
+---
+"Allowed Params Only - Single Doc with operatorRequest Should Succeed":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: logs
+        operatorRequest: true
+        body: |
+          { "foo": "bar" }
+  - match: { _index: "logs" }
+  - match: { result: "created" }
+
+---
 "No Params - Bulk Should Succeed":
   - do:
       streams.logs_enable: { }

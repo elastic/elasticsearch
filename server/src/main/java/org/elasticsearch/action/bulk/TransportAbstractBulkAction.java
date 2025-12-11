@@ -65,16 +65,18 @@ import java.util.function.LongSupplier;
 public abstract class TransportAbstractBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final Logger logger = LogManager.getLogger(TransportAbstractBulkAction.class);
 
-    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(9) {
+    public static final Set<String> STREAMS_ALLOWED_PARAMS = new HashSet<>(11) {
         {
             add("error_trace");
             add("filter_path");
             add("id");
             add("index");
             add("op_type");
+            add("operatorRequest");
             add("pretty");
             add("refresh");
             add("require_data_stream");
+            add("serverlessRequest");
             add("timeout");
         }
     };

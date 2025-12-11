@@ -358,10 +358,14 @@ public final class FetchPhase {
             }
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();
-            if ( writer == null && bytes > 0L) {
+            if (writer == null && bytes > 0L) {
                 context.circuitBreaker().addWithoutBreaking(-bytes);
-                LOGGER.info("[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
-                    bytes, context.getSearchExecutionContext().getShardId(),  context.circuitBreaker().getUsed());
+                LOGGER.info(
+                    "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
+                    bytes,
+                    context.getSearchExecutionContext().getShardId(),
+                    context.circuitBreaker().getUsed()
+                );
 
             }
         }

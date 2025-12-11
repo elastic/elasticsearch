@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -31,7 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 /**
  * Given a set of doc ids and an index reader, sorts the docs by id, splits the sorted
@@ -162,14 +159,16 @@ abstract class FetchPhaseDocsIterator {
 
                         if (chunkBuffer.size() >= chunkSize) {
                             // Send HIT chunk
-                            pendingChunks.add(sendChunk(
-                                chunkWriter,
-                                chunkBuffer,
-                                shardIndex,
-                                i - chunkBuffer.size() + 1,
-                                docIds.length,
-                                Float.NaN  // maxScore not meaningful for individual chunks
-                            ));
+                            pendingChunks.add(
+                                sendChunk(
+                                    chunkWriter,
+                                    chunkBuffer,
+                                    shardIndex,
+                                    i - chunkBuffer.size() + 1,
+                                    docIds.length,
+                                    Float.NaN  // maxScore not meaningful for individual chunks
+                                )
+                            );
                             chunkBuffer.clear();
                         }
                     } else {
@@ -191,14 +190,10 @@ abstract class FetchPhaseDocsIterator {
             }
 
             // Send final partial chunk if streaming is enabled and buffer has remaining hits
-            if (streamingEnabled && chunkBuffer.isEmpty() == false) {;
-                pendingChunks.add(sendChunk(
-                    chunkWriter,
-                    chunkBuffer,
-                    shardIndex,
-                    docs.length - chunkBuffer.size(),
-                    docIds.length,
-                    Float.NaN)
+            if (streamingEnabled && chunkBuffer.isEmpty() == false) {
+                ;
+                pendingChunks.add(
+                    sendChunk(chunkWriter, chunkBuffer, shardIndex, docs.length - chunkBuffer.size(), docIds.length, Float.NaN)
                 );
                 chunkBuffer.clear();
             }
@@ -264,18 +259,15 @@ abstract class FetchPhaseDocsIterator {
             counter.incrementAndGet();
 
             // Send the chunk - coordinator will take ownership of the hits
-            writer.writeResponseChunk(chunk, ActionListener.wrap(
-                ack -> {
-                    // Coordinator now owns the hits, decRef to release local reference
-                    finalChunkHits.decRef();
-                    future.complete(null);
-                },
-                ex -> {
-                    // Failed to send - we still own the hits, must clean up
-                    finalChunkHits.decRef();
-                    future.completeExceptionally(ex);
-                }
-            ));
+            writer.writeResponseChunk(chunk, ActionListener.wrap(ack -> {
+                // Coordinator now owns the hits, decRef to release local reference
+                finalChunkHits.decRef();
+                future.complete(null);
+            }, ex -> {
+                // Failed to send - we still own the hits, must clean up
+                finalChunkHits.decRef();
+                future.completeExceptionally(ex);
+            }));
         } catch (Exception e) {
             future.completeExceptionally(e);
             // If chunk creation failed after SearchHits was created, clean up

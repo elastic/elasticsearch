@@ -9,6 +9,7 @@
 | date | time_duration {applies_to}`stack: preview 9.3.0` | date |
 | date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | date_nanos |
 | double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| exponential_histogram | time_duration {applies_to}`stack: preview 9.3.0` | double |
 | integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
 | ip | time_duration {applies_to}`stack: preview 9.3.0` | ip |
 | keyword | time_duration {applies_to}`stack: preview 9.3.0` | keyword |

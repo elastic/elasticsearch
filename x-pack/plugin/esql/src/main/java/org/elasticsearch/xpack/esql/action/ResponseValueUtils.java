@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -144,7 +145,7 @@ public final class ResponseValueUtils {
             case AGGREGATE_METRIC_DOUBLE -> aggregateMetricDoubleBlockToString((AggregateMetricDoubleBlock) block, offset);
             case EXPONENTIAL_HISTOGRAM -> exponentialHistogramBlockToString((ExponentialHistogramBlock) block, offset);
             case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(offset);
-            case HISTOGRAM -> ((BytesRefBlock) block).getBytesRef(offset, scratch);
+            case HISTOGRAM -> EsqlDataTypeConverter.histogramToString(((BytesRefBlock) block).getBytesRef(offset, scratch));
             case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);

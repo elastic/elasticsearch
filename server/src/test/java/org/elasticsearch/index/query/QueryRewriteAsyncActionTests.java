@@ -21,62 +21,53 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 public class QueryRewriteAsyncActionTests extends ESTestCase {
-    public void testRewrite() throws IOException, InterruptedException {
-        QueryRewriteContext ctx = new QueryRewriteContext(null, null, null);
+    static String CONSUMER_ERROR = "Mesa no tink so";
+    static String ACTION_ERROR = "it's a trap!";
 
+    public void testRewrite() throws IOException, InterruptedException {
         TestRewritable testRewritable = new TestRewritable(false, false);
 
-        assertEquals(0, testRewritable.execCounter().intValue());
-
-        TestRewritable rewritten = Rewriteable.rewrite(testRewritable, ctx);
-
-        assertEquals(testRewritable, rewritten);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        ctx.executeAsyncActions(new ActionListener<>() {
+        SetOnce<Boolean> hasRun = new SetOnce<>();
+        ActionListener<Void> listener = new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                latch.countDown();
+                hasRun.set(true);
             }
 
             @Override
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        });
+        };
 
-        latch.await();
+        TestRewritable rewritten = rewrite(testRewritable, listener);
+
+        assertTrue(hasRun.get());
 
         // we check the number of actions that were executed
         assertEquals(rewritten.numberOfAsyncActions(), testRewritable.execCounter().intValue());
         // we check that for each action, all consumers were executed
-        assertEquals(rewritten.actualAsyncResults(), rewritten.expectedAsyncResults());
+        assertEquals(rewritten.expectedAsyncResults(), rewritten.actualAsyncResults());
     }
 
     public void testRewriteWithConsumerFailure() throws IOException, InterruptedException {
         TestRewritable testRewritable = new TestRewritable(true, false);
-        checkRewriteFailure(testRewritable, "it's a trap!");
+        checkRewriteFailure(testRewritable, ACTION_ERROR);
     }
 
     public void testRewriteWithActionFailure() throws IOException, InterruptedException {
         TestRewritable testRewritable = new TestRewritable(false, true);
-        checkRewriteFailure(testRewritable, "Mesa no tink so");
+        checkRewriteFailure(testRewritable, CONSUMER_ERROR);
     }
 
     private void checkRewriteFailure(TestRewritable testRewritable, String expectedError) throws IOException, InterruptedException {
-        QueryRewriteContext ctx = new QueryRewriteContext(null, null, null);
-
-        TestRewritable rewritten = Rewriteable.rewrite(testRewritable, ctx);
-
-        assertEquals(testRewritable, rewritten);
-        CountDownLatch latch = new CountDownLatch(1);
-
         SetOnce<Exception> listenerException = new SetOnce<>();
-        ctx.executeAsyncActions(new ActionListener<>() {
+        ActionListener<Void> listener = new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 throw new AssertionError("Should not be called");
@@ -84,15 +75,35 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                latch.countDown();
                 listenerException.set(e);
             }
-        });
-
-        latch.await();
+        };
+        rewrite(testRewritable, listener);
 
         assertTrue(listenerException.get() instanceof IllegalStateException);
         assertEquals(expectedError, listenerException.get().getMessage());
+    }
+
+    private TestRewritable rewrite(TestRewritable testRewritable, ActionListener<Void> listener) throws IOException, InterruptedException {
+        QueryRewriteContext ctx = new QueryRewriteContext(null, null, null);
+        TestRewritable rewritten = Rewriteable.rewrite(testRewritable, ctx);
+        assertEquals(0, testRewritable.execCounter().intValue());
+        assertEquals(testRewritable, rewritten);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ctx.executeAsyncActions(ActionListener.wrap(r -> {
+            latch.countDown();
+            listener.onResponse(null);
+        }, e -> {
+            latch.countDown();
+            listener.onFailure(e);
+        }));
+
+        if (latch.await(1, TimeUnit.SECONDS) == false) {
+            fail("Timed out waiting for async actions");
+        }
+
+        return rewritten;
     }
 
     public static final class TestQueryRewriteAsyncAction extends QueryRewriteAsyncAction<Integer> {
@@ -102,8 +113,7 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
         private final AtomicInteger execCounter;
         private final boolean shouldFail;
 
-        public TestQueryRewriteAsyncAction(QueryRewriteContext context, Integer label, AtomicInteger execCounter, boolean shouldFail) {
-            super(context);
+        public TestQueryRewriteAsyncAction(Integer label, AtomicInteger execCounter, boolean shouldFail) {
             this.label = label;
             this.execCounter = execCounter;
             this.shouldFail = shouldFail;
@@ -116,7 +126,7 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
             // we increment the global counter of how many actions were executed
             execCounter.incrementAndGet();
             if (shouldFail) {
-                listener.onFailure(new IllegalStateException("Mesa no tink so"));
+                listener.onFailure(new IllegalStateException(CONSUMER_ERROR));
             } else {
                 listener.onResponse(label);
             }
@@ -177,13 +187,13 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
                     SetOnce<Boolean> hasRun = new SetOnce<>();
                     ctx.registerUniqueRewriteAction(
                         // we register the same action multiple times
-                        new TestQueryRewriteAsyncAction(ctx, actionLabel, execCounter, failAction && failedActionStep == actionLabel),
+                        new TestQueryRewriteAsyncAction(actionLabel, execCounter, failAction && failedActionStep == actionLabel),
                         (result) -> {
                             // a consumer is executed only once
                             hasRun.set(true);
 
                             if (failConsumer && failedActionStep == actionLabel && failedConsumerLabel == consumerLabel) {
-                                throw new IllegalStateException("it's a trap!");
+                                throw new IllegalStateException(ACTION_ERROR);
                             }
 
                             // when a consumer is executed, we add its label to the results map

@@ -82,6 +82,7 @@ public class QueryRewriteContext {
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
     private final Map<String, List<TriConsumer<RemoteClusterClient, ThreadContext, ActionListener<?>>>> remoteAsyncActions =
         new HashMap<>();
+    private final Map<QueryRewriteAsyncAction<?>, List<Consumer<?>>> uniqueRewriteActions = new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -625,8 +626,6 @@ public class QueryRewriteContext {
     public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
     }
-
-    private final Map<QueryRewriteAsyncAction<?>, List<Consumer<?>>> uniqueRewriteActions = new HashMap<>();
 
     /**
      * Registers an async action that must be executed only once before the next rewrite round.

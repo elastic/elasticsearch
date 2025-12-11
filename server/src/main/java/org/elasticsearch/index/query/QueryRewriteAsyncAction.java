@@ -25,47 +25,22 @@ import java.util.function.Consumer;
  * {@link #hashCode()} and {@link #equals(Object)},
  */
 public abstract class QueryRewriteAsyncAction<T> {
-    private final QueryRewriteContext queryRewriteContext;
-
-    public QueryRewriteAsyncAction(QueryRewriteContext queryRewriteContext) {
-        this.queryRewriteContext = queryRewriteContext;
-    }
-
     /**
      * The execute method will:
      * - Execute the action using {@link #execute(Client, ActionListener)}
      * - Pass the action result to the consumers and execute the consumers
      * - Call the final listener
      *
-     * @param client A rest client that can be used during execution.
+     * @param client An internal client that can be used during execution.
      * @param listener The listener that will be called after the action and consumers have been executed.
      * @param consumers A list of consumer that expect the result of the action.
      */
     @SuppressWarnings("unchecked")
     public void execute(Client client, ActionListener<?> listener, List<Consumer<?>> consumers) {
-        ActionListener<T> actionListener = new ActionListener<T>() {
-            @Override
-            public void onResponse(T result) {
-                try {
-                    consumers.forEach(consumer -> ((Consumer<T>) consumer).accept(result));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                listener.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
-
-        execute(client, actionListener);
-    }
-
-    protected QueryRewriteContext getQueryRewriteContext() {
-        return queryRewriteContext;
+        execute(client, listener.delegateFailureAndWrap((l, result) -> {
+            consumers.forEach(consumer -> ((Consumer<T>) consumer).accept(result));
+            l.onResponse(null);
+        }));
     }
 
     /**

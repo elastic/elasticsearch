@@ -277,31 +277,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
 
         queryRewriteContext.registerUniqueRewriteAction(
-            new SparseInferenceRewriteAction(queryRewriteContext, inferenceId, query),
+            new SparseInferenceRewriteAction(inferenceId, query),
             inferenceResponse -> {
-                List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
-                if (inferenceResults.isEmpty()) {
-                    throw new IllegalStateException("inference response contain no results");
-                }
-                if (inferenceResults.size() > 1) {
-                    throw new IllegalStateException("inference response should contain only one result");
-                }
-
-                if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
-                    textExpansionResultsSupplier.set(textExpansionResults);
-                } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
-                    throw new IllegalStateException(warning.getWarning());
-                } else {
-                    throw new IllegalArgumentException(
-                        "expected a result of type ["
-                            + TextExpansionResults.NAME
-                            + "] received ["
-                            + inferenceResults.get(0).getWriteableName()
-                            + "]. Is ["
-                            + inferenceId
-                            + "] a compatible model?"
-                    );
-                }
+                textExpansionResultsSupplier.set((TextExpansionResults) inferenceResponse.getInferenceResults().getFirst());
             }
         );
 
@@ -313,14 +291,13 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         private final String inferenceId;
         private final String query;
 
-        SparseInferenceRewriteAction(QueryRewriteContext queryRewriteContext, String inferenceId, String query) {
-            super(queryRewriteContext);
+        SparseInferenceRewriteAction(String inferenceId, String query) {
             this.inferenceId = inferenceId;
             this.query = query;
         }
 
         @Override
-        protected void execute(Client client, ActionListener<InferModelAction.Response> listener) {
+        protected void execute(Client client, ActionListener<InferModelAction.Response> responseListener) {
             // TODO: Move this class to `server` and update to use InferenceAction.Request
             CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
                 inferenceId,
@@ -333,7 +310,40 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             inferRequest.setHighPriority(true);
             inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, CoordinatedInferenceAction.INSTANCE, inferRequest, listener);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                CoordinatedInferenceAction.INSTANCE,
+                inferRequest,
+                responseListener.delegateFailureAndWrap((listener, inferenceResponse) -> {
+                    List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
+                    if (inferenceResults.isEmpty()) {
+                        listener.onFailure(new IllegalStateException("inference response contain no results"));
+                        return;
+                    }
+                    if (inferenceResults.size() > 1) {
+                        listener.onFailure(new IllegalStateException("inference response should contain only one result"));
+                        return;
+                    }
+
+                    if (inferenceResults.getFirst() instanceof TextExpansionResults) {
+                        listener.onResponse(inferenceResponse);
+                    } else if (inferenceResults.getFirst() instanceof WarningInferenceResults warning) {
+                        listener.onFailure(new IllegalStateException(warning.getWarning()));
+                    } else {
+                        listener.onFailure(
+                            new IllegalArgumentException(
+                                "expected a result of type ["
+                                    + TextExpansionResults.NAME
+                                    + "] received ["
+                                    + inferenceResults.getFirst().getWriteableName()
+                                    + "]. Is ["
+                                    + inferenceId
+                                    + "] a compatible model?"
+                            )
+                        );
+                    }
+            }));
         }
 
         @Override

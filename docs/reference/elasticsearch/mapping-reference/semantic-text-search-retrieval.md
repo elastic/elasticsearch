@@ -1,5 +1,5 @@
 ---
-navigation_title: "Search and retrieval"
+navigation_title: "Search and retrieve"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
 applies_to:
@@ -7,7 +7,7 @@ applies_to:
   serverless: ga
 ---
 
-# Search and retrieval guides for the `semantic_text` field type [set-up-configuration-semantic-text]
+# Search and retrieve `semantic_text` fields [set-up-configuration-semantic-text]
 
 This page provides instructions for searching and retrieving data from `semantic_text` fields. Learn how to query `semantic_text` fields, retrieve indexed chunks, retrieve field embeddings, and highlight the most relevant fragments from search results.
 

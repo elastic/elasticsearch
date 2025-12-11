@@ -1,5 +1,5 @@
 ---
-navigation_title: "Setup and configuration"
+navigation_title: "Set up and configure"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
 applies_to:
@@ -7,7 +7,7 @@ applies_to:
   serverless: ga
 ---
 
-# Setup and configuration guides for the `semantic_text` field type [set-up-configuration-semantic-text]
+# Set up and configure `semantic_text` fields [set-up-configuration-semantic-text]
 
 This page provides instructions for setting up and configuring `semantic_text` fields. Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
 
@@ -27,15 +27,17 @@ If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML
 
 ### Use default and preconfigured endpoints [default-and-preconfigured-endpoints]
 
+This section shows you how to set up `semantic_text` with different default and preconfigured endpoints.
+
 :::::::{tab-set}
 
-::::::{tab-item} Default ELSER on EIS endpoint on {{serverless-short}}
+::::::{tab-item} Default ELSER on EIS on {{serverless-short}}
 
 ```{applies_to}
 serverless: ga
 ```
 
-If you want to use the default `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
+To use the default `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001
@@ -56,7 +58,7 @@ If you don't specify an {{infer}} endpoint, the `inference_id` field defaults to
 
 ::::::
 
-::::::{tab-item} Preconfigured ELSER on EIS endpoint in Cloud
+::::::{tab-item} Preconfigured ELSER on EIS in Cloud
 
 ```{applies_to}
 stack: ga 9.2
@@ -64,7 +66,7 @@ deployment:
   self: unavailable
 ```
 
-If you want to use the preconfigured `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
+To use the preconfigured `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001
@@ -85,9 +87,9 @@ If you don't specify an {{infer}} endpoint, the `inference_id` field defaults to
 
 ::::::
 
-::::::{tab-item} Default ELSER endpoint
+::::::{tab-item} Default ELSER
 
-If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
+If you use the default `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
 
 ```console
 PUT my-index-000001

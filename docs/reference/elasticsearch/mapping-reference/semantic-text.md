@@ -58,10 +58,10 @@ The [Reference](./semantic-text-reference.md) section provides technical referen
 
 The [How-to guides](./semantic-text-how-tos.md) section organizes procedure descriptions and examples into the following guides:
 
-- [Setup and configuration](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
+- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
 
-- [Ingestion](./semantic-text-ingestions.md): Learn how to index pre-chunked content, use `copy_to` and multi-fields to collect values from multiple fields, and perform updates and partial updates to optimize ingestion costs.
+- [Ingest data with `semantic_text` fields](./semantic-text-ingestions.md): Learn how to index pre-chunked content, use `copy_to` and multi-fields to collect values from multiple fields, and perform updates and partial updates to optimize ingestion costs.
 
-- [Search and retrieval](./semantic-text-search-retrieval.md): Learn how to query `semantic_text` fields, retrieve indexed chunks, return field embeddings, and highlight the most relevant fragments from search results.
+- [Search and retrieve `semantic_text` fields](./semantic-text-search-retrieval.md): Learn how to query `semantic_text` fields, retrieve indexed chunks, return field embeddings, and highlight the most relevant fragments from search results.
 
 

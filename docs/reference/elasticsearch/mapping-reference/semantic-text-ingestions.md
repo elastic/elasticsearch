@@ -1,5 +1,5 @@
 ---
-navigation_title: "Ingestion"
+navigation_title: "Ingest data"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
 applies_to:
@@ -7,7 +7,7 @@ applies_to:
   serverless: ga
 ---
 
-# Ingestion guides for the `semantic_text` field type [set-up-configuration-semantic-text]
+# Ingest data with `semantic_text` fields [set-up-configuration-semantic-text]
 
 This page provides instructions for ingesting data into `semantic_text` fields. Learn how to index pre-chunked content, use `copy_to` and multi-fields to collect values from multiple fields, and perform updates and partial updates to optimize ingestion costs.
 

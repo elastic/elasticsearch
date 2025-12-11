@@ -13,7 +13,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponseHandler;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockCompletionResponseListener;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
 
 import java.util.function.Supplier;
 
@@ -38,7 +38,7 @@ public class AmazonBedrockCompletionExecutor extends AmazonBedrockExecutor {
             var publisher = completionRequest.executeStreamCompletionRequest(awsBedrockClient);
             inferenceResultsListener.onResponse(new StreamingChatCompletionResults(publisher));
         } else {
-            var completionResponseListener = new AmazonBedrockCompletionResponseListener(
+            var completionResponseListener = new AmazonBedrockChatCompletionResponseListener(
                 completionRequest,
                 responseHandler,
                 inferenceResultsListener

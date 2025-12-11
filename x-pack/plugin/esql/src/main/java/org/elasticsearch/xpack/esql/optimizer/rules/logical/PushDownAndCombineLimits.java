@@ -103,7 +103,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         var lowerLimitValue = (int) lower.limit().fold(ctx);
         // We want to preserve the duplicated() value of the smaller limit.
         if (lowerLimitValue < upperLimitValue) {
-            return lower.withLocal(lower.local());
+            return lower;
         } else if (lowerLimitValue == upperLimitValue) {
             // If any of them is local, we want the local limit
             return lower.local() ? lower : lower.withLocal(upper.local());

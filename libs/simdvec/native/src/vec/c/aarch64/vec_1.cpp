@@ -211,7 +211,7 @@ EXPORT void vec_dot7u_bulk_offsets(
     dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
-static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {
+static inline int32_t sqr7u_inner(const int8_t *a, const int8_t *b, const int32_t dims) {
     int32x4_t acc1 = vdupq_n_s32(0);
     int32x4_t acc2 = vdupq_n_s32(0);
     int32x4_t acc3 = vdupq_n_s32(0);
@@ -236,7 +236,7 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, const int32_t dims) {
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_sqr7u(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqr7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > SQR7U_STRIDE_BYTES_LEN) {
@@ -260,10 +260,9 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    size_t blk = dims & ~15;
+    size_t blk = dims & ~(SQR7U_STRIDE_BYTES_LEN - 1);
     size_t c = 0;
 
-    // Tail-handling: remaining 0..3 vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = (f32_t)vec_sqr7u(a0, b, dims);
@@ -271,7 +270,7 @@ static inline void sqr7u_inner_bulk(
 }
 
 EXPORT void vec_sqr7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqr7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+    sqr7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqr7u_bulk_offsets(
@@ -282,7 +281,7 @@ EXPORT void vec_sqr7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqr7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
+    sqr7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 // --- single precision floats

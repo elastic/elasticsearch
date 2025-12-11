@@ -225,7 +225,7 @@ inline __m512i sqr8(__m512i acc, const int8_t* p1, const int8_t* p2) {
     return _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
 }
 
-static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, const int32_t dims) {
+static inline int32_t sqr7u_inner_avx512(const int8_t *a, const int8_t *b, const int32_t dims) {
     constexpr int stride8 = 8 * STRIDE_BYTES_LEN;
     constexpr int stride4 = 4 * STRIDE_BYTES_LEN;
     const int8_t* p1 = a;
@@ -278,7 +278,7 @@ static inline int32_t sqr7u_inner_avx512(int8_t *a, int8_t *b, const int32_t dim
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc0, acc4));
 }
 
-EXPORT int32_t vec_sqr7u_2(int8_t* a, int8_t* b, const int32_t dims) {
+EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > STRIDE_BYTES_LEN) {
@@ -328,7 +328,7 @@ static inline void sqr7u_inner_bulk(
 }
 
 EXPORT void vec_sqr7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqr7u_inner_bulk<identity>(a, b, dims, dims, NULL, count, results);
+    sqr7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqrt7u_bulk_offsets_2(
@@ -339,7 +339,7 @@ EXPORT void vec_sqrt7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqr7u_inner_bulk<index>(a, b, dims, pitch, offsets, count, results);
+    sqr7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 // --- single precision floats

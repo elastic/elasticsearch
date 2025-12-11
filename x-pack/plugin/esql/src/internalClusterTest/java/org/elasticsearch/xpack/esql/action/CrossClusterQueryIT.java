@@ -149,19 +149,16 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             // no failure since concrete index matches, so wildcard matching is lenient
             String q = "FROM nomatch*," + localIndex;
             try (EsqlQueryResponse resp = runQuery(q, false)) {
-                // we are only testing that this does not throw an Exception, so the asserts below are minimal
+                assertThat(resp.columns().size(), greaterThanOrEqualTo(1));
                 assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertThat(executionInfo.isCrossClusterSearch(), is(false));
+                assertThat(resp.getExecutionInfo().isCrossClusterSearch(), is(false));
             }
 
             String limit0 = q + " | LIMIT 0";
             try (EsqlQueryResponse resp = runQuery(limit0, false)) {
-                // we are only testing that this does not throw an Exception, so the asserts below are minimal
                 assertThat(resp.columns().size(), greaterThanOrEqualTo(1));
                 assertThat(getValuesList(resp).size(), equalTo(0));
-                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                assertThat(executionInfo.isCrossClusterSearch(), is(false));
+                assertThat(resp.getExecutionInfo().isCrossClusterSearch(), is(false));
             }
         }
         {
@@ -171,8 +168,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         }
         {
             String q = "FROM nomatch*";
-            String expectedError = "Unknown index [nomatch*]";
-            expectVerificationExceptionForQuery(q, expectedError, false);
+            try (var response = runQuery(q, false)) {
+                assertThat(response.columns().size(), equalTo(1));
+                assertThat(getValuesList(response).size(), equalTo(0));
+                assertThat(response.getExecutionInfo().isCrossClusterSearch(), is(false));
+            }
         }
     }
 
@@ -361,41 +361,37 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             }
         }
 
-        // an error is thrown if there is a concrete index that does not match
-        {
-            String q = "FROM cluster-a:nomatch";
-            String expectedError = "Unknown index [cluster-a:nomatch]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+        // an error is thrown and skipped by remote if there is a concrete index that does not match
+        try (var r = runQuery("FROM cluster-a:nomatch", requestIncludeMeta)) {
+            assertThat(r.isPartial(), equalTo(true));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
         }
 
-        // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
-        {
-            String q = "FROM cluster-a:nomatch*";
-            String expectedError = "Unknown index [cluster-a:nomatch*]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+        // no error is thrown if there are no matching indices at all
+        try (var r = runQuery("FROM cluster-a:nomatch*", requestIncludeMeta)) {
+            assertThat(r.isPartial(), equalTo(false));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
 
-        // an error is thrown if there is a concrete index that does not match
-        {
-            String q = "FROM nomatch*,cluster-a:nomatch";
-            String expectedError = "Unknown index [nomatch*,cluster-a:nomatch]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+        // an error is thrown and skipped if there is a concrete index that does not match
+        try (var r = runQuery("FROM nomatch*,cluster-a:nomatch", requestIncludeMeta)) {
+            assertThat(r.isPartial(), equalTo(true));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
         }
 
-        // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
-        {
-            String q = "FROM nomatch*,cluster-a:nomatch*";
-            String expectedError = "Unknown index [nomatch*,cluster-a:nomatch*]";
-            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
+        // no error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
+        try (var r = runQuery("FROM nomatch*,cluster-a:nomatch*", requestIncludeMeta)) {
+            assertThat(r.isPartial(), equalTo(false));
+            assertThat(r.getExecutionInfo().getCluster("cluster-a").getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch";
-            String expectedError = "Unknown index [nomatch,cluster-a:nomatch]";
+            String expectedError = "Unknown index [nomatch]";// only local errors are thrown
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch*";
-            String expectedError = "Unknown index [nomatch,cluster-a:nomatch*]";
+            String expectedError = "Unknown index [nomatch]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 

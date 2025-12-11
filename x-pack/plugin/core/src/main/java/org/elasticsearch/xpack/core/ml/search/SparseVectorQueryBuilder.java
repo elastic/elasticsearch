@@ -276,12 +276,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
 
-        queryRewriteContext.registerUniqueAsyncAction(
-            new SparseInferenceRewriteAction(inferenceId, query),
-            inferenceResponse -> {
-                textExpansionResultsSupplier.set((TextExpansionResults) inferenceResponse.getInferenceResults().getFirst());
-            }
-        );
+        queryRewriteContext.registerUniqueAsyncAction(new SparseInferenceRewriteAction(inferenceId, query), inferenceResponse -> {
+            textExpansionResultsSupplier.set((TextExpansionResults) inferenceResponse.getInferenceResults().getFirst());
+        });
 
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
     }
@@ -343,7 +340,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                             )
                         );
                     }
-            }));
+                })
+            );
         }
 
         @Override

@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedTriConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -83,8 +83,9 @@ public class ReplicationSplitHelper<
         ProjectMetadata project,
         TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
         Request primaryRequest,
-        CheckedBiConsumer<
+        CheckedTriConsumer<
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
+            Request,
             ActionListener<Response>,
             Exception> executePrimaryRequest,
         ActionListener<Response> onCompletionListener
@@ -107,8 +108,9 @@ public class ReplicationSplitHelper<
         private final ProjectMetadata project;
         private final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference;
         private final Request originalRequest;
-        private final CheckedBiConsumer<
+        private final CheckedTriConsumer<
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
+            Request,
             ActionListener<Response>,
             Exception> doPrimaryRequest;
         private final ActionListener<Response> onCompletionListener;
@@ -119,8 +121,9 @@ public class ReplicationSplitHelper<
             ProjectMetadata project,
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
             Request originalRequest,
-            CheckedBiConsumer<
+            CheckedTriConsumer<
                 TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
+                Request,
                 ActionListener<Response>,
                 Exception> doPrimaryRequest,
             ActionListener<Response> onCompletionListener
@@ -147,7 +150,7 @@ public class ReplicationSplitHelper<
                 // If the request is for source, same behavior as before
                 if (splitRequests.containsKey(originalRequest.shardId())) {
                     TransportReplicationAction.setPhase(task, "primary");
-                    doPrimaryRequest.accept(primaryShardReference, onCompletionListener);
+                    doPrimaryRequest.accept(primaryShardReference, originalRequest, onCompletionListener);
                 } else {
                     // If the request is for target, forward request to target.
                     primaryShardReference.close(); // release shard operation lock as soon as possible
@@ -210,7 +213,7 @@ public class ReplicationSplitHelper<
                     }
                 };
                 if (splitRequest.getKey().equals(originalRequest.shardId())) {
-                    doPrimaryRequest.accept(primaryShardReference, listener);
+                    doPrimaryRequest.accept(primaryShardReference, splitRequest.getValue(), listener);
                 } else {
                     delegateToTarget(splitRequest.getKey(), splitRequest.getValue(), clusterService::state, project, listener);
                 }

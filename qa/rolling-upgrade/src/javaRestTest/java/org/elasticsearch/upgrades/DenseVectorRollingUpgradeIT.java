@@ -29,7 +29,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
-public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
+public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static String generateBulkData(int upgradedNodes, int dimensions) {
         StringBuilder sb = new StringBuilder();
@@ -54,7 +54,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
 
     private final int upgradedNodes;
 
-    public DenseVectorMappingUpdateIT(@Name("upgradedNodes") int upgradedNodes) {
+    public DenseVectorRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
         this.upgradedNodes = upgradedNodes;
     }
@@ -148,7 +148,6 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
         new Index(true, "int4_flat", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO),
         new Index(true, "bbq_hnsw", FLOAT_ELEMENT_TYPES, SUPPORTS_DIRECT_IO),
         new Index(true, "bbq_flat", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO)
-        // new Index(true, "bbq_disk", FLOAT_ELEMENT_TYPES, NO_DIRECT_IO)
     );
 
     /**
@@ -228,9 +227,6 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
     }
 
     private static OptionalInt getDimensions(String type, ElementType elementType, boolean directIO) {
-        if (type != null && type.equals("bbq_disk") && oldClusterHasFeature(MapperFeatures.BBQ_DISK_SUPPORT) == false) {
-            return OptionalInt.empty();
-        }
         if (oldClusterHasFeature(MapperFeatures.GENERIC_VECTOR_FORMAT) == false && (directIO || elementType == ElementType.BFLOAT16)) {
             return OptionalInt.empty();
         }

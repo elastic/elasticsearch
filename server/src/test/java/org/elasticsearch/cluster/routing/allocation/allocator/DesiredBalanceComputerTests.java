@@ -1442,7 +1442,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should not report long computation too early",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [*] and [*] iterations"
+                "* still not converged after *"
             )
         );
 
@@ -1454,7 +1454,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
                 """
-                    Desired balance computation for [*] is still not converged after [10s] and [1000] iterations this round, \
+                    Desired balance computation for [*] is still not converged after [10s] and [1000] iterations in a single round, \
                     last convergence was [1.1m] ago"""
             )
         );
@@ -1467,7 +1467,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
                 """
-                    Desired balance computation for [*] is still not converged after [1m] and [60] iterations this round, \
+                    Desired balance computation for [*] is still not converged after [1m] and [60] iterations in a single round, \
                     last convergence was [2m] ago"""
             )
         );
@@ -1584,24 +1584,24 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         Function<LogExpectationData, MockLog.SeenEventExpectation> getLogExpectation = data -> {
             final var message = "Desired balance computation for [%d] "
                 + (data.isConverged ? "" : "is still not ")
-                + "converged after [%s] and [%d] iterations this round, ";
+                + "converged after [%s] and [%d] iterations ";
             return new MockLog.SeenEventExpectation(
                 "expected a " + (data.isConverged ? "converged" : "not converged") + " log message",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
                 (data.totalComputeCalls > 1
                     ? Strings.format(
-                        message + "resumed computation [%s] ago with [%d] iterations over [%d] rounds since the last convergence [%s] ago",
+                        message + "in [%d] rounds, [%d] iterations this past round since [%s], last convergence was [%s] ago",
                         indexSequence.get(),
-                        data.currentDuration,
-                        data.currentIterations,
                         data.timeSinceRecompute,
                         data.totalIterations,
                         data.totalComputeCalls,
+                        data.currentIterations,
+                        data.currentDuration,
                         data.timeSinceConverged
                     )
                     : Strings.format(
-                        message + "last convergence was [%s] ago",
+                        message + "in a single round, last convergence was [%s] ago",
                         indexSequence.get(),
                         data.currentDuration,
                         data.currentIterations,

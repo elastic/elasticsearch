@@ -38,8 +38,8 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
     /**
      * Creates a query builder.
      *
-     * @param query    the query vector
-     * @param field    the field that was used for the kNN query
+     * @param query the query vector
+     * @param field the field that was used for the kNN query
      */
     public ExactKnnQueryBuilder(VectorData query, String field, Float vectorSimilarity) {
         this.query = query;
@@ -55,11 +55,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
             this.query = VectorData.fromFloats(in.readFloatArray());
         }
         this.field = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.vectorSimilarity = in.readOptionalFloat();
     }
 
     String getField() {
@@ -87,9 +83,7 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
             out.writeFloatArray(query.asFloatVector());
         }
         out.writeString(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        out.writeOptionalFloat(vectorSimilarity);
     }
 
     @Override
@@ -136,6 +130,6 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 }

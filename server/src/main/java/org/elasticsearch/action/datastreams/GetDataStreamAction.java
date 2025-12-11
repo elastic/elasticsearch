@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
@@ -124,16 +123,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                this.includeDefaults = in.readBoolean();
-            } else {
-                this.includeDefaults = false;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.verbose = in.readBoolean();
-            } else {
-                this.verbose = false;
-            }
+            this.includeDefaults = in.readBoolean();
+            this.verbose = in.readBoolean();
         }
 
         @Override
@@ -344,13 +335,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeOptionalWriteable(timeSeries);
-                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-                    out.writeMap(indexSettingsValues);
-                    out.writeBoolean(templatePreferIlmValue);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                    out.writeOptionalVLong(maximumTimestamp);
-                }
+                out.writeMap(indexSettingsValues);
+                out.writeBoolean(templatePreferIlmValue);
+                out.writeOptionalVLong(maximumTimestamp);
                 if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
                     out.writeOptionalString(indexMode);
                 }
@@ -661,9 +648,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeOptionalWriteable(rolloverConfiguration);
-            }
+            out.writeOptionalWriteable(rolloverConfiguration);
             // A version 9.x cluster will never read this, so we only need to include the patch version here.
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_DEFAULT_RETENTION_PATCH)) {
                 out.writeOptionalTimeValue(dataGlobalRetention == null ? null : dataGlobalRetention.defaultRetention());

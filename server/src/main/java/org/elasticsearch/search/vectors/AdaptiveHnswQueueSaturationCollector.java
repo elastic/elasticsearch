@@ -16,10 +16,10 @@ import org.apache.lucene.search.KnnCollector;
  * A {@link KnnCollector.Decorator} extending {@link HnswQueueSaturationCollector}
  * that adaptively early-exits HNSW search using an online-estimated discovery rate,
  * rolling mean/variance, and adaptive patience threshold.
- * It tracks smoothed discovery rate (how many new neighbors are collected per step),
+ * It tracks smoothed discovery rate (how many new neighbors are collected per candidate),
  * maintains a rolling mean and variance of the rate (using Welford's algorithm).
  * Those are used to define an adaptive saturation threshold = mean + looseness * stddev
- * and an adaptive patience = patience-scaling / (1 + stddev).
+ * and adaptive patience = patience-scaling / (1 + stddev).
  * Adaptive patience scales inversely with volatility (stddev) and looseness.
  * Patience-scaling defines patience order of magnitude.
  * Saturation happens when the discovery rate is lower than the adaptive saturation threshold.
@@ -27,8 +27,8 @@ import org.apache.lucene.search.KnnCollector;
  */
 public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCollector {
 
-    private static final float DEFAULT_DISCOVERY_RATE_SMOOTHING = 0.1f;
-    private static final float DEFAULT_THRESHOLD_LOOSENESS = 0.1f;
+    private static final float DEFAULT_DISCOVERY_RATE_SMOOTHING = 0.9f;
+    private static final float DEFAULT_THRESHOLD_LOOSENESS = 0.01f;
     private static final float DEFAULT_PATIENCE_SCALING = 10.0f;
 
     private final float discoveryRateSmoothing;
@@ -81,23 +81,21 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
         return collected;
     }
 
+    @Override
     public void nextCandidate() {
         // rate of newly discovered neighbors for the current candidate
-        float discoveryRate = (float) ((currentQueueSize - previousQueueSize) / (1e-9 + steps));
+        float discoveryRate = (float) ((currentQueueSize - previousQueueSize) / (1e-9 + steps * k()));
         float rate = Math.max(0, discoveryRate);
 
         // exponentially smoothed discovery rate
         smoothedDiscoveryRate = discoveryRateSmoothing * rate + (1 - discoveryRateSmoothing) * smoothedDiscoveryRate;
 
-        // rolling mean + variance
-        samples++;
-
         // update rolling mean and variance using Welford's algorithm
+        samples++;
         float deltaMean = smoothedDiscoveryRate - mean;
         mean += deltaMean / samples;
         m2 += deltaMean * (smoothedDiscoveryRate - mean);
-
-        double variance = (samples > 1) ? (m2 / (samples - 1)) : 0.0;
+        double variance = samples > 1 ? m2 / (samples - 1) : 0.0;
         double stddev = Math.sqrt(variance);
 
         // update adaptive threshold and patience

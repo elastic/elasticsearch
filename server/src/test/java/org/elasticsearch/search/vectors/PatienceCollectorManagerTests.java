@@ -20,12 +20,8 @@ public class PatienceCollectorManagerTests extends ESTestCase {
 
     public void testEarlyTermination() throws IOException {
         int k = randomIntBetween(1, 10);
-        int patience = randomIntBetween(1, 2);
-        double saturationThreshold = randomDoubleBetween(0.01, 0.02, true);
         PatienceCollectorManager patienceCollectorManager = new PatienceCollectorManager(
-            new TopKnnCollectorManager(k, null),
-            patience,
-            saturationThreshold
+            new TopKnnCollectorManager(k, null)
         );
         HnswQueueSaturationCollector knnCollector = (HnswQueueSaturationCollector) patienceCollectorManager.newCollector(
             randomIntBetween(100, 1000),

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -27,28 +26,21 @@ import java.io.IOException;
  * tested for termination.
  */
 class PatienceCollectorManager implements KnnCollectorManager {
-    private static final double DEFAULT_SATURATION_THRESHOLD = 0.995;
 
     private final KnnCollectorManager knnCollectorManager;
-    private final int patience;
-    private final double saturationThreshold;
 
-    PatienceCollectorManager(KnnCollectorManager knnCollectorManager, int patience, double saturationThreshold) {
+    PatienceCollectorManager(KnnCollectorManager knnCollectorManager) {
         this.knnCollectorManager = knnCollectorManager;
-        this.patience = patience;
-        this.saturationThreshold = saturationThreshold;
     }
 
     static KnnCollectorManager wrap(KnnCollectorManager knnCollectorManager, int k) {
-        return new PatienceCollectorManager(knnCollectorManager, Math.max(7, (int) (k * 0.3)), DEFAULT_SATURATION_THRESHOLD);
+        return new PatienceCollectorManager(knnCollectorManager);
     }
 
     @Override
     public KnnCollector newCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx) throws IOException {
-        return new HnswQueueSaturationCollector(
-            knnCollectorManager.newCollector(visitLimit, searchStrategy, ctx),
-            saturationThreshold,
-            patience
+        return new AdaptiveHnswQueueSaturationCollector(
+            knnCollectorManager.newCollector(visitLimit, searchStrategy, ctx)
         );
     }
 

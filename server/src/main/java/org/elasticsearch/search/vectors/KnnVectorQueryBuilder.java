@@ -262,11 +262,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.k = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.numCands = in.readOptionalVInt();
-        } else {
-            this.numCands = in.readVInt();
-        }
+        this.numCands = in.readOptionalVInt();
         if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
@@ -355,21 +351,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(k);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalVInt(numCands);
-        } else {
-            if (numCands == null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + NUM_CANDS_FIELD.getPreferredName()
-                        + "] field was mandatory in previous releases "
-                        + "and is required to be non-null by some nodes. "
-                        + "Please make sure to provide the parameter as part of the request."
-                );
-            } else {
-                out.writeVInt(numCands);
-            }
-        }
+        out.writeOptionalVInt(numCands);
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }

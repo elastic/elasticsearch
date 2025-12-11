@@ -120,7 +120,11 @@ public class IpLookupEvaluator implements ColumnExtractOperator.Evaluator {
                                 brbb.appendBytesRef(EsqlDataTypeConverter.stringToGeo(gp.toWKT()));
                             } else {
                                 throw new EsqlIllegalArgumentException(
-                                    "Unsupported value type [" + value.getClass().getName() + "] for an output field of type [" + dataType + "]"
+                                    "Unsupported value type ["
+                                        + value.getClass().getName()
+                                        + "] for an output field of type ["
+                                        + dataType
+                                        + "]"
                                 );
                             }
                         } else {

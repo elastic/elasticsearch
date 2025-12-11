@@ -39,9 +39,7 @@ class PatienceCollectorManager implements KnnCollectorManager {
 
     @Override
     public KnnCollector newCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx) throws IOException {
-        return new AdaptiveHnswQueueSaturationCollector(
-            knnCollectorManager.newCollector(visitLimit, searchStrategy, ctx)
-        );
+        return new AdaptiveHnswQueueSaturationCollector(knnCollectorManager.newCollector(visitLimit, searchStrategy, ctx));
     }
 
     @Override

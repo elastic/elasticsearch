@@ -36,10 +36,6 @@ public class L1NormSimilarityTests extends AbstractVectorSimilarityFunctionTestC
         return similarityParameters(L1Norm.class.getSimpleName(), L1Norm.SIMILARITY_FUNCTION);
     }
 
-    protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION;
-    }
-
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new L1Norm(source, args.get(0), args.get(1));

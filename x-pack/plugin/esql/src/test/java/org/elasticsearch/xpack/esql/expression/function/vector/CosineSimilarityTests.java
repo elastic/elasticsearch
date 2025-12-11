@@ -36,10 +36,6 @@ public class CosineSimilarityTests extends AbstractVectorSimilarityFunctionTestC
         return similarityParameters(CosineSimilarity.class.getSimpleName(), CosineSimilarity.SIMILARITY_FUNCTION);
     }
 
-    protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION;
-    }
-
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new CosineSimilarity(source, args.get(0), args.get(1));

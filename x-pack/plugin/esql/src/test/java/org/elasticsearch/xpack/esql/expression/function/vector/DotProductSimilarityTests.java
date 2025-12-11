@@ -36,10 +36,6 @@ public class DotProductSimilarityTests extends AbstractVectorSimilarityFunctionT
         return similarityParameters(DotProduct.class.getSimpleName(), DotProduct.SIMILARITY_FUNCTION);
     }
 
-    protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION;
-    }
-
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new DotProduct(source, args.get(0), args.get(1));

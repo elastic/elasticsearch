@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -136,6 +137,10 @@ public class MvMax extends AbstractMultivalueFunction implements BlockLoaderExpr
 
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled() == false) {
+            return null;
+        }
+
         if (field instanceof FieldAttribute f) {
             return new PushedBlockLoaderExpression(f, BlockLoaderFunctionConfig.Function.MV_MAX);
         }

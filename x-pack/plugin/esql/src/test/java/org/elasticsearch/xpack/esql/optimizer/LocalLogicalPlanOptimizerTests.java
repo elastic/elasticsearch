@@ -1135,7 +1135,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[test_all][$$dense_vector$V_DOT_PRODUCT$27{f}#27, !alias_integer,
      */
     public void testVectorFunctionsReplaced() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1181,7 +1180,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]
      */
     public void testVectorFunctionsReplacedWithTopN() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1227,7 +1225,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsNotPushedDownWhenNotIndexed() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1269,7 +1266,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDouble() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = "FROM k8s-downsampled | STATS m = min(network.eth0.tx)";
 
         LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
@@ -1296,7 +1293,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             from k8s-downsampled
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
@@ -1350,7 +1347,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleTSCommand() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             TS k8s-downsampled |
             STATS m = max(max_over_time(network.eth0.tx)),
@@ -1422,7 +1419,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testAggregateMetricDoubleInlineStats() {
         // TODO: modify below when we handle fusing and StubRelations properly
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM k8s-downsampled
             | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
@@ -1467,7 +1464,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsWhenFieldMissing() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1510,7 +1506,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsInWhere() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1549,7 +1544,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsInStats() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1597,7 +1591,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsUpdateIntermediateProjections() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
             from test_all
@@ -1650,7 +1643,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsWithDuplicateFunctions() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         // Generate two random test cases - one for duplicate usage, one for the second set
         SimilarityFunctionTestCase testCase1 = SimilarityFunctionTestCase.random("dense_vector");
         SimilarityFunctionTestCase testCase2 = randomValueOtherThan(testCase1, () -> SimilarityFunctionTestCase.random("dense_vector"));
@@ -1783,7 +1775,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInEval() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL l = LENGTH(last_name)
@@ -1801,7 +1793,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInWhere() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | WHERE LENGTH(last_name) > 1
@@ -1817,7 +1809,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInStats() {
-        assumeTrue("requires 137382", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires 137382", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS l = SUM(LENGTH(last_name))
@@ -1835,7 +1827,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInEvalAfterManyRenames() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL l1 = last_name
@@ -1856,7 +1848,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInWhereAndEval() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | WHERE LENGTH(last_name) > 1
@@ -1894,7 +1886,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * }</pre>
      */
     public void testLengthPushdownZoo() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
@@ -1980,7 +1972,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInStatsTwice() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
@@ -2006,7 +1998,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthTwoFields() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))

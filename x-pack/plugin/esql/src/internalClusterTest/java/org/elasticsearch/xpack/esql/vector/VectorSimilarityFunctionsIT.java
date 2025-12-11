@@ -51,21 +51,11 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
 
         for (ElementType elementType : Set.of(ElementType.FLOAT, ElementType.BYTE, ElementType.BIT)) {
-            if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-                params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION, elementType });
-            }
-            if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-                params.add(new Object[] { "v_dot_product", DotProduct.SIMILARITY_FUNCTION, elementType });
-            }
-            if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-                params.add(new Object[] { "v_l1_norm", L1Norm.SIMILARITY_FUNCTION, elementType });
-            }
-            if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-                params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION, elementType });
-            }
-            if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled() && elementType != ElementType.FLOAT) {
-                params.add(new Object[] { "v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
-            }
+            params.add(new Object[] { "v_cosine", CosineSimilarity.SIMILARITY_FUNCTION, elementType });
+            params.add(new Object[] { "v_dot_product", DotProduct.SIMILARITY_FUNCTION, elementType });
+            params.add(new Object[] { "v_l1_norm", L1Norm.SIMILARITY_FUNCTION, elementType });
+            params.add(new Object[] { "v_l2_norm", L2Norm.SIMILARITY_FUNCTION, elementType });
+            params.add(new Object[] { "v_hamming", Hamming.EVALUATOR_SIMILARITY_FUNCTION, elementType });
         }
 
         return params;

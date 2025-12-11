@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -199,6 +200,9 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
 
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled() == false) {
+            return null;
+        }
         if (field() instanceof FieldAttribute f && f.dataType() == AGGREGATE_METRIC_DOUBLE) {
             var folded = subfieldIndex.fold(FoldContext.small());
             if (folded == null) {

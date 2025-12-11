@@ -183,7 +183,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 client(),
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
-                supportsInferenceTestService(),
+                supportsSemanticTextInference(),
                 false,
                 supportsExponentialHistograms(),
                 supportsTDigestField()
@@ -237,8 +237,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected void shouldSkipTest(String testName) throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);
-        if (requiresInferenceEndpoint()) {
-            assumeTrue("Inference test service needs to be supported", supportsInferenceTestService());
+        if (requiresSemanticTextInference()) {
+            assumeTrue("Inference test service needs to be supported", supportsSemanticTextInference());
         }
         if (requiresInferenceEndpointOnLocalCluster()) {
             assumeTrue("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
@@ -278,15 +278,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    protected boolean supportsInferenceTestService() {
+    protected boolean supportsSemanticTextInference() {
         return true;
     }
 
     protected boolean supportsInferenceTestServiceOnLocalCluster() {
-        return supportsInferenceTestService();
+        return true;
     }
 
-    protected boolean requiresInferenceEndpoint() {
+    protected boolean requiresSemanticTextInference() {
         return testCase.requiredCapabilities.contains(SEMANTIC_TEXT_FIELD_CAPS.capabilityName());
     }
 

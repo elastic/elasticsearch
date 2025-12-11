@@ -286,9 +286,10 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
 
+        final double index0InitialP100WriteLoad = measurementForNode(p100writeLoadMeasurements, "index_0").getDouble();
         assertRoughlyInRange(
             testInfrastructure.numberOfSignificantDigits,
-            measurementForNode(p100writeLoadMeasurements, "index_0").getDouble(),
+            index0InitialP100WriteLoad,
             testInfrastructure.maxP90,
             testInfrastructure.maxP100
         );
@@ -302,7 +303,10 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         final var lowerP100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_GAUGE, ShardWriteLoadDistributionMetrics.shardWriteLoadDistributionMetricName(100));
 
-        assertEquals(measurementForNode(lowerP100writeLoadMeasurements, "index_0").getDouble(), 0.1, 0.01);
+        // this write-load should be lower than the first one and equal to 0.1
+        final double index0LowerP100WriteLoad = measurementForNode(lowerP100writeLoadMeasurements, "index_0").getDouble();
+        assertThat(index0InitialP100WriteLoad, greaterThan(index0LowerP100WriteLoad));
+        assertEquals(index0LowerP100WriteLoad, 0.1, 0.01);
 
         // Calculate again with original write-loads - should populate the metrics ready for collection
         testInfrastructure.shardWriteLoadDistributionMetrics.onNewInfo(testInfrastructure.clusterInfo);

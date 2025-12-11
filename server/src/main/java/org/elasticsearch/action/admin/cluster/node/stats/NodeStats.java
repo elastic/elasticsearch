@@ -127,9 +127,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         ingestStats = in.readOptionalWriteable(IngestStats::read);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        repositoriesStats = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-            ? in.readOptionalWriteable(RepositoriesStats::new)
-            : null;
+        repositoriesStats = in.readOptionalWriteable(RepositoriesStats::new);
         nodeAllocationStats = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
             ? in.readOptionalWriteable(NodeAllocationStats::new)
             : null;
@@ -339,9 +337,7 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(repositoriesStats);
-        }
+        out.writeOptionalWriteable(repositoriesStats);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(nodeAllocationStats);
         }

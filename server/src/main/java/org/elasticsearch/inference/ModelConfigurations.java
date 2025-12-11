@@ -215,7 +215,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

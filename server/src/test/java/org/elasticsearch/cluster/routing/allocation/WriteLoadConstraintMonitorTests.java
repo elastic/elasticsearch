@@ -660,6 +660,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         long queueLatencyThresholdMillis,
         int highUtilizationThresholdPercent
     ) {
+        assert queueLatencyThresholdMillis > 0 : "queue latency threshold must be positive";
         final Set<String> hotspotNodesSet = new HashSet<>(hotspotNodes);
         final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
         ClusterInfo clusterInfo = ClusterInfo.builder()
@@ -690,7 +691,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                             new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
                                 randomNonNegativeInt(),
                                 randomFloatBetween(0f, maxRatioForUnderUtilised, true),
-                                randomLongBetween(0, queueLatencyThresholdMillis)
+                                randomLongBetween(0, queueLatencyThresholdMillis - 1)
                             )
                         )
                     );

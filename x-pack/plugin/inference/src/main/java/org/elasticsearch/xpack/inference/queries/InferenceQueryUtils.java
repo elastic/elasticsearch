@@ -54,10 +54,20 @@ import static org.elasticsearch.xpack.core.ml.action.InferModelAction.Request.DE
 
 public final class InferenceQueryUtils {
     /**
-     * Inference info aggregated across queried local and remote indices. All info provided is guaranteed to be
-     * complete when {@link InferenceInfoRequest#alwaysSkipRemotes()} is {@code false}.
-     * When {@link InferenceInfoRequest#alwaysSkipRemotes()} is {@code true}, then only {@code minTransportVersion} is
-     * guaranteed to be complete.
+     * <p>
+     * Inference info aggregated across queried local and remote indices.
+     * </p>
+     * <p>
+     * When {@link QueryRewriteContext#isCcsMinimizeRoundTrips()} is {@code true}, this info will only contain values derived from the
+     * local cluster.
+     * </p>
+     * <p>
+     * When {@link QueryRewriteContext#isCcsMinimizeRoundTrips()} is {@code false} and {@link InferenceInfoRequest#alwaysSkipRemotes()} is
+     * {@code false}, this info will contain values aggregated across all queried local and remote indices.
+     * If {@link InferenceInfoRequest#alwaysSkipRemotes()} is {@code true}, then only {@code minTransportVersion} will be aggregated
+     * across all queried local and remote clusters, and the rest of the info provided will only contain values derived from the local
+     * cluster.
+     * </p>
      *
      * @param inferenceFieldCount The number of inference fields queried across all concrete indices
      * @param indexCount The number of concrete indices queried

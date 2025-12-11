@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_CCM_PATH;
 /**
  * Returns a class to handle modifying the HTTP requests with the appropriate CCM authentication information if CCM is configured.
  */
-public class CCMAuthenticationApplierFactory {
+public class CCMAuthenticationApplierFactory implements AuthenticationFactory {
 
     public static final NoopApplier NOOP_APPLIER = new NoopApplier();
     private static final Logger logger = LogManager.getLogger(CCMAuthenticationApplierFactory.class);
@@ -41,6 +41,7 @@ public class CCMAuthenticationApplierFactory {
 
     public interface AuthApplier extends Function<HttpRequestBase, HttpRequestBase> {}
 
+    @Override
     public void getAuthenticationApplier(ActionListener<AuthApplier> listener) {
         if (ccmFeature.isCcmSupportedEnvironment() == false) {
             listener.onResponse(NOOP_APPLIER);

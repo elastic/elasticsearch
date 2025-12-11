@@ -107,7 +107,10 @@ public class PerFieldFormatSupplier {
     private static KnnVectorsFormat getDefaultKnnVectorsFormat(final MapperService mapperService, final ThreadPool threadPool) {
         ExecutorService mergingExecutorService = null;
         int maxMergingWorkers = 1;
-        if (threadPool != null && mapperService != null && mapperService.getIndexSettings().isIntraMergeParallelismEnabled()) {
+        if (threadPool != null
+            && mapperService != null
+            && mapperService.getIndexSettings().isIntraMergeParallelismEnabled()
+            && threadPool.info(ThreadPool.Names.MERGE) != null) {
             maxMergingWorkers = threadPool.info(ThreadPool.Names.MERGE).getMax();
             if (maxMergingWorkers > 1) {
                 mergingExecutorService = threadPool.executor(ThreadPool.Names.MERGE);

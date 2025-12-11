@@ -39,7 +39,7 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Before
     public void setup() {
-        assumeTrue("Only when exponential_histogram feature flag is enabled", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
+        assumeTrue("Only when tdigest_field_mapper feature flag is enabled", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
     }
 
     private static DataSourceHandler DATA_SOURCE_HANDLER = new DataSourceHandler() {

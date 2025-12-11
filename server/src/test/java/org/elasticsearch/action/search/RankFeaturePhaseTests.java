@@ -15,7 +15,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
@@ -928,7 +927,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersions.V_8_12_0;
+                return TransportVersion.minimumCompatible();
             }
         };
     }

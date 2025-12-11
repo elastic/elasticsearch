@@ -466,8 +466,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 assertTrue(hasRegisteredClusters(service));
                 assertTrue(isRemoteClusterRegistered(service, "cluster_1"));
                 assertTrue(isRemoteClusterRegistered(service, "cluster_2"));
-                Settings cluster2SettingsDisabled = createSettings("cluster_2", Collections.emptyList());
-                service.updateLinkedProject(toConfig("cluster_2", cluster2SettingsDisabled));
+                removeRemoteCluster(service, "cluster_2");
                 assertFalse(isRemoteClusterRegistered(service, "cluster_2"));
                 IllegalArgumentException iae = expectThrows(
                     IllegalArgumentException.class,
@@ -834,10 +833,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         taskLatch.countDown();
                         boolean isLinked = true;
                         while (taskLatch.getCount() != 0) {
-                            final var future = new PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus>();
-                            final var settings = createSettings("cluster_1", isLinked ? Collections.emptyList() : seedList);
-                            updateRemoteCluster(service, "cluster_1", initialSettings, settings, future);
-                            safeGet(future);
+                            if (isLinked) {
+                                removeRemoteCluster(service, "cluster_1");
+                            } else {
+                                final var future = new PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus>();
+                                final var settings = createSettings("cluster_1", seedList);
+                                updateRemoteCluster(service, "cluster_1", initialSettings, settings, future);
+                                safeGet(future);
+                            }
                             isLinked = isLinked == false;
                         }
                         return;
@@ -1342,7 +1345,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 assertConnectionHasProfile(service.getRemoteClusterConnection(goodCluster), "default");
                 assertConnectionHasProfile(service.getRemoteClusterConnection(badCluster), "default");
                 expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
-                final Set<String> aliases = Set.of(badCluster, goodCluster, missingCluster);
+                Set<String> aliases = Set.of(badCluster, goodCluster, missingCluster);
                 final ActionListener<RemoteClusterService.RemoteClusterConnectionStatus> noop = ActionListener.noop();
 
                 {
@@ -1360,8 +1363,17 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertThat(result.addedClusterAliases(), equalTo(aliases));
                     try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                         for (String alias : aliases) {
-                            final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
-                            service.updateRemoteCluster(config, true, ActionListener.releaseAfter(noop, connectionRefs.acquire()));
+                            if (alias.equals(missingCluster)) {
+                                try {
+                                    buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
+                                    fail("Should have rejected attempt to build a config with no seed nodes.");
+                                } catch (IllegalArgumentException ie) {
+                                    assertThat(ie.getMessage(), equalTo("[seedNodes] cannot be empty"));
+                                }
+                            } else {
+                                final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
+                                service.updateRemoteCluster(config, true, ActionListener.releaseAfter(noop, connectionRefs.acquire()));
+                            }
                         }
                     }
                     listener.actionGet(10, TimeUnit.SECONDS);
@@ -1376,6 +1388,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
                 );
                 expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
+                aliases = Set.of(goodCluster, badCluster);
 
                 {
                     final PlainActionFuture<Void> listener = new PlainActionFuture<>();
@@ -1383,7 +1396,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     // Settings without credentials constitute credentials removal
                     final var result = service.getRemoteClusterCredentialsManager().updateClusterCredentials(settings);
                     assertThat(result.addedClusterAliases().size(), equalTo(0));
-                    assertThat(result.removedClusterAliases(), equalTo(aliases));
+                    assertThat(result.removedClusterAliases(), equalTo(Set.of(goodCluster, badCluster, missingCluster)));
                     try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                         for (String alias : aliases) {
                             final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
@@ -1473,7 +1486,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     "Should log when disconnecting from remote",
                     RemoteClusterService.class.getCanonicalName(),
                     Level.INFO,
-                    "remote cluster connection [remote_1] updated: DISCONNECTED"
+                    "remote cluster connection [remote_1] removed: DISCONNECTED"
                 )
             );
 
@@ -1553,6 +1566,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
     private LinkedProjectConfig buildLinkedProjectConfig(String alias, Settings staticSettings, Settings newSettings) {
         final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
         return RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, mergedSettings);
+    }
+
+    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+    private void removeRemoteCluster(RemoteClusterService service, String alias) {
+        service.remove(projectResolver.getProjectId(), ProjectId.DEFAULT, alias);
     }
 
     private void updateRemoteCluster(

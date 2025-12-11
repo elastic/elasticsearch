@@ -13,6 +13,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
@@ -41,10 +42,10 @@ import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.createRandomInt7VectorData;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.readNodeCorrectionConstant;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
@@ -72,7 +73,7 @@ public class VectorScorerInt7uBenchmark {
 
     @Param({ "96", "768", "1024" })
     public int dims;
-    public int numVectors = 2; // there are only two vectors to compare
+    public static int numVectors = 2; // there are only two vectors to compare
 
     public enum Implementation {
         SCALAR,
@@ -183,23 +184,49 @@ public class VectorScorerInt7uBenchmark {
     UpdateableRandomVectorScorer scorer;
     RandomVectorScorer queryScorer;
 
+    public static class VectorData {
+        private final byte[][] vectorData;
+        private final float[] offsets;
+        private final float[] queryVector;
+
+        public VectorData(int dims) {
+            vectorData = new byte[numVectors][];
+            offsets = new float[numVectors];
+
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            for (int v = 0; v < numVectors; v++) {
+                vectorData[v] = new byte[dims];
+                randomInt7BytesBetween(vectorData[v]);
+                offsets[v] = random.nextFloat();
+            }
+
+            queryVector = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVector[i] = random.nextFloat();
+            }
+        }
+    }
+
     @Setup
     public void setup() throws IOException {
+        setup(new VectorData(dims));
+    }
+
+    public void setup(VectorData vectorData) throws IOException {
         VectorScorerFactory factory = getScorerFactoryOrDie();
 
-        ThreadLocalRandom random = ThreadLocalRandom.current();
         path = Files.createTempDirectory("Int7uScorerBenchmark");
         dir = new MMapDirectory(path);
-        createRandomInt7VectorData(random, dir, dims, numVectors);
+        try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
+            for (int v = 0; v < numVectors; v++) {
+                out.writeBytes(vectorData.vectorData[v], dims);
+                out.writeInt(Float.floatToIntBits(vectorData.offsets[v]));
+            }
+        }
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
         var values = vectorValues(dims, numVectors, in, function.function());
         float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
-
-        float[] queryVec = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            queryVec[i] = random.nextFloat();
-        }
 
         switch (implementation) {
             case SCALAR:
@@ -218,22 +245,17 @@ public class VectorScorerInt7uBenchmark {
                     );
                     case SQUARE_DISTANCE -> new ScalarSquareDistance(vec1, vec2, scoreCorrectionConstant);
                 };
-
-                if (supportsHeapSegments()) {
-                    // only run this if there's something to compare it against
-                    queryScorer = scorer;
-                }
                 break;
             case LUCENE:
                 scorer = luceneScoreSupplier(values, function.function()).scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = luceneScorer(values, function.function(), queryVec);
+                    queryScorer = luceneScorer(values, function.function(), vectorData.queryVector);
                 }
                 break;
             case NATIVE:
                 scorer = factory.getInt7SQVectorScorerSupplier(function.type(), in, values, scoreCorrectionConstant).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, queryVec).orElseThrow();
+                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, vectorData.queryVector).orElseThrow();
                 }
                 break;
         }

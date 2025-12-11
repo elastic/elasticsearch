@@ -17,15 +17,16 @@ import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
 
-    final double delta = 1e-3;
+    private final double delta = 1e-3;
     private final VectorScorerInt7uBenchmark.Function function;
-    final int dims;
+    private final int dims;
 
     public VectorScorerInt7uBenchmarkTests(VectorScorerInt7uBenchmark.Function function, int dims) {
         this.function = function;
@@ -39,13 +40,14 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
 
     public void testScores() throws Exception {
         for (int i = 0; i < 100; i++) {
+            VectorScorerInt7uBenchmark.VectorData data = new VectorScorerInt7uBenchmark.VectorData(dims);
             Float expected = null;
             for (var impl : VectorScorerInt7uBenchmark.Implementation.values()) {
                 var bench = new VectorScorerInt7uBenchmark();
                 bench.function = function;
                 bench.implementation = impl;
                 bench.dims = dims;
-                bench.setup();
+                bench.setup(data);
 
                 try {
                     float result = bench.score();
@@ -56,9 +58,34 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
                     }
 
                     assertEquals(impl.toString(), expected, result, delta);
-                    if (supportsHeapSegments()) {
-                        assertEquals(impl.toString(), expected, bench.scoreQuery(), delta);
+                } finally {
+                    bench.teardown();
+                }
+            }
+        }
+    }
+
+    public void testQueryScores() throws Exception {
+        assumeTrue("Only test with heap segments", supportsHeapSegments());
+        for (int i = 0; i < 100; i++) {
+            VectorScorerInt7uBenchmark.VectorData data = new VectorScorerInt7uBenchmark.VectorData(dims);
+            Float expected = null;
+            for (var impl : List.of(VectorScorerInt7uBenchmark.Implementation.LUCENE, VectorScorerInt7uBenchmark.Implementation.NATIVE)) {
+                var bench = new VectorScorerInt7uBenchmark();
+                bench.function = function;
+                bench.implementation = impl;
+                bench.dims = dims;
+                bench.setup(data);
+
+                try {
+                    float result = bench.scoreQuery();
+                    if (expected == null) {
+                        assert impl == VectorScorerInt7uBenchmark.Implementation.LUCENE;
+                        expected = result;
+                        continue;
                     }
+
+                    assertEquals(impl.toString(), expected, bench.scoreQuery(), delta);
                 } finally {
                     bench.teardown();
                 }

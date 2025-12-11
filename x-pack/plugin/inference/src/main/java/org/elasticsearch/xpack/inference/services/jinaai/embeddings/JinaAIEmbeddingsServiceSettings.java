@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
@@ -38,8 +39,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "jinaai_embeddings_service_settings";
 
-    static final String EMBEDDING_TYPE = "embedding_type";
-
     public static JinaAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
@@ -47,7 +46,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        JinaAIEmbeddingType embeddingTypes = parseEmbeddingType(map, validationException);
+        JinaAIEmbeddingType embeddingType = parseEmbeddingType(map, validationException);
 
         Boolean dimensionsSetByUser;
         if (context == ConfigurationParseContext.PERSISTENT) {
@@ -68,7 +67,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
             similarity,
             dimensions,
             maxInputTokens,
-            embeddingTypes,
+            embeddingType,
             dimensionsSetByUser
         );
     }
@@ -77,7 +76,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         return Objects.requireNonNullElse(
             extractOptionalEnum(
                 map,
-                EMBEDDING_TYPE,
+                ServiceFields.EMBEDDING_TYPE,
                 ModelConfigurations.SERVICE_SETTINGS,
                 JinaAIEmbeddingType::fromString,
                 EnumSet.allOf(JinaAIEmbeddingType.class),
@@ -108,14 +107,14 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable JinaAIEmbeddingType embeddingType,
-        Boolean dimensionsSetByUser
+        boolean dimensionsSetByUser
     ) {
         this.commonSettings = commonSettings;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
         this.embeddingType = embeddingType != null ? embeddingType : JinaAIEmbeddingType.FLOAT;
-        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
+        this.dimensionsSetByUser = dimensionsSetByUser;
     }
 
     public JinaAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -169,7 +168,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
+        return embeddingType.toElementType();
     }
 
     @Override
@@ -183,9 +182,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
 
         toXContentFragmentOfExposedFields(builder, params);
 
-        if (dimensionsSetByUser != null) {
-            builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
-        }
+        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;
@@ -197,15 +194,16 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
         }
-        if (embeddingType != null) {
-            builder.field(EMBEDDING_TYPE, embeddingType);
-        }
+
+        builder.field(ServiceFields.EMBEDDING_TYPE, embeddingType);
+
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
+
         return builder;
     }
 

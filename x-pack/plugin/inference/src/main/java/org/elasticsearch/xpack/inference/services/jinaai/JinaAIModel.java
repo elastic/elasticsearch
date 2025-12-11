@@ -26,17 +26,20 @@ import java.util.Objects;
 public abstract class JinaAIModel extends Model {
     private final SecureString apiKey;
     private final JinaAIRateLimitServiceSettings rateLimitServiceSettings;
+    private final URI uri;
 
     public JinaAIModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        JinaAIRateLimitServiceSettings rateLimitServiceSettings
+        JinaAIRateLimitServiceSettings rateLimitServiceSettings,
+        @Nullable String uri
     ) {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.uri = Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), getDefaultUri());
     }
 
     protected JinaAIModel(JinaAIModel model, TaskSettings taskSettings) {
@@ -44,6 +47,7 @@ public abstract class JinaAIModel extends Model {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        uri = model.uri();
     }
 
     protected JinaAIModel(JinaAIModel model, ServiceSettings serviceSettings) {
@@ -51,6 +55,7 @@ public abstract class JinaAIModel extends Model {
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        uri = model.uri();
     }
 
     public SecureString apiKey() {
@@ -61,7 +66,11 @@ public abstract class JinaAIModel extends Model {
         return rateLimitServiceSettings;
     }
 
+    public URI uri() {
+        return uri;
+    }
+
     public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings);
 
-    public abstract URI uri();
+    public abstract URI getDefaultUri();
 }

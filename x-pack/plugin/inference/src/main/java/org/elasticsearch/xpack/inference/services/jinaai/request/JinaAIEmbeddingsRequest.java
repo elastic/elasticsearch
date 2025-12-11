@@ -8,73 +8,55 @@
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIAccount;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
 public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
-    private final JinaAIAccount account;
     private final List<String> input;
     private final InputType inputType;
-    private final JinaAIEmbeddingsTaskSettings taskSettings;
-    private final String model;
-    private final String inferenceEntityId;
-    private final JinaAIEmbeddingType embeddingType;
-    private final Integer dimensions;
     private final boolean dimensionsSetByUser;
+    private final JinaAIEmbeddingsModel model;
 
     public JinaAIEmbeddingsRequest(List<String> input, InputType inputType, JinaAIEmbeddingsModel embeddingsModel) {
-        Objects.requireNonNull(embeddingsModel);
-
-        account = JinaAIAccount.of(embeddingsModel, JinaAIEmbeddingsRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
-        taskSettings = embeddingsModel.getTaskSettings();
-        model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
-        embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
-        inferenceEntityId = embeddingsModel.getInferenceEntityId();
-        dimensions = embeddingsModel.getServiceSettings().dimensions();
         dimensionsSetByUser = embeddingsModel.getServiceSettings().dimensionsSetByUser();
+        this.model = Objects.requireNonNull(embeddingsModel);
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.uri());
+        HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(
-                new JinaAIEmbeddingsRequestEntity(input, inputType, taskSettings, model, embeddingType, dimensions, dimensionsSetByUser)
-            ).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, inputType, model)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
-        decorateWithAuthHeader(httpPost, account);
+        decorateWithAuthHeader(httpPost, model.apiKey());
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return model.getInferenceEntityId();
     }
 
     @Override
     public URI getURI() {
-        return account.uri();
+        return model.uri();
     }
 
     @Override
@@ -88,13 +70,6 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
     }
 
     public JinaAIEmbeddingType getEmbeddingType() {
-        return embeddingType;
-    }
-
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(JinaAIUtils.HOST)
-            .setPathSegments(JinaAIUtils.VERSION_1, JinaAIUtils.EMBEDDINGS_PATH)
-            .build();
+        return model.getServiceSettings().getEmbeddingType();
     }
 }

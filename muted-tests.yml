@@ -382,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
   method: test_Embedding_ChunkedInfer_LateChunkingEnabled
   issue: https://github.com/elastic/elasticsearch/issues/138451
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=index/100_field_name_length_limit/Test field name length limit synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/138471
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
@@ -397,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testAggregateMetricDoubleInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/138620
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
-  issue: https://github.com/elastic/elasticsearch/issues/138768
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testDatafeedTimingStats_DatafeedRecreated
   issue: https://github.com/elastic/elasticsearch/issues/138348
@@ -445,9 +439,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/138764
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/139300
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/139303

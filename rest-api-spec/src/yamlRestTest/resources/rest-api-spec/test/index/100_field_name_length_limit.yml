@@ -20,7 +20,7 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       index:
@@ -71,7 +71,7 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       index:
@@ -124,7 +124,7 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       index:
@@ -176,7 +176,7 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
 
   - do:
       index:

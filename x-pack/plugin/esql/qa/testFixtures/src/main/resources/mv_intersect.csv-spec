@@ -13,13 +13,13 @@ finalValue:integer
 testMvIntersectWithLongValues
 // tag:testMvIntersectWithLongValues
 row 
-a = [1l, 2l, 3l, 4l, 5l], 
-b = [2l, 3l, 4l, 5l, 6l]
+a = [1, 2, 3, 4, 5]::long, 
+b = [2, 3, 4, 5, 6]::long
 | EVAL finalValue = MV_INTERSECT(a, b) 
 | KEEP finalValue;
 
 finalValue:long 
-[2l, 3l, 4l, 5l]          
+[2, 3, 4, 5]
 ;
 
 testMvIntersectWithBooleanValues

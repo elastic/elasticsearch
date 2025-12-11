@@ -25,27 +25,27 @@ public final class MvIntersectBytesRefEvaluator implements EvalOperator.Expressi
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator firstValue;
+  private final EvalOperator.ExpressionEvaluator field1;
 
-  private final EvalOperator.ExpressionEvaluator secondValue;
+  private final EvalOperator.ExpressionEvaluator field2;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MvIntersectBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator firstValue,
-      EvalOperator.ExpressionEvaluator secondValue, DriverContext driverContext) {
+  public MvIntersectBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
+      EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
     this.source = source;
-    this.firstValue = firstValue;
-    this.secondValue = secondValue;
+    this.field1 = field1;
+    this.field2 = field2;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock firstValueBlock = (BytesRefBlock) firstValue.eval(page)) {
-      try (BytesRefBlock secondValueBlock = (BytesRefBlock) secondValue.eval(page)) {
-        return eval(page.getPositionCount(), firstValueBlock, secondValueBlock);
+    try (BytesRefBlock field1Block = (BytesRefBlock) field1.eval(page)) {
+      try (BytesRefBlock field2Block = (BytesRefBlock) field2.eval(page)) {
+        return eval(page.getPositionCount(), field1Block, field2Block);
       }
     }
   }
@@ -53,27 +53,27 @@ public final class MvIntersectBytesRefEvaluator implements EvalOperator.Expressi
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += firstValue.baseRamBytesUsed();
-    baseRamBytesUsed += secondValue.baseRamBytesUsed();
+    baseRamBytesUsed += field1.baseRamBytesUsed();
+    baseRamBytesUsed += field2.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock firstValueBlock,
-      BytesRefBlock secondValueBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock field1Block,
+      BytesRefBlock field2Block) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (!firstValueBlock.isNull(p)) {
+        if (!field1Block.isNull(p)) {
           allBlocksAreNulls = false;
         }
-        if (!secondValueBlock.isNull(p)) {
+        if (!field2Block.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
-        MvIntersect.process(result, p, firstValueBlock, secondValueBlock);
+        MvIntersect.process(result, p, field1Block, field2Block);
       }
       return result.build();
     }
@@ -81,12 +81,12 @@ public final class MvIntersectBytesRefEvaluator implements EvalOperator.Expressi
 
   @Override
   public String toString() {
-    return "MvIntersectBytesRefEvaluator[" + "firstValue=" + firstValue + ", secondValue=" + secondValue + "]";
+    return "MvIntersectBytesRefEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(firstValue, secondValue);
+    Releasables.closeExpectNoException(field1, field2);
   }
 
   private Warnings warnings() {
@@ -104,25 +104,25 @@ public final class MvIntersectBytesRefEvaluator implements EvalOperator.Expressi
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory firstValue;
+    private final EvalOperator.ExpressionEvaluator.Factory field1;
 
-    private final EvalOperator.ExpressionEvaluator.Factory secondValue;
+    private final EvalOperator.ExpressionEvaluator.Factory field2;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory firstValue,
-        EvalOperator.ExpressionEvaluator.Factory secondValue) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field1,
+        EvalOperator.ExpressionEvaluator.Factory field2) {
       this.source = source;
-      this.firstValue = firstValue;
-      this.secondValue = secondValue;
+      this.field1 = field1;
+      this.field2 = field2;
     }
 
     @Override
     public MvIntersectBytesRefEvaluator get(DriverContext context) {
-      return new MvIntersectBytesRefEvaluator(source, firstValue.get(context), secondValue.get(context), context);
+      return new MvIntersectBytesRefEvaluator(source, field1.get(context), field2.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvIntersectBytesRefEvaluator[" + "firstValue=" + firstValue + ", secondValue=" + secondValue + "]";
+      return "MvIntersectBytesRefEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
     }
   }
 }

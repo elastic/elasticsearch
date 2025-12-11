@@ -576,7 +576,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         if (s3BlobStore.serverSideEncryption()) {
             putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
         }
-        if (s3BlobStore.supportsConditionalWrites(purpose)) {
+        if (s3BlobStore.supportsConditionalWrites()) {
             switch (condition) {
                 case ConditionalOperation.IfMatch ifMatch -> putRequestBuilder.ifMatch(ifMatch.etag);
                 case ConditionalOperation.IfNoneMatch ignored -> putRequestBuilder.ifNoneMatch("*");
@@ -700,7 +700,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .uploadId(uploadId)
                 .multipartUpload(b -> b.parts(parts));
 
-            if (s3BlobStore.supportsConditionalWrites(purpose)) {
+            if (s3BlobStore.supportsConditionalWrites()) {
                 switch (condition) {
                     case ConditionalOperation.IfMatch ifMatch -> completeMultipartUploadRequestBuilder.ifMatch(ifMatch.etag);
                     case ConditionalOperation.IfNoneMatch ignored -> completeMultipartUploadRequestBuilder.ifNoneMatch("*");
@@ -1172,7 +1172,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 Operation.PUT_MULTIPART_OBJECT,
                 purpose
             );
-            if (blobStore.supportsConditionalWrites(purpose)) {
+            if (blobStore.supportsConditionalWrites()) {
                 if (existingEtag == null) {
                     completeMultipartUploadRequestBuilder.ifNoneMatch("*");
                 } else {
@@ -1185,6 +1185,58 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
+    private void conditionalWriteCompareAndExchangeOperation(
+        OperationPurpose purpose,
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        assert blobStore.supportsConditionalWrites();
+
+        SubscribableListener
+
+            .<RegisterAndEtag>newForked(l -> getRegisterAndEtag(purpose, key, l))
+
+            .andThenApply(regEtag -> {
+                assert BytesArray.EMPTY.equals(RegisterAndEtag.ABSENT.registerContents())
+                    : "absent-register must match empty-expected-register, or register will never be created";
+                if (expected.equals(regEtag.registerContents()) == false) {
+                    // register does not match, return value from S3
+                    // if register was changed, return current value
+                    // if register was deleted, return ABSENT(BytesArray.EMPTY)
+                    return OptionalBytesReference.of(regEtag.registerContents());
+                } else {
+                    final var condtionalOperaiton = regEtag == RegisterAndEtag.ABSENT
+                        ? ConditionalOperation.IF_NONE_MATCH
+                        : ConditionalOperation.ifMatch(regEtag.eTag());
+                    try {
+                        putObject(
+                            purpose,
+                            blobStore,
+                            buildKey(key),
+                            updated.length(),
+                            () -> RequestBody.fromBytes(BytesReference.toBytes(updated)),
+                            condtionalOperaiton
+                        );
+                        return OptionalBytesReference.of(expected);
+                    } catch (SdkServiceException e) {
+                        final var statusCode = RestStatus.fromCode(e.statusCode());
+                        switch (statusCode) {
+                            // conflict happened, there is no known register
+                            // https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response
+                            case NOT_FOUND, CONFLICT, PRECONDITION_FAILED -> {
+                                return OptionalBytesReference.MISSING;
+                            }
+                            default -> throw e;
+                        }
+                    }
+                }
+            })
+
+            .addListener(listener);
+    }
+
     @Override
     public void compareAndExchangeRegister(
         OperationPurpose purpose,
@@ -1193,14 +1245,18 @@ class S3BlobContainer extends AbstractBlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
-        final var clientReference = blobStore.clientReference();
-        new MultipartUploadCompareAndExchangeOperation(
-            purpose,
-            clientReference.client(),
-            blobStore.bucket(),
-            key,
-            blobStore.getThreadPool()
-        ).run(expected, updated, ActionListener.releaseBefore(clientReference, listener));
+        if (blobStore.supportsConditionalWrites()) {
+            conditionalWriteCompareAndExchangeOperation(purpose, key, expected, updated, listener);
+        } else {
+            final var clientReference = blobStore.clientReference();
+            new MultipartUploadCompareAndExchangeOperation(
+                purpose,
+                clientReference.client(),
+                blobStore.bucket(),
+                key,
+                blobStore.getThreadPool()
+            ).run(expected, updated, ActionListener.releaseBefore(clientReference, listener));
+        }
     }
 
     /**
@@ -1274,7 +1330,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final var etag = getObjectResponse.eTag();
         if (Strings.hasText(etag)) {
             return etag;
-        } else if (blobStore.supportsConditionalWrites(purpose)) {
+        } else if (blobStore.supportsConditionalWrites()) {
             throw new UnsupportedOperationException("GetObject response contained no ETag header, cannot perform conditional write");
         } else {
             // blob stores which do not support conditional writes may also not return ETag headers, but we won't use it anyway so return

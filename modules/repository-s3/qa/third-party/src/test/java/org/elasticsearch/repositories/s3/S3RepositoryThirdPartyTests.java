@@ -139,7 +139,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
-    public void testCompareAndExchangeCleanup() throws IOException {
+    public void testMPUCompareAndExchangeCleanup() throws IOException {
+        final var repoMetadata = node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata();
+        final var useCasMpu = repoMetadata.settings().getAsBoolean("unsafely_incompatible_with_s3_conditional_writes", false);
+        assumeTrue("repository supports condtional-writes and does not use MPU for CAS", useCasMpu);
+
         final var timeOffsetMillis = new AtomicLong();
         final var threadpool = new TestThreadPool(getTestName()) {
             @Override
@@ -151,7 +155,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         try (
             var repository = new S3Repository(
                 ProjectId.DEFAULT,
-                node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
+                repoMetadata,
                 xContentRegistry(),
                 node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
                 ClusterServiceUtils.createClusterService(threadpool),

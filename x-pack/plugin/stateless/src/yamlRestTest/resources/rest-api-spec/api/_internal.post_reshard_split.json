@@ -1,0 +1,29 @@
+{
+  "_internal.post_reshard_split": {
+    "documentation": {
+      "url": "",
+      "description": "This API splits the specified index"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_internal/reshard/split",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The index and number of shards to split into'",
+      "required": true
+    }
+  }
+}

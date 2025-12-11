@@ -113,7 +113,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
         int docsToIndex = randomIntBetween(50, 100);
 
         // Reshard the index to two shards - send to master node (starts async)
-        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
         try {
             // Wait for all target shards to arrive at HANDOFF point (blocked)
             handoffTransitionBlock.await();
@@ -172,7 +172,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
 
         int docsToIndex = randomIntBetween(50, 100);
         // Reshard the index to two shards - send to master node (starts async)
-        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
         waitForClusterState(isolatedSearchNode, clusterState -> {
             IndexReshardingMetadata reshardingMetadata = clusterState.projectState().metadata().index(indexName).getReshardingMetadata();
@@ -273,7 +273,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
         int multiple = 2;
 
         if (waitForReshardingState) {
-            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
             waitForClusterState(isolatedSearchNode, clusterState -> {
                 IndexReshardingMetadata reshardingMetadata = clusterState.projectState()
@@ -305,7 +305,7 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractServerlessSta
                 }
             );
             // Trigger reshard
-            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
         }
 
         try {

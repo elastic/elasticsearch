@@ -29,12 +29,12 @@ import org.elasticsearch.index.Index;
 public class ReshardIndexClusterStateUpdateRequest {
     private final Index index;
     private final ProjectId projectId;
-    private final int multiple;
+    private final int newShardCount;
 
-    public ReshardIndexClusterStateUpdateRequest(ProjectId projectId, Index index, int multiple) {
+    public ReshardIndexClusterStateUpdateRequest(ProjectId projectId, Index index, int newShardCount) {
         this.projectId = projectId;
         this.index = index;
-        this.multiple = multiple;
+        this.newShardCount = newShardCount;
     }
 
     public ProjectId projectId() {
@@ -45,12 +45,12 @@ public class ReshardIndexClusterStateUpdateRequest {
         return index;
     }
 
-    public int getMultiple() {
-        return multiple;
+    public int getNewShardCount() {
+        return newShardCount;
     }
 
     @Override
     public String toString() {
-        return "ReshardIndexClusterStateUpdateRequest{" + "index=" + index + ", projectId=" + projectId + ", multiple=" + multiple + '}';
+        return "ReshardIndexClusterStateUpdateRequest{" + "index=" + index + ", projectId=" + projectId + '}';
     }
 }

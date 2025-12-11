@@ -120,6 +120,7 @@ import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelo
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+import co.elastic.elasticsearch.stateless.reshard.RestReshardSplitAction;
 import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
@@ -469,7 +470,7 @@ public class ServerlessStatelessPlugin extends Plugin
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new ClearBlobCacheRestHandler(), new GetBlobStoreStatsRestHandler());
+        return List.of(new ClearBlobCacheRestHandler(), new GetBlobStoreStatsRestHandler(), new RestReshardSplitAction(settings));
     }
 
     @Override
@@ -1227,7 +1228,8 @@ public class ServerlessStatelessPlugin extends Plugin
             SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING,
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB,
-            SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING
+            SharedBlobCacheWarmingService.OFFLINE_WARMING_ENABLED_SETTING,
+            RestReshardSplitAction.RESHARD_ALLOWED
         );
     }
 

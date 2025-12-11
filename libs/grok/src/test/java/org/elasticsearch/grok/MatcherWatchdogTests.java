@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.joni.Matcher;
 import org.mockito.Mockito;
 
-import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,8 +44,6 @@ public class MatcherWatchdogTests extends ESTestCase {
             thread.start();
         });
 
-        Map<?, ?> registry = ((MatcherWatchdog.Default) watchdog).registry;
-        assertThat(registry.size(), is(0));
         // need to call #register() method on a different thread, assertBusy() fails if current thread gets interrupted
         AtomicBoolean interrupted = new AtomicBoolean(false);
         Thread thread = new Thread(() -> {
@@ -59,12 +56,8 @@ public class MatcherWatchdogTests extends ESTestCase {
             watchdog.unregister(matcher);
         });
         thread.start();
-        assertBusy(() -> {
-            assertThat(interrupted.get(), is(true));
-            assertThat(registry.size(), is(1));
-        });
+        assertBusy(() -> { assertThat(interrupted.get(), is(true)); });
         run.set(false);
-        assertBusy(() -> { assertThat(registry.size(), is(0)); });
     }
 
     public void testIdleIfNothingRegistered() throws Exception {

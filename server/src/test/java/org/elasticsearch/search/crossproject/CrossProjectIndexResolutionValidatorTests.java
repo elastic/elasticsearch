@@ -25,6 +25,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -999,7 +1000,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("no such index [P1:logs*]"));
     }
 
-    public void testFlatExpressionWithMultipleRemotesPartiallyUnauthorizedStrictIgnoreUnavailable() {
+    public void testUnqualifiedExpressionSuccessWhenFoundOnAnyProject() {
         var local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -1048,7 +1049,43 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         assertThat(e, is(nullValue()));
     }
 
-    public void testFlatExpressionUnauthorizedAndFlatExpressionPartiallyAuthorizedStrictIgnoreUnavailable() {
+    public void testReport403Over404() {
+        var local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of("logs"),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs", "P2:logs")
+                )
+            )
+        );
+        var remote = Map.of(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of("logs"),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                            new ElasticsearchSecurityException("Unauthorized for -*")
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        assertThat(e, instanceOf(ElasticsearchSecurityException.class));
+        assertThat(e.getMessage(), containsString("P1:logs"));
+    }
+
+    public void testUnqualifiedIndexExpressionShouldReportFirst403() {
         var local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression(
@@ -1126,8 +1163,249 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
         assertThat(e, is(notNullValue()));
         assertThat(e.getMessage(), equalTo("Unauthorized for P1:metrics"));
+        assertThat(e.getSuppressed(), emptyArray());
+    }
+
+    public void testQualifiedExpressionShouldReport403FromAllProjects() {
+        var local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "*:metrics",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:metrics", "P2:metrics")
+                ),
+                new ResolvedIndexExpression(
+                    "*:logs",
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs", "P2:logs")
+                )
+            )
+        );
+        var remote = new LinkedHashMap<String, ResolvedIndexExpressions>();
+        remote.put(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "metrics",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                            new ElasticsearchSecurityException("Unauthorized for -*")
+                        ),
+                        Set.of()
+                    ),
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                            new ElasticsearchSecurityException("Unauthorized for -*")
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+        remote.put(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "metrics",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED,
+                            new ElasticsearchSecurityException("Unauthorized for -*")
+                        ),
+                        Set.of()
+                    ),
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        assertThat(e, is(notNullValue()));
+        assertThat(e.getMessage(), equalTo("Unauthorized for P1:metrics,P1:logs"));
         assertThat(e.getSuppressed(), arrayWithSize(1));
         assertThat(e.getSuppressed()[0].getMessage(), equalTo("Unauthorized for P2:metrics"));
+    }
+
+    public void testShouldReportFirst404ExceptionWhenNo403() {
+        final String originalExpression = randomFrom("metrics", "*:metrics");
+        var local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    originalExpression,
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:metrics", "P2:metrics")
+                ),
+                new ResolvedIndexExpression(
+                    randomFrom("logs", "*:logs"),
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs", "P2:logs")
+                )
+            )
+        );
+        var remote = new LinkedHashMap<String, ResolvedIndexExpressions>();
+        remote.put(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "metrics",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    ),
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+        remote.put(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "metrics",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    ),
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        assertThat(e, is(notNullValue()));
+        assertThat(e.getMessage(), equalTo("no such index [" + originalExpression + "]"));
+        assertThat(e.getSuppressed(), emptyArray());
+    }
+
+    public void testShouldReportFirstRemote404WhenNo403AndLocalProjectIsExcluded() {
+        final String originalExpression = randomFrom("metrics", "*:metrics");
+        var local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    originalExpression,
+                    ResolvedIndexExpression.LocalExpressions.NONE,
+                    Set.of("P1:metrics", "P2:metrics")
+                ),
+                new ResolvedIndexExpression(
+                    randomFrom("logs", "*:logs"),
+                    new ResolvedIndexExpression.LocalExpressions(
+                        Set.of(),
+                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                        null
+                    ),
+                    Set.of("P1:logs", "P2:logs")
+                )
+            )
+        );
+        var remote = new LinkedHashMap<String, ResolvedIndexExpressions>();
+        remote.put(
+            "P1",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "metrics",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    ),
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+        remote.put(
+            "P2",
+            new ResolvedIndexExpressions(
+                List.of(
+                    new ResolvedIndexExpression(
+                        "metrics",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    ),
+                    new ResolvedIndexExpression(
+                        "logs",
+                        new ResolvedIndexExpression.LocalExpressions(
+                            Set.of(),
+                            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+                            null
+                        ),
+                        Set.of()
+                    )
+                )
+            )
+        );
+
+        var e = CrossProjectIndexResolutionValidator.validate(getStrictIgnoreUnavailable(), null, local, remote);
+        assertThat(e, is(notNullValue()));
+        assertThat(e.getMessage(), equalTo("no such index [P1:metrics]"));
+        assertThat(e.getSuppressed(), emptyArray());
     }
 
     private IndicesOptions getStrictAllowNoIndices() {

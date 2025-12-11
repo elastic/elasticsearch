@@ -132,23 +132,8 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                     return null;
                 }
 
-                if (gpuMode == GpuMode.TRUE) {
+                if (gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) {
                     assert GPUSupport.isSupported();
-                    if (isGpuIndexingFeatureAllowed()) {
-                        return getVectorsFormat(indexOptions, similarity);
-                    } else {
-                        log.error(
-                            Strings.format(
-                                "[%s] is set to TRUE, but it is not allowed by the current license",
-                                VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey()
-                            ),
-                            LicenseUtils.newComplianceException(XPackField.GPU_INDEXING)
-                        );
-                        return null;
-                    }
-                }
-
-                if (gpuMode == GpuMode.AUTO && GPUSupport.isSupported()) {
                     if (isGpuIndexingFeatureAllowed()) {
                         return getVectorsFormat(indexOptions, similarity);
                     } else {

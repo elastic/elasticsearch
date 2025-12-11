@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -811,12 +810,8 @@ public abstract class StreamOutput extends OutputStream {
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
             Instant instant = zonedDateTime.toInstant();
-            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                o.writeZLong(instant.getEpochSecond());
-                o.writeInt(instant.getNano());
-            } else {
-                o.writeLong(instant.toEpochMilli());
-            }
+            o.writeZLong(instant.getEpochSecond());
+            o.writeInt(instant.getNano());
         }),
         entry(Set.class, (o, v) -> {
             if (v instanceof LinkedHashSet) {

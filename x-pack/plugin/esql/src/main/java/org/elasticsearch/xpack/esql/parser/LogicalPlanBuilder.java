@@ -972,7 +972,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2.isEnabled() == false) {
                 checkForRemoteClusters(input, source(ctx), "FORK");
             }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();

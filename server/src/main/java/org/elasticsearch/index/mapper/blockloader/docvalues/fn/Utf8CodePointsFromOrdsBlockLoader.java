@@ -53,19 +53,24 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     public AllReader reader(LeafReaderContext context) throws IOException {
         SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
         if (docValues != null) {
-            if (docValues.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(warnings, docValues);
-            }
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
-                return new Singleton(singleton);
+                if (docValues.getValueCount() > LOW_CARDINALITY) {
+                    return new ImmediateSingletonOrdinals(singleton);
+                } else {
+                    return new Singleton(singleton);
+                }
+            } else {
+                if (docValues.getValueCount() > LOW_CARDINALITY) {
+                    return new ImmediateOrdinals(warnings, docValues);
+                }
+                return new SortedSet(warnings, docValues);
             }
-            return new SortedSet(warnings, docValues);
         }
         SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
         if (singleton != null) {
             if (singleton.getValueCount() > LOW_CARDINALITY) {
-                return new ImmediateOrdinals(warnings, DocValues.singleton(singleton));
+                return new ImmediateSingletonOrdinals(singleton);
             }
             return new Singleton(singleton);
         }
@@ -114,10 +119,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
 
             if (cacheEntriesFilled == cache.length) {
-                return buildFromFilledCache(factory, docs, offset);
+                return buildFromFilledCache(factory, docs, offset, nullsFiltered);
             }
 
-            int[] ords = readOrds(factory, docs, offset);
+            int[] ords = readOrds(factory, docs, offset, nullsFiltered);
             try {
                 fillCache(factory, ords);
                 return buildFromCache(factory, cache, ords);
@@ -153,13 +158,21 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             }
         }
 
-        private int[] readOrds(BlockFactory factory, Docs docs, int offset) throws IOException {
+        private int[] readOrds(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             int count = docs.count() - offset;
             long size = sizeOfArray(count);
             factory.adjustBreaker(size);
             int[] ords = null;
             try {
                 ords = new int[count];
+                if (ordinals instanceof OptionalColumnAtATimeReader direct) {
+                    var block = direct.tryRead(new OrdsBuilder(ords), docs, offset, nullsFiltered, null, false);
+                    if (block != null) {
+                        int[] result = ords;
+                        ords = null;
+                        return result;
+                    }
+                }
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (ordinals.advanceExact(doc) == false) {
@@ -203,8 +216,20 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
          * Build the results for a list of documents directly from the cache. We use this
          * if we're sure that all ordinals we're going to load are already cached.
          */
-        private Block buildFromFilledCache(BlockFactory factory, Docs docs, int offset) throws IOException {
+        private Block buildFromFilledCache(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             int count = docs.count() - offset;
+            if (ordinals instanceof OptionalColumnAtATimeReader direct) {
+                int[] ords = new int[count];
+                var block = direct.tryRead(new OrdsBuilder(ords), docs, offset, nullsFiltered, null, false);
+                if (block != null) {
+                    try (IntBuilder builder = factory.ints(count)) {
+                        for (int ord : ords) {
+                            builder.appendInt(cache[ord]);
+                        }
+                        return builder.build();
+                    }
+                }
+            }
             try (IntBuilder builder = factory.ints(count)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -570,5 +595,204 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     private static long sizeOfArray(int count) {
         return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * (long) count);
+    }
+
+    private static class ImmediateSingletonOrdinals extends BlockDocValuesReader {
+        private final SortedDocValues ordinals;
+
+        ImmediateSingletonOrdinals(SortedDocValues ordinals) {
+            this.ordinals = ordinals;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            if (docs.count() - offset == 1) {
+                return blockForSingleDoc(factory, docs.get(offset));
+            }
+
+            int[] ords = readOrds(ordinals, factory, docs, offset, nullsFiltered);
+            int[] sortedOrds = null;
+            int[] counts = null;
+            try {
+                sortedOrds = sortedOrds(factory, ords);
+                int compactedLength = compactSorted(sortedOrds);
+                counts = counts(factory, sortedOrds, compactedLength);
+                try (IntBuilder builder = factory.ints(ords.length)) {
+                    for (int ord : ords) {
+                        if (ord >= 0) {
+                            builder.appendInt(counts[Arrays.binarySearch(sortedOrds, 0, compactedLength, ord)]);
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                    return builder.build();
+                }
+            } finally {
+                factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(ords));
+                if (sortedOrds != null) {
+                    factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(sortedOrds));
+                }
+                if (counts != null) {
+                    factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(counts));
+                }
+            }
+        }
+
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (IntBuilder) builder);
+        }
+
+        private void read(int docId, IntBuilder builder) throws IOException {
+            if (ordinals.advanceExact(docId) == false) {
+                builder.appendNull();
+                return;
+            }
+            builder.appendInt(codePointsAtOrd(ordinals.ordValue()));
+        }
+
+        @Override
+        public int docId() {
+            return ordinals.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.SingletonImmediate";
+        }
+
+        private Block blockForSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (ordinals.advanceExact(docId) == false) {
+                return factory.constantNulls(1);
+            }
+            return factory.constantInt(codePointsAtOrd(ordinals.ordValue()), 1);
+        }
+
+        private int[] sortedOrds(BlockFactory factory, int[] ords) {
+            factory.adjustBreaker(RamUsageEstimator.sizeOf(ords));
+            int[] sortedOrds = ords.clone();
+            Arrays.sort(sortedOrds);
+            return sortedOrds;
+        }
+
+        private int compactSorted(int[] sortedOrds) {
+            int c = 0;
+            int i = 0;
+            while (i < sortedOrds.length && sortedOrds[i] < 0) {
+                i++;
+            }
+            while (i < sortedOrds.length) {
+                if (false == (i > 0 && sortedOrds[i - 1] == sortedOrds[i])) {
+                    sortedOrds[c++] = sortedOrds[i];
+                }
+                i++;
+            }
+            return c;
+        }
+
+        private int[] counts(BlockFactory factory, int[] compactedSortedOrds, int compactedLength) throws IOException {
+            long size = sizeOfArray(compactedLength);
+            factory.adjustBreaker(size);
+            int[] counts = new int[compactedLength];
+            for (int i = 0; i < counts.length; i++) {
+                counts[i] = codePointsAtOrd(compactedSortedOrds[i]);
+            }
+            return counts;
+        }
+
+        private int codePointsAtOrd(int ord) throws IOException {
+            return UnicodeUtil.codePointCount(ordinals.lookupOrd(ord));
+        }
+
+        private static int[] readOrds(SortedDocValues ordinals, BlockFactory factory, Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            int count = docs.count() - offset;
+            long size = sizeOfArray(count);
+            factory.adjustBreaker(size);
+            int[] ords = null;
+            try {
+                ords = new int[docs.count() - offset];
+                if (ordinals instanceof OptionalColumnAtATimeReader direct) {
+                    var block = direct.tryRead(new OrdsBuilder(ords), docs, offset, nullsFiltered, null, false);
+                    if (block != null) {
+                        int[] result = ords;
+                        ords = null;
+                        return result;
+                    }
+                }
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (ordinals.advanceExact(doc) == false) {
+                        ords[i] = -1;
+                        continue;
+                    }
+                    ords[i] = ordinals.ordValue();
+                }
+                int[] result = ords;
+                ords = null;
+                return result;
+            } finally {
+                if (ords != null) {
+                    factory.adjustBreaker(-size);
+                }
+            }
+        }
+    }
+
+    static class OrdsBuilder extends StubBlockFactory {
+
+        private final int[] ords;
+        private int ordIndex = 0;
+
+        OrdsBuilder(int[] ords) {
+            this.ords = ords;
+        }
+
+        public SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {
+            return new SingletonOrdinalsBuilder() {
+                @Override
+                public SingletonOrdinalsBuilder appendOrd(int value) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public SingletonOrdinalsBuilder appendOrds(int ord, int length) {
+                    Arrays.fill(ords, ordIndex, ordIndex + length, ord);
+                    ordIndex += length;
+                    return this;
+                }
+
+                @Override
+                public SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+                    System.arraycopy(values, from, ords, ordIndex, length);
+                    ordIndex += length;
+                    return this;
+                }
+
+                @Override
+                public Block build() {
+                    return () -> {};
+                }
+
+                @Override
+                public Builder appendNull() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Builder beginPositionEntry() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Builder endPositionEntry() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
     }
 }

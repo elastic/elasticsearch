@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
@@ -58,8 +56,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
-import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +73,6 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> logical() {
         return List.of(
             Aggregate.ENTRY,
-            Completion.ENTRY,
             Dissect.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
@@ -94,7 +89,6 @@ public class PlanWritables {
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
-            Rerank.ENTRY,
             Sample.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
@@ -106,7 +100,6 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> physical() {
         return List.of(
             AggregateExec.ENTRY,
-            CompletionExec.ENTRY,
             DissectExec.ENTRY,
             EnrichExec.ENTRY,
             EsSourceExec.ENTRY,
@@ -123,7 +116,6 @@ public class PlanWritables {
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
-            RerankExec.ENTRY,
             SampleExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

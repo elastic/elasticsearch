@@ -1,0 +1,6 @@
+pr: 137598
+summary: Improve SAML error handling by adding metadata
+area: Authentication
+type: enhancement
+issues:
+ - 128179

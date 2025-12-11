@@ -52,7 +52,7 @@ public class SumOverTime extends TimeSeriesAggregateFunction implements Optional
         @Param(
             name = "window",
             type = { "time_duration" },
-            description = "the time window over which to compute the standard deviation",
+            description = "the time window over which to compute the sum over time",
             optional = true
         ) Expression window
     ) {

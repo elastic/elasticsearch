@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -168,16 +167,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         this.assignmentState = in.readEnum(AssignmentState.class);
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            this.maxAssignedAllocations = in.readVInt();
-        } else {
-            this.maxAssignedAllocations = totalCurrentAllocations();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-        } else {
-            this.adaptiveAllocationsSettings = null;
-        }
+        this.maxAssignedAllocations = in.readVInt();
+        this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
     }
 
     public boolean isRoutedToNode(String nodeId) {
@@ -374,12 +365,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         out.writeEnum(assignmentState);
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeVInt(maxAssignedAllocations);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(adaptiveAllocationsSettings);
-        }
+        out.writeVInt(maxAssignedAllocations);
+        out.writeOptionalWriteable(adaptiveAllocationsSettings);
     }
 
     public Optional<AllocationStatus> calculateAllocationStatus() {

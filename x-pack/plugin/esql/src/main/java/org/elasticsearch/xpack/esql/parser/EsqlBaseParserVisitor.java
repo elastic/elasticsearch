@@ -467,6 +467,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fuseKeyByFields}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -810,21 +816,69 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#valueName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitValueName(EsqlBaseParser.ValueNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#promqlParam}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitPromqlParam(EsqlBaseParser.PromqlParamContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#promqlParamContent}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlParamName}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitPromqlParamContent(EsqlBaseParser.PromqlParamContentContext ctx);
+  T visitPromqlParamName(EsqlBaseParser.PromqlParamNameContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlParamValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlParamValue(EsqlBaseParser.PromqlParamValueContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlQueryContent}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlQueryContent(EsqlBaseParser.PromqlQueryContentContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#promqlQueryPart}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitPromqlQueryPart(EsqlBaseParser.PromqlQueryPartContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlIndexPattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlIndexPattern(EsqlBaseParser.PromqlIndexPatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlClusterString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlClusterString(EsqlBaseParser.PromqlClusterStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlSelectorString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlSelectorString(EsqlBaseParser.PromqlSelectorStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlUnquotedIndexString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlUnquotedIndexString(EsqlBaseParser.PromqlUnquotedIndexStringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#promqlIndexString}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPromqlIndexString(EsqlBaseParser.PromqlIndexStringContext ctx);
 }

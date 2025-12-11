@@ -41,12 +41,14 @@ import static java.util.stream.Collectors.toMap;
  * interact with in some way. This includes fully representable types (e.g.
  * {@link DataType#LONG}, numeric types which we promote (e.g. {@link DataType#SHORT})
  * or fold into other types (e.g. {@link DataType#DATE_PERIOD}) early in the
- * processing pipeline, types for internal use
- * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
- * doesn't support, but require special handling anyway (e.g.
- * {@link DataType#OBJECT})
+ * processing pipeline, and types which the language doesn't support, but require
+ * special handling anyway (e.g. {@link DataType#OBJECT})
  *
  * <h2>Process for adding a new data type</h2>
+ * We assume that the data type is already supported in ES indices, but not in
+ * ES|QL. Types that aren't yet enabled in ES will require some adjustments to
+ * the process.
+ * <p>
  * Note: it is not expected that all the following steps be done in a single PR.
  * Use capabilities to gate tests as you go, and use as many PRs as you think
  * appropriate. New data types are complex, and smaller PRs will make reviews
@@ -54,13 +56,14 @@ import static java.util.stream.Collectors.toMap;
  * <ul>
  *     <li>
  *         Create a new data type and mark it as under construction using
- *         {@link Builder#underConstruction()}. This makes the type available on
+ *         {@link Builder#underConstruction(TransportVersion)}. This makes the type available on
  *         SNAPSHOT builds, only, prevents some tests from running and prevents documentation
  *         for the new type to be built.</li>
  *     <li>
  *         New tests using the type will require a new {@code EsqlCapabilities} entry,
  *         otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
- *         know about the new type.</li>
+ *         know about the new type. This capability needs to be SNAPSHOT-only as long as
+ *         the type is under construction</li>
  *     <li>
  *         Create a new CSV test file for the new type. You'll either need to
  *         create a new data file as well, or add values of the new type to
@@ -115,19 +118,29 @@ import static java.util.stream.Collectors.toMap;
  *         EsqlDataTypeConverter#commonType, individual function type checking, the
  *         verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
+ *     <li>
+ *         Ensure the new type doesn't break {@code FROM idx | KEEP *} queries by
+ *         updating AllSupportedFieldsTestCase. Make sure to run this test in bwc
+ *         configurations in release mode.
+ *         </li>
  * </ul>
- * There are some additional steps that should be taken when removing the
- * feature flag and getting ready for a release:
+ * There are some additional steps that should be taken when getting ready for a release:
  * <ul>
  *     <li>
  *         Ensure the capabilities for this type are always enabled.</li>
  *     <li>
  *         Mark the type with a new transport version via
- *         {@link Builder#supportedSince(TransportVersion)}. This will enable the type on
- *         non-SNAPSHOT builds as long as all nodes in the cluster (and remote clusters)
- *         support it.</li>
+ *         {@link Builder#supportedSince(TransportVersion, TransportVersion)}.
+ *         This will enable the type on non-SNAPSHOT builds as long as all nodes in the cluster
+ *         (and remote clusters) support it.
+ *         Use the under-construction transport version for the {@code createdVersion} here so that
+ *         existing tests continue to run.
+ *         </li>
  *     <li>
  *         Fix new test failures related to declared function types.</li>
+ *     <li>
+ *         Update the expectations in AllSupportedFieldsTestCase and make sure it
+ *         passes in release builds.</li>
  *     <li>
  *         Make sure to run the full test suite locally via gradle to generate
  *         the function type tables and helper files with the new type. Ensure all
@@ -299,12 +312,23 @@ public enum DataType implements Writeable {
     // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because these types require specific
     // geo functions to turn up in the query, and those types aren't available before 9.2.0 either.
     GEOHASH(
-        builder().esType("geohash").typeName("GEOHASH").estimatedSize(Long.BYTES).supportedSince(DataTypesTransportVersions.INDEX_SOURCE)
+        builder().esType("geohash")
+            .typeName("GEOHASH")
+            .estimatedSize(Long.BYTES)
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
     GEOTILE(
-        builder().esType("geotile").typeName("GEOTILE").estimatedSize(Long.BYTES).supportedSince(DataTypesTransportVersions.INDEX_SOURCE)
+        builder().esType("geotile")
+            .typeName("GEOTILE")
+            .estimatedSize(Long.BYTES)
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
-    GEOHEX(builder().esType("geohex").typeName("GEOHEX").estimatedSize(Long.BYTES).supportedSince(DataTypesTransportVersions.INDEX_SOURCE)),
+    GEOHEX(
+        builder().esType("geohex")
+            .typeName("GEOHEX")
+            .estimatedSize(Long.BYTES)
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
 
     /**
      * Fields with this type represent a Lucene doc id. This field is a bit magic in that:
@@ -328,36 +352,52 @@ public enum DataType implements Writeable {
     // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because _tsid requires specifically being
     // used in `FROM idx METADATA _tsid` or in the `TS` command, which both weren't available before 9.2.0.
     TSID_DATA_TYPE(
-        builder().esType("_tsid").estimatedSize(Long.BYTES * 2).docValues().supportedSince(DataTypesTransportVersions.INDEX_SOURCE)
+        builder().esType("_tsid")
+            .estimatedSize(Long.BYTES * 2)
+            .docValues()
+            .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
-    /**
-     * Fields with this type are the partial result of running a non-time-series aggregation
-     * inside alongside time-series aggregations. These fields are not parsable from the
-     * mapping and should be hidden from users.
-     */
-    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).supportedOnAllNodes()),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
-            .supportedSince(DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION)
+            .supportedSince(
+                DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION
+            )
     ),
 
     EXPONENTIAL_HISTOGRAM(
         builder().esType("exponential_histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction()
+            .supportedSince(
+                DataTypesTransportVersions.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION,
+                DataTypesTransportVersions.ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION
+            )
+    ),
+
+    TDIGEST(
+        builder().esType("tdigest")
+            .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .docValues()
+            .underConstruction(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST)
+
     ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
      */
     DENSE_VECTOR(
-        builder().esType("dense_vector").estimatedSize(4096).supportedSince(DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION)
+        builder().esType("dense_vector")
+            .estimatedSize(4096)
+            .supportedSince(
+                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION,
+                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
+            )
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
-        .filter(t -> t.supportedVersion() == SupportedVersion.UNDER_CONSTRUCTION)
+        .filter(t -> t.supportedVersion().underConstruction())
         .collect(Collectors.toSet());
 
     private final String typeName;
@@ -618,7 +658,6 @@ public enum DataType implements Writeable {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
-            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 
@@ -960,13 +999,15 @@ public enum DataType implements Writeable {
         }
 
         /**
-         * The version from when on a {@link DataType} is supported. When a query tries to use a data type
-         * not supported on any of the nodes it runs on, it is invalid.
+         * Marks a type that is supported in production since {@code supportedVersion}.
+         * When a query tries to use a data type not supported on the nodes it runs on, this is a bug.
          * <p>
-         * Generally, we should add a dedicated transport version when a type is enabled on release builds.
+         * On snapshot builds, the {@code createdVersion} is used instead, so that existing tests continue
+         * to work after release if the type was previously {@link #underConstruction(TransportVersion)};
+         * the under-construction version should be used as the {@code createdVersion}.
          */
-        Builder supportedSince(TransportVersion supportedVersion) {
-            this.supportedVersion = SupportedVersion.supportedSince(supportedVersion);
+        Builder supportedSince(TransportVersion createdVersion, TransportVersion supportedVersion) {
+            this.supportedVersion = SupportedVersion.supportedSince(createdVersion, supportedVersion);
             return this;
         }
 
@@ -975,8 +1016,12 @@ public enum DataType implements Writeable {
             return this;
         }
 
-        Builder underConstruction() {
-            this.supportedVersion = SupportedVersion.UNDER_CONSTRUCTION;
+        /**
+         * Marks a type that is not supported in production yet, but is supported in snapshot builds
+         * starting with the given version.
+         */
+        Builder underConstruction(TransportVersion createdVersion) {
+            this.supportedVersion = SupportedVersion.underConstruction(createdVersion);
             return this;
         }
     }
@@ -997,5 +1042,20 @@ public enum DataType implements Writeable {
         public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
             "esql_aggregate_metric_double_created_version"
         );
+
+        /**
+         * First transport version after the PR that introduced the exponential histogram data type which was NOT also backported to 9.2.
+         * (Exp. histogram was added as SNAPSHOT-only to 9.3.)
+         */
+        public static final TransportVersion TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION = TransportVersion.fromName(
+            "text_similarity_rank_docs_explain_chunks"
+        );
+
+        public static final TransportVersion ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION = TransportVersion.fromName(
+            "esql_exponential_histogram_supported_version"
+        );
+
+        private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+
     }
 }

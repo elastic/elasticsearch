@@ -2738,16 +2738,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute attr = out.get(columnIndex);
                 if (attr instanceof FieldAttribute fa) {
                     if (fa.field() instanceof InvalidMappedField invalidMappedField) {
-                        dataTypes.add(
-                            invalidMappedField.types().stream().map(DataType::typeName).collect(Collectors.joining(", ", "[", "]"))
-                        );
+                        dataTypes.addAll(invalidMappedField.types().stream().map(DataType::typeName).toList());
                     } else if (fa.field() instanceof UnsupportedEsField unsupportedEsField) {
-                        dataTypes.add(unsupportedEsField.getOriginalTypes().stream().collect(Collectors.joining(", ", "[", "]")));
+                        dataTypes.addAll(unsupportedEsField.getOriginalTypes());
                     } else {
-                        dataTypes.add("[" + attr.dataType().typeName() + "]");
+                        dataTypes.add(attr.dataType().typeName());
                     }
                 } else {
-                    dataTypes.add("[" + attr.dataType().typeName() + "]");
+                    dataTypes.add(attr.dataType().typeName());
                 }
             }
             return dataTypes;

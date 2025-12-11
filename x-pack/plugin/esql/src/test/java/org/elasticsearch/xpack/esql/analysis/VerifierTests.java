@@ -3233,9 +3233,18 @@ public class VerifierTests extends ESTestCase {
             | WHERE emp_no > 10000
             | SORT is_rehired, still_hired
             """);
-        assertThat(errorMessage, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
-        assertThat(errorMessage, containsString("Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]"));
-        assertThat(errorMessage, containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"));
+        assertThat(
+            errorMessage,
+            containsString("Column [emp_no] has conflicting or unsupported data types in subqueries: [integer, long]")
+        );
+        assertThat(
+            errorMessage,
+            containsString("Column [is_rehired] has conflicting or unsupported data types in subqueries: [boolean, keyword]")
+        );
+        assertThat(
+            errorMessage,
+            containsString("Column [still_hired] has conflicting or unsupported data types in subqueries: [boolean, keyword]")
+        );
     }
 
     // Fork inside subquery is tested in LogicalPlanOptimizerTests

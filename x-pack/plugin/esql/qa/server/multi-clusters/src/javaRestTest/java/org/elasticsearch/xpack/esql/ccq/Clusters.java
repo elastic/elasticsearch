@@ -77,14 +77,14 @@ public class Clusters {
     }
 
     public static boolean localClusterSupportsInferenceTestService() {
-        return isNewToOld() && localClusterVersion().onOrAfter(org.elasticsearch.Version.fromString("9.3.0"));
+        return isNewToOld();
     }
 
     /**
      * Returns true if the current task is a "newToOld" BWC test.
      * Checks the tests.task system property to determine the task type.
      */
-    public static boolean isNewToOld() {
+    private static boolean isNewToOld() {
         String taskName = System.getProperty("tests.task");
         if (taskName == null) {
             return false;

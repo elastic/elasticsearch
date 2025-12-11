@@ -410,7 +410,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals(
             "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
-                + " exponential_histogram or numeric except unsigned_long or counter types],"
+                + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -839,7 +839,7 @@ public class VerifierTests extends ESTestCase {
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
-                + " exponential_histogram or numeric except unsigned_long or counter types],"
+                + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
@@ -1155,7 +1155,7 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:19: argument of [min(network.bytes_in)] must be"
                     + " [boolean, date, ip, string, version, aggregate_metric_double,"
-                    + " exponential_histogram or numeric except counter types],"
+                    + " exponential_histogram, tdigest or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1164,8 +1164,8 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:19: argument of [max(network.bytes_in)] must be"
-                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram"
-                    + " or numeric except counter types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double, exponential_histogram,"
+                    + " tdigest or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );

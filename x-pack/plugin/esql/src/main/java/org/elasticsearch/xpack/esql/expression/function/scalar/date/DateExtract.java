@@ -126,7 +126,7 @@ public class DateExtract extends EsqlScalarFunction implements ConfigurationFunc
         if (children().get(0).foldable()) {
             ChronoField chrono = chronoField(toEvaluator.foldCtx());
             if (chrono == null) {
-                BytesRef field = (BytesRef) children().get(0).fold(toEvaluator.foldCtx());
+                BytesRef field = (BytesRef) children().get(0).fold(toEvaluator);
                 throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
 

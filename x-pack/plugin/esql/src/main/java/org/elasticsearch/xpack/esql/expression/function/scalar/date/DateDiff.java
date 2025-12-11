@@ -335,7 +335,7 @@ public class DateDiff extends EsqlScalarFunction implements ConfigurationFunctio
 
         if (unit.foldable()) {
             try {
-                Part datePartField = Part.resolve(BytesRefs.toString(unit.fold(toEvaluator.foldCtx())));
+                Part datePartField = Part.resolve(BytesRefs.toString(unit.fold(toEvaluator)));
                 return constantFactory.build(source(), datePartField, startTimestampEvaluator, endTimestampEvaluator, zoneId);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException("invalid unit format for [{}]: {}", sourceText(), e.getMessage());

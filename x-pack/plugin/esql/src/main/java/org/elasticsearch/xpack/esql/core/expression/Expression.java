@@ -94,7 +94,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
      * Evaluate this expression statically to a constant. It is an error to call
      * this if {@link #foldable} returns false.
      */
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         // TODO After removing FoldContext.unbounded from non-test code examine all calls
         // for places we should use instanceof Literal instead
         throw new QlIllegalArgumentException("Should not fold expression");

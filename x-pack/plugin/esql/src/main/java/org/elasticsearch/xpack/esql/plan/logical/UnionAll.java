@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -66,7 +67,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return UnionAll::checkUnionAll;
     }
 

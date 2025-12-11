@@ -22,7 +22,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -187,8 +187,8 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
-            int precision = (int) parameter.fold(toEvaluator.foldCtx());
+            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator));
+            int precision = (int) parameter.fold(toEvaluator);
             GeoHashBoundedGrid.Factory bounds = new GeoHashBoundedGrid.Factory(precision, bbox);
             return spatialDocsValues
                 ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
@@ -198,7 +198,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
                 )
                 : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
-            int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
+            int precision = checkPrecisionRange((int) parameter.fold(toEvaluator));
             return spatialDocsValues
                 ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                 : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -206,7 +206,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = (int) parameter().fold(ctx);
         if (bounds() == null) {

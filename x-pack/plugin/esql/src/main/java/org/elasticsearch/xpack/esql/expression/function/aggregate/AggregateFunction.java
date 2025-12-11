@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -201,7 +202,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return (p, failures) -> {
             if ((p instanceof Aggregate) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {

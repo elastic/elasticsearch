@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -30,7 +30,7 @@ public abstract sealed class GroupingFunction extends Function implements PostAn
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return (p, failures) -> {
             if (p instanceof Aggregate == false) {
                 p.forEachExpression(
@@ -62,7 +62,7 @@ public abstract sealed class GroupingFunction extends Function implements PostAn
         }
 
         @Override
-        public Object fold(FoldContext ctx) {
+        public Object fold(ExpressionContext ctx) {
             return EvaluatorMapper.super.fold(source(), ctx);
         }
     }

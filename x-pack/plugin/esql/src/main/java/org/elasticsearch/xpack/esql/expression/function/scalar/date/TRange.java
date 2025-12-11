@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -197,8 +196,8 @@ public class TRange extends EsqlScalarFunction
     }
 
     @Override
-    public Expression surrogate(Configuration configuration) {
-        long[] range = getRange(configuration, FoldContext.small());
+    public Expression surrogate(ExpressionContext ctx) {
+        long[] range = getRange(ctx);
 
         Expression startLiteral = new Literal(source(), range[0], timestamp.dataType());
         Expression endLiteral = new Literal(source(), range[1], timestamp.dataType());
@@ -216,17 +215,17 @@ public class TRange extends EsqlScalarFunction
         return timestamp.nullable();
     }
 
-    private long[] getRange(Configuration configuration, FoldContext foldContext) {
+    private long[] getRange(ExpressionContext ctx) {
         Instant rangeStart;
         Instant rangeEnd;
 
         try {
-            Object foldFirst = first.fold(foldContext);
+            Object foldFirst = first.fold(ctx);
             if (second == null) {
-                rangeEnd = configuration.now().toInstant();
+                rangeEnd = ctx.configuration().now().toInstant();
                 rangeStart = timeWithOffset(foldFirst, rangeEnd);
             } else {
-                Object foldSecond = second.fold(foldContext);
+                Object foldSecond = second.fold(ctx);
                 rangeStart = parseToInstant(foldFirst, START_TIME_OR_OFFSET_PARAMETER);
                 rangeEnd = parseToInstant(foldSecond, END_TIME_PARAMETER);
             }
@@ -256,10 +255,6 @@ public class TRange extends EsqlScalarFunction
     }
 
     private Instant parseToInstant(Object value, String paramName) {
-        if (value instanceof Literal literal) {
-            value = literal.fold(FoldContext.small());
-        }
-
         if (value instanceof Instant instantValue) {
             return instantValue;
         }
@@ -285,11 +280,11 @@ public class TRange extends EsqlScalarFunction
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return (logicalPlan, failures) -> {
             // single parameter mode
             if (second == null) {
-                Object rangeStartValue = first.fold(FoldContext.small());
+                Object rangeStartValue = first.fold(ctx);
                 if (rangeStartValue instanceof Duration duration && duration.isNegative()
                     || rangeStartValue instanceof Period period && period.isNegative()) {
                     failures.add(fail(first, "{} cannot be negative", START_TIME_OR_OFFSET_PARAMETER));
@@ -298,7 +293,7 @@ public class TRange extends EsqlScalarFunction
 
             // two parameter mode
             if (second != null) {
-                Object rangeEndValue = second.fold(FoldContext.small());
+                Object rangeEndValue = second.fold(ctx);
                 if (rangeEndValue == null) {
                     failures.add(fail(second, "{} cannot be null", END_TIME_PARAMETER));
                 }

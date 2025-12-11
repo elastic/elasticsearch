@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
@@ -66,7 +65,7 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         return apply(field().fold(ctx));
     }
 
@@ -120,8 +119,8 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
     }
 
     @Override
-    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return handler.asQuery(configuration, pushdownPredicates, field()).negate(source());
+    public Query asQuery(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return handler.asQuery(ctx, pushdownPredicates, field()).negate(source());
     }
 
     record NotEvaluatorFactory(Source source, EvalOperator.ExpressionEvaluator.Factory field)

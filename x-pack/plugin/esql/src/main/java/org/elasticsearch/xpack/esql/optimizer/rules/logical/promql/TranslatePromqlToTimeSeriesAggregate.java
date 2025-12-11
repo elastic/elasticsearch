@@ -243,13 +243,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.O
             // use default lookback for instant queries
             timeBucketSize = Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
         }
-        Bucket b = new Bucket(
-            promqlCommand.source(),
-            promqlCommand.timestamp(),
-            timeBucketSize,
-            null,
-            null
-        );
+        Bucket b = new Bucket(promqlCommand.source(), promqlCommand.timestamp(), timeBucketSize, null, null);
         return new Alias(b.source(), "step", b, promqlCommand.stepId());
     }
 

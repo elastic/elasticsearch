@@ -11,13 +11,13 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Handler used during query translation.
@@ -31,9 +31,9 @@ public final class TranslatorHandler {
 
     private TranslatorHandler() {}
 
-    public Query asQuery(Configuration configuration, LucenePushdownPredicates predicates, Expression e) {
+    public Query asQuery(ExpressionContext ctx, LucenePushdownPredicates predicates, Expression e) {
         if (e instanceof TranslationAware ta) {
-            Query query = ta.asQuery(configuration, predicates, this);
+            Query query = ta.asQuery(ctx, predicates, this);
             return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
         }
 

@@ -200,8 +200,8 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
-            int startOffset = stringToInt(String.valueOf(start.fold(toEvaluator.foldCtx())));
-            int endOffset = stringToInt(String.valueOf(end.fold(toEvaluator.foldCtx())));
+            int startOffset = stringToInt(String.valueOf(start.fold(toEvaluator)));
+            int endOffset = stringToInt(String.valueOf(end.fold(toEvaluator)));
             checkStartEnd(startOffset, endOffset);
         }
         return switch (PlannerUtils.toElementType(field.dataType())) {

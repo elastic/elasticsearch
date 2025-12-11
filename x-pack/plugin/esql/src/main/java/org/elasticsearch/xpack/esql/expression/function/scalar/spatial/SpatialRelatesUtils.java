@@ -29,6 +29,7 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -58,7 +59,7 @@ public class SpatialRelatesUtils {
     }
 
     /** Converts a {@link Expression} into a {@link Component2D}. */
-    static Component2D asLuceneComponent2D(FoldContext ctx, BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
+    static Component2D asLuceneComponent2D(ExpressionContext ctx, BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
         return asLuceneComponent2D(crsType, makeGeometryFromLiteral(ctx, expression));
     }
 
@@ -107,7 +108,7 @@ public class SpatialRelatesUtils {
 
     /** Converts a {@link Expression} into a {@link GeometryDocValueReader} */
     static GeometryDocValueReader asGeometryDocValueReader(
-        FoldContext ctx,
+        ExpressionContext ctx,
         BinarySpatialFunction.SpatialCrsType crsType,
         Expression expression
     ) throws IOException {
@@ -185,7 +186,7 @@ public class SpatialRelatesUtils {
     /**
      * This function is used when evaluating a spatial constant in the SpatialRelatesFunction
      */
-    public static Geometry makeGeometryFromLiteral(FoldContext ctx, Expression expr) {
+    public static Geometry makeGeometryFromLiteral(ExpressionContext ctx, Expression expr) {
         return makeGeometryFromLiteralValue(valueOf(ctx, expr), expr.dataType());
     }
 

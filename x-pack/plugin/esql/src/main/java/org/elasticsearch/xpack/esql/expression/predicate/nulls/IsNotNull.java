@@ -16,7 +16,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
@@ -104,7 +103,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         return DataType.isNull(field().dataType()) == false && field().fold(ctx) != null;
     }
 
@@ -135,7 +134,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     }
 
     @Override
-    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         return new ExistsQuery(source(), handler.nameOf(field()));
     }
 

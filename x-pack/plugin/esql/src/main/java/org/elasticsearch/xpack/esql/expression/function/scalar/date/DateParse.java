@@ -270,7 +270,7 @@ public class DateParse extends EsqlScalarFunction implements TwoOptionalArgument
 
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()));
+                DateFormatter formatter = toFormatter(format.fold(toEvaluator));
                 if (locale != null) {
                     formatter = formatter.withLocale(locale);
                 }

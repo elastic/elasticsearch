@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -284,7 +285,7 @@ public final class Case extends EsqlScalarFunction {
      * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
      * {@code EVAL c=CASE(b, bar, bort)}.
      */
-    public Expression partiallyFold(FoldContext ctx) {
+    public Expression partiallyFold(ExpressionContext ctx) {
         // TODO don’t throw away the results of any `fold`. That might mean looking for literal TRUE on the conditions.
         List<Expression> newChildren = new ArrayList<>(children().size());
         boolean modified = false;

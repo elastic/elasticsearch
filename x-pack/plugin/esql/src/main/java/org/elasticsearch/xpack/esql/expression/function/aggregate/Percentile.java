@@ -14,6 +14,7 @@ import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -167,7 +167,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     @Override
-    public Expression surrogate(Configuration configuration) {
+    public Expression surrogate(ExpressionContext ctx) {
         var field = field();
 
         if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {

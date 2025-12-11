@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -162,7 +162,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         // We only fold when the field is null (it's not present in the mapping), so we return null
         return null;
     }
@@ -173,9 +173,9 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return (plan, failures) -> {
-            super.postAnalysisPlanVerification().accept(plan, failures);
+            super.postAnalysisPlanVerification(ctx).accept(plan, failures);
             fieldVerifier(plan, this, field, failures);
         };
     }

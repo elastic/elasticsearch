@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -256,9 +257,9 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return (p, failures) -> {
-            super.postAnalysisPlanVerification().accept(p, failures);
+            super.postAnalysisPlanVerification(ctx).accept(p, failures);
 
             if (p instanceof InlineStats inlineStats && inlineStats.child() instanceof Aggregate aggregate) {
                 aggregate.groupings().forEach(grp -> {

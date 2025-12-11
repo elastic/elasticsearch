@@ -242,7 +242,7 @@ public class DateTrunc extends EsqlScalarFunction implements ConfigurationFuncti
         }
         Object foldedInterval;
         try {
-            foldedInterval = interval.fold(toEvaluator.foldCtx());
+            foldedInterval = interval.fold(toEvaluator);
             if (foldedInterval == null) {
                 throw new IllegalArgumentException("Interval cannot not be null");
             }

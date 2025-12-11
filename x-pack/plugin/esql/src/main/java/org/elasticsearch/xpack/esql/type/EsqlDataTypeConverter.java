@@ -37,8 +37,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -302,7 +302,7 @@ public class EsqlDataTypeConverter {
         return null;
     }
 
-    public static TemporalAmount foldToTemporalAmount(FoldContext ctx, Expression field, String sourceText, DataType expectedType) {
+    public static TemporalAmount foldToTemporalAmount(ExpressionContext ctx, Expression field, String sourceText, DataType expectedType) {
         if (field.foldable()) {
             Object v = field.fold(ctx);
             if (v instanceof BytesRef b) {

@@ -25,7 +25,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -184,8 +184,8 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
-            int precision = (int) parameter.fold(toEvaluator.foldCtx());
+            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator));
+            int precision = (int) parameter.fold(toEvaluator);
             GeoTileBoundedGrid.Factory bounds = new GeoTileBoundedGrid.Factory(precision, bbox);
             return spatialDocsValues
                 ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
@@ -195,7 +195,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
                 )
                 : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
-            int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
+            int precision = checkPrecisionRange((int) parameter.fold(toEvaluator));
             return spatialDocsValues
                 ? new StGeotileFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                 : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -203,7 +203,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {

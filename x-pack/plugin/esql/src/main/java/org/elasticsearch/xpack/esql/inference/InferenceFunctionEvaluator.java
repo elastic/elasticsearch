@@ -23,6 +23,7 @@ import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -199,11 +200,8 @@ public class InferenceFunctionEvaluator {
          * @param inferenceService the inference service
          * @return a new instance of {@link InferenceFunctionEvaluator}
          */
-        public InferenceFunctionEvaluator create(Configuration configuration, FoldContext foldContext, InferenceService inferenceService) {
-            return new InferenceFunctionEvaluator(
-                foldContext,
-                createInferenceOperatorProvider(configuration, foldContext, inferenceService)
-            );
+        public InferenceFunctionEvaluator create(ExpressionContext ctx, InferenceService inferenceService) {
+            return new InferenceFunctionEvaluator(ctx, createInferenceOperatorProvider(ctx, inferenceService));
         }
 
         /**
@@ -211,20 +209,20 @@ public class InferenceFunctionEvaluator {
          */
         private InferenceOperatorProvider createInferenceOperatorProvider(
             Configuration configuration,
-            FoldContext foldContext,
+            ExpressionContext ctx,
             InferenceService inferenceService
         ) {
             return (inferenceFunction, driverContext) -> {
                 Operator.OperatorFactory operatorFactory = switch (inferenceFunction) {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
-                        inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(textEmbedding.inputText(), configuration, foldContext)
+                        inferenceId(inferenceFunction, ctx),
+                        expressionEvaluatorFactory(textEmbedding.inputText(), ctx)
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
-                        inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(completion.prompt(), configuration, foldContext)
+                        inferenceId(inferenceFunction, ctx),
+                        expressionEvaluatorFactory(completion.prompt(), ctx)
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };
@@ -239,8 +237,8 @@ public class InferenceFunctionEvaluator {
          * @param f the inference function containing the inference ID
          * @return the inference endpoint ID as a string
          */
-        private String inferenceId(InferenceFunction<?> f, FoldContext foldContext) {
-            return BytesRefs.toString(f.inferenceId().fold(foldContext));
+        private String inferenceId(InferenceFunction<?> f, ExpressionContext ctx) {
+            return BytesRefs.toString(f.inferenceId().fold(ctx));
         }
 
         /**
@@ -252,13 +250,9 @@ public class InferenceFunctionEvaluator {
          * @param e the foldable expression to create an evaluator factory for
          * @return an expression evaluator factory for the given expression
          */
-        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(
-            Expression e,
-            Configuration configuration,
-            FoldContext foldContext
-        ) {
+        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, ExpressionContext ctx) {
             assert e.foldable() : "Input expression must be foldable";
-            return EvalMapper.toEvaluator(configuration, foldContext, Literal.of(foldContext, e), null);
+            return EvalMapper.toEvaluator(ctx.configuration(), ctx.foldContext(), Literal.of(ctx, e), null);
         }
     }
 }

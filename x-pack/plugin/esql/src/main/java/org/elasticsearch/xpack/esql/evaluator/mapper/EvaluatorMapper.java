@@ -19,6 +19,7 @@ import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -33,12 +34,8 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  * Expressions that have a mapping to an {@link ExpressionEvaluator}.
  */
 public interface EvaluatorMapper {
-    interface ToEvaluator {
+    interface ToEvaluator extends ExpressionContext {
         ExpressionEvaluator.Factory apply(Expression expression);
-
-        Configuration configuration();
-
-        FoldContext foldCtx();
 
         default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
@@ -79,7 +76,7 @@ public interface EvaluatorMapper {
      * Fold using {@link #toEvaluator} so you don't need a "by hand"
      * implementation of {@link Expression#fold}.
      */
-    default Object fold(Source source, Configuration configuration, FoldContext ctx) {
+    default Object fold(Source source, ExpressionContext ctx) {
         /*
          * OK! So! We're going to build a bunch of *stuff* that so that we can
          * call toEvaluator and use it without standing up an entire compute
@@ -116,12 +113,12 @@ public interface EvaluatorMapper {
 
             @Override
             public Configuration configuration() {
-                return configuration;
+                return ctx.configuration();
             }
 
             @Override
             public FoldContext foldCtx() {
-                return ctx;
+                return ctx.foldCtx();
             }
         };
 
@@ -136,7 +133,7 @@ public interface EvaluatorMapper {
          * so we can feed *that* into a DriverContext. It's a bit hacky, but
          * that's what's going on here.
          */
-        CircuitBreaker breaker = ctx.circuitBreakerView(source);
+        CircuitBreaker breaker = ctx.foldCtx().circuitBreakerView(source);
         BigArrays bigArrays = new BigArrays(null, new CircuitBreakerService() {
             @Override
             public CircuitBreaker getBreaker(String name) {

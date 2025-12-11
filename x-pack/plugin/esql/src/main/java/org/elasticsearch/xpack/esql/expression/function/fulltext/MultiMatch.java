@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -346,7 +345,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     @Override
-    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    protected Query translate(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
             if (Expressions.isGuaranteedNull(field)) {
@@ -460,7 +459,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         // We only fold when all fields are null (none is present in the mapping), so we return null
         return Literal.NULL;
     }
@@ -487,9 +486,9 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(ExpressionContext ctx) {
         return (plan, failures) -> {
-            super.postAnalysisPlanVerification().accept(plan, failures);
+            super.postAnalysisPlanVerification(ctx).accept(plan, failures);
             plan.forEachExpression(MultiMatch.class, mm -> {
                 for (Expression field : fields) {
                     if ((Expressions.isGuaranteedNull(field) == false) && (fieldAsFieldAttribute(field) == null)) {

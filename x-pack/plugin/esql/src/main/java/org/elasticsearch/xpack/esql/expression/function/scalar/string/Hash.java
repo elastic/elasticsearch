@@ -147,7 +147,7 @@ public class Hash extends EsqlScalarFunction {
         if (algorithm.foldable()) {
             try {
                 // hash function is created here in order to validate the algorithm is valid before evaluator is created
-                var hf = HashFunction.create((BytesRef) algorithm.fold(toEvaluator.foldCtx()));
+                var hf = HashFunction.create((BytesRef) algorithm.fold(toEvaluator));
                 return new HashConstantEvaluator.Factory(
                     source(),
                     context -> new BreakingBytesRefBuilder(context.breaker(), "hash"),

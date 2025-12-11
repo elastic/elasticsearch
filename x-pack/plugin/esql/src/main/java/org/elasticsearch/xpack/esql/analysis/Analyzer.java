@@ -1450,10 +1450,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             // Allow resolving snapshot-only functions, but do not include them in the documentation
             final EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
-            return plan.transformExpressionsOnly(
-                UnresolvedFunction.class,
-                uf -> resolveFunction(uf, snapshotRegistry)
-            );
+            return plan.transformExpressionsOnly(UnresolvedFunction.class, uf -> resolveFunction(uf, snapshotRegistry));
         }
 
         public static org.elasticsearch.xpack.esql.core.expression.function.Function resolveFunction(

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Map;
@@ -96,7 +96,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
      * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
      */
     @Override
-    public SpatialRelatesFunction surrogate(Configuration configuration) {
+    public SpatialRelatesFunction surrogate(ExpressionContext ctx) {
         return this;
     }
 
@@ -297,7 +297,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public Query asQuery(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    public Query asQuery(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (left().foldable()) {
             checkSpatialRelatesFunction(left(), queryRelation());
             return translate(handler, right(), left());

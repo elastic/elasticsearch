@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -179,8 +179,8 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS));
     }
 
-    private Map<String, Object> kqlQueryOptions(Configuration configuration) throws InvalidArgumentException {
-        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+    private Map<String, Object> kqlQueryOptions(ExpressionContext ctx) throws InvalidArgumentException {
+        if (options() == null && ctx.configuration().zoneId().equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -188,7 +188,7 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         if (options() != null) {
             Options.populateMap((MapExpression) options(), kqlOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        kqlOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        kqlOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), ctx.configuration().zoneId().getId());
         return kqlOptions;
     }
 
@@ -203,8 +203,8 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
     }
 
     @Override
-    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new KqlQuery(source(), Foldables.queryAsString(query(), sourceText()), kqlQueryOptions(configuration));
+    protected Query translate(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return new KqlQuery(source(), Foldables.queryAsString(query(), sourceText()), kqlQueryOptions(ctx));
     }
 
     @Override

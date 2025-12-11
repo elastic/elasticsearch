@@ -188,7 +188,7 @@ public class DateFormat extends EsqlScalarFunction implements ConfigurationFunct
         }
         Locale locale = toEvaluator.configuration().locale();
         if (format.foldable()) {
-            DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()), locale);
+            DateFormatter formatter = toFormatter(format.fold(toEvaluator), locale);
             return getConstantEvaluator(field.dataType(), fieldEvaluator, formatter);
         }
         var formatEvaluator = toEvaluator.apply(format);

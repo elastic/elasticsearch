@@ -158,7 +158,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                     LoggerMessageFormat.format(null, "Order expression must be foldable, but got [{}]", sourceText())
                 );
             }
-            String orderValue = BytesRefs.toString(order.fold(toEvaluator.foldCtx()));
+            String orderValue = BytesRefs.toString(order.fold(toEvaluator));
             if (orderValue.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false
                 && orderValue.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false) {
                 throw new IllegalArgumentException(

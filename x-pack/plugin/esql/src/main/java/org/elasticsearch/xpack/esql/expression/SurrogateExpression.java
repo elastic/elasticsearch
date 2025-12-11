@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Interface signaling to the planner that the declaring expression
@@ -28,5 +28,5 @@ public interface SurrogateExpression {
      * Returns the expression to be replaced by or {@code null} if this cannot
      * be replaced.
      */
-    Expression surrogate(Configuration configuration);
+    Expression surrogate(ExpressionContext ctx);
 }

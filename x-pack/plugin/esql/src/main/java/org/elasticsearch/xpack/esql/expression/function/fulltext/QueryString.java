@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -324,8 +324,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    private Map<String, Object> queryStringOptions(Configuration configuration) throws InvalidArgumentException {
-        if (options() == null && configuration.zoneId().equals(ZoneOffset.UTC)) {
+    private Map<String, Object> queryStringOptions(ExpressionContext ctx) throws InvalidArgumentException {
+        if (options() == null && ctx.configuration().zoneId().equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -333,7 +333,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.zoneId().getId());
+        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), ctx.configuration().zoneId().getId());
         return queryStringOptions;
     }
 
@@ -353,8 +353,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     }
 
     @Override
-    protected Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), Map.of(), queryStringOptions(configuration));
+    protected Query translate(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), Map.of(), queryStringOptions(ctx));
     }
 
     @Override

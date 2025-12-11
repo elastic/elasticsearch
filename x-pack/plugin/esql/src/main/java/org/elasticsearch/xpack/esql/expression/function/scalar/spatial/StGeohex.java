@@ -27,7 +27,7 @@ import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -193,8 +193,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.foldable() == false) {
                 throw new IllegalArgumentException("bounds must be foldable");
             }
-            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
-            int precision = (int) parameter.fold(toEvaluator.foldCtx());
+            GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator));
+            int precision = (int) parameter.fold(toEvaluator);
             GeoHexBoundedGrid.Factory bounds = new GeoHexBoundedGrid.Factory(precision, bbox);
             return spatialDocsValues
                 ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
@@ -204,7 +204,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
                 )
                 : new StGeohexFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
-            int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
+            int precision = checkPrecisionRange((int) parameter.fold(toEvaluator));
             return spatialDocsValues
                 ? new StGeohexFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                 : new StGeohexFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
@@ -212,7 +212,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object fold(ExpressionContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = checkPrecisionRange((int) parameter().fold(ctx));
         if (bounds() == null) {

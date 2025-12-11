@@ -29,11 +29,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -207,7 +204,8 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 FetchSearchResult finalResult = responseStream.buildFinalResult(
                     dataNodeResult.getContextId(),
                     dataNodeResult.getSearchShardTarget(),
-                    dataNodeResult.profileResult());
+                    dataNodeResult.profileResult()
+                );
 
                 listener.onResponse(new Response(finalResult));
             } catch (Exception e) {

@@ -337,7 +337,7 @@ public final class FetchPhase {
 
             if (context.isCancelled()) {
                 // Clean up hits array
-                for (SearchHit hit :  result.hits) {
+                for (SearchHit hit : result.hits) {
                     if (hit != null) {
                         hit.decRef();
                     }

@@ -75,7 +75,7 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Iterate over a set of docsIds within a particular shard and index reader.
      */
-/*    public final SearchHit[] iterate(
+    /*    public final SearchHit[] iterate(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
         int[] docIds,
@@ -199,11 +199,7 @@ abstract class FetchPhaseDocsIterator {
                     hit.decRef();
                 }
 
-                lastChunk = new SearchHits(
-                    lastHitsArray,
-                    new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO),
-                    Float.NaN
-                );
+                lastChunk = new SearchHits(lastHitsArray, new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
                 chunkBuffer.clear();
             }
         } catch (SearchTimeoutException e) {

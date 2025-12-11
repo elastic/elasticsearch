@@ -1,4 +1,7 @@
-# TODO we need to add "requires capability" when the feature flag is removed
+setup:
+  - requires:
+      cluster_features: [ "mapper.exponential_histogram_type" ]
+      reason: exponential_histogram field type was introduced
 ---
 "Create time series metric with exponential histogram":
   - do:

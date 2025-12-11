@@ -466,9 +466,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_half_byte_quantized_bfloat16/Knn search with mip}
   issue: https://github.com/elastic/elasticsearch/issues/139254
-- class: org.elasticsearch.xpack.security.authc.saml.SamlServiceProviderMetadataIT
-  method: testAuthenticationWhenMetadataIsUnreliable
-  issue: https://github.com/elastic/elasticsearch/issues/139067
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/138764

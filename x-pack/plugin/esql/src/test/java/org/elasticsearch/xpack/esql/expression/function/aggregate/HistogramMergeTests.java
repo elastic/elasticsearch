@@ -87,6 +87,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
     private static Matcher<?> createExpectedTDigestMatcher(List<Object> fieldValues) {
         // TDigest is non-deterministic, we just do a sanity check here:
         // the total count should match exactly and the result should have at least as many centroids as the largest input
+        // in addition we check the p1 and p99 with a rather large tolerance
 
         long totalCount = 0;
         double min = Double.POSITIVE_INFINITY;
@@ -95,6 +96,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
         boolean anyValuesNonNull = false;
 
         long maxCentroidCount = 0;
+        TDigestState reference = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
 
         for (var fieldValue : fieldValues) {
             TDigestHolder tdigest = (TDigestHolder) fieldValue;
@@ -107,6 +109,7 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
 
                 TDigestState decoded = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
                 tdigest.addTo(decoded);
+                tdigest.addTo(reference);
                 maxCentroidCount = Math.max(maxCentroidCount, decoded.centroidCount());
             }
         }
@@ -156,6 +159,15 @@ public class HistogramMergeTests extends AbstractAggregationTestCase {
                 if (tDigestTotalCount != finalTotalCount) {
                     return false;
                 }
+                if (tDigestTotalCount > 0) {
+                    if (Math.abs(decoded.quantile(0.01) - reference.quantile(0.01)) > 0.1) {
+                        return false;
+                    }
+                    if (Math.abs(decoded.quantile(0.99) - reference.quantile(0.99)) > 0.1) {
+                        return false;
+                    }
+                }
+
                 return true;
             }
 

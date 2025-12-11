@@ -60,10 +60,7 @@ class AmazonBedrockStreamingProcessor<T> {
         ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
         error.set(
             new ElasticsearchException(
-                Strings.format(
-                    "AmazonBedrock StreamingChatProcessor failure: [%s]",
-                    amazonBedrockRuntimeException.getMessage()
-                ),
+                Strings.format("AmazonBedrock StreamingChatProcessor failure: [%s]", amazonBedrockRuntimeException.getMessage()),
                 amazonBedrockRuntimeException
             )
         );

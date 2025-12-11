@@ -252,9 +252,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @param start the ContentBlockStart data
      * @return a ToolCall
      */
-    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseStart(
-        ContentBlockStart start
-    ) {
+    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseStart(ContentBlockStart start) {
         var toolUse = start.toolUse();
         var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(null, toolUse.name());
         return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
@@ -272,9 +270,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @param delta the ContentBlockDelta data
      * @return a ToolCall
      */
-    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseDelta(
-        ContentBlockDelta delta
-    ) {
+    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseDelta(ContentBlockDelta delta) {
         var type = delta.type();
         var toolUse = delta.toolUse();
         var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(toolUse.input(), null);

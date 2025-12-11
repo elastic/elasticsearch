@@ -18,6 +18,11 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
+/**
+ * This block loader should be used for "wildcard-style" binary values, which is to say fields we have encoded into a binary
+ * format that supports multivalued via an encoding on our side.  See also {@link BytesRefsFromOrdsBlockLoader} for ordinals
+ * based multivalue aware binary fields, and {@link BytesRefsFromBinaryBlockLoader} for single-valued binary fields.
+ */
 public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
 

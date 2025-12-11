@@ -73,6 +73,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
@@ -403,7 +404,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 }
             }
             {
-                addQuery(new MatchNoDocsQuery(), documents);
+                addQuery(Queries.NO_DOCS_INSTANCE, documents);
             }
             {
                 addQuery(new MatchAllDocsQuery(), documents);
@@ -492,7 +493,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(new TermQuery(new Term("field", id)), Occur.MUST);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             }
             if (randomBoolean()) {
                 builder.add(new CustomQuery(new Term("field", id)), Occur.MUST);
@@ -503,7 +504,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.add(new TermQuery(new Term("field", id)), Occur.SHOULD);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             }
             if (randomBoolean()) {
                 builder.add(new CustomQuery(new Term("field", id)), Occur.SHOULD);
@@ -515,7 +516,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             builder.add(new MatchAllDocsQuery(), Occur.MUST);
             builder.add(new MatchAllDocsQuery(), Occur.MUST);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             } else if (randomBoolean()) {
                 builder.add(new MatchAllDocsQuery(), Occur.MUST_NOT);
             }
@@ -526,7 +527,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
             builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+                builder.add(Queries.NO_DOCS_INSTANCE, Occur.MUST_NOT);
             } else if (randomBoolean()) {
                 builder.add(new MatchAllDocsQuery(), Occur.MUST_NOT);
             }
@@ -552,7 +553,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             return builder.build();
         });
         queryFunctions.add((id) -> new MatchAllDocsQuery());
-        queryFunctions.add((id) -> new MatchNoDocsQuery("no reason at all"));
+        queryFunctions.add((id) -> Queries.NO_DOCS_INSTANCE);
 
         int numDocs = randomIntBetween(queryFunctions.size(), queryFunctions.size() * 3);
         List<LuceneDocument> documents = new ArrayList<>();

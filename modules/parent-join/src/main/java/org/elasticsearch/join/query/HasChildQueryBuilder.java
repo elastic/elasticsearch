@@ -317,7 +317,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         Joiner joiner = Joiner.getJoiner(context);
         if (joiner == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] no join field has been configured");
             }
@@ -325,7 +325,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(
                     context,
@@ -337,7 +337,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         String parentJoinField = joiner.parentJoinField(type);
         if (context.isFieldMapped(parentJoinField) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
         }

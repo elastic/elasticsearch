@@ -18,7 +18,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -212,7 +211,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     }
 
     public void testNoDocs() throws IOException {
-        Query query = new MatchNoDocsQuery();
+        Query query = Queries.NO_DOCS_INSTANCE;
         List<String> dates = Collections.emptyList();
         Consumer<DateHistogramAggregationBuilder> aggregation = agg -> agg.calendarInterval(DateHistogramInterval.YEAR)
             .field(AGGREGABLE_DATE);

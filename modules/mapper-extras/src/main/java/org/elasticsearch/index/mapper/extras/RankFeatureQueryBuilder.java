@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -392,7 +391,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }
             }
-            return new MatchNoDocsQuery(); // unmapped field
+            return Queries.NO_DOCS_INSTANCE; // unmapped field
         } else {
             throw new IllegalArgumentException(
                 "[rank_feature] query only works on [rank_feature] fields and "

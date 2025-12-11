@@ -25,7 +25,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -491,7 +490,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "two words").toQuery(searchExecutionContext);
-            Query expected = new MatchNoDocsQuery();
+            Query expected = Queries.NO_DOCS_INSTANCE;
             assertThat(q, equalTo(expected));
         }
 

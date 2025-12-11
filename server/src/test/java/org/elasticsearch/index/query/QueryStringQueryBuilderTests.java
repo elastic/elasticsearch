@@ -948,13 +948,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder("foo bar").field("invalid*");
         Query query = queryStringQueryBuilder.toQuery(createSearchExecutionContext());
 
-        Query expectedQuery = new MatchNoDocsQuery("empty fields");
+        Query expectedQuery = Queries.NO_DOCS_INSTANCE;
         assertThat(expectedQuery, equalTo(query));
 
         queryStringQueryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":foo bar").field("invalid*");
         query = queryStringQueryBuilder.toQuery(createSearchExecutionContext());
         expectedQuery = new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "foo")), Occur.SHOULD)
-            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
+            .add(Queries.NO_DOCS_INSTANCE, Occur.SHOULD)
             .build();
         assertThat(expectedQuery, equalTo(query));
     }
@@ -1165,15 +1165,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testLenientRewriteToMatchNoDocs() throws IOException {
         // Term
         Query query = new QueryStringQueryBuilder("hello").field(INT_FIELD_NAME).lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // prefix
         query = new QueryStringQueryBuilder("hello*").field(INT_FIELD_NAME).lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Fuzzy
         query = new QueryStringQueryBuilder("hello~2").field(INT_FIELD_NAME).lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
     }
 
     public void testUnmappedFieldRewriteToMatchNoDocs() throws IOException {

@@ -653,7 +653,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .lenient(true)
             .toQuery(createSearchExecutionContext());
         List<Query> expectedQueries = new ArrayList<>();
-        expectedQueries.add(new MatchNoDocsQuery(""));
+        expectedQueries.add(Queries.NO_DOCS_INSTANCE);
         expectedQueries.add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "t")));
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(expectedQueries, 1.0f);
         assertEquals(expected, query);

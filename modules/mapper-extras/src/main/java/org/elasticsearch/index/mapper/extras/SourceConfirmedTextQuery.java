@@ -105,7 +105,7 @@ public final class SourceConfirmedTextQuery extends Query {
     private static Query approximate(MultiPhrasePrefixQuery query) {
         Term[][] terms = query.getTerms();
         if (terms.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         } else if (terms.length == 1) {
             // Only a prefix, approximate with a prefix query
             BooleanQuery.Builder approximation = new BooleanQuery.Builder();

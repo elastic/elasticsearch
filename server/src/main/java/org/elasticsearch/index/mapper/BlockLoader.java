@@ -686,6 +686,8 @@ public interface BlockLoader {
         );
 
         Block buildTDigestBlockDirect(Block encodedDigests, Block minima, Block maxima, Block sums, Block valueCounts);
+
+        TDigestBuilder tdigestBlockBuilder(int count);
     }
 
     /**

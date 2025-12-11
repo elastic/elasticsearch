@@ -391,7 +391,7 @@ public class QueryRewriteContext {
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
     public void executeAsyncActions(ActionListener<Void> listener) {
-        if (asyncActions.isEmpty() && uniqueRewriteActions.isEmpty() && remoteAsyncActions.isEmpty()) {
+        if (hasAsyncActions() == false) {
             listener.onResponse(null);
         } else {
             int actionCount = asyncActions.size() + uniqueRewriteActions.size();

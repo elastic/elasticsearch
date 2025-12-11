@@ -46,7 +46,7 @@ public abstract class QueryRewriteAsyncAction<T> {
     /**
      * This method will execute the async action and pass its result to the listener.
      *
-     * @param client A rest client that can be used during execution.
+     * @param client An internal client that can be used during execution.
      * @param listener The listener that will be called with the action result
      */
     protected abstract void execute(Client client, ActionListener<T> listener);

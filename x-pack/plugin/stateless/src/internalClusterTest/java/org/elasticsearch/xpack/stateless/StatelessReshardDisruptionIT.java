@@ -93,8 +93,7 @@ public class StatelessReshardDisruptionIT extends AbstractServerlessStatelessPlu
 
             try {
                 logger.info("--> resharding an index [{}] under disruption", indexName);
-                client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple))
-                    .actionGet(TEST_REQUEST_TIMEOUT);
+                client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(TEST_REQUEST_TIMEOUT);
                 waitForReshardCompletion(indexName);
                 logger.info("--> done resharding an index [{}]", indexName);
             } finally {

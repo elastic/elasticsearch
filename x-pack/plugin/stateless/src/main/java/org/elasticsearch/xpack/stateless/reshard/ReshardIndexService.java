@@ -490,8 +490,9 @@ public class ReshardIndexService {
 
         @Override
         public Tuple<ClusterState, Void> executeTask(ReshardTask task, ClusterState clusterState) {
-            final ProjectId projectId = task.request.projectId();
-            final Index index = task.request.index();
+            ReshardIndexClusterStateUpdateRequest request = task.request;
+            final ProjectId projectId = request.projectId();
+            final Index index = request.index();
 
             final ProjectState projectState = clusterState.projectState(projectId);
             final IndexAbstraction indexAbstraction = projectState.metadata().getIndicesLookup().get(index.getName());
@@ -503,7 +504,18 @@ public class ReshardIndexService {
             }
 
             final int sourceNumShards = sourceMetadata.getNumberOfShards();
-            final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, task.request.getMultiple());
+            int calculatedNewShardCount = sourceNumShards * 2;
+            if (request.getNewShardCount() != -1 && calculatedNewShardCount != request.getNewShardCount()) {
+                throw new IllegalArgumentException(
+                    "Requested new shard count ["
+                        + request.getNewShardCount()
+                        + "] does not match required new shard count ["
+                        + calculatedNewShardCount
+                        + "]"
+                );
+            }
+
+            final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, 2);
             // TODO: We should do this validation in TransportReshardAction as well
             validateNumTargetShards(reshardingMetadata.shardCountAfter(), sourceMetadata);
 

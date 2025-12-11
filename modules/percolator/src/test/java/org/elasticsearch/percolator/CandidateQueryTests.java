@@ -50,7 +50,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -226,7 +225,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
             List<Supplier<Query>> queryFunctions = new ArrayList<>();
-            queryFunctions.add(MatchNoDocsQuery::new);
+            queryFunctions.add(() -> Queries.NO_DOCS_INSTANCE);
             queryFunctions.add(MatchAllDocsQuery::new);
             queryFunctions.add(() -> new TermQuery(new Term("unknown_field", "value")));
             String field1 = randomFrom(stringFields);

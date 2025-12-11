@@ -205,6 +205,8 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
     private final NodeClient client;
     private final ClusterService clusterService;
     private final SearchMetricsService searchMetricsService;
+    private final ReplicasLoadBalancingScaler replicasLoadBalancingScaler;
+
     /**
      * Counters used to prevent immediate scale-down actions to prevent scaling down
      * indices with frequently changing scaling decisions.
@@ -235,6 +237,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         this.client = client;
         this.searchMetricsService = searchMetricsService;
         this.clusterService = clusterService;
+        this.replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, client);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.initializeAndWatch(ENABLE_REPLICAS_FOR_INSTANT_FAILOVER, this::updateEnableReplicasForInstantFailover);
         clusterSettings.initializeAndWatch(REPLICA_UPDATER_INTERVAL, this::setInterval);

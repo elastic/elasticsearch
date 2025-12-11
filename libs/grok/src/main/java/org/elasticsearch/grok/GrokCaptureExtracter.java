@@ -35,7 +35,6 @@ public interface GrokCaptureExtracter {
         private final Map<String, Object> result;
         private final List<GrokCaptureExtracter> fieldExtracters;
 
-        @SuppressWarnings("unchecked")
         MapExtracter(
             List<GrokCaptureConfig> captureConfig,
             Function<GrokCaptureConfig, Function<Consumer<Object>, GrokCaptureExtracter>> getExtracter
@@ -54,7 +53,9 @@ public interface GrokCaptureExtracter {
                     // - GROK(pattern, "12") => { name: [1, 2] }
                     if (result.containsKey(key)) {
                         if (result.get(key) instanceof List<?> values) {
-                            ((ArrayList<Object>) values).add(value);
+                            @SuppressWarnings("unchecked")
+                            var typedValues = (ArrayList<Object>) values;
+                            typedValues.add(value);
                         } else {
                             var values = new ArrayList<>();
                             values.add(result.get(key));

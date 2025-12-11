@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion;
 
+import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
+
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 
@@ -27,7 +29,7 @@ public class AmazonBedrockCompletionResponse extends AmazonBedrockResponse {
 
     @Override
     public InferenceServiceResults accept(AmazonBedrockRequest request) {
-        if (request instanceof AmazonBedrockCompletionRequest) {
+        if (request instanceof AmazonBedrockCompletionRequest || request instanceof AmazonBedrockChatCompletionRequest) {
             return fromResponse(result);
         }
 

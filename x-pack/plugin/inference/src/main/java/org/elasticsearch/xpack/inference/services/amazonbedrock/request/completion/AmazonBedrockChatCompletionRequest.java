@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+
 import software.amazon.awssdk.core.document.Document;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
@@ -52,6 +55,31 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         super(model, timeout);
         this.requestEntity = Objects.requireNonNull(requestEntity);
         this.stream = stream;
+    }
+
+    @Override
+    protected void executeRequest(AmazonBedrockBaseClient client) {
+        var converseRequest = getConverseRequest();
+
+        try {
+            SocketAccess.doPrivileged(() -> client.converse(converseRequest, listener));
+        } catch (IOException e) {
+            listener.onFailure(new RuntimeException(e));
+        }
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TaskType.CHAT_COMPLETION;
+    }
+
+    private ConverseRequest getConverseRequest() {
+        var converseRequest = ConverseRequest.builder()
+            .modelId(amazonBedrockModel.model())
+            .messages(getUnifiedConverseMessageList(requestEntity.messages()));
+
+        inferenceConfig(requestEntity).ifPresent(converseRequest::inferenceConfig);
+        return converseRequest.build();
     }
 
     public void executeChatCompletionRequest(
@@ -128,14 +156,6 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
             paramDocuments.put(entry.getKey(), toDocument(entry.getValue()));
         }
         return paramDocuments;
-    }
-
-    @Override
-    protected void executeRequest(AmazonBedrockBaseClient client) {}
-
-    @Override
-    public TaskType taskType() {
-        return TaskType.CHAT_COMPLETION;
     }
 
     @Override

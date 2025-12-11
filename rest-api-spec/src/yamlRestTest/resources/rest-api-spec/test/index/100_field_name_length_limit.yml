@@ -18,6 +18,9 @@ setup:
                   limit: 45
           mappings:
             dynamic: true
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       index:
@@ -28,6 +31,8 @@ setup:
           foo:
             test_really_long_field_name_that_will_be_ignored: foo
             field_name_not_ignored: 10
+
+  - match: { result: created }
 
   - do:
       indices.get_mapping:
@@ -64,6 +69,9 @@ setup:
                   limit: 45
           mappings:
             dynamic: true
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       index:
@@ -74,6 +82,8 @@ setup:
           foo:
             test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
             field_name_not_ignored: [ 10, 20, 30 ]
+
+  - match: { result: created }
 
   - do:
       indices.get_mapping:
@@ -112,6 +122,9 @@ setup:
                   limit: 45
           mappings:
             dynamic: true
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       index:
@@ -122,6 +135,8 @@ setup:
           foo:
             test_really_long_field_name_that_will_be_ignored: foo
             field_name_not_ignored: 10
+
+  - match: { result: created }
 
   - do:
       indices.get_mapping:
@@ -159,6 +174,9 @@ setup:
                   limit: 45
           mappings:
             dynamic: true
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       index:
@@ -169,6 +187,8 @@ setup:
           foo:
             test_really_long_field_name_that_will_be_ignored: [ foo, bar, baz ]
             field_name_not_ignored: [ 10, 20, 30 ]
+
+  - match: { result: created }
 
   - do:
       indices.get_mapping:

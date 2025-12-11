@@ -91,7 +91,8 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 "text",
                 "unsigned_long",
                 "version",
-                "exponential_histogram" }
+                "exponential_histogram",
+                "tdigest"}
         ) Expression field
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW);
@@ -129,7 +130,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE || dt == DataType.EXPONENTIAL_HISTOGRAM,
+            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE || dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -139,13 +140,14 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
             "version",
             "aggregate_metric_double",
             "exponential_histogram",
+            "tdigest",
             "numeric except counter types"
         );
     }
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
             return DataType.DOUBLE;
         }
         return field().dataType().noText();
@@ -171,7 +173,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 window()
             );
         }
-        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
             return new Min(
                 source(),
                 ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MIN),

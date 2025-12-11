@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.junit.Before;

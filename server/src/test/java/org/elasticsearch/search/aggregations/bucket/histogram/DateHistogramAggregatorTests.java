@@ -22,6 +22,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
@@ -101,14 +102,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             DATASET,
             aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
             histogram -> assertEquals(0, histogram.getBuckets().size()),
             false
         );
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             DATASET,
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE),
             histogram -> assertEquals(0, histogram.getBuckets().size()),

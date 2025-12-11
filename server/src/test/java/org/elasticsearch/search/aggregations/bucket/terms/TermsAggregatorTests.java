@@ -316,7 +316,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         testCase(
             createIndex,
             (InternalTerms<?, ?> result) -> { assertEquals(0, result.getBuckets().size()); },
-            new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(Queries.NO_DOCS_INSTANCE)
                 .withCheckAggregator(checkTopLevelAggregator(hint == null ? TermsAggregatorFactory.ExecutionMode.MAP : hint))
         );
     }

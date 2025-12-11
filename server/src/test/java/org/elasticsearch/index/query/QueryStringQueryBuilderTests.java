@@ -45,6 +45,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MapperService;
@@ -1058,7 +1059,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         SearchExecutionContext contextNoType = createShardContextWithNoType();
         query = queryBuilder.toQuery(contextNoType);
-        assertThat(query, equalTo(new MatchNoDocsQuery()));
+        assertThat(query, equalTo(Queries.NO_DOCS_INSTANCE));
 
         queryBuilder = new QueryStringQueryBuilder("*:*");
         query = queryBuilder.toQuery(context);
@@ -1178,18 +1179,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testUnmappedFieldRewriteToMatchNoDocs() throws IOException {
         // Default unmapped field
         Query query = new QueryStringQueryBuilder("hello").field("unmapped_field").lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello").lenient(true).toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello").lenient(true)
             .field("unmapped_field")
             .field("another_field")
             .toQuery(createSearchExecutionContext());
-        assertEquals(new MatchNoDocsQuery(), query);
+        assertEquals(Queries.NO_DOCS_INSTANCE, query);
 
         // Multi block
         query = new QueryStringQueryBuilder("first unmapped:second").field(TEXT_FIELD_NAME)
@@ -1198,7 +1199,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .defaultOperator(Operator.AND)
             .toQuery(createSearchExecutionContext());
         BooleanQuery expected = new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
             .build();
         assertEquals(expected, query);
 
@@ -1206,8 +1207,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("another_unmapped")
             .defaultOperator(Operator.AND)
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
-            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
+            .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.MUST)
             .build();
         assertEquals(expected, query);
 

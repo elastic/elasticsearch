@@ -51,6 +51,8 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * A query builder for {@code has_child} query.
  */
 public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
+
+    private static final MatchNoDocsQuery CANNOT_LOAD_EMPTY_READER = new MatchNoDocsQuery("Can't load against an empty reader");
     public static final String NAME = "has_child";
 
     /**
@@ -427,7 +429,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     // blow up since for this query to work we have to have a DirectoryReader otherwise
                     // we can't load global ordinals - for this to work we simply check if the reader has no leaves
                     // and rewrite to match nothing
-                    return new MatchNoDocsQuery("Can't load against an empty reader");
+                    return CANNOT_LOAD_EMPTY_READER;
                 }
                 throw new IllegalStateException(
                     "can't load global ordinals for reader of type: " + searcher.getClass() + " must be a DirectoryReader"

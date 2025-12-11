@@ -21,6 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -30,7 +31,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class Queries {
+public final class Queries {
+
+    @SuppressForbidden(reason = "Providing instance")
+    public static final MatchNoDocsQuery NO_DOCS_INSTANCE = new MatchNoDocsQuery();
+    public static final MatchNoDocsQuery NO_MAPPINGS = new MatchNoDocsQuery("No mappings yet");
+
+    private Queries() {}
 
     public static Query newMatchAllQuery() {
         return new MatchAllDocsQuery();

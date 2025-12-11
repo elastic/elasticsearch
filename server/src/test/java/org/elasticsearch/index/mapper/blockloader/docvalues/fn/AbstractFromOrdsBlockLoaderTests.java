@@ -15,9 +15,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -55,12 +52,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
     protected final boolean multiValues;
     protected final boolean missingValues;
 
-    public AbstractFromOrdsBlockLoaderTests(
-        boolean blockAtATime,
-        boolean highCardinality,
-        boolean multiValues,
-        boolean missingValues
-    ) {
+    public AbstractFromOrdsBlockLoaderTests(boolean blockAtATime, boolean highCardinality, boolean multiValues, boolean missingValues) {
         this.blockAtATime = blockAtATime;
         this.lowCardinality = highCardinality;
         this.multiValues = multiValues;
@@ -73,7 +65,7 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
         int mvCount = 0;
         IndexWriterConfig iwc = newIndexWriterConfig();
         if (lowCardinality && blockAtATime && multiValues == false && missingValues == false) {
-//            iwc.setIndexSort(new Sort(new SortedSetSortField("field", false)));
+            // iwc.setIndexSort(new Sort(new SortedSetSortField("field", false)));
             var docValuesCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
             iwc.setCodec(docValuesCodec);
         }

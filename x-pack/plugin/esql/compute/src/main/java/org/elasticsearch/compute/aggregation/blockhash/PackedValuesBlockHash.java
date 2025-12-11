@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -26,6 +25,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisstable.BytesRefSwissTable;
 
 import java.util.Arrays;
 import java.util.List;
@@ -61,7 +61,7 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefHash bytesRefHash;
+    private final BytesRefSwissTable hash;
     private final int nullTrackingBytes;
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final List<GroupSpec> specs;
@@ -70,7 +70,7 @@ final class PackedValuesBlockHash extends BlockHash {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
+        this.hash = new BytesRefSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
         this.nullTrackingBytes = (specs.size() + 7) / 8;
         bytes.grow(nullTrackingBytes);
     }
@@ -130,7 +130,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         /**
          * Encodes one permutation of the keys at time into {@link #bytes} and adds it
-         * to the {@link #bytesRefHash}. The encoding is mostly provided by
+         * to the {@link #hash}. The encoding is mostly provided by
          * {@link BatchEncoder} with nulls living in a bit mask at the front of the bytes.
          */
         void add() {
@@ -147,14 +147,14 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void addSingleEntry() {
             fillBytesSv(groups);
-            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(hash.add(bytes.get()))));
         }
 
         private void addMultipleEntries() {
             int g = 0;
             do {
                 fillBytesMv(groups, g);
-                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(hash.add(bytes.get()))));
                 g = rewindKeys(groups);
             } while (g >= 0);
             finishMv();
@@ -216,7 +216,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
             fillBytesSv(groups);
-            long found = bytesRefHash.find(bytes.get());
+            long found = hash.find(bytes.get());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -233,7 +233,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 fillBytesMv(groups, g);
 
                 // emit ords
-                long found = bytesRefHash.find(bytes.get());
+                long found = hash.find(bytes.get());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;
@@ -346,7 +346,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys() {
-        int size = Math.toIntExact(bytesRefHash.size());
+        int size = Math.toIntExact(hash.size());
         BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
         Block.Builder[] builders = new Block.Builder[specs.size()];
         try {
@@ -356,7 +356,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
 
-            BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
+            BytesRef[] values = new BytesRef[Math.min(100, hash.size())];
             BytesRef[] nulls = new BytesRef[values.length];
             for (int offset = 0; offset < values.length; offset++) {
                 values[offset] = new BytesRef();
@@ -364,8 +364,8 @@ final class PackedValuesBlockHash extends BlockHash {
                 nulls[offset].length = nullTrackingBytes;
             }
             int offset = 0;
-            for (int i = 0; i < bytesRefHash.size(); i++) {
-                values[offset] = bytesRefHash.get(i, values[offset]);
+            for (int i = 0; i < hash.size(); i++) {
+                values[offset] = hash.get(i, values[offset]);
 
                 // Reference the null bytes in the nulls array and values in the values
                 nulls[offset].bytes = values[offset].bytes;
@@ -403,17 +403,17 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()), blockFactory);
+        return IntVector.range(0, Math.toIntExact(hash.size()), blockFactory);
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        return new SeenGroupIds.Range(0, Math.toIntExact(bytesRefHash.size())).seenGroupIds(bigArrays);
+        return new SeenGroupIds.Range(0, Math.toIntExact(hash.size())).seenGroupIds(bigArrays);
     }
 
     @Override
     public void close() {
-        bytesRefHash.close();
+        hash.close();
     }
 
     @Override
@@ -428,8 +428,8 @@ final class PackedValuesBlockHash extends BlockHash {
             GroupSpec spec = specs.get(i);
             b.append(spec.channel()).append(':').append(spec.elementType());
         }
-        b.append("], entries=").append(bytesRefHash.size());
-        b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));
+        b.append("], entries=").append(hash.size());
+        b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
         return b.append("}").toString();
     }
 }

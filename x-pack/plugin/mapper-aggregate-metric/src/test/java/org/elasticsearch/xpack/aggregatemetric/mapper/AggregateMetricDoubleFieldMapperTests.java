@@ -668,13 +668,16 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
             assertIndexType(ft, IndexType.skippers());
         }
         {
-            var oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS);
+            var oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS);
             MapperService mapperService = createMapperService(oldVersion, fieldMapping(this::minimalMapping));
             MappedFieldType ft = mapperService.fieldType("field");
             assertIndexType(ft, IndexType.points(true, true));
         }
         {
-            MapperService mapperService = createMapperService(IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS, fieldMapping(this::minimalMapping));
+            MapperService mapperService = createMapperService(
+                IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS,
+                fieldMapping(this::minimalMapping)
+            );
             MappedFieldType ft = mapperService.fieldType("field");
             assertIndexType(ft, IndexType.docValuesOnly());
         }

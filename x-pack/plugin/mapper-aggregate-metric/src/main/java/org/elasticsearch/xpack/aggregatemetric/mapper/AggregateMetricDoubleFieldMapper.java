@@ -236,7 +236,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(false);
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS)) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
                         builder.index(false);
                     }
                 } else {
@@ -246,7 +246,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(true);
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_SKIPPERS)) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
                         builder.index(false);
                     }
                 }

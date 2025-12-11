@@ -69,7 +69,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.V_8_15_0;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
@@ -279,7 +278,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                V_8_15_0,
+                TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(TransportVersion.current())
             );
 

@@ -78,9 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/122755
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testSourceThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/123680
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
@@ -352,9 +349,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/138012
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/138055
@@ -388,21 +382,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceTests
   method: test_Embedding_ChunkedInfer_LateChunkingEnabled
   issue: https://github.com/elastic/elasticsearch/issues/138451
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search/160_exists_query/Test exists query on mapped byte field with no doc values}
-  issue: https://github.com/elastic/elasticsearch/issues/138452
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search/160_exists_query/Test exists query on geo_point field in empty index}
-  issue: https://github.com/elastic/elasticsearch/issues/138461
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/171_knn_index_base64_encoded_vectors/Retrieve Base64 encoded vectors when exclude vectors from source is false}
-  issue: https://github.com/elastic/elasticsearch/issues/138462
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/138471
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
-  issue: https://github.com/elastic/elasticsearch/issues/138480
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
@@ -412,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/138669
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=scroll/20_keep_alive/Max keep alive}
-  issue: https://github.com/elastic/elasticsearch/issues/138680
 - class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
   method: testAggregateMetricDoubleInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/138620
@@ -424,43 +403,21 @@ tests:
 - class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/138730
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search/160_exists_query/Test exists query on object field in empty index}
-  issue: https://github.com/elastic/elasticsearch/issues/138733
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/138764
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/45_knn_search_byte/Vector similarity with filter only}
-  issue: https://github.com/elastic/elasticsearch/issues/138786
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testDatafeedTimingStats_DatafeedRecreated
   issue: https://github.com/elastic/elasticsearch/issues/138348
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search/330_fetch_fields/Test nested field inside object structure}
-  issue: https://github.com/elastic/elasticsearch/issues/138792
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/138793
 - class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
   method: testILMWaitsForTimeSeriesEndTimeToLapse
   issue: https://github.com/elastic/elasticsearch/issues/138843
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search/610_function_score/formulating a function score query with a negative number returns bad request}
-  issue: https://github.com/elastic/elasticsearch/issues/138908
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_byte_quantized/Test create, merge, and search cosine}
-  issue: https://github.com/elastic/elasticsearch/issues/138909
 - class: org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitorTests
   method: testRerouteIsNotCalledWhenNoNodesAreHotSpotting
   issue: https://github.com/elastic/elasticsearch/issues/138924
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/60_dense_vector_dynamic_mapping/Sub-objects mapped as dense_vector without dims dynamically map the dim size to the first
-    indexed document}
-  issue: https://github.com/elastic/elasticsearch/issues/138945
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
@@ -476,12 +433,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/139066
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/139127
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/139128
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543
@@ -509,6 +460,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/180_update_dense_vector_type/Test update flat --> bbq_flat --> bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/139253
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_half_byte_quantized_bfloat16/Knn search with mip}
+  issue: https://github.com/elastic/elasticsearch/issues/139254
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/138764
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/139300
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139303
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139304
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139335
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/200_dense_vector_docvalue_fields/dense_vector docvalues with bfloat16}
+  issue: https://github.com/elastic/elasticsearch/issues/139368
 
 # Examples:
 #

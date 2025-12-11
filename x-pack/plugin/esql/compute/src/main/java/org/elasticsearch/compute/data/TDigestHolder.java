@@ -8,9 +8,20 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -19,8 +30,19 @@ import java.util.Objects;
  * {@link org.elasticsearch.search.aggregations.metrics.TDigestState} in classic aggregations, which we are not using directly because
  * the serialization format is pretty bad for ESQL's use case (specifically, encoding the near-constant compression and merge strategy
  * data inline as opposed to in a dedicated column isn't great).
+ *
+ * This is writable to support ESQL literals of this type, even though those should not exist.  Literal support, and thus a writeable
+ * object here, are required for ESQL testing.  See for example ShowExecSerializationTest.
  */
-public class TDigestHolder {
+public class TDigestHolder implements GenericNamedWriteable {
+
+    private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        GenericNamedWriteable.class,
+        "TDigestHolder",
+        TDigestHolder::new
+    );
 
     private final double min;
     private final double max;
@@ -37,9 +59,31 @@ public class TDigestHolder {
         this.valueCount = valueCount;
     }
 
+    // TODO: Probably TDigestHolder and ParsedTDigest should be the same object
+    public TDigestHolder(TDigestParser.ParsedTDigest parsed) throws IOException {
+        this(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
+    }
+
     public TDigestHolder(List<Double> centroids, List<Long> counts, double min, double max, double sum, long valueCount)
         throws IOException {
         this(encodeCentroidsAndCounts(centroids, counts), min, max, sum, valueCount);
+    }
+
+    public TDigestHolder(StreamInput in) throws IOException {
+        this.encodedDigest = in.readBytesRef();
+        this.min = in.readDouble();
+        this.max = in.readDouble();
+        this.sum = in.readDouble();
+        this.valueCount = in.readVLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBytesRef(encodedDigest);
+        out.writeDouble(min);
+        out.writeDouble(max);
+        out.writeDouble(sum);
+        out.writeVLong(valueCount);
     }
 
     @Override
@@ -98,4 +142,58 @@ public class TDigestHolder {
         return valueCount;
     }
 
+    @Override
+    public String toString() {
+        // TODO: this is largely duplicated from TDigestFieldMapepr's synthetic source support, and we should refactor all of that.
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+
+            if (Double.isNaN(this.getMin()) == false) {
+                builder.field("min", this.getMin());
+            }
+            if (Double.isNaN(this.getMax()) == false) {
+                builder.field("max", this.getMax());
+            }
+            if (Double.isNaN(this.getSum()) == false) {
+                builder.field("sum", this.getSum());
+            }
+
+            // TODO: Would be nice to wrap all of this in reusable objects and minimize allocations here
+            ByteArrayStreamInput values = new ByteArrayStreamInput();
+            values.reset(encodedDigest.bytes, encodedDigest.offset, encodedDigest.length);
+            List<Double> centroids = new ArrayList<>();
+            List<Long> counts = new ArrayList<>();
+            while (values.available() > 0) {
+                counts.add(values.readVLong());
+                centroids.add(values.readDouble());
+            }
+
+            // TODO: reuse the constans from the field type
+            builder.startArray("centroids");
+            for (Double centroid : centroids) {
+                builder.value(centroid.doubleValue());
+            }
+            builder.endArray();
+
+            builder.startArray("counts");
+            for (Long count : counts) {
+                builder.value(count.longValue());
+            }
+            builder.endArray();
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering TDigest", e);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "TDigestHolder";
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return ESQL_SERIALIZEABLE_TDIGEST;
+    }
 }

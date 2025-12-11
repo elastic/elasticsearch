@@ -114,7 +114,7 @@ gradlePlugin {
     }
     internalTestRerun {
       id = 'elasticsearch.internal-test-rerun'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin'
     }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'

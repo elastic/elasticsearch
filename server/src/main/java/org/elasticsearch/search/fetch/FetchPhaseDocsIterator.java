@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -20,7 +22,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 
@@ -28,6 +29,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Given a set of doc ids and an index reader, sorts the docs by id, splits the sorted
@@ -55,6 +59,8 @@ abstract class FetchPhaseDocsIterator {
         return requestBreakerBytes;
     }
 
+    private static AtomicInteger counter = new AtomicInteger(0);
+
     /**
      * Called when a new leaf reader is reached
      * @param ctx           the leaf reader for this set of doc ids
@@ -81,7 +87,7 @@ abstract class FetchPhaseDocsIterator {
     ) {
         // Delegate to new method with null writer to maintain backward compatibility
         // When writer is null, no streaming chunks are sent (original behavior)
-        return iterate(shardTarget, indexReader, docIds, allowPartialResults, querySearchResult, null, 0);
+        return iterate(shardTarget, indexReader, docIds, allowPartialResults, querySearchResult, null, 0, null);
     }
 
     /**
@@ -109,32 +115,15 @@ abstract class FetchPhaseDocsIterator {
         boolean allowPartialResults,
         QuerySearchResult querySearchResult,
         FetchPhaseResponseChunk.Writer chunkWriter,
-        int chunkSize
+        int chunkSize,
+        List<CompletableFuture<Void>> pendingChunks
     ) {
         SearchHit[] searchHits = new SearchHit[docIds.length];
         DocIdToIndex[] docs = new DocIdToIndex[docIds.length];
 
         final boolean streamingEnabled = chunkWriter != null && chunkSize > 0;
         List<SearchHit> chunkBuffer = streamingEnabled ? new ArrayList<>(chunkSize) : null;
-        int shardIndex = -1;
-        ShardSearchContextId ctxId = null;
-
-        // Initialize streaming context if enabled
-        if (streamingEnabled) {
-            shardIndex = shardTarget.getShardId().id();
-
-            // Send START_RESPONSE chunk
-            FetchPhaseResponseChunk startChunk = new FetchPhaseResponseChunk(
-                System.currentTimeMillis(),
-                FetchPhaseResponseChunk.Type.START_RESPONSE,
-                shardIndex,
-                null,
-                0,
-                0,
-                docIds.length
-            );
-            chunkWriter.writeResponseChunk(startChunk, ActionListener.running(() -> {}));
-        }
+        int shardIndex = streamingEnabled ? shardTarget.getShardId().id() : -1;
 
         for (int index = 0; index < docIds.length; index++) {
             docs[index] = new DocIdToIndex(docIds[index], index);
@@ -173,14 +162,14 @@ abstract class FetchPhaseDocsIterator {
 
                         if (chunkBuffer.size() >= chunkSize) {
                             // Send HIT chunk
-                            sendChunk(
+                            pendingChunks.add(sendChunk(
                                 chunkWriter,
                                 chunkBuffer,
                                 shardIndex,
-                                i - chunkBuffer.size() + 1,  // from index
+                                i - chunkBuffer.size() + 1,
                                 docIds.length,
                                 Float.NaN  // maxScore not meaningful for individual chunks
-                            );
+                            ));
                             chunkBuffer.clear();
                         }
                     } else {
@@ -202,8 +191,15 @@ abstract class FetchPhaseDocsIterator {
             }
 
             // Send final partial chunk if streaming is enabled and buffer has remaining hits
-            if (streamingEnabled && chunkBuffer.isEmpty() == false) {
-                sendChunk(chunkWriter, chunkBuffer, shardIndex, docs.length - chunkBuffer.size(), docIds.length, Float.NaN);
+            if (streamingEnabled && chunkBuffer.isEmpty() == false) {;
+                pendingChunks.add(sendChunk(
+                    chunkWriter,
+                    chunkBuffer,
+                    shardIndex,
+                    docs.length - chunkBuffer.size(),
+                    docIds.length,
+                    Float.NaN)
+                );
                 chunkBuffer.clear();
             }
 
@@ -228,7 +224,7 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Sends a chunk of hits to the coordinator.
      */
-    private static void sendChunk(
+    private static CompletableFuture<Void> sendChunk(
         FetchPhaseResponseChunk.Writer writer,
         List<SearchHit> buffer,
         int shardIndex,
@@ -236,13 +232,17 @@ abstract class FetchPhaseDocsIterator {
         int totalDocs,
         float maxScore
     ) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+
         if (buffer.isEmpty()) {
-            return;
+            future.complete(null);
+            return future;
         }
 
         SearchHit[] hitsArray = buffer.toArray(new SearchHit[0]);
 
         // We incremented when adding to buffer, SearchHits constructor will increment again
+        // So decRef to get back to refCount=1 before passing to SearchHits
         for (SearchHit hit : hitsArray) {
             hit.decRef();
         }
@@ -250,9 +250,10 @@ abstract class FetchPhaseDocsIterator {
         SearchHits chunkHits = null;
         try {
             chunkHits = new SearchHits(hitsArray, new TotalHits(hitsArray.length, TotalHits.Relation.EQUAL_TO), maxScore);
+            final SearchHits finalChunkHits = chunkHits;
 
             FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
-                System.currentTimeMillis(),
+                counter.get(),
                 FetchPhaseResponseChunk.Type.HITS,
                 shardIndex,
                 chunkHits,
@@ -260,13 +261,30 @@ abstract class FetchPhaseDocsIterator {
                 hitsArray.length,
                 totalDocs
             );
+            counter.incrementAndGet();
 
-            writer.writeResponseChunk(chunk, ActionListener.running(() -> {}));
-        } finally {
+            // Send the chunk - coordinator will take ownership of the hits
+            writer.writeResponseChunk(chunk, ActionListener.wrap(
+                ack -> {
+                    // Coordinator now owns the hits, decRef to release local reference
+                    finalChunkHits.decRef();
+                    future.complete(null);
+                },
+                ex -> {
+                    // Failed to send - we still own the hits, must clean up
+                    finalChunkHits.decRef();
+                    future.completeExceptionally(ex);
+                }
+            ));
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+            // If chunk creation failed after SearchHits was created, clean up
             if (chunkHits != null) {
                 chunkHits.decRef();
             }
         }
+
+        return future;
     }
 
     private static void purgeSearchHits(SearchHit[] searchHits) {

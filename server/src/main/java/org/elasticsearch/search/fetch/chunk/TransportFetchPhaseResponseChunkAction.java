@@ -118,8 +118,7 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
      * <ol>
      *   <li>Extracts the shard ID from the chunk</li>
      *   <li>Acquires the response stream from {@link ActiveFetchPhaseTasks}</li>
-     *   <li>Delegates to {@link FetchPhaseResponseStream#startResponse} or
-     *       {@link FetchPhaseResponseStream#writeChunk} based on chunk type</li>
+     *   <li>Delegates to {@link FetchPhaseResponseStream#writeChunk}</li>
      *   <li>Releases the response stream reference</li>
      *   <li>Sends an acknowledgment response to the data node</li>
      * </ol>
@@ -136,9 +135,7 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
 
             final var responseStream = activeFetchPhaseTasks.acquireResponseStream(coordTaskId, shardId);
             try {
-                if (request.chunkContents.type() == FetchPhaseResponseChunk.Type.START_RESPONSE) {
-                    responseStream.startResponse(() -> l.onResponse(ActionResponse.Empty.INSTANCE));
-                } else if (request.chunkContents.type() == FetchPhaseResponseChunk.Type.HITS) {
+                if (request.chunkContents.type() == FetchPhaseResponseChunk.Type.HITS) {
                     responseStream.writeChunk(request.chunkContents(), () -> l.onResponse(ActionResponse.Empty.INSTANCE));
                 }
             } finally {

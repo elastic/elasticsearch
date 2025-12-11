@@ -287,7 +287,7 @@ class FetchSearchPhase extends SearchPhase {
     }
 
     private boolean shouldUseChunking(List<Integer> docIds) {
-        return docIds != null && docIds.size() > 128; // TODO set it properly
+        return docIds != null && docIds.size() > 10; // TODO set it properly
     }
 
     private void moveToNextPhase(

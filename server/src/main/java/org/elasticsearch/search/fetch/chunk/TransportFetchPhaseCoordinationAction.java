@@ -58,20 +58,14 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
      *      |                                     |                                          |
      *      |- execute(request, dataNode)-------->|                                          | --[Initialization Phase]
      *      |                                     |---[ShardFetchRequest]------------------->|
-     *      |                                     |                                          |
-     *      |                                     |                                          | --[Chunked Streaming Phase]
-     *      |                                     |<---[START_RESPONSE chunk]----------------|
-     *      |                                     |----[ACK (Empty)]------------------------>|
-     *      |                                     |                                          | --[Process data]
+     *      |                                     |                                          | --[[Chunked Streaming Phase]
      *      |                                     |<---[HITS chunk 1]------------------------|
-     *      |                                     |  [Accumulate in stream]                  |
      *      |                                     |----[ACK (Empty)]------------------------>|
-     *      |                                     |                                          | --[Process more data]
-     *      |                                     |<---[HITS chunk 2]------------------------|
-     *      |                                     |  [Accumulate in stream]                  |
+     *      |                                     |       ....                               |
+     *      |                                     |<---[HITS chunk N]------------------------|
      *      |                                     |----[ACK (Empty)]------------------------>|
-     *      |                                     |                                          |
-     *      |                                     |<--FetchSearchResult----------------------| --[Completion Phase]
+     *      |                                     |                                          | --[Completion Phase]
+     *      |                                     |<--FetchSearchResult----------------------|
      *      |                                     |   (final response)                       |
      *      |                                     |                                          |
      *      |                                     |--[Build final result]                    |

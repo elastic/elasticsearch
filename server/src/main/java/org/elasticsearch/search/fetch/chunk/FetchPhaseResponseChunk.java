@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.fetch.chunk;// package org.elasticsearch.search.fetch;
+package org.elasticsearch.search.fetch.chunk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,15 +35,10 @@ public record FetchPhaseResponseChunk(
      */
     public enum Type {
         /**
-         * Signals the start of the response stream. Sent once before any HITS chunks.
-         * Contains no hit data.
-         */
-        START_RESPONSE,
-        /**
          * Contains a batch of search hits. Multiple HITS chunks may be sent for a single
          * shard fetch operation.
          */
-        HITS,
+        HITS
     }
 
     /**

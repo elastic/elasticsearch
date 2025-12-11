@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -50,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -89,26 +89,6 @@ public final class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
-            SearchHits emptyHits = SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
-            context.fetchResult().shardResult(emptyHits, null);
-
-            // If chunking, send START_RESPONSE to signal no hits
-            if (writer != null) {
-                FetchPhaseResponseChunk start = new FetchPhaseResponseChunk(
-                    System.currentTimeMillis(),
-                    FetchPhaseResponseChunk.Type.START_RESPONSE,
-                    context.shardTarget().getShardId().id(),
-                    null,
-                    0,
-                    0,
-                    0
-                );
-                writer.writeResponseChunk(start, ActionListener.running(() -> {}));
-            }
-            return;
-        }
-
         final Profiler profiler = context.getProfilers() == null
             || (context.request().source() != null && context.request().source().rankBuilder() != null)
                 ? Profiler.NOOP
@@ -116,7 +96,23 @@ public final class FetchPhase {
 
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, writer);
+            // Collect all pending chunk futures
+            final List<CompletableFuture<Void>> pendingChunks = new ArrayList<>();
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, writer, pendingChunks);
+
+            // Wait for all chunks to be ACKed before setting final result
+            if (writer != null && pendingChunks.isEmpty() == false) {
+                try {
+                    CompletableFuture.allOf(pendingChunks.toArray(CompletableFuture[]::new)).get();
+                } catch (Exception e) {
+                    if (hits != null) {
+                        hits.decRef();
+                        hits = null;
+                    }
+                    throw new RuntimeException("Failed to send fetch chunks", e);
+                }
+            }
+
             ProfileResult profileResult = profiler.finish();
             context.fetchResult().shardResult(hits, profileResult);
             hits = null;
@@ -156,7 +152,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, null);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker, null, null);
         } finally {
             try {
                 // Always finish profiling
@@ -190,7 +186,8 @@ public final class FetchPhase {
         Profiler profiler,
         RankDocShardInfo rankDocs,
         IntConsumer memoryChecker,
-        FetchPhaseResponseChunk.Writer writer
+        FetchPhaseResponseChunk.Writer writer,
+        List<CompletableFuture<Void>> pendingChunks
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -257,7 +254,7 @@ public final class FetchPhase {
 
             IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
                 locallyAccumulatedBytes[0] += bytes;
-                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                if (writer == null && context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
                     addRequestBreakerBytes(locallyAccumulatedBytes[0]);
                     locallyAccumulatedBytes[0] = 0;
                 }
@@ -334,7 +331,8 @@ public final class FetchPhase {
                 context.request().allowPartialSearchResults(),
                 context.queryResult(),
                 writer,
-                5 // TODO set a proper number
+                5, // TODO set a proper number
+                pendingChunks
             );
 
             if (context.isCancelled()) {
@@ -360,8 +358,11 @@ public final class FetchPhase {
             }
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();
-            if (bytes > 0L) {
+            if ( writer == null && bytes > 0L) {
                 context.circuitBreaker().addWithoutBreaking(-bytes);
+                LOGGER.info("[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
+                    bytes, context.getSearchExecutionContext().getShardId(),  context.circuitBreaker().getUsed());
+
             }
         }
     }

@@ -72,6 +72,7 @@ import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -91,7 +92,6 @@ import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngest
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.STALE_LOAD_WINDOW;
 import static co.elastic.elasticsearch.stateless.autoscaling.indexing.NodeIngestionLoadTracker.USE_TIER_WIDE_AVG_TASK_EXEC_TIME_DURING_SCALING;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -842,6 +842,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
     }
 
     public void testUseTierWideWriteAverageTaskExecTimeDuringScaling() {
+        final String NODE0 = "node-0", NODE1 = "node-1", NODE2 = "node-2";
         // Two initial nodes
         final var nodeRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE);
         final var initialNodes = IntStream.range(0, 2)
@@ -863,6 +864,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
                     .put(ACCURATE_LOAD_WINDOW.getKey(), TimeValue.ONE_HOUR)
                     .put(IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE.getKey(), TimeValue.timeValueSeconds(1))
                     .put(IngestLoadProbe.MAX_MANAGEABLE_QUEUED_WORK.getKey(), TimeValue.ZERO)
+                    .put(IngestLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR.getKey(), 1000.0) // so that there are no limits
                     .build()
             ),
             now::get,
@@ -874,42 +876,52 @@ public class IngestMetricsServiceTests extends ESTestCase {
         final var nodeIngestLoadTracker = service.getNodeIngestionLoadTracker();
         assertThat(nodeIngestLoadTracker.getTierWideAverageWriteThreadpoolTaskExecutionTime().isPresent(), is(false));
         final LongSupplier seqNoSupplier = new AtomicLong(randomLongBetween(0, 100))::getAndIncrement;
-
+        var writeLoadPerNode = Map.of(NODE0, 0.0, NODE1, 0.0);
+        var queueSizePerNode = Map.of(NODE0, 0.0, NODE1, 0.0);
+        var avgTaskExecTimePerNode = Map.of(NODE0, 0.0, NODE1, 0.0);
         final var ingestionLoadWithZeroStableExecTimePerNode = Map.of(
-            "node-0",
+            NODE0,
             nodeIngestionLoadWithWriteActivity(
-                new ExecutorStats(0, 0, 0, 0, 4),
-                OptionalDouble.of(0),
-                new ExecutorIngestionLoad(0.0, 0.0),
-                0.0
+                writeLoadPerNode.get(NODE0),
+                queueSizePerNode.get(NODE0),
+                avgTaskExecTimePerNode.get(NODE0),
+                OptionalDouble.of(0)
             ),
-            "node-1",
+            NODE1,
             nodeIngestionLoadWithWriteActivity(
-                new ExecutorStats(0, 0, 0, 0, 4),
-                OptionalDouble.of(0),
-                new ExecutorIngestionLoad(0.0, 0.0),
-                0.0
+                writeLoadPerNode.get(NODE1),
+                queueSizePerNode.get(NODE1),
+                avgTaskExecTimePerNode.get(NODE1),
+                OptionalDouble.of(0)
             )
         );
         trackIngestionLoads(service, seqNoSupplier, initialState, ingestionLoadWithZeroStableExecTimePerNode::get);
         assertThat(nodeIngestLoadTracker.getTierWideAverageWriteThreadpoolTaskExecutionTime().isPresent(), is(false));
 
-        final double node0StableExecTimeNanos = timeValueMillis(randomLongBetween(10, 100)).nanos();
-        final double node1StableExecTimeNanos = timeValueMillis(randomLongBetween(10, 100)).nanos();
+        DoubleSupplier randomAvgWriteLoad = () -> randomDoubleBetween(0.1, 4.0, true);
+        DoubleSupplier randomAvgQueueSize = () -> randomDoubleBetween(10, 10_000, true);
+        DoubleSupplier randomStableAvgExecTimeNanos = () -> timeValueMillis(randomLongBetween(1, 100)).nanos();
+        DoubleSupplier randomUnstableAvgExecTimeNanos = () -> timeValueMillis(randomLongBetween(101, 10_000)).nanos();
+
+        final double node0StableExecTimeNanos = randomStableAvgExecTimeNanos.getAsDouble();
+        final double node1StableExecTimeNanos = randomStableAvgExecTimeNanos.getAsDouble();
+        writeLoadPerNode = Map.of(NODE0, randomAvgWriteLoad.getAsDouble(), NODE1, randomAvgWriteLoad.getAsDouble());
+        queueSizePerNode = Map.of(NODE0, randomAvgQueueSize.getAsDouble(), NODE1, randomAvgQueueSize.getAsDouble());
+        avgTaskExecTimePerNode = Map.of(NODE0, node0StableExecTimeNanos, NODE1, node1StableExecTimeNanos);
         final var ingestionLoadPerNode = Map.of(
-            "node-0",
+            NODE0,
             nodeIngestionLoadWithWriteActivity(
-                new ExecutorStats(1.0, node0StableExecTimeNanos, 20, 20.0, 4),
-                OptionalDouble.of(node0StableExecTimeNanos),
-                new ExecutorIngestionLoad(1.0, 1.0),
-                2.0
+                writeLoadPerNode.get(NODE0),
+                queueSizePerNode.get(NODE0),
+                avgTaskExecTimePerNode.get(NODE0),
+                OptionalDouble.of(node0StableExecTimeNanos)
             ),
-            "node-1",
+            NODE1,
             nodeIngestionLoadWithWriteActivity(
-                new ExecutorStats(1.0, node1StableExecTimeNanos, 20, 20.0, 4),
-                OptionalDouble.of(node1StableExecTimeNanos),
-                new ExecutorIngestionLoad(1.0, 1.4),
-                2.4
+                writeLoadPerNode.get(NODE1),
+                queueSizePerNode.get(NODE1),
+                avgTaskExecTimePerNode.get(NODE1),
+                OptionalDouble.of(node1StableExecTimeNanos)
             )
         );
         trackIngestionLoads(service, seqNoSupplier, initialState, ingestionLoadPerNode::get);
@@ -924,22 +936,24 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(lastRawAndAdjustedLoads.raw().size(), equalTo(initialState.nodes().size()));
         assertThat(lastRawAndAdjustedLoads.adjusted(), is(nullValue()));
         // New node joins and initially publishes no stable average task execution time
-        final var newNode = DiscoveryNodeUtils.builder("node-2").name("node-2").roles(nodeRoles).build();
+        final var newNode = DiscoveryNodeUtils.builder(NODE2).name(NODE2).roles(nodeRoles).build();
         final var stateWithNewNode = stateWithNewNodes(initialState, List.of(newNode));
         service.clusterChanged(new ClusterChangedEvent("node-join", stateWithNewNode, initialState));
-        final double node2UnstableExecTimeNanos = timeValueMillis(randomLongBetween(200, 1000)).nanos();
-        final var node2QueueSize = randomIntBetween(10, 100);
+        final double node2UnstableExecTimeNanos = randomUnstableAvgExecTimeNanos.getAsDouble();
+        writeLoadPerNode = Maps.copyMapWithAddedEntry(writeLoadPerNode, NODE2, randomAvgWriteLoad.getAsDouble());
+        queueSizePerNode = Maps.copyMapWithAddedEntry(queueSizePerNode, NODE2, randomAvgQueueSize.getAsDouble());
+        avgTaskExecTimePerNode = Maps.copyMapWithAddedEntry(avgTaskExecTimePerNode, NODE2, node2UnstableExecTimeNanos);
         var node2IngestionLoad1 = nodeIngestionLoadWithWriteActivity(
-            new ExecutorStats(1.0, node2UnstableExecTimeNanos, node2QueueSize, node2QueueSize, 4),
-            OptionalDouble.empty(), // no stable average task execution time since this is a new node
-            new ExecutorIngestionLoad(1.0, 5.0),
-            6.0
+            writeLoadPerNode.get(NODE2),
+            queueSizePerNode.get(NODE2),
+            avgTaskExecTimePerNode.get(NODE2),
+            OptionalDouble.empty()
         );
         if (randomBoolean()) {
             // if the existing nodes have published zero as their stable avg task execution times, the tier-wide average is not available
             final var ingestionLoadWithZeroStableExecTimePerNodeWithNewNode = Maps.copyMapWithAddedEntry(
                 ingestionLoadWithZeroStableExecTimePerNode,
-                "node-2",
+                NODE2,
                 node2IngestionLoad1
             );
             trackIngestionLoads(service, seqNoSupplier, stateWithNewNode, ingestionLoadWithZeroStableExecTimePerNodeWithNewNode::get);
@@ -954,7 +968,7 @@ public class IngestMetricsServiceTests extends ESTestCase {
             );
         }
         final var nonEmptyIngestionLoadPerNode = new HashMap<>(ingestionLoadPerNode);
-        nonEmptyIngestionLoadPerNode.put("node-2", node2IngestionLoad1);
+        nonEmptyIngestionLoadPerNode.put(NODE2, node2IngestionLoad1);
         trackIngestionLoads(service, seqNoSupplier, stateWithNewNode, nonEmptyIngestionLoadPerNode::get);
         // tier-wide average is available from the initial two nodes. Reported ingestion load for the new node is adjusted.
         assertThat(
@@ -970,24 +984,27 @@ public class IngestMetricsServiceTests extends ESTestCase {
         for (var adjustedLoad : ingestionLoadSnapshots) {
             if (adjustedLoad.nodeId().equals(newNode.getId())) {
                 assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.MINIMUM));
-                final long taskDurationNanos = (long) (node2QueueSize * average(node0StableExecTimeNanos, node1StableExecTimeNanos));
-                final double threadsForQueue = timeValueNanos(taskDurationNanos).secondsFrac();
-                assertThat(adjustedLoad.load(), closeTo(1.0 + threadsForQueue, 0.01));
+                final double threadsForQueue = queueThreadsNeeded(
+                    queueSizePerNode.get(NODE2),
+                    average(node0StableExecTimeNanos, node1StableExecTimeNanos)
+                );
+                assertThat(adjustedLoad.load(), closeTo(writeLoadPerNode.get(NODE2) + threadsForQueue, 0.01));
+                assertThat(adjustedLoad.load(), lessThan(node2IngestionLoad1.totalIngestionLoad()));
             } else {
                 assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.EXACT));
                 assertThat(adjustedLoad.load(), equalTo(ingestionLoadPerNode.get(adjustedLoad.nodeId()).totalIngestionLoad()));
             }
         }
-        ;
         // after INITIAL_INTERVAL_TO_CONSIDER_NODE_AVG_TASK_EXEC_TIME_UNSTABLE, the new node also reports
         // a stable write average task execution time. Just advance time here...
         now.addAndGet(randomTimeValue(1, 5, TimeUnit.MINUTES).millis());
-        final double node2StableExecTime = timeValueMillis(30).nanos();
+        final double node2StableExecTime = randomStableAvgExecTimeNanos.getAsDouble();
+        avgTaskExecTimePerNode = Maps.copyMapWithAddedOrReplacedEntry(avgTaskExecTimePerNode, NODE2, node2StableExecTime);
         var node2IngestionLoad2 = nodeIngestionLoadWithWriteActivity(
-            new ExecutorStats(1.0, node2StableExecTime, node2QueueSize, node2QueueSize, 4),
-            OptionalDouble.of(node2StableExecTime),
-            new ExecutorIngestionLoad(1.0, timeValueNanos((long) node2StableExecTime * node2QueueSize).secondsFrac()),
-            1.3
+            writeLoadPerNode.get(NODE2),
+            queueSizePerNode.get(NODE2),
+            avgTaskExecTimePerNode.get(NODE2),
+            OptionalDouble.of(node2StableExecTime)
         );
         service.trackNodeIngestLoad(stateWithNewNode, newNode.getId(), newNode.getName(), seqNoSupplier.getAsLong(), node2IngestionLoad2);
         ingestionLoadSnapshots = service.getIndexTierMetrics(stateWithNewNode, null).getNodesLoad();
@@ -1016,12 +1033,11 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(lastRawAndAdjustedLoads.adjusted().size(), equalTo(stateWithShutdowns.nodes().size()));
         assertThat(ingestionLoadSnapshots.size(), equalTo(stateWithShutdowns.nodes().size()));
         double tierWideAvgExecTime = average(node0StableExecTimeNanos, node1StableExecTimeNanos, node2StableExecTime);
-        final var queueSizePerNode = Map.of("node-0", 20, "node-1", 20, "node-2", node2QueueSize);
         for (var adjustedLoad : ingestionLoadSnapshots) {
+            final var nodeId = adjustedLoad.nodeId();
             assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.MINIMUM));
-            final long taskDurationNanos = (long) (queueSizePerNode.get(adjustedLoad.nodeId()) * tierWideAvgExecTime);
-            final double threadsForQueue = timeValueNanos(taskDurationNanos).secondsFrac();
-            assertThat(adjustedLoad.load(), closeTo(1.0 + threadsForQueue, 0.01));
+            final double threadsForQueue = queueThreadsNeeded(queueSizePerNode.get(nodeId), tierWideAvgExecTime);
+            assertThat(adjustedLoad.load(), closeTo(writeLoadPerNode.get(nodeId) + threadsForQueue, 0.01));
         }
         // One node leaves and the tier wide average task execution time is updated
         final var stateWithNodeLeft = ClusterState.builder(stateWithShutdowns)
@@ -1040,10 +1056,10 @@ public class IngestMetricsServiceTests extends ESTestCase {
         assertThat(lastRawAndAdjustedLoads.adjusted().size(), equalTo(stateWithNodeLeft.nodes().size()));
         tierWideAvgExecTime = average(node0StableExecTimeNanos, node2StableExecTime);
         for (var adjustedLoad : ingestionLoadSnapshots) {
+            final var nodeId = adjustedLoad.nodeId();
             assertThat(adjustedLoad.metricQuality(), equalTo(MetricQuality.MINIMUM));
-            final long taskDurationNanos = (long) (queueSizePerNode.get(adjustedLoad.nodeId()) * tierWideAvgExecTime);
-            final double threadsForQueue = timeValueNanos(taskDurationNanos).secondsFrac();
-            assertThat(adjustedLoad.load(), closeTo(1.0 + threadsForQueue, 0.01));
+            final double threadsForQueue = queueThreadsNeeded(queueSizePerNode.get(nodeId), tierWideAvgExecTime);
+            assertThat(adjustedLoad.load(), closeTo(writeLoadPerNode.get(nodeId) + threadsForQueue, 0.01));
         }
 
         // INITIAL_SCALING_WINDOW_TO_CONSIDER_AVG_TASK_EXEC_TIMES_UNSTABLE passes, and we should go back to no adjustments
@@ -1057,6 +1073,26 @@ public class IngestMetricsServiceTests extends ESTestCase {
 
     private double average(double... values) {
         return Arrays.stream(values).average().orElse(0.0);
+    }
+
+    private static double queueThreadsNeeded(double avgQueueSize, double avgTaskExecTimeNanos) {
+        // assumes MAX_TIME_TO_CLEAR_QUEUE = 1s
+        return TimeValue.timeValueNanos((long) (avgQueueSize * avgTaskExecTimeNanos)).secondsFrac();
+    }
+
+    private static NodeIngestionLoad nodeIngestionLoadWithWriteActivity(
+        double averageWriteLoad,
+        double averageQueueSize,
+        double averageTaskExecTimeNanos,
+        OptionalDouble stableAvgTaskExecTimeNanos
+    ) {
+        final var queueThreadsNeeded = queueThreadsNeeded(averageQueueSize, averageTaskExecTimeNanos);
+        return nodeIngestionLoadWithWriteActivity(
+            new ExecutorStats(averageWriteLoad, averageTaskExecTimeNanos, (int) averageQueueSize, averageQueueSize, 4),
+            stableAvgTaskExecTimeNanos,
+            new ExecutorIngestionLoad(averageWriteLoad, queueThreadsNeeded),
+            averageWriteLoad + queueThreadsNeeded
+        );
     }
 
     private static NodeIngestionLoad nodeIngestionLoadWithWriteActivity(

@@ -415,9 +415,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().getProject().index(metadata.getIndex()).getState());
-        assertNull(
-            state.getMetadata().getProject().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type")
-        );
+        assertNull(state.getMetadata().getProject().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
         // try to open it with the broken setting - fail again!
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());

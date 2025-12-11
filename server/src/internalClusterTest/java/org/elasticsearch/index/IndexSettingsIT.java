@@ -18,8 +18,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collection;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class IndexSettingsIT extends ESIntegTestCase {
 
     public static final Setting<Boolean> TEST_SETTING = Setting.boolSetting("index.test_setting", false, Setting.Property.IndexScope);

@@ -290,7 +290,8 @@ public class IndexMetadataVerifier {
                     query -> {
                         throw new UnsupportedOperationException("IndexMetadataVerifier");
                     },
-                    mapperMetrics
+                    mapperMetrics,
+                    null
                 )
             ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

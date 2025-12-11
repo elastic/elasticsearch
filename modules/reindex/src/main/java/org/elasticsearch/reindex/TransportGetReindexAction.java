@@ -66,7 +66,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
                 }
                 // Found a matching reindex task by id, but it's a reindex subtask, treat it as not found to hide slicing implementation
                 // details
-                if (taskResult.getTask().parentTaskId() != null) {
+                if (taskResult.getTask().parentTaskId().isSet()) {
                     logger.debug("reindex subtask [{}] requested directly, returning not found", taskId);
                     listener.onFailure(notFoundException(taskId));
                     return;

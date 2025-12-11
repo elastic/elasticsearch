@@ -104,11 +104,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
-                return new Parameter<?>[] { ignoreMalformed, coerce, meta, metric };
-            } else {
-                return new Parameter<?>[] { ignoreMalformed, meta, metric };
-            }
+            return new Parameter<?>[] { ignoreMalformed, coerce, meta, metric };
         }
 
         @Override
@@ -343,8 +339,7 @@ public class HistogramFieldMapper extends FieldMapper {
             subParser.nextToken();
 
             HistogramParser.ParsedHistogram parsedHistogram;
-            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
-                && coerce()
+            if (coerce()
                 && subParser.currentToken() == XContentParser.Token.FIELD_NAME
                 && ExponentialHistogramParser.isExponentialHistogramSubFieldName(subParser.currentName())) {
                 ExponentialHistogramParser.ParsedExponentialHistogram parsedExponential = ExponentialHistogramParser.parse(

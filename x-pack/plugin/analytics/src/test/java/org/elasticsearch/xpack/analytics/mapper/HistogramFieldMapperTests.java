@@ -68,9 +68,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((HistogramFieldMapper) m).ignoreMalformed()));
-        if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
-            checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((HistogramFieldMapper) m).coerce()));
-        }
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((HistogramFieldMapper) m).coerce()));
     }
 
     @Override
@@ -150,24 +148,15 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         );
 
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled() == false) {
-            // feature flag is disabled, so coerce should not work
-            ThrowingRunnable runnable = () -> defaultMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
-            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("unknown parameter [scale]"));
-        } else {
-            ParsedDocument doc = defaultMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
-            List<IndexableField> fields = doc.rootDoc().getFields("field");
-            assertThat(fields.size(), equalTo(1));
-            assertThat(docValueToParsedHistogram(fields.getFirst()), equalTo(expectedCoerced));
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertThat(fields.size(), equalTo(1));
+        assertThat(docValueToParsedHistogram(fields.getFirst()), equalTo(expectedCoerced));
 
-            DocumentMapper coerceDisabledMapper = createDocumentMapper(
-                fieldMapping(b -> b.field("type", "histogram").field("coerce", false))
-            );
-            ThrowingRunnable runnable = () -> coerceDisabledMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
-            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("unknown parameter [scale]"));
-        }
+        DocumentMapper coerceDisabledMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "histogram").field("coerce", false)));
+        ThrowingRunnable runnable = () -> coerceDisabledMapper.parse(new SourceToParse("1", inputDocBytes, XContentType.JSON));
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
+        assertThat(e.getCause().getMessage(), containsString("unknown parameter [scale]"));
     }
 
     private static HistogramParser.ParsedHistogram docValueToParsedHistogram(IndexableField indexableField) {

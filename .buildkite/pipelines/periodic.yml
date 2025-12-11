@@ -1,4 +1,6 @@
 # This file is auto-generated. See .buildkite/pipelines/periodic.template.yml
+env:
+  SMART_RETRIES: "true"
 steps:
   - group: bwc
     steps:
@@ -20,6 +22,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.1.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.1.3#bwcTest
@@ -39,6 +43,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.2.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.2.3#bwcTest
@@ -58,6 +64,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.3.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.3.3#bwcTest
@@ -77,6 +85,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.4.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.4.3#bwcTest
@@ -96,6 +106,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.5.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.5.3#bwcTest
@@ -115,6 +127,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.6.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.6.2#bwcTest
@@ -134,6 +148,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.7.1 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.7.1#bwcTest
@@ -153,6 +169,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.8.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.8.2#bwcTest
@@ -172,6 +190,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.9.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.9.2#bwcTest
@@ -191,6 +211,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.10.4 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.10.4#bwcTest
@@ -210,6 +232,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.11.4 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.11.4#bwcTest
@@ -229,6 +253,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.12.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.12.2#bwcTest
@@ -248,6 +274,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.13.4 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.13.4#bwcTest
@@ -267,6 +295,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.14.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.14.3#bwcTest
@@ -286,6 +316,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.15.5 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.15.5#bwcTest
@@ -305,6 +337,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.16.6 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.16.6#bwcTest
@@ -324,6 +358,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.17.10 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.17.10#bwcTest
@@ -343,6 +379,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.18.8 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.18.8#bwcTest
@@ -362,6 +400,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.19.9 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.9#bwcTest
@@ -381,6 +421,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 9.0.8 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.0.8#bwcTest
@@ -400,6 +442,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 9.1.9 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.1.9#bwcTest
@@ -419,6 +463,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 9.2.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.2.3#bwcTest
@@ -438,6 +484,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
@@ -503,7 +551,15 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -547,7 +603,15 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -565,10 +629,27 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
+    retry:
+      automatic:
+        - exit_status: "-1"
+          limit: 3
+          signal_reason: none
+        - signal_reason: agent_stop
+          limit: 3
+        - exit_status: "1"
+          limit: 1
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
@@ -689,7 +770,15 @@ steps:
         env:
           ES_VERSION: "{{matrix.ES_VERSION}}"
           ES_COMMIT: "{{matrix.ES_COMMIT}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:

@@ -34,7 +34,14 @@ public class ListSearchApplicationActionRequestBWCSerializingTests extends Abstr
 
     @Override
     protected ListSearchApplicationAction.Request mutateInstance(ListSearchApplicationAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String query = instance.query();
+        PageParams pageParams = instance.pageParams();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> query = randomValueOtherThan(query, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> pageParams = randomValueOtherThan(pageParams, EnterpriseSearchModuleTestUtils::randomPageParams);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new ListSearchApplicationAction.Request(query, pageParams);
     }
 
     @Override

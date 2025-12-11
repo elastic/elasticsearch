@@ -114,7 +114,7 @@ public class TransformMetadata implements Metadata.ProjectCustom {
         }
 
         public TransformMetadataDiff(StreamInput in) throws IOException {
-            resetMode = in.readBoolean();
+            this.resetMode = in.readBoolean();
             this.upgradeMode = in.readBoolean();
         }
 

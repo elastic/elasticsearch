@@ -25,8 +25,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.core.Strings.format;
-
 /**
  * {@link TransformScheduler} class is responsible for scheduling transform tasks according to their configured frequency as well as
  * retrying policy.
@@ -123,9 +121,9 @@ public final class TransformScheduler {
             Instant processingFinished = clock.instant();
             long tookMs = Duration.between(processingStarted, processingFinished).toMillis();
             if (taskWasProcessed) {
-                logger.trace(format("Processing one scheduled task finished, took %dms", tookMs));
+                logger.trace("Processing one scheduled task finished, took [{}] ms", tookMs);
             } else {
-                logger.trace(format("Looking for scheduled tasks to process finished, took %dms", tookMs));
+                logger.trace("Looking for scheduled tasks to process finished, took [{}] ms", tookMs);
             }
         }
         if (taskWasProcessed == false) {
@@ -161,12 +159,10 @@ public final class TransformScheduler {
         scheduledTasks.update(scheduledTask.getTransformId(), task -> {
             if (task.equals(scheduledTask) == false) {
                 logger.debug(
-                    () -> format(
-                        "[%s] task object got modified while processing. Expected: %s, was: %s",
-                        scheduledTask.getTransformId(),
-                        scheduledTask,
-                        task
-                    )
+                    "[{}] task object got modified while processing. Expected: {}, was: {}",
+                    scheduledTask.getTransformId(),
+                    scheduledTask,
+                    task
                 );
             }
             return new TransformScheduledTask(
@@ -200,7 +196,7 @@ public final class TransformScheduler {
      */
     public void registerTransform(TransformTaskParams transformTaskParams, Listener listener) {
         String transformId = transformTaskParams.getId();
-        logger.trace(() -> format("[%s] register the transform", transformId));
+        logger.trace("[{}] register the transform", transformId);
         long currentTimeMillis = clock.millis();
         TransformScheduledTask transformScheduledTask = new TransformScheduledTask(
             transformId,
@@ -223,7 +219,7 @@ public final class TransformScheduler {
      * @param failureCount new value of transform task's failure count
      */
     public void handleTransformFailureCountChanged(String transformId, int failureCount) {
-        logger.trace(() -> format("[%s] handle transform failure count change to %d", transformId, failureCount));
+        logger.trace("[{}] handle transform failure count change to [{}]", transformId, failureCount);
         // Update the task's failure count (next_scheduled_time gets automatically re-calculated)
         scheduledTasks.update(
             transformId,
@@ -237,6 +233,22 @@ public final class TransformScheduler {
         );
     }
 
+    public void updateFrequency(String transformId, TimeValue frequency) {
+        logger.trace("[{}] handle transform frequency change to [{}]", transformId, frequency);
+        scheduledTasks.update(transformId, task -> {
+            if (task.getFrequency().equals(frequency)) {
+                return task;
+            }
+            return new TransformScheduledTask(
+                task.getTransformId(),
+                getFrequency(frequency),
+                task.getLastTriggeredTimeMillis(),
+                task.getFailureCount(),
+                task.getListener()
+            );
+        });
+    }
+
     /**
      * Updates the transform task's next_scheduled_time so that it is set to now.
      * Doing so may result in the task being processed earlier that it would normally (i.e.: according to its frequency) be.
@@ -244,7 +256,7 @@ public final class TransformScheduler {
      * @param transformId id of the transform to schedule now
      */
     public void scheduleNow(String transformId) {
-        logger.trace(() -> format("[%s] schedule_now transform", transformId));
+        logger.trace("[{}] schedule_now transform", transformId);
         long currentTimeMillis = clock.millis();
         // Update the task's next_scheduled_time
         scheduledTasks.update(
@@ -268,7 +280,7 @@ public final class TransformScheduler {
      */
     public void deregisterTransform(String transformId) {
         Objects.requireNonNull(transformId);
-        logger.trace(() -> format("[%s] de-register the transform", transformId));
+        logger.trace("[{}] de-register the transform", transformId);
         scheduledTasks.remove(transformId);
     }
 

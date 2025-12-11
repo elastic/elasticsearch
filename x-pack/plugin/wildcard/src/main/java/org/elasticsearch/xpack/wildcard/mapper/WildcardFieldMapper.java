@@ -17,10 +17,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -43,7 +41,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.time.DateMathParser;
@@ -58,8 +55,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
+import org.elasticsearch.index.mapper.BinaryDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -71,8 +68,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -958,7 +957,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.BytesRefsFromCustomBinaryBlockLoader(name());
+                return new BytesRefsFromCustomBinaryBlockLoader(name());
             }
             return null;
         }
@@ -1023,7 +1022,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.indexVersionCreated = builder.indexCreatedVersion;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
-        this.originalName = storeIgnored ? fullPath() + "._original" : null;
+        this.originalName = storeIgnored ? fullPath() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX : null;
     }
 
     @Override
@@ -1105,8 +1104,8 @@ public class WildcardFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new WildcardSyntheticFieldLoader());
-            if (ignoreAbove.isSet()) {
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
+            if (ignoreAbove.valuesPotentiallyIgnored()) {
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                     @Override
                     protected void writeValue(Object value, XContentBuilder b) throws IOException {
@@ -1119,54 +1118,4 @@ public class WildcardFieldMapper extends FieldMapper {
         });
     }
 
-    private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
-        private final ByteArrayStreamInput docValuesStream = new ByteArrayStreamInput();
-        private int docValueCount;
-        private BytesRef docValueBytes;
-
-        @Override
-        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            BinaryDocValues values = leafReader.getBinaryDocValues(fullPath());
-            if (values == null) {
-                docValueCount = 0;
-                return null;
-            }
-
-            return docId -> {
-                if (values.advanceExact(docId) == false) {
-                    docValueCount = 0;
-                    return hasValue();
-                }
-                docValueBytes = values.binaryValue();
-                docValuesStream.reset(docValueBytes.bytes);
-                docValuesStream.setPosition(docValueBytes.offset);
-                docValueCount = docValuesStream.readVInt();
-                return hasValue();
-            };
-        }
-
-        @Override
-        public boolean hasValue() {
-            return docValueCount > 0;
-        }
-
-        @Override
-        public long valueCount() {
-            return docValueCount;
-        }
-
-        @Override
-        public void write(XContentBuilder b) throws IOException {
-            for (int i = 0; i < docValueCount; i++) {
-                int length = docValuesStream.readVInt();
-                b.utf8Value(docValueBytes.bytes, docValuesStream.getPosition(), length);
-                docValuesStream.skipBytes(length);
-            }
-        }
-
-        @Override
-        public String fieldName() {
-            return fullPath();
-        }
-    }
 }

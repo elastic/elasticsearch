@@ -73,6 +73,7 @@ GET seats/_search
   }
 }
 ```
+% TEST[setup:seats]
 
 ```console-result
 {
@@ -121,4 +122,5 @@ GET seats/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 68/"took" : "$body.took"/]
 

@@ -57,18 +57,26 @@ public class RestResolveIndexAction extends BaseRestHandler {
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("name"));
         String modeParam = request.param("mode");
-        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
-            // accept but drop project_routing param until fully supported
-            request.param("project_routing");
+        final boolean crossProjectEnabled = settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false);
+        String projectRouting = null;
+        if (crossProjectEnabled) {
+            projectRouting = request.param("project_routing");
+        }
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS);
+        if (crossProjectEnabled) {
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
         }
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             indices,
-            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS),
+            indicesOptions,
             modeParam == null
                 ? null
                 : Arrays.stream(modeParam.split(","))
                     .map(IndexMode::fromString)
-                    .collect(() -> EnumSet.noneOf(IndexMode.class), EnumSet::add, EnumSet::addAll)
+                    .collect(() -> EnumSet.noneOf(IndexMode.class), EnumSet::add, EnumSet::addAll),
+            projectRouting
         );
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }

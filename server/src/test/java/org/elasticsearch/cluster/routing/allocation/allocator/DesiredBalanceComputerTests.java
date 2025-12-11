@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,6 +52,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
@@ -98,15 +100,16 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -170,6 +173,59 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
             )
         );
+    }
+
+    public void testNoInfiniteLoopBetweenHotspotMitigationAndBalancing() {
+        // This test demonstrates that the computer does not get stuck in an infinite loop when moveShards and balancer moving against
+        // each other. This is done by configuring two shards each on its own node.
+        // - Shard 0 with no write load on node-0 with node load 0.92 and queue latency 15s
+        // - Shard 1 with some write load on node-1 with no node load nor queue latency
+        // 1. MoveShard will want to move shard 0 off node-0 to node-1 for hot-spot mitigation.
+        // 2. Balance will want to move shard 0 back to node-0 to spread the index. Balancer always picks shard 0 because it has
+        // no write load thus write load decider says YES
+        // The computation should stop after one round of moveShards + balance because hot-spot is considered mitigated after
+        // a single shard movement and breaks the loop.
+        final var initialState = createInitialClusterState(2, 2, 0);
+        final var index = initialState.metadata().getProject(ProjectId.DEFAULT).index(TEST_INDEX).getIndex();
+        final RoutingNodes routingNodes = initialState.getRoutingNodes().mutableCopy();
+        final var changes = mock(RoutingChangesObserver.class);
+        for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            var shardRouting = iterator.next();
+            routingNodes.startShard(
+                iterator.initialize(shardRouting.shardId().id() == 0 ? "node-0" : "node-1", null, 0L, changes),
+                changes,
+                0L
+            );
+        }
+        final var clusterState = rebuildRoutingTable(initialState, routingNodes);
+
+        final var clusterInfo = ClusterInfo.builder()
+            .shardWriteLoads(Map.of(new ShardId(index, 1), 0.004379))
+            .nodeUsageStatsForThreadPools(
+                Map.of(
+                    "node-0",
+                    new NodeUsageStatsForThreadPools(
+                        "node-0",
+                        Map.of("write", new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(4, 0.92f, 15732))
+
+                    ),
+                    "node-1",
+                    new NodeUsageStatsForThreadPools(
+                        "node-1",
+                        Map.of("write", new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(4, 0.0f, 0))
+                    )
+                )
+            )
+            .build();
+
+        final var settings = Settings.builder().put(WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), "enabled").build();
+        final var routingAllocation = routingAllocationWithDecidersOf(clusterState, clusterInfo, settings);
+        final var input = new DesiredBalanceInput(42, routingAllocation, List.of());
+        final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));
+        var balance = computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, input, queue(), ignored -> true);
+        // This is an unusual edge case that will result in both shards being moved to the non-hot-spotting node
+        assertThat(balance.getAssignment(new ShardId(index, 0)).nodeIds(), equalTo(Set.of("node-1")));
+        assertThat(balance.getAssignment(new ShardId(index, 1)).nodeIds(), equalTo(Set.of("node-1")));
     }
 
     public void testIgnoresOutOfScopePrimaries() {
@@ -449,7 +505,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });
@@ -581,11 +637,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     allocation.routingNodes().getRelocatingShardCount(),
                     equalTo(0)
                 );
-                assertThat(allocation.routingNodes().node("node-2").started(), arrayWithSize(2));
+                assertThat(Iterators.toList(allocation.routingNodes().node("node-2").started().iterator()), hasSize(2));
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });
@@ -650,7 +706,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });
@@ -1339,6 +1395,45 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         return new ShardId(indexMetadata.getIndex(), shardId);
     }
 
+    public void testShouldNotLogLongBalanceComputation() {
+        final var clusterSettings = new ClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(5L)).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        final var timeInMillis = new AtomicLong(-1L);
+        final var desiredBalance = new AtomicReference<DesiredBalance>(DesiredBalance.BECOME_MASTER_INITIAL);
+
+        final var computer = new DesiredBalanceComputer(
+            clusterSettings,
+            TimeProviderUtils.create(timeInMillis::incrementAndGet),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            TEST_ONLY_EXPLAINER
+        );
+
+        final var allocation = new RoutingAllocation(
+            randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+            createInitialClusterState(1, 1, 0),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0L
+        );
+
+        computer.compute(desiredBalance.get(), DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+
+        timeInMillis.set(60 * 60 * 1000L);
+
+        assertLoggerExpectationsFor(() -> {
+            computer.compute(desiredBalance.get(), DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
+        },
+            new MockLog.UnseenEventExpectation(
+                "should NOT log long balance computation",
+                DesiredBalanceComputer.class.getCanonicalName(),
+                Level.INFO,
+                "* still not converged after *"
+            )
+        );
+    }
+
     public void testShouldLogComputationIteration() {
         checkIterationLogging(
             999,
@@ -1369,7 +1464,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on time",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [1m] and [59] iterations"
+                "Desired balance computation for [*] is still not converged after [1m] and [60] iterations"
             )
         );
     }
@@ -1406,7 +1501,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         }, TEST_ONLY_EXPLAINER);
@@ -1514,18 +1609,18 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         // Converges right away, verify the debug level convergence message.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
-            getLogExpectation.apply(new LogExpectationData(true, "3ms", 2))
+            getLogExpectation.apply(new LogExpectationData(true, "2ms", 2))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
         final var lastConvergenceTimestampMillis = computer.getLastConvergedTimeMillis();
 
         // Test a series of compute() calls that don't converge.
         iterationCounter.set(0);
-        requiredIterations.set(10);
+        requiredIterations.set(12);
         // This INFO is triggered from the interval since last convergence timestamp.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 6),
-            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4))
+            getLogExpectation.apply(new LogExpectationData(false, "5ms", 5))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
         assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(1, 6, lastConvergenceTimestampMillis));
@@ -1533,27 +1628,27 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         iterationCounter.set(0);
         // The next INFO is triggered from the interval since last INFO message logged, and then another after the interval period.
         assertLoggerExpectationsFor(
-            getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 8),
-            getLogExpectation.apply(new LogExpectationData(false, "10ms", 8, 2, 2, "2ms")),
-            getLogExpectation.apply(new LogExpectationData(false, "15ms", 13, 2, 7, "7ms"))
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 9),
+            getLogExpectation.apply(new LogExpectationData(false, "10ms", 9, 2, 3, "3ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "15ms", 14, 2, 8, "8ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
-        assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(2, 14, lastConvergenceTimestampMillis));
+        assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(2, 15, lastConvergenceTimestampMillis));
 
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
-            getLogExpectation.apply(new LogExpectationData(false, "20ms", 17, 3, 3, "3ms")),
-            getLogExpectation.apply(new LogExpectationData(false, "25ms", 22, 3, 8, "8ms")),
-            getLogExpectation.apply(new LogExpectationData(true, "27ms", 24, 3, 10, "10ms"))
+            getLogExpectation.apply(new LogExpectationData(false, "20ms", 18, 3, 3, "3ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "25ms", 23, 3, 8, "8ms")),
+            getLogExpectation.apply(new LogExpectationData(true, "29ms", 27, 3, 12, "12ms"))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
 
         // First INFO is triggered from interval since last converged, second is triggered from the inverval since the last INFO log.
         assertLoggerExpectationsFor(
             getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
-            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4)),
-            getLogExpectation.apply(new LogExpectationData(false, "10ms", 9)),
-            getLogExpectation.apply(new LogExpectationData(true, "11ms", 10))
+            getLogExpectation.apply(new LogExpectationData(false, "5ms", 5)),
+            getLogExpectation.apply(new LogExpectationData(false, "10ms", 10)),
+            getLogExpectation.apply(new LogExpectationData(true, "12ms", 12))
         );
         assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
 
@@ -1561,6 +1656,28 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         final var index = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(TEST_INDEX).getIndex();
         final var expectedAssignmentsMap = Map.of(new ShardId(index, 0), new ShardAssignment(Set.of("node-0"), 1, 0, 0));
         assertDesiredAssignments(desiredBalance.get(), expectedAssignmentsMap);
+
+        // Verify that if some time elapses and then another computation starts then we do not count the idle time
+        timeInMillis.addAndGet(100L);
+        iterationCounter.set(0);
+        requiredIterations.set(2);
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 2),
+            getLogExpectation.apply(new LogExpectationData(true, "2ms", 2))
+        );
+
+        // test a non-convergence and convergence message with a significant time delta,
+        // to check the time-since-convergence and time-since-last-compute order
+        iterationCounter.set(0);
+        timeInMillis.addAndGet(100L);
+        getComputeRunnableForIsFreshPredicate.apply(ignored -> false).run();
+        timeInMillis.addAndGet(100L);
+
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
+            getLogExpectation.apply(new LogExpectationData(false, "103ms", 2, 2, 1, "1ms")),
+            getLogExpectation.apply(new LogExpectationData(true, "104ms", 3, 2, 2, "2ms"))
+        );
     }
 
     @TestLogging(
@@ -1592,7 +1709,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should NOT log allocation explain since all shards are assigned",
                         loggerName,
                         Level.DEBUG,
-                        "unassigned shard * with allocation decision *"
+                        "*"
                     )
                 );
                 computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
@@ -1634,7 +1751,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should log allocation explain for unassigned primary shard",
                         loggerName,
                         Level.DEBUG,
-                        "unassigned shard [[test-index][0], node[null], [P], * with allocation decision *"
+                        "*unassigned shard [[test-index][0], node[null], [P], * due to allocation decision *"
                             + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
                     )
                 );
@@ -1654,8 +1771,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should NOT log allocation explain again for existing tracked unassigned shard",
                         loggerName,
                         Level.DEBUG,
-                        "unassigned shard [[test-index][0], node[null], [P], * with allocation decision *"
-                            + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
+                        "*"
                     )
                 );
                 computer.compute(newDesiredBalance, DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
@@ -1678,7 +1794,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should log for previously unassigned shard becomes assigned",
                         loggerName,
                         Level.DEBUG,
-                        "previously tracked unassigned shard [[test-index][0], node[null], [P],* is now assigned"
+                        "*assigned previously tracked unassigned shard [[test-index][0], node[null], [P],*"
                     )
                 );
                 mockLog.addExpectation(
@@ -1686,8 +1802,48 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         "Should log allocation explain for unassigned replica shard",
                         loggerName,
                         Level.DEBUG,
-                        "unassigned shard [[test-index][0], node[null], [R], * with allocation decision *"
+                        "*unassigned shard [[test-index][0], node[null], [R], * due to allocation decision *"
                             + "\"decider\":\"same_shard\",\"decision\":\"NO\"*"
+                    )
+                );
+                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+
+        // No logging if master is shutting down
+        {
+            var clusterState = createInitialClusterState(1, 1, 1).copyAndUpdateMetadata(
+                b -> b.putCustom(
+                    NodesShutdownMetadata.TYPE,
+                    new NodesShutdownMetadata(
+                        Map.of(
+                            "master",
+                            SingleNodeShutdownMetadata.builder()
+                                .setNodeId("master")
+                                .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                                .setReason("test")
+                                .setStartedAtMillis(0L)
+                                .setGracePeriod(TimeValue.THIRTY_SECONDS)
+                                .build()
+                        )
+                    )
+                )
+            );
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                clusterState,
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Should NOT log allocation explain since all shards are assigned",
+                        loggerName,
+                        Level.DEBUG,
+                        "*"
                     )
                 );
                 computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
@@ -1914,7 +2070,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
         });

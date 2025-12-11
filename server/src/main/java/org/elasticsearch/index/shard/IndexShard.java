@@ -44,9 +44,11 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -794,10 +796,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
-     * {@link BiConsumer} is executed after all operations are successfully blocked.
+     * {@link CheckedBiConsumer} is executed after all operations are successfully blocked.
      *
-     * @param consumer a {@link BiConsumer} that is executed after operations are blocked and that consumes the primary context as well as
-     *                 a listener to resolve once it finished
+     * @param consumer a {@link CheckedBiConsumer} that is executed after operations are blocked and that consumes the primary context as
+     *                 well as a listener to resolve once it finished
      * @param listener listener to resolve once this method actions including executing {@code consumer} in the non-failure case complete
      * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
@@ -805,7 +807,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(
         final String targetNodeId,
         final String targetAllocationId,
-        final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
+        final CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> consumer,
         final ActionListener<Void> listener
     ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
@@ -1083,6 +1085,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
             : "dynamic_templates parameter can only be associated with primary operations";
+        assert source.dynamicTemplateParams().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
+            : "dynamic_template_params parameter can only be associated with primary operations";
         DocumentMapper documentMapper = mapperService.documentMapper();
         Mapping mapping = null;
         if (documentMapper == null) {
@@ -1713,12 +1717,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     * The supplier is aware of shard splits and will filter documents that have been moved to other shards
+     * according to the provided {@link SplitShardCountSummary}.
+     * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
+     * @return a searcher supplier
+     */
+    public Engine.SearcherSupplier acquireExternalSearcherSupplier(SplitShardCountSummary splitShardCountSummary) {
+        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
+    /**
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
+        return acquireSearcherSupplier(scope, SplitShardCountSummary.UNSET);
+    }
+
+    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope, SplitShardCountSummary splitShardCountSummary) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, scope, splitShardCountSummary);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2409,7 +2428,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false || mappedFieldType.name().equals(fieldName) == false) {
             return ShardLongFieldRange.UNKNOWN; // field is missing, an alias (as the field type has a different name) or not a date field
         }
-        if (mappedFieldType.indexType().hasPoints() == false) {
+        if (mappedFieldType.indexType().hasPoints() == false && mappedFieldType.indexType().hasDocValuesSkipper() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing
         }
 
@@ -3759,9 +3778,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return useRetentionLeasesInPeerRecovery;
     }
 
+    /**
+     * @return SafeCommitInfo of the current engine. But if engine is null or engine is locked for reset then returns SafeCommitInfo.EMPTY.
+     */
     private SafeCommitInfo getSafeCommitInfo() {
-        final Engine engine = getEngineOrNull();
-        return engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo();
+        return tryWithEngineOrNull(engine -> engine == null ? SafeCommitInfo.EMPTY : engine.getSafeCommitInfo());
+
     }
 
     class ShardEventListener implements Engine.EventListener {
@@ -3841,7 +3863,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 this.warmer.warm(reader);
             }
         };
-        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
+        final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().getTimestampFieldType() != null;
         return new EngineConfig(
             shardId,
             threadPool,
@@ -4638,12 +4660,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param postResetNewEngineConsumer A consumer that will be called with the newly created engine after the reset
      *                                   is complete, allowing for post-reset operations on the new engine instance.
      *                                   The provided engine reference should not be retained by the consumer.
+     * @throws Exception if reset could not be completed or previous engine could not be closed
      */
-    public void resetEngine(Consumer<Engine> postResetNewEngineConsumer) {
+    public void resetEngine(Consumer<Engine> postResetNewEngineConsumer) throws Exception {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
         assert assertNoEngineResetLock();
         Engine previousEngine = null;
+        Exception primaryException = null;
         try {
             synchronized (engineMutex) {
                 verifyNotClosed();
@@ -4667,9 +4691,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } catch (Exception e) {
                     // we want to fail the shard in the case prepareForEngineReset throws
                     failShard("unable to reset engine", e);
+                    throw e;
                 }
             }
             onSettingsChanged();
+        } catch (Exception e) {
+            primaryException = e;
+            throw e;
         } finally {
             if (previousEngine != null) {
                 assert engineResetLock.isReadLockedByCurrentThread();
@@ -4677,6 +4705,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     IOUtils.close(previousEngine);
                 } catch (Exception e) {
                     failShard("unable to close previous engine after reset", e);
+
+                    if (primaryException != null) {
+                        primaryException.addSuppressed(e);
+                    } else {
+                        throw e;
+                    }
                 } finally {
                     engineResetLock.readLock().unlock();
                 }

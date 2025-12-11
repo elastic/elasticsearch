@@ -95,6 +95,34 @@ tx:long | cluster:keyword | time_bucket:datetime
 987     | staging         | 2024-05-10T00:20:00.000Z
 ;
 
+sum_over_time_with_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+
+TS k8s
+| WHERE pod == "one"
+| STATS tx = sum(sum_over_time(network.bytes_in, 10m)) BY cluster, time_bucket = TBUCKET(5minute) 
+| SORT time_bucket, cluster
+| LIMIT 20;
+
+tx:long | cluster:keyword | time_bucket:datetime
+2637    | prod            | 2024-05-10T00:00:00.000Z
+5792    | qa              | 2024-05-10T00:00:00.000Z
+2965    | staging         | 2024-05-10T00:00:00.000Z
+4613    | prod            | 2024-05-10T00:05:00.000Z
+8912    | qa              | 2024-05-10T00:05:00.000Z
+3369    | staging         | 2024-05-10T00:05:00.000Z
+6617    | prod            | 2024-05-10T00:10:00.000Z
+6946    | qa              | 2024-05-10T00:10:00.000Z
+2208    | staging         | 2024-05-10T00:10:00.000Z
+5214    | prod            | 2024-05-10T00:15:00.000Z
+4292    | qa              | 2024-05-10T00:15:00.000Z
+1507    | staging         | 2024-05-10T00:15:00.000Z
+1900    | prod            | 2024-05-10T00:20:00.000Z
+1320    | qa              | 2024-05-10T00:20:00.000Z
+987     | staging         | 2024-05-10T00:20:00.000Z
+;
+
 sum_over_time_older_than_10d
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
@@ -220,13 +248,13 @@ sum:long | pod:keyword | time_bucket:datetime
 
 sum_over_time_nested_expression_in_grouping_with_alias
 required_capability: ts_command_v0
-TS k8s | STATS min = min(sum_over_time(network.bytes_in)) by time_bucket = bucket(date_trunc(2 minutes, @timestamp), 5 minutes) | SORT time_bucket  | LIMIT 10;
+TS k8s | STATS min = min(sum_over_time(network.bytes_in)) by time_bucket = bucket(@timestamp, 5 minutes) | SORT time_bucket  | LIMIT 10;
 
 
 min:long | time_bucket:datetime
-6160     | 2024-05-10T00:00:00.000Z
-6160     | 2024-05-10T00:05:00.000Z
-6160     | 2024-05-10T00:10:00.000Z
-6160     | 2024-05-10T00:15:00.000Z
-6160     | 2024-05-10T00:20:00.000Z
+651      | 2024-05-10T00:00:00.000Z
+389      | 2024-05-10T00:05:00.000Z
+187      | 2024-05-10T00:10:00.000Z
+520      | 2024-05-10T00:15:00.000Z
+774      | 2024-05-10T00:20:00.000Z
 ;

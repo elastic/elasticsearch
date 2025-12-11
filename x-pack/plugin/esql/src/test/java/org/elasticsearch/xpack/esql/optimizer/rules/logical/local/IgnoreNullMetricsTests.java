@@ -11,18 +11,20 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
+import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.BeforeClass;
 
@@ -43,8 +46,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for the {@link IgnoreNullMetrics} transformation rule.  Like most rule tests, this runs the entire analysis chain.
@@ -52,12 +59,10 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 public class IgnoreNullMetricsTests extends ESTestCase {
 
     private static Analyzer analyzer;
-    private static EsqlParser parser;
     private static LogicalPlanOptimizer logicalOptimizer;
 
     @BeforeClass
     private static void init() {
-        parser = new EsqlParser();
         EnrichResolution enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
         LogicalOptimizerContext logicalOptimizerCtx = unboundLogicalOptimizerContext();
@@ -77,13 +82,12 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             "_tsid",
             new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
         analyzer = new Analyzer(
-            new AnalyzerContext(
+            testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
-                getIndexResult,
+                indexResolutions(test),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()
@@ -93,7 +97,7 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG));
+        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
@@ -150,10 +154,17 @@ public class IgnoreNullMetricsTests extends ESTestCase {
             | STATS max(max_over_time(metric_1)) BY dimension_1
             | LIMIT 10
             """);
-        Limit limit = as(actual, Limit.class);
+        Project project = as(actual, Project.class);
+        Eval unpack = as(project.child(), Eval.class);
+        assertThat(unpack.fields(), hasSize(1));
+        assertThat(Alias.unwrap(unpack.fields().get(0)), instanceOf(UnpackDimension.class));
+        Limit limit = as(unpack.child(), Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);
+        Eval pack = as(agg.child(), Eval.class);
+        assertThat(pack.fields(), hasSize(1));
+        assertThat(Alias.unwrap(pack.fields().get(0)), instanceOf(PackDimension.class));
         // The optimizer expands the STATS out into two STATS steps
-        Aggregate tsAgg = as(agg.child(), Aggregate.class);
+        Aggregate tsAgg = as(pack.child(), Aggregate.class);
         Filter filter = as(tsAgg.child(), Filter.class);
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);

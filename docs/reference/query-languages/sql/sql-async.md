@@ -22,6 +22,7 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 If the search doesn’t finish within this period, the search becomes async. The API returns:
 
@@ -39,12 +40,17 @@ For CSV, TSV, and TXT responses, the API returns these values in the respective 
   "rows": [ ]
 }
 ```
+% TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/106158]
+% TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
+% TESTRESPONSE[s/"is_partial": true/"is_partial": $body.is_partial/]
+% TESTRESPONSE[s/"is_running": true/"is_running": $body.is_running/]
 
 To check the progress of an async search, use the search ID with the [get async SQL search status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async-status).
 
 ```console
 GET _sql/async/status/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=
 ```
+% TEST[skip: no access to search ID]
 
 If `is_running` and `is_partial` are `false`, the async search has finished with complete results.
 
@@ -57,13 +63,16 @@ If `is_running` and `is_partial` are `false`, the async search has finished with
   "completion_status": 200
 }
 ```
+% TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/106158]
+% TESTRESPONSE[s/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=/$body.id/]
+% TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
 
 To get the results, use the search ID with the [get async SQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async). If the search is still running, specify how long you’d like to wait using `wait_for_completion_timeout`. You can also specify the response `format`.
 
 ```console
 GET _sql/async/FnR0TDhyWUVmUmVtWXRWZER4MXZiNFEad2F5UDk2ZVdTVHV1S0xDUy00SklUdzozMTU=?wait_for_completion_timeout=2s&format=json
 ```
-
+% TEST[skip: no access to search ID]
 
 ## Change the search retention period [sql-async-retention]
 
@@ -78,19 +87,21 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]
 
 You can use the get async SQL search API’s `keep_alive` parameter to later change the retention period. The new period starts after the request runs.
 
 ```console
 GET _sql/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=?keep_alive=5d&wait_for_completion_timeout=2s&format=json
 ```
+% TEST[skip: no access to search ID]
 
 Use the [delete async SQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-delete-async) to delete an async search before the `keep_alive` period ends. If the search is still running, {{es}} cancels it.
 
 ```console
 DELETE _sql/async/delete/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI=
 ```
-
+% TEST[skip: no access to search ID]
 
 ## Store synchronous SQL searches [sql-store-searches]
 
@@ -105,6 +116,8 @@ POST _sql?format=json
   "fetch_size": 5
 }
 ```
+% TEST[skip:waiting on https://github.com/elastic/elasticsearch/issues/106158]
+% TEST[setup:library]
 
 If `is_partial` and `is_running` are `false`, the search was synchronous and returned complete results.
 
@@ -118,6 +131,11 @@ If `is_partial` and `is_running` are `false`, the search was synchronous and ret
   "cursor": ...
 }
 ```
+% TESTRESPONSE[skip:waiting on https://github.com/elastic/elasticsearch/issues/106158]
+% TESTRESPONSE[s/Fnc5UllQdUVWU0NxRFNMbWxNYXplaFEaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQTo0NzA=/$body.id/]
+% TESTRESPONSE[s/"rows": \.\.\./"rows": $body.rows/]
+% TESTRESPONSE[s/"columns": \.\.\./"columns": $body.columns/]
+% TESTRESPONSE[s/"cursor": \.\.\./"cursor": $body.cursor/]
 
 You can get the same results later using the search ID with the [get async SQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-get-async).
 

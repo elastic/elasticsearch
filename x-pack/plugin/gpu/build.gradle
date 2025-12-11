@@ -1,7 +1,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.mrjar'
 
 esplugin {
   name = 'gpu'
@@ -13,19 +12,16 @@ base {
   archivesName = 'x-pack-gpu'
 }
 
-repositories {
-  maven {
-    url = uri("https://storage.googleapis.com/elasticsearch-cuvs-snapshots")
-  }
-}
-
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  implementation('com.nvidia.cuvs:cuvs-java:25.10.0-815d86dd')
+  implementation project(':libs:gpu-codec')
+
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
-  yamlRestTestImplementation(project(xpackModule('gpu')))
+  yamlRestTestImplementation project(':libs:gpu-codec')
+  internalClusterTestImplementation("com.nvidia.cuvs:cuvs-java:${versions.cuvs_java}")
+
   clusterModules project(xpackModule('gpu'))
 }
 

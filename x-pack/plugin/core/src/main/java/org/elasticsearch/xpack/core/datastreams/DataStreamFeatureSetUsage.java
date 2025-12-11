@@ -156,7 +156,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
             out.writeVLong(this.indicesBehindDataStream);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
-                out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);
+                out.writeVLong(this.failureStoreEffectivelyEnabledDataStreamCount);
                 out.writeVLong(this.failureStoreIndicesCount);
             }
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {

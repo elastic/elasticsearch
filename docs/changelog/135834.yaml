@@ -1,0 +1,6 @@
+pr: 135834
+summary: Move force merge from the downsampling request to the ILM action and allow
+  users to disable it.
+area: Downsampling
+type: enhancement
+issues: []

@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -65,7 +66,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (Build.current().isSnapshot()) {
             t.addAll(
                 DataType.UNDER_CONSTRUCTION.stream()
-                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR)
+                    .filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE && type != DataType.DENSE_VECTOR && type != DataType.TDIGEST)
                     .toList()
             );
         }
@@ -808,14 +809,14 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return;
         }
         if (extra().expectedPartialFold.size() == 1) {
-            assertThat(c.partiallyFold(FoldContext.small()), equalTo(extra().expectedPartialFold.get(0).asField()));
+            assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(extra().expectedPartialFold.get(0).asField()));
             return;
         }
         Case expected = build(
             Source.synthetic("expected"),
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(expected));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(expected));
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {

@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -62,6 +61,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             new TaskId("node", 1),
             request,
             request.indices(),
+            request.indicesOptions(),
             randomAlphaOfLengthBetween(5, 10),
             randomNonNegativeLong(),
             randomBoolean()
@@ -72,23 +72,42 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         final TaskId taskId = new TaskId("n", 1);
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(
+                taskId,
+                null,
+                Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                "",
+                0,
+                randomBoolean()
+            )
         );
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request, null, "", 0, randomBoolean()));
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, "", 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, null, request.indicesOptions(), "", 0, randomBoolean())
         );
         expectThrows(
             NullPointerException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, null, 0, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, new String[] { null }, request.indicesOptions(), "", 0, randomBoolean())
+        );
+        expectThrows(
+            NullPointerException.class,
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), null, 0, randomBoolean())
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", -1, randomBoolean())
+            () -> SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, request.indicesOptions(), "", -1, randomBoolean())
         );
-        SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+        SearchRequest searchRequest = SearchRequest.subSearchRequest(
+            taskId,
+            request,
+            Strings.EMPTY_ARRAY,
+            request.indicesOptions(),
+            "",
+            0,
+            randomBoolean()
+        );
         assertNull(searchRequest.validate());
     }
 
@@ -107,14 +126,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         TransportVersion version = TransportVersionUtils.randomVersion(random());
-        if (version.before(TransportVersions.V_8_8_0) && searchRequest.source() != null) {
-            // Versions before 8.8 don't support rank
-            searchRequest.source().rankBuilder(null);
-        }
-        if (version.before(TransportVersions.V_8_9_X) && searchRequest.source() != null) {
-            // Versions before 8_500_999 don't support queries
-            searchRequest.source().subSearches(new ArrayList<>());
-        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());

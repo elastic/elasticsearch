@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -244,12 +246,12 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             new EsField("l", DataType.LONG, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         Expression greaterThan = new GreaterThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.LONG));
-        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
+        EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), Map.of(), Map.of(), List.of());
         Filter filter = new Filter(Source.EMPTY, esRelation, greaterThan);
         return new FragmentExec(filter);
     }
 
-    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan filters) throws IOException {
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices, PhysicalPlan pushedDownFilter) throws IOException {
         String[] fieldMappers = new String[keyTypes.size() * 2];
         for (int i = 0; i < keyTypes.size(); i++) {
             fieldMappers[2 * i] = "key" + i;
@@ -282,17 +284,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
         Predicate<Integer> filterPredicate = l -> true;
-        if (filters instanceof FragmentExec fragmentExec) {
-            if (fragmentExec.fragment() instanceof Filter filter
-                && filter.condition() instanceof GreaterThan gt
-                && gt.left() instanceof FieldAttribute fa
-                && fa.name().equals("l")
-                && gt.right() instanceof Literal lit) {
-                long value = ((Number) lit.value()).longValue();
-                filterPredicate = l -> l > value;
-            } else {
-                fail("Unsupported filter type in test baseline generation: " + filters);
-            }
+        if (pushedDownFilter instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof Filter filter) {
+            filterPredicate = getPredicateFromFilter(filter);
         }
 
         int docCount = between(10, 1000);
@@ -325,7 +318,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
          */
         try (
             SearchContext searchContext = searchService.createSearchContext(
-                new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null),
+                new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.UNSET),
                 SearchService.NO_TIMEOUT
             )
         ) {
@@ -336,7 +329,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 AliasFilter.EMPTY
             );
             LuceneSourceOperator.Factory source = new LuceneSourceOperator.Factory(
-                List.of(esqlContext),
+                new IndexedByShardIdFromSingleton<>(esqlContext),
                 ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
@@ -360,9 +353,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
                 fieldInfos,
-                List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
-                    throw new IllegalStateException("can't load source here");
-                }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
+                new IndexedByShardIdFromSingleton<>(
+                    new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), (paths) -> {
+                        throw new IllegalStateException("can't load source here");
+                    }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
+                ),
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(
@@ -393,6 +388,16 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         new EsField("rkey" + i, keyTypes.get(i), Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
                     );
                     joinOnConditions.add(new Equals(Source.EMPTY, leftAttr, rightAttr));
+                    // randomly decide to apply the filter as additional join on filter instead of pushed down filter
+                    boolean applyAsJoinOnCondition = EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+                        ? randomBoolean()
+                        : false;
+                    if (applyAsJoinOnCondition
+                        && pushedDownFilter instanceof FragmentExec fragmentExec
+                        && fragmentExec.fragment() instanceof Filter filter) {
+                        joinOnConditions.add(filter.condition());
+                        pushedDownFilter = null;
+                    }
                 }
             }
             // the matchFields are shared for both types of join
@@ -409,7 +414,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 "lookup",
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY,
-                filters,
+                pushedDownFilter,
                 Predicates.combineAnd(joinOnConditions)
             );
             DriverContext driverContext = driverContext();
@@ -473,6 +478,19 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             }
             assertDriverContext(driverContext);
         }
+    }
+
+    private static Predicate<Integer> getPredicateFromFilter(Filter filter) {
+        if (filter.condition() instanceof GreaterThan gt
+            && gt.left() instanceof FieldAttribute fa
+            && fa.name().equals("l")
+            && gt.right() instanceof Literal lit) {
+            long value = ((Number) lit.value()).longValue();
+            return l -> l > value;
+        } else {
+            fail("Unsupported filter type in test baseline generation: " + filter);
+        }
+        return null;
     }
 
     /**

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +26,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class EsSourceExec extends LeafExec {
+
+    private static final TransportVersion REMOVE_NAME_WITH_MODS = TransportVersion.fromName("esql_es_source_remove_name_with_mods");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EsSourceExec",
@@ -33,47 +37,40 @@ public class EsSourceExec extends LeafExec {
 
     private final String indexPattern;
     private final IndexMode indexMode;
-    private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attributes;
     private final QueryBuilder query;
 
     public EsSourceExec(EsRelation relation) {
-        this(relation.source(), relation.indexPattern(), relation.indexMode(), relation.indexNameWithModes(), relation.output(), null);
+        this(relation.source(), relation.indexPattern(), relation.indexMode(), relation.output(), null);
     }
 
-    public EsSourceExec(
-        Source source,
-        String indexPattern,
-        IndexMode indexMode,
-        Map<String, IndexMode> indexNameWithModes,
-        List<Attribute> attributes,
-        QueryBuilder query
-    ) {
+    public EsSourceExec(Source source, String indexPattern, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
-        this.indexNameWithModes = indexNameWithModes;
         this.attributes = attributes;
         this.query = query;
     }
 
     private static EsSourceExec readFrom(StreamInput in) throws IOException {
         var source = Source.readFrom((PlanStreamInput) in);
-        String indexPattern;
-        Map<String, IndexMode> indexNameWithModes;
-        indexPattern = in.readString();
-        indexNameWithModes = in.readMap(IndexMode::readFrom);
+        String indexPattern = in.readString();
+        if (in.getTransportVersion().supports(REMOVE_NAME_WITH_MODS) == false) {
+            in.readMap(IndexMode::readFrom);
+        }
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
         var indexMode = IndexMode.fromString(in.readString());
-        return new EsSourceExec(source, indexPattern, indexMode, indexNameWithModes, attributes, query);
+        return new EsSourceExec(source, indexPattern, indexMode, attributes, query);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeString(indexPattern);
-        out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        if (out.getTransportVersion().supports(REMOVE_NAME_WITH_MODS) == false) {
+            out.writeMap(Map.<String, IndexMode>of(), (o, v) -> IndexMode.writeTo(v, out));
+        }
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
         out.writeString(indexMode().getName());
@@ -92,10 +89,6 @@ public class EsSourceExec extends LeafExec {
         return indexMode;
     }
 
-    public Map<String, IndexMode> indexNameWithModes() {
-        return indexNameWithModes;
-    }
-
     public QueryBuilder query() {
         return query;
     }
@@ -107,12 +100,12 @@ public class EsSourceExec extends LeafExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EsSourceExec::new, indexPattern, indexMode, indexNameWithModes, attributes, query);
+        return NodeInfo.create(this, EsSourceExec::new, indexPattern, indexMode, attributes, query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attributes, query);
+        return Objects.hash(indexPattern, indexMode, attributes, query);
     }
 
     @Override
@@ -128,7 +121,6 @@ public class EsSourceExec extends LeafExec {
         EsSourceExec other = (EsSourceExec) obj;
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
-            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attributes, other.attributes)
             && Objects.equals(query, other.query);
     }

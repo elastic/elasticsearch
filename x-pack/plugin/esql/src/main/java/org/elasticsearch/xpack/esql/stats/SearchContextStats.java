@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -17,8 +18,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -26,7 +30,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
@@ -157,6 +163,34 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean supportsLoaderConfig(
+        FieldName name,
+        BlockLoaderFunctionConfig config,
+        MappedFieldType.FieldExtractPreference preference
+    ) {
+        if (config == null) {
+            throw new UnsupportedOperationException("config must be provided");
+        }
+        for (SearchExecutionContext context : contexts) {
+            MappedFieldType ft = context.getFieldType(name.string());
+            if (ft == null) {
+                /*
+                 * Missing fields are always null no matter what we try to push so they
+                 * should work, but we need this check here to prevent actually pushing
+                 * to a LOOKUP JOIN. If the field comes from a LOOKUP JOIN  then it'll
+                 * show up as missing here. And we can't push to those fields. Yet.
+                 */
+                return false;
+            }
+            if (ft.supportsBlockLoaderConfig(config, preference) == false) {
+                // If any one field doesn't support the loader config we'll disable pushing the expression to the field
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public boolean hasExactSubfield(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
     }
@@ -201,20 +235,28 @@ public class SearchContextStats implements SearchStats {
         var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         // Consolidate min for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
+        boolean hasDocValueSkipper = fieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
+        if (fieldType == null
+            || (hasDocValueSkipper == false && stat.config.indexed == false)
+            || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.min == null) {
             var min = new long[] { Long.MAX_VALUE };
             Holder<Boolean> foundMinValue = new Holder<>(false);
             doWithContexts(r -> {
-                byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
-                if (minPackedValue != null && minPackedValue.length == 8) {
-                    long minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
-                    if (minValue <= min[0]) {
-                        min[0] = minValue;
-                        foundMinValue.set(true);
+                long minValue = Long.MAX_VALUE;
+                if (hasDocValueSkipper) {
+                    minValue = DocValuesSkipper.globalMinValue(new IndexSearcher(r), field.string());
+                } else {
+                    byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
+                    if (minPackedValue != null && minPackedValue.length == 8) {
+                        minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
                     }
+                }
+                if (minValue <= min[0]) {
+                    min[0] = minValue;
+                    foundMinValue.set(true);
                 }
                 return true;
             }, true);
@@ -228,20 +270,28 @@ public class SearchContextStats implements SearchStats {
         var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         // Consolidate max for indexed date fields only, skip the others and mixed-typed fields.
         MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
+        boolean hasDocValueSkipper = fieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
+        if (fieldType == null
+            || (hasDocValueSkipper == false && stat.config.indexed == false)
+            || fieldType instanceof DateFieldType == false) {
             return null;
         }
         if (stat.max == null) {
             var max = new long[] { Long.MIN_VALUE };
             Holder<Boolean> foundMaxValue = new Holder<>(false);
             doWithContexts(r -> {
-                byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
-                if (maxPackedValue != null && maxPackedValue.length == 8) {
-                    long maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
-                    if (maxValue >= max[0]) {
-                        max[0] = maxValue;
-                        foundMaxValue.set(true);
+                long maxValue = Long.MIN_VALUE;
+                if (hasDocValueSkipper) {
+                    maxValue = DocValuesSkipper.globalMaxValue(new IndexSearcher(r), field.string());
+                } else {
+                    byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
+                    if (maxPackedValue != null && maxPackedValue.length == 8) {
+                        maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
                     }
+                }
+                if (maxValue >= max[0]) {
+                    max[0] = maxValue;
+                    foundMaxValue.set(true);
                 }
                 return true;
             }, true);
@@ -379,6 +429,11 @@ public class SearchContextStats implements SearchStats {
         return val;
     }
 
+    @Override
+    public MappedFieldType fieldType(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
+    }
+
     private interface DocCountTester {
         Boolean test(LeafReader leafReader) throws IOException;
     }
@@ -445,5 +500,16 @@ public class SearchContextStats implements SearchStats {
         } catch (IOException ex) {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
+    }
+
+    @Override
+    public Map<ShardId, IndexMetadata> targetShards() {
+        Map<ShardId, IndexMetadata> shards = Maps.newHashMapWithExpectedSize(contexts.size());
+        for (SearchExecutionContext context : contexts) {
+            IndexMetadata indexMetadata = context.getIndexSettings().getIndexMetadata();
+            ShardId shardId = new ShardId(context.index(), context.getShardId());
+            shards.putIfAbsent(shardId, indexMetadata);
+        }
+        return shards;
     }
 }

@@ -160,6 +160,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           "indices": {
                             "index": {
                               "version": 1,
+                              "transport_version" : "0",
                               "mapping_version": 1,
                               "settings_version": 1,
                               "aliases_version": 1,
@@ -250,6 +251,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                       "indices" : {
                         "index" : {
                           "version" : 1,
+                          "transport_version" : "0",
                           "mapping_version" : 1,
                           "settings_version" : 1,
                           "aliases_version" : 1,

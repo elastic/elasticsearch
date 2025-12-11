@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -19,9 +18,9 @@ import java.util.Map;
 
 /**
  * Defines the task settings for the openai service.
- *
+ * <p>
  * User is an optional unique identifier representing the end-user, which can help OpenAI to monitor and detect abuse
- *  <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
+ * <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
  */
 public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbeddingsTaskSettings> {
 
@@ -45,14 +44,7 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
     }
 
     private static Settings readTaskSettingsFromStream(StreamInput in) throws IOException {
-        String user;
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            user = in.readOptionalString();
-        } else {
-            var discard = in.readString();
-            user = in.readOptionalString();
-        }
+        String user = in.readOptionalString();
 
         Map<String, String> headers;
 
@@ -72,17 +64,12 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalString(user());
-        } else {
-            out.writeString("m"); // write any string
-            out.writeOptionalString(user());
-        }
+        out.writeOptionalString(user());
 
         if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
             out.writeOptionalMap(headers(), StreamOutput::writeString, StreamOutput::writeString);

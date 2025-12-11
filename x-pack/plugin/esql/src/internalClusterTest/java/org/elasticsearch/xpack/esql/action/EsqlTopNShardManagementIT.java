@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -25,7 +26,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // Verifies that the TopNOperator can release shard contexts as it processes its input.
@@ -62,6 +65,11 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
 
     public void testTopNOperatorReleasesContexts() throws Exception {
         try (var initialResponse = sendAsyncQuery()) {
+            assertThat(
+                "Async query has finished, but it should have waited for semaphore release",
+                initialResponse.asyncExecutionId().isPresent(),
+                equalTo(true)
+            );
             var getResultsRequest = new GetAsyncResultRequest(initialResponse.asyncExecutionId().get());
             scriptPermits.release(numberOfDocs());
             getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(10));
@@ -74,10 +82,10 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
 
     private static EsqlQueryResponse sendAsyncQuery() {
         scriptPermits.drainPermits();
-        return EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
-            // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
-            .query("from test | sort foo + 1 | limit 1 | where pause_me + 1 > 42 | stats sum(pause_me)")
-            .pragmas(
+        // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
+        return client().execute(
+            EsqlQueryAction.INSTANCE,
+            asyncEsqlQueryRequest("from test | sort foo + 1 | limit 1 | where pause_me + 1 < 42 | stats sum(pause_me)").pragmas(
                 new QueryPragmas(
                     Settings.builder()
                         // Configured to ensure that there is only one worker handling all the shards, so that we can assert the correct
@@ -88,8 +96,15 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
                         .build()
                 )
             )
-            .execute()
-            .actionGet(1, TimeUnit.MINUTES);
+        ).actionGet(1, TimeUnit.MINUTES);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(PlannerSettings.REDUCTION_LATE_MATERIALIZATION.getKey(), randomBoolean())
+            .build();
     }
 
     public static class TopNPausableFieldPlugin extends AbstractPauseFieldPlugin {
@@ -111,6 +126,7 @@ public class EsqlTopNShardManagementIT extends AbstractPausableIntegTestCase {
                 closed,
                 greaterThanOrEqualTo(open)
             );
+            assertThat("At least some context should still be open", open, greaterThan(0));
             return scriptPermits.tryAcquire(1, 1, TimeUnit.MINUTES);
         }
     }

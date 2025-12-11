@@ -26,6 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -786,6 +788,19 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * The latter is a way to do only a can-match rather than all search phases.
      */
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(false);
+    }
+
+    /**
+     * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
+     * The latter is a way to do only a can-match rather than all search phases.  Tests the case where logsDB mode is
+     * enabled and therefore the timestamp field is stored with a sparse index.
+     */
+    public void testLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
+        testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(true);
+    }
+
+    public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(boolean logsMode) throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
@@ -798,6 +813,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             indexWithinSearchRange,
             indexWithinSearchRangeShardCount,
             Settings.builder()
+                .put(IndexSettings.MODE.getKey(), logsMode ? IndexMode.LOGSDB.getName() : IndexMode.STANDARD.getName())
                 .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
                 .build()
         );

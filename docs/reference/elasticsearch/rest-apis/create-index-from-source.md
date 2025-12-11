@@ -75,6 +75,7 @@ PUT /my-index
   }
 }
 ```
+% TESTSETUP
 
 Now we create a destination index from the source index. This new index will have the same mappings and settings as the source index.
 

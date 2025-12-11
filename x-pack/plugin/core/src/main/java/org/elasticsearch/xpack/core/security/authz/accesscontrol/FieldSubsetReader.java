@@ -41,8 +41,10 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -55,6 +57,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -69,15 +72,18 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * Note that for convenience, the returned reader
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
      * and so on.
-     * @param in reader to filter
-     * @param filter fields to filter.
+     *
+     * @param in       reader to filter
+     * @param filter   fields to filter.
+     * @param isMapped whether a field is mapped or not.
      */
     public static DirectoryReader wrap(
         DirectoryReader in,
         CharacterRunAutomaton filter,
-        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
     ) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat);
+        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
     }
 
     // wraps subreaders with fieldsubsetreaders.
@@ -85,17 +91,19 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
         private final CharacterRunAutomaton filter;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final Function<String, Boolean> isMapped;
 
         FieldSubsetDirectoryReader(
             DirectoryReader in,
             final CharacterRunAutomaton filter,
-            final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+            final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+            Function<String, Boolean> isMapped
         ) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat);
+                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat, isMapped);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -103,12 +111,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             });
             this.filter = filter;
             this.ignoredSourceFormat = ignoredSourceFormat;
+            this.isMapped = isMapped;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat);
+            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
         }
 
         /** Return the automaton that is used to filter fields. */
@@ -145,12 +154,25 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat)
-        throws IOException {
+    FieldSubsetReader(
+        LeafReader in,
+        CharacterRunAutomaton filter,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
+    ) throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (filter.run(fi.name)) {
+            String name = fi.name;
+            if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
+            }
+            if (fi.getName().endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
+                && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName()
+                    .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
+            }
+            if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
         }

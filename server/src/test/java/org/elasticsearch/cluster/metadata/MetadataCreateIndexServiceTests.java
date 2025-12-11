@@ -1733,8 +1733,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(randomIntBetween(1, 3))
-                .build(),
-            minTransportVersion
+                .build()
         );
         assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
     }

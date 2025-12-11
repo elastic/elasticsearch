@@ -11,6 +11,7 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -85,6 +86,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         static final String LOAD_AVERAGE_1M = "1m";
         static final String LOAD_AVERAGE_5M = "5m";
         static final String LOAD_AVERAGE_15M = "15m";
+        static final String AVAILABLE_PROCESSORS = "available_processors";
 
         static final String MEM = "mem";
         static final String SWAP = "swap";
@@ -117,12 +119,18 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     public static class Cpu implements Writeable, ToXContentFragment {
 
+        private static final TransportVersion AVAILABLE_PROCESSORS_TRANSPORT_VERSION = TransportVersion.fromName(
+            "available_processors_in_os_stats"
+        );
+
         private final short percent;
         private final double[] loadAverage;
+        private final int availableProcessors;
 
-        public Cpu(short systemCpuPercent, double[] systemLoadAverage) {
+        public Cpu(short systemCpuPercent, double[] systemLoadAverage, int availableProcessors) {
             this.percent = systemCpuPercent;
             this.loadAverage = systemLoadAverage;
+            this.availableProcessors = availableProcessors;
         }
 
         public Cpu(StreamInput in) throws IOException {
@@ -132,6 +140,7 @@ public class OsStats implements Writeable, ToXContentFragment {
             } else {
                 this.loadAverage = null;
             }
+            this.availableProcessors = in.getTransportVersion().supports(AVAILABLE_PROCESSORS_TRANSPORT_VERSION) ? in.readInt() : 0;
         }
 
         @Override
@@ -143,6 +152,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 out.writeBoolean(true);
                 out.writeDoubleArray(loadAverage);
             }
+            if (out.getTransportVersion().supports(AVAILABLE_PROCESSORS_TRANSPORT_VERSION)) {
+                out.writeInt(availableProcessors);
+            }
         }
 
         public short getPercent() {
@@ -151,6 +163,10 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         public double[] getLoadAverage() {
             return loadAverage;
+        }
+
+        public int getAvailableProcessors() {
+            return availableProcessors;
         }
 
         @Override
@@ -170,6 +186,7 @@ public class OsStats implements Writeable, ToXContentFragment {
                 }
                 builder.endObject();
             }
+            builder.field(Fields.AVAILABLE_PROCESSORS, getAvailableProcessors());
             builder.endObject();
             return builder;
         }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -89,10 +88,8 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         this.highVariancePenalty = in.readOptionalBoolean();
         this.incompleteBucketPenalty = in.readOptionalBoolean();
         this.multimodalDistribution = in.readOptionalBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.byFieldFirstOccurrence = in.readOptionalBoolean();
-            this.byFieldRelativeRarity = in.readOptionalDouble();
-        }
+        this.byFieldFirstOccurrence = in.readOptionalBoolean();
+        this.byFieldRelativeRarity = in.readOptionalDouble();
     }
 
     @Override
@@ -108,10 +105,8 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
         out.writeOptionalBoolean(highVariancePenalty);
         out.writeOptionalBoolean(incompleteBucketPenalty);
         out.writeOptionalBoolean(multimodalDistribution);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalBoolean(byFieldFirstOccurrence);
-            out.writeOptionalDouble(byFieldRelativeRarity);
-        }
+        out.writeOptionalBoolean(byFieldFirstOccurrence);
+        out.writeOptionalDouble(byFieldRelativeRarity);
     }
 
     @Override

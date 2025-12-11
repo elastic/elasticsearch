@@ -151,7 +151,7 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
     assert sample.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     SampleBytesRefAggregator.combineIntermediate(state, sample);
   }
 

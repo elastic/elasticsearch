@@ -1,5 +1,0 @@
-pr: 135547
-summary: Fix union types lost attributes in `StubRelation` for inlinestats
-area: ES|QL
-type: bug
-issues: []

@@ -60,6 +60,10 @@ public class Task implements Traceable {
      */
     public static final String TRACE_STATE = "tracestate";
 
+    /**
+     * Optional transient header allowing to override the start time of the root trace.
+     * This is discarded when creating a new trace context once an APM trace context exists.
+     */
     public static final String TRACE_START_TIME = "trace.starttime";
 
     /**

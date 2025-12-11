@@ -31,6 +31,10 @@ For example, you can use `LOOKUP JOIN` to:
 * You want to restrict users to use only specific lookup indices
 * You do not need to match using ranges or spatial relations
 
+## Syntax reference
+
+Refer to [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md) for the detailed syntax reference.
+
 ## How the command works [esql-how-lookup-join-works]
 
 The `LOOKUP JOIN` command adds fields from the lookup index as new columns to your results table based on matching values in the join field.
@@ -40,12 +44,14 @@ The command requires two parameters:
 * The join condition. Can be one of the following:
    * A single field name
    * A comma-separated list of field names {applies_to}`stack: ga 9.2`
-   * An expression with one or more join conditions linked by `AND`. Each condition compares a field from the left index with a field from the lookup index using [binary operators](/reference/query-languages/esql/functions-operators/operators.md#esql-binary-operators) (`==`, `>=`, `<=`, `>`, `<`, `!=`). Each field name in the join condition must exist in only one of the indexes. Use RENAME to resolve naming conflicts. {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * An expression with one or more join conditions linked by `AND`. {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+   * An expression that includes [Full Text Functions](/reference/query-languages/esql/functions-operators/search-functions.md) and other Lucene pushable functions applied to fields from the lookup index {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 
 ```esql
 LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field
 LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Join on multiple fields
 LOOKUP JOIN <lookup_index> ON <left_field1> >= <lookup_field1> AND <left_field2> == <lookup_field2>  # Join on expression
+LOOKUP JOIN <lookup_index> ON MATCH(lookup_field, "search term") AND <left_field> == <lookup_field>  # Join with Full Text Functions
 ```
 
 :::{image} ../images/esql-lookup-join.png
@@ -77,7 +83,7 @@ First let's create two indices with mappings: `threat_list` and `firewall_logs`.
 PUT threat_list
 {
   "settings": {
-    "index.mode": "lookup" # The lookup index must use this mode
+    "index.mode": "lookup" <1>
   },
   "mappings": {
     "properties": {
@@ -89,6 +95,8 @@ PUT threat_list
   }
 }
 ```
+1. The lookup index must use this mode
+  
 ```console
 PUT firewall_logs
 {

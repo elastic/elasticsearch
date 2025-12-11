@@ -27,6 +27,7 @@ POST /_sql?format=txt
   "fetch_size": 5
 }
 ```
+% TEST[setup:library]    
 
 Which returns:
 
@@ -35,6 +36,8 @@ Which returns:
 ---------------+------------------------------------+---------------+------------------------
 Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T00:00:00.000Z
 ```
+% TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
+% TESTRESPONSE[non_json]
 
 ::::{tip}
 A useful and less obvious usage for standard Query DSL filtering is to search documents by a specific [routing key](elasticsearch://reference/elasticsearch/rest-apis/search-shard-routing.md#search-routing). Because Elasticsearch SQL does not support a `routing` parameter, one can specify a [`terms` filter for the `_routing` field](elasticsearch://reference/elasticsearch/mapping-reference/mapping-routing-field.md) instead:
@@ -50,7 +53,7 @@ POST /_sql?format=txt
   }
 }
 ```
-
+% TEST[setup:library]
 ::::
 
 

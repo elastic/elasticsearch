@@ -20,7 +20,6 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
@@ -39,14 +38,15 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -186,9 +186,9 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final String type;
         private final NumericType numericType;
-        private final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
 
-        Resolution(String type, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
+        Resolution(String type, NumericType numericType, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
             this.type = type;
             this.numericType = numericType;
             this.toScriptFieldFactory = toScriptFieldFactory;
@@ -202,7 +202,7 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
-        ToScriptFieldFactory<SortedNumericDocValues> getDefaultToScriptFieldFactory() {
+        ToScriptFieldFactory<SortedNumericLongValues> getDefaultToScriptFieldFactory() {
             return toScriptFieldFactory;
         }
 
@@ -287,47 +287,25 @@ public final class DateFieldMapper extends FieldMapper {
         private final Resolution resolution;
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
-        private final IndexMode indexMode;
-        private final IndexSortConfig indexSortConfig;
-        private final boolean useDocValuesSkipper;
+        private final IndexSettings indexSettings;
 
         public Builder(
             String name,
             Resolution resolution,
             DateFormatter dateFormatter,
             ScriptCompiler scriptCompiler,
-            boolean ignoreMalformedByDefault,
-            IndexVersion indexCreatedVersion
-        ) {
-            this(
-                name,
-                resolution,
-                dateFormatter,
-                scriptCompiler,
-                ignoreMalformedByDefault,
-                IndexMode.STANDARD,
-                null,
-                indexCreatedVersion,
-                false
-            );
-        }
-
-        public Builder(
-            String name,
-            Resolution resolution,
-            DateFormatter dateFormatter,
-            ScriptCompiler scriptCompiler,
-            boolean ignoreMalformedByDefault,
-            IndexMode indexMode,
-            IndexSortConfig indexSortConfig,
-            IndexVersion indexCreatedVersion,
-            boolean useDocValuesSkipper
+            IndexSettings indexSettings
         ) {
             super(name);
             this.resolution = resolution;
-            this.indexCreatedVersion = indexCreatedVersion;
+            this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.ignoreMalformed = Parameter.boolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                FieldMapper.IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
+            );
 
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, index, docValues);
@@ -345,9 +323,12 @@ public final class DateFieldMapper extends FieldMapper {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());
             }
-            this.indexMode = indexMode;
-            this.indexSortConfig = indexSortConfig;
-            this.useDocValuesSkipper = useDocValuesSkipper;
+            this.indexSettings = indexSettings;
+        }
+
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
+            this.ignoreMalformed.setValue(ignoreMalformed);
+            return this;
         }
 
         DateFormatter buildFormatter() {
@@ -419,16 +400,14 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         private IndexType indexType(String fullFieldName) {
-            boolean hasDocValuesSkipper = shouldUseDocValuesSkipper(
-                indexCreatedVersion,
-                useDocValuesSkipper,
-                docValues.getValue(),
-                indexMode,
-                indexSortConfig,
-                fullFieldName
-            );
-            if (hasDocValuesSkipper) {
+            if (shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName)) {
                 return IndexType.skippers();
+            }
+            if (index.get() == false && docValues.get()) {
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
@@ -467,42 +446,17 @@ public final class DateFieldMapper extends FieldMapper {
                 nullTimestamp,
                 resolution,
                 context.isSourceSynthetic(),
-                indexMode,
-                indexSortConfig,
-                indexType.hasDocValuesSkipper(),
                 this
             );
         }
     }
 
     public static final TypeParser MILLIS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
-        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(
-            n,
-            Resolution.MILLISECONDS,
-            c.getDateFormatter(),
-            c.scriptCompiler(),
-            ignoreMalformedByDefault,
-            c.getIndexSettings().getMode(),
-            c.getIndexSettings().getIndexSortConfig(),
-            c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
-        );
+        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings());
     });
 
     public static final TypeParser NANOS_PARSER = createTypeParserWithLegacySupport((n, c) -> {
-        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(
-            n,
-            Resolution.NANOSECONDS,
-            c.getDateFormatter(),
-            c.scriptCompiler(),
-            ignoreMalformedByDefault,
-            c.getIndexSettings().getMode(),
-            c.getIndexSettings().getIndexSortConfig(),
-            c.indexVersionCreated(),
-            IndexSettings.USE_DOC_VALUES_SKIPPER.get(c.getSettings())
-        );
+        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), c.scriptCompiler(), c.getIndexSettings());
     });
 
     public static final class DateFieldType extends MappedFieldType {
@@ -662,8 +616,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         // returns a Long to support source fallback which emulates numeric doc values for dates
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 public Long parseSourceValue(Object value) {
                     String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
@@ -892,9 +846,10 @@ public final class DateFieldMapper extends FieldMapper {
                 }
                 for (LeafReaderContext ctx : leaves) {
                     DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
-                    assert skipper != null : "no skipper for field:" + name() + " and reader:" + reader;
-                    minValue = Long.min(minValue, skipper.minValue());
-                    maxValue = Long.max(maxValue, skipper.maxValue());
+                    if (skipper != null) {
+                        minValue = Long.min(minValue, skipper.minValue());
+                        maxValue = Long.max(maxValue, skipper.maxValue());
+                    }
                 }
                 return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }
@@ -944,7 +899,7 @@ public final class DateFieldMapper extends FieldMapper {
                     ++fromInclusive;
                 }
                 // we set the time range filter from during rewrite, because this may be the only time we ever parse it,
-                // in case the shard if filtered out and does not run the query phase or all its docs are within the bounds.
+                // in case the shard gets filtered out and does not run the query phase or all its docs are within the bounds.
                 context.setTimeRangeFilterFromMillis(fieldName, fromInclusive, resolution);
             }
 
@@ -979,7 +934,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name());
+                return new LongsBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.
@@ -995,11 +950,13 @@ public final class DateFieldMapper extends FieldMapper {
                     }
                 };
             }
-
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || indexType.hasPoints()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+            return new BlockSourceReader.LongsBlockLoader(
+                sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings()),
+                lookup
+            );
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -1056,7 +1013,7 @@ public final class DateFieldMapper extends FieldMapper {
                     name(),
                     resolution.numericType(),
                     resolution.getDefaultToScriptFieldFactory(),
-                    indexType.hasPoints()
+                    indexType
                 );
             }
 
@@ -1067,7 +1024,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType().getValuesSourceType(),
-                    sourceValueFetcher(sourcePaths),
+                    sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                     searchLookup,
                     resolution.getDefaultToScriptFieldFactory()
                 );
@@ -1112,17 +1069,12 @@ public final class DateFieldMapper extends FieldMapper {
     private final Resolution resolution;
     private final boolean isSourceSynthetic;
 
-    private final boolean ignoreMalformedByDefault;
-    private final IndexVersion indexCreatedVersion;
-
     private final Script script;
     private final ScriptCompiler scriptCompiler;
     private final FieldValues<Long> scriptValues;
 
     private final boolean isDataStreamTimestampField;
-    private final IndexMode indexMode;
-    private final IndexSortConfig indexSortConfig;
-    private final boolean hasDocValuesSkipper;
+    private final IndexSettings indexSettings;
 
     private DateFieldMapper(
         String leafName,
@@ -1131,9 +1083,6 @@ public final class DateFieldMapper extends FieldMapper {
         Long nullValue,
         Resolution resolution,
         boolean isSourceSynthetic,
-        IndexMode indexMode,
-        IndexSortConfig indexSortConfig,
-        boolean hasDocValuesSkipper,
         Builder builder
     ) {
         super(leafName, mappedFieldType, builderParams);
@@ -1147,65 +1096,39 @@ public final class DateFieldMapper extends FieldMapper {
         this.nullValue = nullValue;
         this.resolution = resolution;
         this.isSourceSynthetic = isSourceSynthetic;
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue();
-        this.indexCreatedVersion = builder.indexCreatedVersion;
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
         this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        this.indexMode = indexMode;
-        this.indexSortConfig = indexSortConfig;
-        this.hasDocValuesSkipper = hasDocValuesSkipper;
+        this.indexSettings = builder.indexSettings;
     }
 
     /**
      * Determines whether the doc values skipper (sparse index) should be used for the {@code @timestamp} field.
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
-     * the index was created on or after {@link IndexVersions#TIMESTAMP_DOC_VALUES_SPARSE_INDEX}, and the
+     * the index was created on or after {@link IndexVersions#SKIPPERS_ENABLED_BY_DEFAULT}, and the
      * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and
      * the index sorting configuration must include the {@code @timestamp} field.
      *
-     * @param indexCreatedVersion  The version of the index when it was created.
-     * @param useDocValuesSkipper  Whether the doc values skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper}
-     *                             setting.
-     * @param hasDocValues         Whether the field has doc values enabled.
-     * @param indexMode            The index mode, which must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}.
-     * @param indexSortConfig      The index sorting configuration, which must include the {@code @timestamp} field.
-     * @param fullFieldName        The full name of the field being checked, expected to be {@code @timestamp}.
+     * @param indexSettings  The index settings of the parent index
+     * @param hasDocValues   Whether the field has doc values enabled.
+     * @param fullFieldName  The full name of the field being checked, expected to be {@code @timestamp}.
      * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
      */
-
-    private static boolean shouldUseDocValuesSkipper(
-        final IndexVersion indexCreatedVersion,
-        boolean useDocValuesSkipper,
-        boolean hasDocValues,
-        final IndexMode indexMode,
-        final IndexSortConfig indexSortConfig,
-        final String fullFieldName
-    ) {
-        return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-            && useDocValuesSkipper
+    private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
+            && indexSettings.useDocValuesSkipper()
             && hasDocValues
-            && (IndexMode.LOGSDB.equals(indexMode) || IndexMode.TIME_SERIES.equals(indexMode))
-            && indexSortConfig != null
-            && indexSortConfig.hasSortOnField(fullFieldName)
+            && (IndexMode.LOGSDB.equals(indexSettings.getMode()) || IndexMode.TIME_SERIES.equals(indexSettings.getMode()))
+            && indexSettings.getIndexSortConfig() != null
+            && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
             && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            resolution,
-            null,
-            scriptCompiler,
-            ignoreMalformedByDefault,
-            indexMode,
-            indexSortConfig,
-            indexCreatedVersion,
-            hasDocValuesSkipper
-        ).init(this);
+        return new Builder(leafName(), resolution, null, scriptCompiler, indexSettings).init(this);
     }
 
     @Override
@@ -1275,7 +1198,7 @@ public final class DateFieldMapper extends FieldMapper {
             DataStreamTimestampFieldMapper.storeTimestampValueForReuse(context.doc(), timestamp);
         }
 
-        if (hasDocValuesSkipper && hasDocValues) {
+        if (fieldType().hasDocValuesSkipper()) {
             context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
         } else if (indexed && hasDocValues) {
             context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));

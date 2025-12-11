@@ -24,11 +24,11 @@ import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPA
  */
 public class MapperFeatures implements FeatureSpecification {
 
-    public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
+    static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
         "mapper.constant_keyword.synthetic_source_write_fix"
     );
 
-    public static final NodeFeature COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT = new NodeFeature(
+    static final NodeFeature COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT = new NodeFeature(
         "mapper.counted_keyword.synthetic_source_native_support"
     );
 
@@ -54,6 +54,16 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text_rename");
     static final NodeFeature DISKBBQ_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.diskbbq_on_disk_rescoring");
     static final NodeFeature PROVIDE_INDEX_SORT_SETTING_DEFAULTS = new NodeFeature("mapper.provide_index_sort_setting_defaults");
+    static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
+        "mapper.ignore_dynamic_field_names_beyond_limit"
+    );
+    static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
+    static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
+    static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
+    static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
+    static final NodeFeature BBQ_DISK_STATS_SUPPORT = new NodeFeature("mapper.bbq_disk_stats_support");
+    static final NodeFeature SKIPPERS_ON_UNINDEXED_FIELDS = new NodeFeature("mapper.skippers_on_unindexed_fields");
+    static final NodeFeature STORED_FIELDS_SPEC_MERGE_BUG = new NodeFeature("mapper.stored_fields_spec_merge_bug");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -93,7 +103,15 @@ public class MapperFeatures implements FeatureSpecification {
             MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
             PATTERN_TEXT_RENAME,
             DISKBBQ_ON_DISK_RESCORING,
-            PROVIDE_INDEX_SORT_SETTING_DEFAULTS
+            PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
+            BASE64_DENSE_VECTORS,
+            FIX_DENSE_VECTOR_WRONG_FIELDS,
+            BBQ_DISK_STATS_SUPPORT,
+            SKIPPERS_ON_UNINDEXED_FIELDS,
+            STORED_FIELDS_SPEC_MERGE_BUG,
+            GENERIC_VECTOR_FORMAT
         );
     }
 }

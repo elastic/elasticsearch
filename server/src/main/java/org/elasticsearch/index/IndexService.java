@@ -90,7 +90,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -170,7 +169,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final MapperMetrics mapperMetrics;
-    private final QueryRewriteInterceptor queryRewriteInterceptor;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
@@ -210,7 +208,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
         MapperMetrics mapperMetrics,
-        QueryRewriteInterceptor queryRewriteInterceptor,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
         MergeMetrics mergeMetrics
@@ -243,7 +240,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 idFieldMapper,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
-                mapperMetrics
+                mapperMetrics,
+                null
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             boolean sourceOnly = indexSettings.getSettings().getAsBoolean("index.source_only", false);
@@ -253,7 +251,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> loadFielddata(fieldType, FieldDataContext.noRuntimeFields("index sort"))
+                        (fieldType, searchLookup) -> loadFielddata(
+                            fieldType,
+                            FieldDataContext.noRuntimeFields(indexSettings.getIndex().getName(), "index sort")
+                        )
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -290,7 +291,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
         this.mapperMetrics = mapperMetrics;
-        this.queryRewriteInterceptor = queryRewriteInterceptor;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
             this.refreshTask = new AsyncRefreshTask(this);
@@ -839,6 +839,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             null,
             null,
+            false,
             false
         );
     }

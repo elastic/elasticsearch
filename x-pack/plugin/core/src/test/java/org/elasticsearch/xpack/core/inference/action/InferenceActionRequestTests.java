@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.getInputTypeToWrite;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -630,156 +629,39 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
     protected InferenceAction.Request mutateInstanceForVersion(InferenceAction.Request instance, TransportVersion version) {
         InferenceAction.Request mutated;
 
-        if (version.before(TransportVersions.V_8_12_0)) {
+        if (version.supports(INFERENCE_CONTEXT) == false) {
             mutated = new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
-                null,
-                null,
-                null,
-                instance.getInput().subList(0, 1),
-                instance.getTaskSettings(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                false
-            );
-        } else if (version.before(TransportVersions.V_8_13_0)) {
-            mutated = new InferenceAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                null,
+                instance.getQuery(),
                 null,
                 null,
                 instance.getInput(),
                 instance.getTaskSettings(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                false
+                instance.getInputType(),
+                instance.getInferenceTimeout(),
+                false,
+                InferenceContext.EMPTY_INSTANCE
             );
-        } else if (version.before(TransportVersions.V_8_13_0)
-            && (instance.getInputType() == InputType.UNSPECIFIED
-                || instance.getInputType() == InputType.CLASSIFICATION
-                || instance.getInputType() == InputType.CLUSTERING)) {
-                    mutated = new InferenceAction.Request(
-                        instance.getTaskType(),
-                        instance.getInferenceEntityId(),
-                        null,
-                        null,
-                        null,
-                        instance.getInput(),
-                        instance.getTaskSettings(),
-                        InputType.INGEST,
-                        InferenceAction.Request.DEFAULT_TIMEOUT,
-                        false
-                    );
-                } else if (version.before(TransportVersions.V_8_13_0)
-                    && (instance.getInputType() == InputType.CLUSTERING || instance.getInputType() == InputType.CLASSIFICATION)) {
-                        mutated = new InferenceAction.Request(
-                            instance.getTaskType(),
-                            instance.getInferenceEntityId(),
-                            null,
-                            null,
-                            null,
-                            instance.getInput(),
-                            instance.getTaskSettings(),
-                            InputType.UNSPECIFIED,
-                            InferenceAction.Request.DEFAULT_TIMEOUT,
-                            false
-                        );
-                    } else if (version.before(TransportVersions.V_8_14_0)) {
-                        mutated = new InferenceAction.Request(
-                            instance.getTaskType(),
-                            instance.getInferenceEntityId(),
-                            null,
-                            null,
-                            null,
-                            instance.getInput(),
-                            instance.getTaskSettings(),
-                            instance.getInputType(),
-                            InferenceAction.Request.DEFAULT_TIMEOUT,
-                            false
-                        );
-                    } else if (version.supports(INFERENCE_CONTEXT) == false) {
-                        mutated = new InferenceAction.Request(
-                            instance.getTaskType(),
-                            instance.getInferenceEntityId(),
-                            instance.getQuery(),
-                            null,
-                            null,
-                            instance.getInput(),
-                            instance.getTaskSettings(),
-                            instance.getInputType(),
-                            instance.getInferenceTimeout(),
-                            false,
-                            InferenceContext.EMPTY_INSTANCE
-                        );
-                    } else if (version.supports(RERANK_COMMON_OPTIONS_ADDED) == false) {
-                        mutated = new InferenceAction.Request(
-                            instance.getTaskType(),
-                            instance.getInferenceEntityId(),
-                            instance.getQuery(),
-                            null,
-                            null,
-                            instance.getInput(),
-                            instance.getTaskSettings(),
-                            instance.getInputType(),
-                            instance.getInferenceTimeout(),
-                            false,
-                            instance.getContext()
-                        );
-                    } else {
-                        mutated = instance;
-                    }
+        } else if (version.supports(RERANK_COMMON_OPTIONS_ADDED) == false) {
+            mutated = new InferenceAction.Request(
+                instance.getTaskType(),
+                instance.getInferenceEntityId(),
+                instance.getQuery(),
+                null,
+                null,
+                instance.getInput(),
+                instance.getTaskSettings(),
+                instance.getInputType(),
+                instance.getInferenceTimeout(),
+                false,
+                instance.getContext()
+            );
+        } else {
+            mutated = instance;
+        }
 
         return mutated;
-    }
-
-    public void testWriteTo_WhenVersionIsOnAfterUnspecifiedAdded() throws IOException {
-        InferenceAction.Request instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            null,
-            null,
-            List.of(),
-            Map.of(),
-            InputType.UNSPECIFIED,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            false
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.V_8_13_0
-        );
-
-        assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
-    }
-
-    public void testWriteTo_WhenVersionIsBeforeInputTypeAdded_ShouldSetInputTypeToUnspecified() throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            null,
-            null,
-            List.of(),
-            Map.of(),
-            InputType.INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            false
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.V_8_12_1
-        );
-
-        assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
     }
 
     public void testWriteTo_ForHasBeenReroutedChanges() throws IOException {
@@ -795,18 +677,6 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             InferenceAction.Request.DEFAULT_TIMEOUT,
             false
         );
-
-        {
-            // From a version with rerouting
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                TransportVersion.minimumCompatible()
-            );
-
-            assertEquals(instance, deserializedInstance);
-        }
         {
             // From a version with rerouting removed
             InferenceAction.Request deserializedInstance = copyWriteable(
@@ -844,17 +714,5 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
         // Verify that context is empty after deserializing a request coming from an older transport version
         assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
-    }
-
-    public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsUnspecified_VersionBeforeUnspecifiedIntroduced() {
-        assertThat(getInputTypeToWrite(InputType.UNSPECIFIED, TransportVersions.V_8_12_1), is(InputType.INGEST));
-    }
-
-    public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsClassification_VersionBeforeUnspecifiedIntroduced() {
-        assertThat(getInputTypeToWrite(InputType.CLASSIFICATION, TransportVersions.V_8_12_1), is(InputType.INGEST));
-    }
-
-    public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsClustering_VersionBeforeUnspecifiedIntroduced() {
-        assertThat(getInputTypeToWrite(InputType.CLUSTERING, TransportVersions.V_8_12_1), is(InputType.INGEST));
     }
 }

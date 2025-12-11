@@ -231,10 +231,7 @@ filter on counter without cast:
       catch: bad_request
       esql.query:
         body:
-          query: |
-            FROM test
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | WHERE k8s.pod.network.tx == 1434577921
+          query: 'from test | where k8s.pod.network.tx == 1434577921'
 
 ---
 cast counter then filter:
@@ -244,8 +241,9 @@ cast counter then filter:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_v0 ]
-      reason: "Uses TO_AGGREGATE_METRIC_DOUBLE"
+          capabilities: [ dense_vector_agg_metric_double_if_version ]
+      reason: "uses aggregate_metric_double"
+
   - do:
       esql.query:
         body:
@@ -268,18 +266,13 @@ sort on counter without cast:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [sorting_on_source_and_counters_forbidden, aggregate_metric_double_v0]
+          capabilities: [sorting_on_source_and_counters_forbidden, dense_vector_agg_metric_double_if_version]
       reason: "Sorting on counters shouldn't have been possible"
   - do:
       catch: /cannot sort on counter_long/
       esql.query:
         body:
-          query: |
-            FROM test
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | KEEP k8s.pod.network.tx
-            | SORT k8s.pod.network.tx
-            | LIMIT 1
+          query: 'from test |  KEEP k8s.pod.network.tx | sort k8s.pod.network.tx | limit 1'
 
 ---
 cast then sort on counter:
@@ -298,17 +291,14 @@ from doc with aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test2
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | DROP a
+          query: 'from test2'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -330,17 +320,14 @@ stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test2
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)
+          query: 'FROM test2 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
   - length: {values: 1}
   - length: {values.0: 4}
   - match: {columns.0.name: "max(agg_metric)"}
@@ -364,18 +351,16 @@ grouping stats on aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test2
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY dim
-            | SORT dim
+          query: "FROM test2
+          | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY dim
+          | SORT dim"
   - length: {values: 2}
   - length: {values.0: 5}
   - match: {columns.0.name: "max(agg_metric)"}
@@ -407,18 +392,14 @@ sorting with aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test3
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | SORT @timestamp
-            | KEEP @timestamp, agg_metric
+          query: 'FROM test3 | SORT @timestamp | KEEP @timestamp, agg_metric'
 
   - length: {values: 4}
   - length: {values.0: 2}
@@ -443,17 +424,13 @@ aggregate_metric_double unsortable:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for sorting when aggregate_metric_double present"
   - do:
       catch: /cannot sort on aggregate_metric_double/
       esql.query:
         body:
-          query: |
-            FROM test2
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | DROP a
-            | SORT agg_metric
+          query: 'FROM test2 | sort agg_metric'
 
 ---
 stats on aggregate_metric_double with partial submetrics:
@@ -463,18 +440,14 @@ stats on aggregate_metric_double with partial submetrics:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test3
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid
-            | SORT k8s.pod.uid
+          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
 
   - length: {values: 2}
   - length: {values.0: 5}
@@ -507,17 +480,14 @@ stats on aggregate_metric_double missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_v0 ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test4
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)
+          query: 'FROM test4 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
 
   - length: {values: 1}
   - length: {values.0: 4}
@@ -542,17 +512,14 @@ render aggregate_metric_double when missing min and max:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_v0 ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test4
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | KEEP agg_metric
+          query: 'FROM test4 | KEEP agg_metric'
 
   - length: {values: 1}
   - length: {values.0: 1}
@@ -569,18 +536,14 @@ render aggregate_metric_double when missing value:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_v0 ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test3
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | WHERE @timestamp == "2021-04-28T19:51:04.467Z"
-            | KEEP agg_metric
+          query: 'FROM test3 | WHERE @timestamp == "2021-04-28T19:51:04.467Z" | KEEP agg_metric'
 
   - length: {values: 1}
   - length: {values.0: 1}
@@ -597,18 +560,14 @@ to_string aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double_v0 ]
+          capabilities: [ aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version ]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test4
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | EVAL agg = to_string(agg_metric)
-            | KEEP agg
+          query: 'FROM test4 | EVAL agg = to_string(agg_metric) | KEEP agg'
 
   - length: {values: 1}
   - length: {values.0: 1}
@@ -624,17 +583,14 @@ from index pattern unsupported counter:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test*
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | DROP a
+          query: 'FROM test*'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -769,7 +725,7 @@ avg of aggregate_metric_double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "support avg aggregations with aggregate metric double"
 
   - do:
@@ -777,11 +733,7 @@ avg of aggregate_metric_double:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: |
-            FROM test2
-            | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1)  // Temporary workaround to enable aggregate_metric_double
-            | STATS avg = avg(agg_metric)
-            | KEEP avg
+          query: 'FROM test2 | STATS avg = avg(agg_metric) | KEEP avg'
 
   - length: {values: 1}
   - length: {values.0: 1}
@@ -885,3 +837,30 @@ TS Command grouping on text field:
   - match: {values.2.0: 530604797}
   - match: {values.2.1: "why cant i hold all these text"}
   - match: {values.2.2: "2021-04-28T18:00:00.000Z"}
+
+---
+error on rename timestamp:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          # inline_stats_with_no_columns is a stand-in for a missed capability that should have been introduced along with the
+          # TimestampAware interface. This capability is the first one added past #137040.
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message, inline_stats_with_no_columns ]
+      reason: "TS specific check"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            TS test
+            | RENAME @timestamp AS newTs
+            | STATS max(rate(k8s.pod.network.tx))  BY tbucket = bucket(newTs, 1hour)
+
+  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
+

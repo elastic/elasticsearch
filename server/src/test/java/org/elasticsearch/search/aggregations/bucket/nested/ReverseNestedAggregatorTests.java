@@ -247,4 +247,29 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
     protected List<ObjectMapper> objectMappers() {
         return NestedAggregatorTests.MOCK_OBJECT_MAPPERS;
     }
+
+    public void testErrorOnInvalidReverseNestedWithPath() throws IOException {
+        AggregationBuilder aggregationBuilder = nested("n1", NESTED_OBJECT).subAggregation(
+            nested("n2", NESTED_OBJECT + ".child").subAggregation(
+                reverseNested("r1").path(NESTED_OBJECT).subAggregation(reverseNested("r2").path(NESTED_OBJECT + ".child"))
+            )
+        );
+
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
+                // No docs needed
+            }
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                IllegalArgumentException e = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder))
+                );
+                assertThat(
+                    e.getMessage(),
+                    equalTo("Reverse nested path [nested_object.child] is not a parent of the current nested scope [nested_object]")
+                );
+
+            }
+        }
+    }
 }

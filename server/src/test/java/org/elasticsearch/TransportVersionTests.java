@@ -39,7 +39,11 @@ public class TransportVersionTests extends ESTestCase {
             TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
-        TransportVersion newer = TransportVersionUtils.randomVersionBetween(random(), older, TransportVersion.current());
+        TransportVersion newer = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getNextVersion(older),
+            TransportVersion.current()
+        );
         assertThat(older.before(newer), is(true));
         assertThat(older.before(older), is(false));
         assertThat(newer.before(older), is(false));
@@ -195,7 +199,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+            if (tv.onOrAfter(TransportVersion.fromId(8_84_10_00)) && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv
@@ -404,7 +408,7 @@ public class TransportVersionTests extends ESTestCase {
             is(
                 "Unknown transport version [to_child_lock_join_query]. "
                     + "Did you mean [to_child_block_join_query]? "
-                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+                    + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
         );
 
@@ -413,7 +417,7 @@ public class TransportVersionTests extends ESTestCase {
             ise.getMessage(),
             is(
                 "Unknown transport version [brand_new_version_unrelated_to_others]. "
-                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+                    + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
         );
     }
@@ -423,7 +427,7 @@ public class TransportVersionTests extends ESTestCase {
             "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
                 + "and generateTransportVersion gradle task",
             TransportVersions.DEFINED_VERSIONS.getLast().id(),
-            equalTo(8_797_0_05)
+            equalTo(8_772_0_01)
         );
     }
 }

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Dense vector"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/dense-vector.html
@@ -121,6 +124,7 @@ To retrieve vector values explicitly, you can use:
     "fields": ["my_vector"]
   }
   ```
+  % TEST[continued]
 
 - The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
@@ -132,6 +136,11 @@ To retrieve vector values explicitly, you can use:
     }
   }
   ```
+  % TEST[continued]
+
+:::{tip}
+For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
+:::
 
 ### Storage behavior and `_source`
 
@@ -147,7 +156,7 @@ This setting is compatible with synthetic `_source`, where the entire `_source` 
 
 ### Rehydration and precision
 
-When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. Internally, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality.
+When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. By default, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality. Additionally, using an `element_type` of `bfloat16` will cause a further loss in precision in restored vectors.
 
 ### Storing original vectors in `_source`
 
@@ -274,11 +283,14 @@ The following mapping parameters are accepted:
 $$$dense-vector-element-type$$$
 
 `element_type`
-:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and `bit`.
+:   (Optional, string) The data type used to encode vectors.
 
 ::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
+
+`bfloat16` {applies_to}`stack: ga 9.3`
+:   indexes a 2-byte floating-point value per dimension. This uses the bfloat16 encoding, _not_ IEEE-754 float16, to maintain the same value range as 4-byte floats. Using `bfloat16` is likely to cause a loss of precision in the stored values compared to `float`.
 
 `byte`
 :   indexes a 1-byte integer value per dimension.
@@ -344,16 +356,16 @@ $$$dense-vector-index-options$$$
     * `int8_hnsw` - The default index type for some float vectors:
       * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions.
       * {applies_to}`stack: ga 9.0` Default for float all vectors.
-      This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-    * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-    * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+      This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float` or `bfloat16`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float` or `bfloat16`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float` or `bfloat16`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
 
       {applies_to}`stack: ga 9.1` `bbq_hnsw` is the default index type for float vectors with greater than or equal to 384 dimensions.
     * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
-    * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatic scalar quantization. Only supports `element_type` of `float`.
-    * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatic half-byte scalar quantization. Only supports `element_type` of `float`.
-    * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatic binary quantization. Only supports `element_type` of `float`.
-    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded.
+    * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatic scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
+    * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatic half-byte scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
+    * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatic binary quantization. Only supports `element_type` of `float` or `bfloat16`.
+    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float` or `bfloat16`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded. This requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
 `m`
 :   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
@@ -381,6 +393,9 @@ $$$dense-vector-index-options$$$
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
     :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 :::::
+
+`on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
+:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
 ::::
 
 
@@ -441,6 +456,7 @@ POST /my-bit-vectors/_bulk?refresh
 {"index": {"_id" : "2"}}
 {"my_vector": "8100012a7f"} <2>
 ```
+% TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
 2. A hexidecimal string representing the 40 bit dimensioned vector
@@ -459,35 +475,36 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
   }
 }
 ```
+% TEST[continued]
 
 ```console-result
 {
-    "hits": {
-        "hits": [
-            {
-                "_index": "my-bit-vectors",
-                "_id": "1",
-                "_score": 1.0,
-                "_source": {
-                    "my_vector": [
-                        127,
-                        -127,
-                        0,
-                        1,
-                        42
-                    ]
-                }
-            },
-            {
-                "_index": "my-bit-vectors",
-                "_id": "2",
-                "_score": 0.55,
-                "_source": {
-                    "my_vector": "8100012a7f"
-                }
-            }
-        ]
-    }
+  "hits": {
+    "hits": [
+      {
+        "_index": "my-bit-vectors",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "my_vector": [
+            127,
+            -127,
+            0,
+            1,
+            42
+          ]
+        }
+      },
+      {
+        "_index": "my-bit-vectors",
+        "_id": "2",
+        "_score": 0.55,
+        "_source": {
+          "my_vector": "8100012a7f"
+        }
+      }
+    ]
+  }
 }
 ```
 
@@ -550,6 +567,7 @@ PUT /my-index-000001/_mapping
     }
 }
 ```
+% TEST[setup:my_index]
 
 Vectors indexed before this change will keep using the `flat` type (raw float32 representation and brute force search for KNN queries).
 

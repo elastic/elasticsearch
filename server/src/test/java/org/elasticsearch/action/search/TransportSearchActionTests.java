@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -153,7 +154,7 @@ public class TransportSearchActionTests extends ESTestCase {
     ) {
         ShardId shardId = new ShardId(index, id);
         List<ShardRouting> shardRoutings = SearchShardIteratorTests.randomShardRoutings(shardId);
-        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
+        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices, SplitShardCountSummary.UNSET);
     }
 
     private static ResolvedIndices createMockResolvedIndices(
@@ -274,9 +275,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY)
             );
             List<SearchShardsGroup> groups = List.of(
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), false),
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true),
-                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false)
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), false, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false, SplitShardCountSummary.UNSET)
             );
             searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, nodes, aliasFilters1));
         }
@@ -1101,6 +1102,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1131,6 +1135,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1184,6 +1191,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1215,6 +1225,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1262,6 +1275,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1783,7 +1799,7 @@ public class TransportSearchActionTests extends ESTestCase {
             NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
 
             SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any(), any(), any(), any(), any(), anyBoolean(), anyBoolean())).thenReturn(
+            when(searchService.getRewriteContext(any(), any(), any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(
                 new QueryRewriteContext(null, null, null, null, null, null, null, null, null)
             );
             ClusterService clusterService = new ClusterService(

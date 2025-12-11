@@ -34,6 +34,7 @@ tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   mapping from: /slf4j-.*/, to: 'slf4j'
+  mapping from: /log4j-.*/, to: 'log4j'
 }
 
 configurations {
@@ -55,6 +56,8 @@ dependencies {
   api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
 
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
+
   // Ideally this would be `runtimeOnly` so that we don't accidentally write code against the SLF4j API
   // However, some child plugins (like security) need to use slf4j directly in order to manage logging for their dependencies :(
   // And due to the way our plugin loading handles java modules between dependent plugins, this plugin (x-pack-core) needs to declare
@@ -62,7 +65,7 @@ dependencies {
   // And having a module dependency counts as using the jar, so we can't make it `runtimeOnly` :(
 
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
 
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
@@ -74,7 +77,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
 
   // security deps
-  api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   implementation project(":x-pack:plugin:core:template-resources")
 
@@ -158,8 +161,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.jms.Message',
     // HttpClient5 can use Conscrypt (TLS using BoringSSL), but we don't want that
     'org.conscrypt.Conscrypt',
-    // SLF4j via HttpClient5
-    'org.slf4j.ext.EventData'
   )
 }
 

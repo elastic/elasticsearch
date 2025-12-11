@@ -30,7 +30,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The Pipeline to add or update",
       "required": true

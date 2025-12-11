@@ -4,6 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html
 applies_to:
   stack: all
+  serverless: ga
 ---
 
 # Reindex indices examples
@@ -589,6 +590,10 @@ Think of the possibilities! Just be careful; you are able to change:
 Setting `_version` to `null` or clearing it from the `ctx` map is just like not sending the version in an indexing request; it will cause the document to be overwritten in the destination regardless of the version on the target or the version type you use in the reindex API request.
 
 ## Reindex from remote [reindex-from-remote]
+```{applies_to}
+stack: ga
+serverless: preview
+```
 
 Reindex supports reindexing from a remote {{es}} cluster:
 
@@ -597,7 +602,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       "username": "user",
       "password": "pass"
     },
@@ -615,7 +620,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"username": "user",/"username": "test_admin",/]
 % TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
@@ -632,14 +637,14 @@ It is also possible (and encouraged) to authenticate with the remote cluster thr
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "ga 9.3", "serverless": }
+:::{applies-item} { "stack": "ga 9.3", "serverless": "preview" }
 ```console
 POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
-      "api_key": "&lt;API_KEY_VALUE>"
+      "host": "<OTHER_HOST_URL>",
+      "api_key": "<API_KEY_VALUE>"
     },
     "index": "my-index-000001",
     "query": {
@@ -655,7 +660,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
 :::
 
@@ -665,9 +670,9 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       "headers": {
-        "Authorization": "ApiKey &lt;API_KEY_VALUE>"
+        "Authorization": "<API_KEY_VALUE>"
       }
     },
     "index": "my-index-000001",
@@ -684,7 +689,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT my-index-000001\n/]
-% TEST[s/otherhost:9200",/\${host}",/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
 :::
 
@@ -693,16 +698,19 @@ POST _reindex
 
 Be sure to use `https` when using an API key, or it will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
 
-### Whitelisting remote hosts [reindex-remote-whitelist]
+### Permitted remote hosts [reindex-remote-whitelist]
 
-Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the `reindex.remote.whitelist` property.
-It can be set to a comma-delimited list of allowed remote `host` and `port` combinations.
-Scheme is ignored, only the host and port are used. For example:
+The remote hosts that you can use depend on whether you're using the versioned {{stack}} or {{serverless-short}}.
 
-```yaml
-reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
-```
-The list of allowed hosts must be configured on any node that will coordinate the reindex.
+* In the versioned {{stack}}, remote hosts have to be explicitly allowed in elasticsearch.yml using the `reindex.remote.whitelist` property. It can be set to a comma-delimited list of allowed remote host and port combinations. Scheme is ignored; only the host and port are used. For example:
+
+  ```
+  reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
+  ```
+
+  The list of allowed hosts must be configured on any node that will coordinate the reindex.
+
+* In {{serverless-full}}, only remote hosts in Elastic Cloud Hosted are allowed. {applies_to}`serverless: preview`
 
 ### Compatibility [reindex-remote-compatibility]
 
@@ -727,7 +735,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       ...
     },
     "index": "source",
@@ -745,7 +753,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT source\n/]
-% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/\.\.\./"username": "test_admin", "password": "x-pack-test-password"/]
 
 It is also possible to set the socket read timeout on the remote connection with the `socket_timeout` field and the connection timeout with the `connect_timeout` field.
@@ -757,7 +765,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "&lt;OTHER_HOST_URL>",
+      "host": "<OTHER_HOST_URL>",
       ...,
       "socket_timeout": "1m",
       "connect_timeout": "10s"
@@ -776,7 +784,7 @@ POST _reindex
 ```
 % TEST[setup:host]
 % TEST[s/^/PUT source\n/]
-% TEST[s/otherhost:9200/\${host}/]
+% TEST[s/"host": [^}]*,/"host": "http:\/\/\${host}",/]
 % TEST[s/\.\.\.,/"username": "test_admin", "password": "x-pack-test-password",/]
 
 ### Configuring SSL parameters [reindex-ssl]
@@ -794,7 +802,16 @@ GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 ```
 % TEST[catch:missing]
 
-To view all currently running reindex tasks:
+::::{note}
+ - If the `completed` field in the response to the `GET _tasks/<task_id>` call is `false` then the reindex is still running.
+ - If the `completed` field is `true` and the `error` field is present then the reindex failed. Check the `error` object for details.
+ - If the `completed` field is `true` and the `response` field is present then the reindex at least partially succeeded. Check the `failures` field in the `response` object to see if there were partial failures.
+ - If this call returns a 404 (`NOT FOUND`) then reindex failed because the task was lost, perhaps due to a node restart.
+
+In any of the failure cases, partial data may have been written to the destination index.
+::::
+
+To view all currently running reindex tasks (where this API is available):
 ```console
 GET _tasks?actions=*reindex
 ```
@@ -803,6 +820,13 @@ You can also cancel a running reindex task:
 ```console
 POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 ```
+If this API is not available, you can achieve a similar effect by deleting the
+target index:
+```console
+DELETE dest
+```
+This will cause the reindex task to fail with a `index_not_found_exception`
+error.
 
 ## Diagnose node failures [diagnose-node-failures]
 

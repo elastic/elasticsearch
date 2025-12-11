@@ -1,15 +1,19 @@
 ---
 applies_to:
-  stack: preview 9.0, ga 9.1
-  serverless: ga
-navigation_title: Search and filter with ES|QL
+  stack:
+  serverless:
+navigation_title: "ES|QL for search"
 ---
 
-# Search and filter with {{esql}}
+# {{esql}} for search tutorial
 
-This is a hands-on introduction to the basics of full-text search and semantic search, using {{esql}}.
+This hands-on tutorial covers full-text search, semantic search, hybrid search, vector search, and AI-powered search capabilities using {{esql}}.
 
 In this scenario, we're implementing search for a cooking blog. The blog contains recipes with various attributes including textual content, categorical data, and numerical ratings.
+
+:::{note}
+This tutorial uses a small dataset for learning purposes. The goal is to demonstrate search concepts and {{esql}} syntax.
+:::
 
 ## Requirements
 
@@ -20,6 +24,7 @@ Want to get started quickly? Run the following command in your terminal to set u
 ```sh
 curl -fsSL https://elastic.co/start-local | sh
 ```
+% NOTCONSOLE
 
 ## Running {{esql}} queries
 
@@ -71,12 +76,7 @@ PUT /cooking_blog/_mapping
       }
     },
     "description": {
-      "type": "text",
-      "fields": {
-        "keyword": {
-          "type": "keyword"
-        }
-      }
+      "type": "text" <1>
     },
     "author": {
       "type": "text",
@@ -113,9 +113,10 @@ PUT /cooking_blog/_mapping
 }
 ```
 
-1. `analyzer`: Used for text analysis. If you don't specify it, the `standard` analyzer is used by default for `text` fields. It’s included here for demonstration purposes. To know more about analyzers, refer to [Anatomy of an analyzer](docs-content://manage-data/data-store/text-analysis/anatomy-of-an-analyzer.md).
-2. `ignore_above`: Prevents indexing values longer than 256 characters in the `keyword` field. This is the default value and it’s included here for demonstration purposes. It helps to save disk space and avoid potential issues with Lucene’s term byte-length limit. For more information, refer [ignore_above parameter](/reference/elasticsearch/mapping-reference/ignore-above.md).
-3. `description`: A field declared with both `text` and `keyword` [data types](/reference/elasticsearch/mapping-reference/field-data-types.md). Such fields are called  [Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md). This enables both full-text search and exact matching/filtering on the same field. If you use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md), these multi-fields will be created automatically. Other fields in the mapping like `author`, `category`, `tags` are also declared as multi-fields.
+1. The `standard` analyzer is used by default for `text` fields. It's included here explicitly for demonstration purposes. To know more about analyzers, refer to [Anatomy of an analyzer](docs-content://manage-data/data-store/text-analysis/anatomy-of-an-analyzer.md).
+2. [Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md) enable both full-text search and exact matching/filtering on the same field. The `title`, `author`, `category`, and `tags` fields are declared with both `text` and `keyword` data types. The `text` version allows full-text search, while the `keyword` version enables exact filtering. If you use [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-field-mapping.md), these multi-fields will be created automatically.
+3. The `ignore_above` parameter prevents indexing values longer than 256 characters in the `keyword` field. This is the default value and it's included here for demonstration purposes. For more information, refer to the [ignore_above parameter](/reference/elasticsearch/mapping-reference/ignore-above.md).
+4. `keyword` fields store exact values and are used for filtering, sorting, and aggregations. Unlike `text` fields, they are not analyzed. Use `keyword` when you need exact matching (e.g., filtering by category or finding a specific author name), but use `text` when you want to search within longer content like descriptions.
 
 ::::{tip}
 Full-text search is powered by [text analysis](docs-content://solutions/search/full-text/text-analysis-during-search.md). Text analysis normalizes and standardizes text data so it can be efficiently stored in an inverted index and searched in near real-time. Analysis happens at both [index and search time](docs-content://manage-data/data-store/text-analysis/index-search-analysis.md). This tutorial won't cover analysis in detail, but it's important to understand how text is processed to create effective search queries.
@@ -146,7 +147,7 @@ Full-text search involves executing text-based queries across one or more docume
 {{esql}} provides multiple functions for full-text search, including `MATCH`, `MATCH_PHRASE`, and `QSTR`. For basic text matching, you can use either:
 
 1. Full [match function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax: `match(field, "search terms")`
-2. Compact syntax using the [match operator `:`](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator): `field:"search terms"`
+2. Compact syntax using the [match operator "`:`"](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator): `field:"search terms"`
 
 Both are equivalent for basic matching and can be used interchangeably. The compact syntax is more concise, while the function syntax allows for more configuration options. We use the compact syntax in most examples for brevity.
 
@@ -219,7 +220,7 @@ This is fundamentally different from full-text search - it's a binary yes/no fil
 
 Now that you understand basic searching, explore how to control the precision of your text matches.
 
-### Require all search terms (AND logic)
+### Require all search terms (`AND` logic)
 
 By default, searches with match use OR logic between terms. To require ALL terms to match, use the function syntax with the `operator` parameter to specify AND logic:
 
@@ -260,73 +261,9 @@ FROM cooking_blog
 
 This query only matches documents where the words "rich and creamy" appear exactly in that order in the description field.
 
-## Step 5: Semantic search and hybrid search
+## Step 5: Multi-field search and query strings
 
-### Index semantic content
-
-{{es}} allows you to semantically search for documents based on the meaning of the text, rather than just the presence of specific keywords. This is useful when you want to find documents that are conceptually similar to a given query, even if they don't contain the exact search terms.
-
-ES|QL supports semantic search when your mappings include fields of the [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) type. This example mapping update adds a new field called `semantic_description` with the type `semantic_text`:
-
-```console
-PUT /cooking_blog/_mapping
-{
-  "properties": {
-    "semantic_description": {
-      "type": "semantic_text"
-    }
-  }
-}
-```
-
-Next, index a document with content into the new field:
-
-```console
-POST /cooking_blog/_doc
-{
-  "title": "Mediterranean Quinoa Bowl",
-  "semantic_description": "A protein-rich bowl with quinoa, chickpeas, fresh vegetables, and herbs. This nutritious Mediterranean-inspired dish is easy to prepare and perfect for a quick, healthy dinner.",
-  "author": "Jamie Oliver",
-  "date": "2023-06-01",
-  "category": "Main Course",
-  "tags": ["vegetarian", "healthy", "mediterranean", "quinoa"],
-  "rating": 4.7
-}
-```
-
-### Perform semantic search
-
-Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Here's an example natural language query against the `semantic_description` field:
-
-```esql
-FROM cooking_blog
-| WHERE semantic_description:"What are some easy to prepare but nutritious plant-based meals?"
-| LIMIT 5 
-```
-
-:::{tip}
-If you'd like to test out the semantic search workflow against a large dataset, follow the [semantic-search-tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).
-:::
-
-### Perform hybrid search
-
-You can combine full-text and semantic queries. In this example we combine full-text and semantic search with custom weights:
-
-```esql
-FROM cooking_blog METADATA _score
-| WHERE match(semantic_description, "easy to prepare vegetarian meals", { "boost": 0.75 })
-    OR match(tags, "vegetarian", { "boost": 0.25 })
-| SORT _score DESC
-| LIMIT 5
-```
-
-This query searches the `semantic_description` field for documents that are semantically similar to "easy to prepare vegetarian meals" with a higher weight, while also matching the `tags` field for "vegetarian" with a lower weight. The results are sorted by relevance score.
-
-Learn how to combine these with complex criteria in [Step 8](#step-8-complex-search-solutions).
-
-## Step 6: Advanced search features
-
-Once you're comfortable with basic search precision, use the following advanced features for powerful search capabilities.
+Once you're comfortable with basic search precision, learn how to search across multiple fields and use query string syntax for complex patterns.
 
 ### Use query string for complex patterns
 
@@ -334,7 +271,7 @@ The `QSTR` function enables powerful search patterns using a compact query langu
 
 ```esql
 FROM cooking_blog
-| WHERE QSTR(description, "fluffy AND pancak* OR (creamy -vegan)")
+| WHERE QSTR("description: (fluffy AND pancak*) OR (creamy -vegan)")
 | KEEP title, description
 | LIMIT 1000
 ```
@@ -345,7 +282,7 @@ Query string syntax lets you:
 - Enable fuzzy matching: `pancake~1` for typo tolerance
 - Group terms: `(thai AND curry) OR pasta`
 - Search exact phrases: `"fluffy pancakes"`
-- Search across fields: `QSTR("title,description", "pancake OR (creamy AND rich)")`
+- Search across fields: `QSTR("(title:pancake OR description:pancake) AND creamy")`
 
 ### Search across multiple fields
 
@@ -365,15 +302,15 @@ In many cases, matches in certain fields (like the title) might be more relevant
 
 ```esql
 FROM cooking_blog METADATA _score
-| WHERE match(title, "vegetarian curry", {"boost": 2.0})  # Title matches are twice as important
-    OR match(description, "vegetarian curry")
-    OR match(tags, "vegetarian curry")
+| WHERE MATCH(title, "vegetarian curry", {"boost": 2.0})  # Title matches are twice as important
+    OR MATCH(description, "vegetarian curry")
+    OR MATCH(tags, "vegetarian curry")
 | KEEP title, description, tags, _score
 | SORT _score DESC
 | LIMIT 1000
 ```
 
-## Step 7: Filtering and exact matching
+## Step 6: Filtering and exact matching
 
 Filtering allows you to narrow down your search results based on exact criteria. Unlike full-text searches, filters are binary (yes/no) and do not affect the relevance score. Filters execute faster than queries because excluded results don't need to be scored.
 
@@ -422,9 +359,9 @@ FROM cooking_blog
 | LIMIT 1000
 ```
 
-## Step 8: Complex search solutions
+## Step 7: Complex search solutions
 
-Real-world search often requires combining multiple types of criteria. This section shows how to build sophisticated search experiences.
+Real-world search often requires combining multiple types of criteria. This section shows how to build sophisticated search experiences by combining the techniques you've learned.
 
 ### Combine filters with full-text search
 
@@ -449,7 +386,7 @@ FROM cooking_blog METADATA _score
 | WHERE NOT category.keyword == "Dessert"
 | EVAL tags_concat = MV_CONCAT(tags.keyword, ",")  # Convert multi-value field to string
 | WHERE tags_concat LIKE "*vegetarian*" AND rating >= 4.5  # Wildcard pattern matching
-| WHERE match(title, "curry spicy", {"boost": 2.0}) OR match(description, "curry spicy")
+| WHERE MATCH(title, "curry spicy", {"boost": 2.0}) OR MATCH(description, "curry spicy")
 | EVAL category_boost = CASE(category.keyword == "Main Course", 1.0, 0.0)  # Conditional boost
 | EVAL date_boost = CASE(DATE_DIFF("month", date, NOW()) <= 1, 0.5, 0.0)  # Boost recent content
 | EVAL custom_score = _score + category_boost + date_boost  # Combine scores
@@ -458,16 +395,259 @@ FROM cooking_blog METADATA _score
 | LIMIT 1000
 ```
 
+## Step 8: Semantic search and hybrid search
+
+### Index semantic content
+
+{{es}} allows you to semantically search for documents based on the meaning of the text, rather than just the presence of specific keywords. This is useful when you want to find documents that are conceptually similar to a given query, even if they don't contain the exact search terms.
+
+ES|QL supports semantic search when your mappings include fields of the [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) type. This example mapping update adds a new field called `semantic_description` with the type `semantic_text`:
+
+```console
+PUT /cooking_blog/_mapping
+{
+  "properties": {
+    "semantic_description": {
+      "type": "semantic_text"
+    }
+  }
+}
+```
+
+Next, index a document with content into the new field:
+
+```console
+POST /cooking_blog/_doc
+{
+  "title": "Mediterranean Quinoa Bowl",
+  "semantic_description": "A protein-rich bowl with quinoa, chickpeas, fresh vegetables, and herbs. This nutritious Mediterranean-inspired dish is easy to prepare and perfect for a quick, healthy dinner.",
+  "author": "Jamie Oliver",
+  "date": "2023-06-01",
+  "category": "Main Course",
+  "tags": ["vegetarian", "healthy", "mediterranean", "quinoa"],
+  "rating": 4.7
+}
+```
+
+### Perform semantic search
+
+Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Use the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) (or the ["`:`" operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) shorthand) on `semantic_text` fields to perform semantic queries:
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE semantic_description:"I need plant-based meals that aren't difficult to make"
+| SORT _score DESC
+| LIMIT 5
+```
+
+When you use `MATCH` or "`:`" on a `semantic_text` field, {{esql}} automatically performs a semantic search rather than a lexical search. This means the query finds documents based on semantic similarity, not just keyword matching.
+
+:::{tip}
+If you'd like to test out the semantic search workflow against a large dataset, follow the [semantic-search-tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md).
+:::
+
+### Perform hybrid search
+
+```{applies_to}
+stack: preview 9.2
+serverless: preview
+```
+
+Hybrid search combines different search strategies (like lexical and semantic search) to leverage the strengths of each approach. Use [`FORK`](/reference/query-languages/esql/commands/fork.md) and [`FUSE`](/reference/query-languages/esql/commands/fuse.md) to execute different search strategies in parallel, then merge and score the combined results.
+
+`FUSE` supports different merging algorithms, namely Reciprocal Rank Fusion (RRF) and linear combination.
+
+::::{tab-set}
+
+:::{tab-item} RRF (default)
+
+RRF is a ranking algorithm that combines rankings from multiple search strategies without needing to tune weights. It's effective when you want to blend different search approaches without manual score tuning.
+
+```esql
+FROM cooking_blog METADATA _id, _index, _score
+| FORK (
+    WHERE title:"vegetarian curry" <1>
+    | SORT _score DESC
+    | LIMIT 5
+) (
+    WHERE semantic_description:"easy vegetarian curry recipes" <2>
+    | SORT _score DESC
+    | LIMIT 5
+)
+| FUSE <3>
+| KEEP title, description, rating, _score
+| SORT _score DESC
+| LIMIT 5
+```
+
+1. Lexical search on the title field
+2. Semantic search on the semantic_description field
+3. Merge results using RRF algorithm (default)
+:::
+
+:::{tab-item} Linear combination
+
+Linear combination allows you to specify explicit weights for each search strategy. This gives you fine-grained control over how much each strategy contributes to the final score.
+
+```esql
+FROM cooking_blog METADATA _id, _index, _score
+| FORK (
+    WHERE title:"vegetarian curry" <1>
+    | SORT _score DESC
+    | LIMIT 5
+) (
+    WHERE semantic_description:"easy vegetarian curry recipes" <2>
+    | SORT _score DESC
+    | LIMIT 5
+)
+| FUSE LINEAR WITH { "weights": { "fork1": 0.7, "fork2": 0.3 } } <3>
+| KEEP title, description, rating, _score
+| SORT _score DESC
+| LIMIT 5
+```
+
+1. Lexical search on the title field (70% weight)
+2. Semantic search on the semantic_description field (30% weight)
+3. Merge results using linear combination with explicit weights
+:::
+
+::::
+
+## Step 9: Advanced AI-powered search
+
+```{applies_to}
+stack: preview 9.2
+serverless: preview
+```
+
+{{esql}} provides commands for AI-powered search enhancements and text generation tasks. You will need to set up an inference endpoint with appropriate models to follow along with these examples.
+
+### Semantic reranking with `RERANK`
+
+The [`RERANK` command](/reference/query-languages/esql/commands/rerank.md) re-scores search results using inference models for improved relevance. This is particularly useful for improving the ranking of initial search results by applying more sophisticated semantic understanding.
+
+:::{tip}
+`RERANK` requires an inference endpoint configured for the `rerank` task. Refer to the [setup instructions](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md#ml-nlp-rerank-deploy).
+:::
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE description:"vegetarian recipes" <1>
+| SORT _score DESC
+| LIMIT 100 <2>
+| RERANK "healthy quick meals" ON description <3>
+| LIMIT 5 <4>
+| KEEP title, description, _score
+```
+
+1. Perform initial lexical search
+2. Limit to top 100 results for reranking
+3. Re-score using the default reranking model ([Elastic Rerank](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md))
+4. Return top 5 results after reranking
+
+You can configure `RERANK` to use a specific reranking model. See the [`RERANK` command documentation](/reference/query-languages/esql/commands/rerank.md) for configuration options.
+
+
+### Text generation with `COMPLETION`
+
+:::{tip}
+COMPLETION requires a configured inference endpoint with an LLM. Refer to the [Inference API documentation](docs-content://explore-analyze/elastic-inference/inference-api.md) for setup instructions.
+:::
+
+The [`COMPLETION` command](/reference/query-languages/esql/commands/completion.md) sends prompts to a Large Language Model (LLM) for text generation tasks like question answering, summarization, or translation.
+
+```esql
+FROM cooking_blog
+| WHERE category.keyword == "Dessert"
+| LIMIT 3
+| EVAL prompt = CONCAT("Summarize this recipe: ", title, " - ", description)
+| COMPLETION summary = prompt WITH { "inference_id": "my_llm_endpoint" }
+| KEEP title, summary
+```
+
+This enables you to:
+- Generate summaries of search results
+- Answer questions about document content
+- Translate or transform text using LLMs
+- Create dynamic content based on your data
+
+### Vector search with KNN and TEXT_EMBEDDING
+
+:::{note}
+This subsection is for advanced users who want explicit control over vector search. For most use cases, the `semantic_text` field type covered in [Step 8](#step-8-semantic-search-and-hybrid-search) is recommended as it handles embeddings automatically.
+:::
+
+The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) finds the k nearest vectors to a query vector through approximate search on indexed `dense_vector` fields.
+
+#### `KNN` with pre-computed vectors
+
+First, add a `dense_vector` field and index a document with a pre-computed vector. This example uses a toy example for readability: the vector has only 3 dimensions.
+
+```console
+PUT /cooking_blog/_mapping
+{
+  "properties": {
+    "recipe_vector": {
+      "type": "dense_vector",
+      "dims": 3
+    }
+  }
+}
+
+POST /cooking_blog/_doc/6
+{
+  "title": "Quick Vegan Stir-Fry",
+  "description": "A fast and healthy vegan stir-fry with tofu and vegetables",
+  "recipe_vector": [0.5, 0.8, 0.3],
+  "rating": 4.6
+}
+```
+
+Then search using a query vector:
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE KNN(recipe_vector, [0.5, 0.8, 0.3])
+| SORT _score DESC
+| LIMIT 5
+```
+
+#### `KNN` with `TEXT_EMBEDDING`
+
+```{applies_to}
+stack: preview 9.3
+serverless: preview
+```
+
+The [`TEXT_EMBEDDING` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-text_embedding)  generates dense vector embeddings from text input at query time using an inference model.
+
+:::{tip}
+You'll need to set up an inference endpoint with an embedding model to use this feature. Refer to the [Inference API documentation](docs-content://explore-analyze/elastic-inference/inference-api.md) for setup instructions.
+:::
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE KNN(recipe_vector, TEXT_EMBEDDING("vegan recipe", "my_embedding_model"))
+| SORT _score DESC
+| LIMIT 5
+```
+
+This approach gives you full control over vector embeddings, unlike `semantic_text` which handles embeddings automatically.
+
+:::{note}
+The vectors in your index must be generated by the same embedding model you specify in `TEXT_EMBEDDING`, otherwise the similarity calculations will be meaningless and you won't get relevant results.
+:::
+
 ## Learn more
 
 ### Documentation
 
-This tutorial introduced the basics of search and filtering in {{esql}}. Building a real-world search experience requires understanding many more advanced concepts and techniques. Here are some resources once you're ready to dive deeper:
+This tutorial introduced search, filtering, and AI-powered capabilities in {{esql}}. Here are some resources once you're ready to dive deeper:
 
-- [Search with {{esql}}](docs-content://solutions/search/esql-for-search.md): Learn about all the search capabilities in ES|QL, refer to Using ES|QL for search. {{esql}}.
-- [{{esql}} search functions](/reference/query-languages/esql/functions-operators/search-functions.md): Explore the full list of search functions available in {{esql}}.
+- [Search with {{esql}}](docs-content://solutions/search/esql-for-search.md): Learn about all search capabilities in {{esql}}.
 - [Semantic search](docs-content://solutions/search/semantic-search.md): Understand your various options for semantic search in Elasticsearch.
   - [The `semantic_text` workflow](docs-content://solutions/search/semantic-search.md#_semantic_text_workflow): Learn how to use the `semantic_text` field type for semantic search. This is the recommended approach for most users looking to perform semantic search in {{es}}, because it abstracts away the complexity of setting up inference endpoints and models.
+- [Inference API](docs-content://explore-analyze/elastic-inference/inference-api.md): Set up inference endpoints for the `RERANK`, `COMPLETION`, and `TEXT_EMBEDDING` commands.
 
 ### Related blog posts
 

@@ -36,8 +36,12 @@ import java.nio.file.Path;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 
-// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 50) // tests.directory sys property?
 public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
@@ -178,7 +182,7 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                     AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
                     100
                 );
-                assertEquals(hits.scoreDocs.length, 3);
+                assertThat(hits.scoreDocs, arrayWithSize(3));
                 assertEquals("B", storedFields.document(hits.scoreDocs[0].doc).get("id"));
                 assertEquals("A", storedFields.document(hits.scoreDocs[1].doc).get("id"));
                 assertEquals("C", storedFields.document(hits.scoreDocs[2].doc).get("id"));
@@ -202,10 +206,11 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
-                    assertEquals(3, offHeap.size());
-                    assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
-                    assertEquals(1L, (long) offHeap.get("vex"));
-                    assertTrue(offHeap.get("veq") > 0L);
+
+                    assertThat(offHeap, aMapWithSize(3));
+                    assertThat(offHeap, hasEntry("vex", 1L));
+                    assertThat(offHeap, hasEntry(equalTo("veq"), greaterThan(0L)));
+                    assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
                 }
             }
         }

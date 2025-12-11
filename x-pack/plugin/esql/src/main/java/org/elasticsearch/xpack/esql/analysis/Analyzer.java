@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -74,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -102,6 +106,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -120,6 +125,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -134,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -162,6 +169,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -202,20 +210,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveTable(),
+            new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(),
+            new TimeSeriesGroupByAll()
         ),
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
-            new ImplicitCastAggregateMetricDoubles()
+            new ImplicitCastAggregateMetricDoubles(),
+            new ResolveUnionTypesInUnionAll()
         ),
         new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new AddImplicitForkLimit(), new UnionTypesCleanup())
+    );
+    public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
+        "esql_lookup_join_full_text_function"
     );
 
     private final Verifier verifier;
@@ -247,12 +261,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            return resolveIndex(
-                plan,
-                plan.indexMode().equals(IndexMode.LOOKUP)
-                    ? context.lookupResolution().get(plan.indexPattern().indexPattern())
-                    : context.indexResolution()
-            );
+            IndexResolution indexResolution = plan.indexMode().equals(IndexMode.LOOKUP)
+                ? context.lookupResolution().get(plan.indexPattern().indexPattern())
+                : context.indexResolution().get(plan.indexPattern());
+            return resolveIndex(plan, indexResolution);
         }
 
         private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
@@ -270,6 +282,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.telemetryLabel()
                     );
             }
+            // assert indexResolution.matches(plan.indexPattern().indexPattern()) : "Expected index resolution to match the index pattern";
             IndexPattern table = plan.indexPattern();
             if (indexResolution.matches(table.indexPattern()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
@@ -292,6 +305,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.source(),
                 esIndex.name(),
                 plan.indexMode(),
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
@@ -492,63 +507,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate aggregate) {
-                return resolveAggregate(aggregate, childrenOutput);
-            }
-
-            if (plan instanceof Completion c) {
-                return resolveCompletion(c, childrenOutput);
-            }
-
-            if (plan instanceof Drop d) {
-                return resolveDrop(d, childrenOutput);
-            }
-
-            if (plan instanceof Rename r) {
-                return resolveRename(r, childrenOutput);
-            }
-
-            if (plan instanceof Keep p) {
-                return resolveKeep(p, childrenOutput);
-            }
-
-            if (plan instanceof Fork f) {
-                return resolveFork(f, context);
-            }
-
-            if (plan instanceof Eval p) {
-                return resolveEval(p, childrenOutput);
-            }
-
-            if (plan instanceof Enrich p) {
-                return resolveEnrich(p, childrenOutput);
-            }
-
-            if (plan instanceof MvExpand p) {
-                return resolveMvExpand(p, childrenOutput);
-            }
-
-            if (plan instanceof Lookup l) {
-                return resolveLookup(l, childrenOutput);
-            }
-
-            if (plan instanceof LookupJoin j) {
-                return resolveLookupJoin(j);
-            }
-
-            if (plan instanceof Insist i) {
-                return resolveInsist(i, childrenOutput, context.indexResolution());
-            }
-
-            if (plan instanceof Fuse fuse) {
-                return resolveFuse(fuse, childrenOutput);
-            }
-
-            if (plan instanceof Rerank r) {
-                return resolveRerank(r, childrenOutput);
-            }
-
-            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            return switch (plan) {
+                case Aggregate a -> resolveAggregate(a, childrenOutput);
+                case Completion c -> resolveCompletion(c, childrenOutput);
+                case Drop d -> resolveDrop(d, childrenOutput);
+                case Rename r -> resolveRename(r, childrenOutput);
+                case Keep p -> resolveKeep(p, childrenOutput);
+                case Fork f -> resolveFork(f, context);
+                case Eval p -> resolveEval(p, childrenOutput);
+                case Enrich p -> resolveEnrich(p, childrenOutput);
+                case MvExpand p -> resolveMvExpand(p, childrenOutput);
+                case Lookup l -> resolveLookup(l, childrenOutput);
+                case LookupJoin j -> resolveLookupJoin(j, context);
+                case Insist i -> resolveInsist(i, childrenOutput, context);
+                case Fuse fuse -> resolveFuse(fuse, childrenOutput);
+                case Rerank r -> resolveRerank(r, childrenOutput);
+                case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            };
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -630,7 +606,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
+            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -706,8 +682,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                         + joinedAttribute.dataType().typeName()
                                         + "] and original column was ["
                                         + attr.dataType().typeName()
-                                        + "]",
-                                    null
+                                        + "]"
                                 );
                             }
                         }
@@ -722,55 +697,114 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
-        private List<Expression> resolveJoinFiltersAndSwapIfNeeded(
-            List<Expression> filters,
-            AttributeSet leftOutput,
-            AttributeSet rightOutput
+        private Expression resolveJoinFiltersAndSwapIfNeeded(
+            Expression joinOnCondition,
+            AttributeSet leftChildOutput,
+            AttributeSet rightChildOutput,
+            List<Attribute> leftJoinKeysToPopulate,
+            List<Attribute> rightJoinKeysToPopulate,
+            AnalyzerContext context
         ) {
-            if (filters.isEmpty()) {
-                return emptyList();
+            if (joinOnCondition == null) {
+                return joinOnCondition;
             }
-            List<Attribute> childrenOutput = new ArrayList<>(leftOutput);
-            childrenOutput.addAll(rightOutput);
+            List<Expression> filters = Predicates.splitAnd(joinOnCondition);
+            List<Attribute> childrenOutput = new ArrayList<>(leftChildOutput);
+            childrenOutput.addAll(rightChildOutput);
 
             List<Expression> resolvedFilters = new ArrayList<>(filters.size());
             for (Expression filter : filters) {
                 Expression filterResolved = filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
-                resolvedFilters.add(resolveAndOrientJoinCondition(filterResolved, leftOutput, rightOutput));
+                // Check if the filterResolved contains unresolved attributes, if it does, we cannot process it further
+                // and the error message about the unresolved attribute is already appropriate
+                if (filterResolved.anyMatch(UnresolvedAttribute.class::isInstance)) {
+                    resolvedFilters.add(filterResolved);
+                    continue;
+                }
+                Expression result = resolveAndOrientJoinCondition(
+                    filterResolved,
+                    leftChildOutput,
+                    rightChildOutput,
+                    leftJoinKeysToPopulate,
+                    rightJoinKeysToPopulate,
+                    context
+                );
+                resolvedFilters.add(result);
             }
-            return resolvedFilters;
+            return Predicates.combineAndWithSource(resolvedFilters, joinOnCondition.source());
         }
 
-        private Expression resolveAndOrientJoinCondition(Expression condition, AttributeSet leftOutput, AttributeSet rightOutput) {
+        /**
+         * This function resolves and orients a single join on condition.
+         * We support AND of such conditions, here we handle a single child of the AND
+         * We support the following 2 cases:
+         * 1) Binary comparisons between a left and a right attribute.
+         * We resolve all attributes and orient them so that the attribute on the left side of the join
+         * is on the left side of the binary comparison
+         *  and the attribute from the lookup index is on the right side of the binary comparison
+         * 2) A Lucene pushable expression containing only attributes from the lookup side of the join
+         * We resolve all attributes in the expression, verify they are from the right side of the join
+         * and also verify that the expression is potentially Lucene pushable
+         */
+        private Expression resolveAndOrientJoinCondition(
+            Expression condition,
+            AttributeSet leftChildOutput,
+            AttributeSet rightChildOutput,
+            List<Attribute> leftJoinKeysToPopulate,
+            List<Attribute> rightJoinKeysToPopulate,
+            AnalyzerContext context
+        ) {
             if (condition instanceof EsqlBinaryComparison comp
                 && comp.left() instanceof Attribute leftAttr
                 && comp.right() instanceof Attribute rightAttr) {
 
-                boolean leftIsFromLeft = leftOutput.contains(leftAttr);
-                boolean rightIsFromRight = rightOutput.contains(rightAttr);
+                boolean leftIsFromLeft = leftChildOutput.contains(leftAttr);
+                boolean rightIsFromRight = rightChildOutput.contains(rightAttr);
 
                 if (leftIsFromLeft && rightIsFromRight) {
+                    leftJoinKeysToPopulate.add(leftAttr);
+                    rightJoinKeysToPopulate.add(rightAttr);
                     return comp; // Correct orientation
                 }
 
-                boolean leftIsFromRight = rightOutput.contains(leftAttr);
-                boolean rightIsFromLeft = leftOutput.contains(rightAttr);
+                boolean leftIsFromRight = rightChildOutput.contains(leftAttr);
+                boolean rightIsFromLeft = leftChildOutput.contains(rightAttr);
 
                 if (leftIsFromRight && rightIsFromLeft) {
+                    leftJoinKeysToPopulate.add(rightAttr);
+                    rightJoinKeysToPopulate.add(leftAttr);
                     return comp.swapLeftAndRight(); // Swapped orientation
                 }
+            }
+            if (context.minimumVersion().onOrAfter(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION) == false) {
                 return new UnresolvedAttribute(
                     condition.source(),
                     "unsupported",
-                    "Join condition must be between one attribute on the left side and "
-                        + "one attribute on the right side of the join, but found: "
+                    "Lookup join on condition is not supported on the remote node,"
+                        + " consider upgrading the remote node. Unsupported join filter expression:"
                         + condition.sourceText()
                 );
             }
-            return condition; // Not a binary comparison between two attributes, no change needed.
+            return handleRightOnlyPushableFilter(condition, rightChildOutput);
         }
 
-        private Join resolveLookupJoin(LookupJoin join) {
+        private Expression handleRightOnlyPushableFilter(Expression condition, AttributeSet rightChildOutput) {
+            if (isCompletelyRightSideAndTranslatable(condition, rightChildOutput)) {
+                // The condition is completely on the right side and is translation aware, so it can be (potentially) pushed down
+                return condition;
+            } else {
+                // The condition cannot be used in the join on clause for now
+                // It is not a binary comparison between left and right attributes
+                // It is not using fields from the right side only and translation aware
+                return new UnresolvedAttribute(
+                    condition.source(),
+                    "unsupported",
+                    "Unsupported join filter expression:" + condition.sourceText()
+                );
+            }
+        }
+
+        private Join resolveLookupJoin(LookupJoin join, AnalyzerContext context) {
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
@@ -786,38 +820,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 List<Attribute> leftKeys = new ArrayList<>();
                 List<Attribute> rightKeys = new ArrayList<>();
-                List<Expression> resolvedFilters = new ArrayList<>();
+                Expression joinOnConditions = null;
                 if (join.config().joinOnConditions() != null) {
-                    resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
-                        Predicates.splitAnd(join.config().joinOnConditions()),
+                    joinOnConditions = resolveJoinFiltersAndSwapIfNeeded(
+                        join.config().joinOnConditions(),
                         join.left().outputSet(),
-                        join.right().outputSet()
+                        join.right().outputSet(),
+                        leftKeys,
+                        rightKeys,
+                        context
                     );
-                    // build leftKeys and rightKeys using the correct side of the resolvedFilters.
-                    // resolveJoinFiltersAndSwapIfNeeded already put the left and right on the correct side
-                    for (Expression expression : resolvedFilters) {
-                        if (expression instanceof EsqlBinaryComparison binaryComparison
-                            && binaryComparison.left() instanceof Attribute leftAttribute
-                            && binaryComparison.right() instanceof Attribute rightAttribute) {
-                            leftKeys.add(leftAttribute);
-                            rightKeys.add(rightAttribute);
-                        } else {
-                            UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
-                                expression.source(),
-                                "unsupported",
-                                "Unsupported join filter expression:" + expression.sourceText()
-                            );
-                            return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
-
-                        }
-                    }
                 } else {
                     // resolve the using columns against the left and the right side then assemble the new join config
                     leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
                     rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
                 }
-
-                config = new JoinConfig(type, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
+                config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
                 return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
             } else {
                 // everything else is unsupported for now
@@ -825,6 +843,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
+        }
+
+        private boolean isCompletelyRightSideAndTranslatable(Expression expression, AttributeSet rightOutputSet) {
+            return rightOutputSet.containsAll(expression.references()) && isTranslatable(expression);
+        }
+
+        private boolean isTranslatable(Expression expression) {
+            // Here we are trying to eliminate cases where the expression is definitely not translatable.
+            // We do this early and without access to search stats for the lookup index that are only on the lookup node,
+            // so we only eliminate some of the not translatable cases here
+            // Later we will do a more thorough check on the lookup node
+            return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
         private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
@@ -851,7 +881,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
                     var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
-                    return new Alias(source, attr.name(), new Literal(attr.source(), null, attrType));
+                    if (attrType.isCounter()) {
+                        attrType = attrType.noCounter();
+                    }
+                    // use the current fork branch's source as the source of the alias, instead of the original FieldAttribute's source.
+                    return new Alias(source, attr.name(), new Literal(source, null, attrType));
                 }).toList();
 
                 // add the missing columns
@@ -892,7 +926,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
 
-            return changed ? new Fork(fork.source(), newSubPlans, newOutput) : fork;
+            return fork.replaceSubPlansAndOutput(newSubPlans, newOutput);
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
@@ -958,15 +992,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
             List<Attribute> list = new ArrayList<>();
+            List<IndexResolution> resolutions = collectIndexResolutions(insist, context);
             for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput, indexResolution));
+                list.add(resolveInsistAttribute(a, childrenOutput, resolutions));
             }
             return insist.withAttributes(list);
         }
 
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+        private List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
+            List<IndexResolution> resolutions = new ArrayList<>();
+            plan.forEachDown(EsRelation.class, e -> {
+                var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
+                if (resolution != null) {
+                    resolutions.add(resolution);
+                }
+            });
+            return resolutions;
+        }
+
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, List<IndexResolution> indices) {
             Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
@@ -974,7 +1020,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // Field is partially unmapped.
-            if (resolvedCol instanceof FieldAttribute fa && indexResolution.get().isPartiallyUnmappedField(fa.name())) {
+            // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
+            if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
                 return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
             }
 
@@ -1040,13 +1087,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
 
             List<NamedExpression> aggregates = new ArrayList<>();
-            aggregates.add(new Alias(source, score.name(), new Sum(source, score, aggFilter, SummationMode.COMPENSATED_LITERAL)));
+            aggregates.add(
+                new Alias(
+                    source,
+                    score.name(),
+                    new Sum(source, score, aggFilter, AggregateFunction.NO_WINDOW, SummationMode.COMPENSATED_LITERAL)
+                )
+            );
 
             for (Attribute attr : childrenOutput) {
                 if (attr.name().equals(score.name())) {
                     continue;
                 }
-                var valuesAgg = new Values(source, attr, aggFilter);
+                var valuesAgg = new Values(source, attr, aggFilter, AggregateFunction.NO_WINDOW);
                 // Use VALUES only on supported fields.
                 // FuseScoreEval will check that the input contains only columns with supported data types
                 // and will fail with an appropriate error message if it doesn't.
@@ -1058,11 +1111,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
+        private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            LogicalPlan promqlPlan = promql.promqlPlan();
+            Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
+            // resolve the nested plan
+            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
+                // but also any unresolved expressions
+                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
+        }
+
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             return maybeResolveAttribute(ua, childrenOutput, log);
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+            // if we already tried and failed to resolve this attribute, don't try again
             if (ua.customMessage()) {
                 return ua;
             }
@@ -1075,7 +1138,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
             Attribute resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput);
+            List<Attribute> named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -1194,7 +1257,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
-            for (var ne : drop.removals()) {
+            for (NamedExpression ne : drop.removals()) {
                 List<? extends NamedExpression> resolved;
 
                 if (ne instanceof UnresolvedNamePattern np) {
@@ -1349,7 +1412,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
-        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, ua::defaultUnresolvedMessage);
     }
 
     private static List<Attribute> potentialCandidatesIfNoMatchesFound(
@@ -1418,8 +1481,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context))
-                .transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context));
+            return plan.transformExpressionsOnly(InferenceFunction.class, f -> resolveInferenceFunction(f, context))
+                .transformDown(InferencePlan.class, p -> resolveInferencePlan(p, context));
         }
 
         private LogicalPlan resolveInferencePlan(InferencePlan<?> plan, AnalyzerContext context) {
@@ -1444,6 +1507,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     + plan.taskType()
                     + "] are supported.";
                 return plan.withInferenceResolutionError(inferenceId, error);
+            }
+
+            if (plan.isFoldable()) {
+                // Transform foldable InferencePlan to Eval with function call
+                return transformToEval(plan, inferenceId);
+            }
+
+            return plan;
+        }
+
+        /**
+         * Transforms a foldable InferencePlan to an Eval with the appropriate function call.
+         */
+        private LogicalPlan transformToEval(InferencePlan<?> plan, String inferenceId) {
+            Expression inferenceIdLiteral = Literal.keyword(plan.inferenceId().source(), inferenceId);
+            Source source = plan.source();
+            LogicalPlan child = plan.child();
+
+            if (plan instanceof Completion completion) {
+                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
+                return new Eval(source, child, List.of(alias));
             }
 
             return plan;
@@ -1621,7 +1706,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
                             if (i < targetDataTypes.size()) {
                                 targetDataType = targetDataTypes.get(i);
-                            }
+                            } // else the last type applies to all elements in a possible list (variadic)
                             if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
                                 if (e != arg) {
@@ -1845,22 +1930,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
 
-        private List<FieldAttribute> unionFieldAttributes;
-
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            unionFieldAttributes = new ArrayList<>();
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes));
         }
 
-        private LogicalPlan doRule(LogicalPlan plan) {
+        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
             Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
                 unionFieldAttributes.clear();
                 for (Attribute attr : rel.output()) {
                     if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
-                        unionFieldAttributes.add(fa);
+                        unionFieldAttributes.add(fa.ignoreId());
                     }
                 }
             }
@@ -1879,7 +1962,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes);
+            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList());
         }
 
         /**
@@ -1897,19 +1980,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    return new EsRelation(
-                        esr.source(),
-                        esr.indexPattern(),
-                        esr.indexMode(),
-                        esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing)
-                    );
+                    return esr.withAttributes(CollectionUtils.combine(esr.output(), missing));
                 }
                 return esr;
             });
         }
 
-        private Expression resolveConvertFunction(ConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+        private Expression resolveConvertFunction(ConvertFunction convert, List<Attribute.IdIgnoringWrapper> unionFieldAttributes) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
@@ -1980,7 +2057,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
             MultiTypeEsField resolvedField,
-            List<FieldAttribute> unionFieldAttributes
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
@@ -1994,13 +2071,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedField,
                 true
             );
-            int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
+            var nonSemanticUnionFieldAttribute = unionFieldAttribute.ignoreId();
+
+            int existingIndex = unionFieldAttributes.indexOf(nonSemanticUnionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
-                return unionFieldAttributes.get(existingIndex);
+                return unionFieldAttributes.get(existingIndex).inner();
             } else {
-                unionFieldAttributes.add(unionFieldAttribute);
-                return unionFieldAttribute;
+                unionFieldAttributes.add(nonSemanticUnionFieldAttribute);
+                return nonSemanticUnionFieldAttribute.inner();
             }
         }
 
@@ -2259,6 +2338,502 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
             return null;
+        }
+    }
+
+    /**
+     * Handle union types in UnionAll:
+     * 1. Push down explicit conversion functions into the UnionAll branches
+     * 2. Replace the explicit conversion functions with the corresponding attributes in the UnionAll output
+     * 3. Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+     * 4. Update the attributes referencing the updated UnionAll output
+     */
+    private static class ResolveUnionTypesInUnionAll extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            // The mapping between explicit conversion functions and the corresponding attributes in the UnionAll output,
+            // if the conversion functions in the main query are pushed down into the UnionAll branches, a new ReferenceAttribute
+            // is created for the corresponding output of UnionAll, the value is the new ReferenceAttribute
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes = new HashMap<>();
+
+            // The list of attributes in the UnionAll output that have been updated.
+            // The parent plans that reference these attributes need to be updated accordingly.
+            List<Attribute> updatedUnionAllOutput = new ArrayList<>();
+
+            // First push down the conversion functions into the UnionAll branches
+            LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(
+                UnionAll.class,
+                unionAll -> unionAll.childrenResolved()
+                    ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes)
+                    : unionAll
+            );
+
+            // Then replace the conversion functions with the corresponding attributes in the UnionAll output
+            LogicalPlan planWithConvertFunctionsReplaced = replaceConvertFunctions(
+                planWithConvertFunctionsPushedDown,
+                convertFunctionsToAttributes
+            );
+
+            // Next implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+            LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
+                UnionAll.class,
+                unionAll -> unionAll.resolved()
+                    ? implicitCastingUnionAllOutput(unionAll, planWithConvertFunctionsReplaced, updatedUnionAllOutput)
+                    : unionAll
+            );
+
+            // Finally update the attributes referencing the updated UnionAll output
+            return updatedUnionAllOutput.isEmpty()
+                ? planWithImplicitCasting
+                : updateAttributesReferencingUpdatedUnionAllOutput(planWithImplicitCasting, updatedUnionAllOutput);
+        }
+
+        /**
+         * Push down the explicit conversion functions into the UnionAll branches
+         */
+        private static LogicalPlan maybePushDownConvertFunctions(
+            UnionAll unionAll,
+            LogicalPlan plan,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
+            // Collect all conversion functions that convert the UnionAll outputs to a different type
+            Map<String, Set<AbstractConvertFunction>> oldOutputToConvertFunctions = collectConvertFunctions(unionAll, plan);
+
+            if (oldOutputToConvertFunctions.isEmpty()) { // nothing to push down
+                return unionAll;
+            }
+
+            // push down the conversion functions into the unionAll branches
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            Map<String, AbstractConvertFunction> newOutputToConvertFunctions = new HashMap<>();
+            boolean outputChanged = false;
+            for (LogicalPlan child : unionAll.children()) {
+                List<Attribute> childOutput = child.output();
+                List<Alias> newAliases = new ArrayList<>();
+                List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
+                for (Attribute oldAttr : childOutput) {
+                    newChildOutput.add(oldAttr);
+                    if (oldOutputToConvertFunctions.containsKey(oldAttr.name())) {
+                        Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
+                        // create a new alias for each conversion function and add it to the new aliases list
+                        for (AbstractConvertFunction convert : converts) {
+                            // create a new alias for the conversion function
+                            String newAliasName = Attribute.rawTemporaryName(oldAttr.name(), "converted_to", convert.dataType().typeName());
+                            Alias newAlias = new Alias(
+                                oldAttr.source(),
+                                newAliasName, // oldAttrName$$converted_to$$targetType
+                                convert.replaceChildren(Collections.singletonList(oldAttr))
+                            );
+                            newAliases.add(newAlias);
+                            newChildOutput.add(newAlias.toAttribute());
+                            outputChanged = true;
+                            newOutputToConvertFunctions.putIfAbsent(newAliasName, convert);
+                        }
+                    }
+                }
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+            }
+
+            // Populate convertFunctionsToAttributes. The values of convertFunctionsToAttributes are the new ReferenceAttributes
+            // in the new UnionAll outputs created for the updated unionAll output after pushing down the conversion functions.
+            return outputChanged
+                ? rebuildUnionAll(unionAll, newChildren, newOutputToConvertFunctions, convertFunctionsToAttributes)
+                : unionAll;
+        }
+
+        /**
+         * Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
+         * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
+         */
+        private static Map<String, Set<AbstractConvertFunction>> collectConvertFunctions(UnionAll unionAll, LogicalPlan plan) {
+            Map<String, Set<AbstractConvertFunction>> convertFunctions = new HashMap<>();
+            plan.forEachExpressionDown(AbstractConvertFunction.class, f -> {
+                if (f.field() instanceof Attribute attr) {
+                    // get the attribute from the UnionAll output by name and id
+                    unionAll.output()
+                        .stream()
+                        .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
+                        .findFirst()
+                        .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+                }
+            });
+            return convertFunctions;
+        }
+
+        /**
+         * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
+         */
+        private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
+            // Fork/UnionAll adds an EsqlProject on top of each child plan during resolveFork, check this pattern before pushing down
+            // If the pattern doesn't match, something unexpected happened, just return the child as is
+            if (aliases.isEmpty() == false && child instanceof EsqlProject esqlProject) {
+                LogicalPlan childOfProject = esqlProject.child();
+                Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
+                return new EsqlProject(esqlProject.source(), eval, output);
+            }
+            return child;
+        }
+
+        /**
+         * Rebuild the UnionAll with the new children and the new output after pushing down the conversion functions,
+         * and populate convertFunctionsToAttributes with the mapping between conversion functions and the
+         * new ReferenceAttributes in the new UnionAll output.
+         */
+        private static LogicalPlan rebuildUnionAll(
+            UnionAll unionAll,
+            List<LogicalPlan> newChildren,
+            Map<String, AbstractConvertFunction> newOutputToConvertFunctions,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
+            // check if the new children has the same number of outputs, it could be different from the original unionAll output
+            // if there are multiple explicit conversion functions on the same unionAll output attribute
+            List<String> newChildrenOutputNames = newChildren.getFirst().output().stream().map(Attribute::name).toList();
+            Holder<Boolean> childrenMatch = new Holder<>(true);
+            newChildren.stream().skip(1).forEach(childPlan -> {
+                List<String> names = childPlan.output().stream().map(Attribute::name).toList();
+                if (names.equals(newChildrenOutputNames) == false) {
+                    childrenMatch.set(false);
+                }
+            });
+            if (childrenMatch.get() == false) {
+                // new UnionAll children outputs do not match after pushing down convert functions,
+                // cannot move on, return the original UnionAll
+                return unionAll;
+            }
+
+            // rebuild the unionAll output according to its new children's output, and populate convertFunctionsToAttributes
+            List<Attribute> newOutput = new ArrayList<>(newChildrenOutputNames.size());
+            List<Attribute> oldOutput = unionAll.output();
+            for (String attrName : newChildrenOutputNames) {
+                // find the old attribute by name
+                Attribute oldAttr = null;
+                for (Attribute attr : oldOutput) {
+                    if (attr.name().equals(attrName)) {
+                        oldAttr = attr;
+                        break;
+                    }
+                }
+                if (oldAttr != null) { // keep the old UnionAll output unchanged
+                    newOutput.add(oldAttr);
+                } else { // this is a new attribute created by pushing down convert functions find the corresponding convert function
+                    AbstractConvertFunction convert = newOutputToConvertFunctions.get(attrName);
+                    if (convert != null) {
+                        ReferenceAttribute newAttr = new ReferenceAttribute(
+                            convert.source(),
+                            null,
+                            attrName,
+                            convert.dataType(),
+                            convert.nullable(),
+                            null,
+                            true
+                        );
+                        newOutput.add(newAttr);
+                        convertFunctionsToAttributes.putIfAbsent(convert, newAttr);
+                    } else {
+                        // something unexpected happened, the attribute is neither the old attribute nor created by a convert function,
+                        // return the original UnionAll
+                        return unionAll;
+                    }
+                }
+            }
+            return new UnionAll(unionAll.source(), newChildren, newOutput);
+        }
+
+        /**
+         * Replace the conversion functions with the corresponding attributes in the UnionAll output
+         */
+        private static LogicalPlan replaceConvertFunctions(
+            LogicalPlan plan,
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+        ) {
+            if (convertFunctionsToAttributes.isEmpty()) {
+                return plan;
+            }
+            return plan.transformExpressionsUp(AbstractConvertFunction.class, convertFunction -> {
+                if (convertFunction.field() instanceof Attribute attr) {
+                    for (Map.Entry<AbstractConvertFunction, Attribute> entry : convertFunctionsToAttributes.entrySet()) {
+                        AbstractConvertFunction candidate = entry.getKey();
+                        Attribute replacement = entry.getValue();
+                        if (candidate == convertFunction
+                            && candidate.field() instanceof Attribute candidateAttr
+                            && candidateAttr.id() == attr.id()) {
+                            // Make sure to match by attribute id, as ReferenceAttribute with the same name
+                            // but with different id might be considered equal
+                            return replacement;
+                        }
+                    }
+                }
+                return convertFunction;
+            });
+        }
+
+        /**
+         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
+         */
+        private static LogicalPlan implicitCastingUnionAllOutput(
+            UnionAll unionAll,
+            LogicalPlan plan,
+            List<Attribute> updatedUnionAllOutput
+        ) {
+            // build a map of UnionAll output to a list of LogicalPlan that reference this output
+            Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
+
+            List<List<Attribute>> outputs = unionAll.children().stream().map(LogicalPlan::output).toList();
+            // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
+            List<DataType> commonTypes = commonTypes(outputs);
+
+            Map<Integer, DataType> indexToCommonType = new HashMap<>();
+
+            // Cast each branch's output to the common type
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            boolean outputChanged = false;
+            for (LogicalPlan child : unionAll.children()) {
+                List<Alias> newAliases = new ArrayList<>();
+                List<Attribute> oldChildOutput = child.output();
+                List<Attribute> newChildOutput = new ArrayList<>(oldChildOutput.size());
+                for (int i = 0; i < oldChildOutput.size(); i++) {
+                    Attribute oldOutput = oldChildOutput.get(i);
+                    DataType targetType = commonTypes.get(i);
+                    Attribute resolved = resolveAttribute(
+                        oldOutput,
+                        targetType,
+                        i,
+                        outputs,
+                        unionAll,
+                        outputToPlans,
+                        newAliases,
+                        indexToCommonType
+                    );
+                    newChildOutput.add(resolved);
+                    if (resolved != oldOutput) {
+                        outputChanged = true;
+                    }
+                }
+                // create a new eval for the casting expressions, and push it down under the EsqlProject
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+            }
+
+            // Update common types with overrides
+            indexToCommonType.forEach(commonTypes::set);
+
+            return outputChanged ? rebuildUnionAllOutput(unionAll, newChildren, commonTypes, updatedUnionAllOutput) : unionAll;
+        }
+
+        /**
+         * Build a map of UnionAll output to a list of LogicalPlan that reference this output
+         */
+        private static Map<Attribute, List<LogicalPlan>> outputToPlans(UnionAll unionAll, LogicalPlan plan) {
+            Map<Attribute, List<LogicalPlan>> outputToPlans = new HashMap<>();
+            plan.forEachDown(p -> p.forEachExpression(Attribute.class, attr -> {
+                if (p instanceof UnionAll == false && p instanceof Project == false) {
+                    // get the attribute from the UnionAll output by name and id
+                    unionAll.output()
+                        .stream()
+                        .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
+                        .findFirst()
+                        .ifPresent(unionAllAttr -> outputToPlans.computeIfAbsent(attr, k -> new ArrayList<>()).add(p));
+                }
+            }));
+            return outputToPlans;
+        }
+
+        private static List<DataType> commonTypes(List<List<Attribute>> outputs) {
+            int columnCount = outputs.get(0).size();
+            List<DataType> commonTypes = new ArrayList<>(columnCount);
+            for (int i = 0; i < columnCount; i++) {
+                DataType type = outputs.get(0).get(i).dataType();
+                for (List<Attribute> out : outputs) {
+                    type = commonType(type, out.get(i).dataType());
+                }
+                commonTypes.add(type);
+            }
+            return commonTypes;
+        }
+
+        private static DataType commonType(DataType t1, DataType t2) {
+            if (t1 == null || t2 == null) {
+                return null;
+            }
+            t1 = t1.isCounter() ? t1.noCounter() : t1;
+            t2 = t2.isCounter() ? t2.noCounter() : t2;
+            if (t1 == t2) {
+                return t1;
+            }
+            if (t1.isDate() && t2.isDate()) {
+                return DATE_NANOS;
+            }
+            return null;
+        }
+
+        /**
+         * Resolve the attribute to the target type, if target type is null, create:
+         * an UnsupportedAttribute if the attribute is referenced in the parent plans,
+         * a Null alias with keyword type if the attribute is not referenced in the parent plans.
+         */
+        private static Attribute resolveAttribute(
+            Attribute oldAttr,
+            DataType targetType,
+            int columnIndex,
+            List<List<Attribute>> outputs,
+            UnionAll unionAll,
+            Map<Attribute, List<LogicalPlan>> outputToPlans,
+            List<Alias> newAliases,
+            Map<Integer, DataType> indexToCommonType
+        ) {
+            if (targetType == null) {
+                return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, indexToCommonType);
+            }
+
+            if (targetType != NULL && oldAttr.dataType() != targetType) {
+                var converterFactory = EsqlDataTypeConverter.converterFunctionFactory(targetType);
+                if (converterFactory != null) {
+                    var converter = converterFactory.apply(oldAttr.source(), oldAttr);
+                    if (converter != null) {
+                        Alias alias = new Alias(oldAttr.source(), oldAttr.name(), converter);
+                        newAliases.add(alias);
+                        return alias.toAttribute();
+                    }
+                }
+            }
+            return oldAttr;
+        }
+
+        private static Attribute createUnsupportedOrNull(
+            Attribute oldAttr,
+            int columnIndex,
+            List<List<Attribute>> outputs,
+            UnionAll unionAll,
+            Map<Attribute, List<LogicalPlan>> outputToPlans,
+            List<Alias> newAliases,
+            Map<Integer, DataType> indexToCommonType
+        ) {
+            Attribute unionAttr = unionAll.output().get(columnIndex);
+
+            if (outputToPlans.containsKey(unionAttr)) {
+                // Unsupported attribute
+                List<String> dataTypes = collectIncompatibleTypes(columnIndex, outputs);
+                UnsupportedAttribute unsupported = new UnsupportedAttribute(
+                    oldAttr.source(),
+                    oldAttr.name(),
+                    new UnsupportedEsField(oldAttr.name(), dataTypes),
+                    "Column [" + oldAttr.name() + "] has conflicting data types in subqueries: " + dataTypes,
+                    oldAttr.id()
+                );
+                newAliases.add(new Alias(oldAttr.source(), oldAttr.name(), unsupported));
+                indexToCommonType.putIfAbsent(columnIndex, UNSUPPORTED);
+                return unsupported;
+            } else {
+                // Null alias with keyword type
+                Alias nullAlias = new Alias(oldAttr.source(), oldAttr.name(), new Literal(oldAttr.source(), null, KEYWORD));
+                newAliases.add(nullAlias);
+                indexToCommonType.putIfAbsent(columnIndex, KEYWORD);
+                return nullAlias.toAttribute();
+            }
+        }
+
+        private static List<String> collectIncompatibleTypes(int columnIndex, List<List<Attribute>> outputs) {
+            List<String> dataTypes = new ArrayList<>();
+            for (List<Attribute> out : outputs) {
+                Attribute attr = out.get(columnIndex);
+                if (attr instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+                    dataTypes.addAll(imf.types().stream().map(DataType::typeName).toList());
+                } else {
+                    dataTypes.add(attr.dataType().typeName());
+                }
+            }
+            return dataTypes;
+        }
+
+        /**
+         * Rebuild the UnionAll with the new children and the new output after implicit casting date and date_nanos types,
+         * and populate updatedUnionAllOutput with the list of attributes in the UnionAll output that have been updated.
+         */
+        private static UnionAll rebuildUnionAllOutput(
+            UnionAll unionAll,
+            List<LogicalPlan> newChildren,
+            List<DataType> commonTypes,
+            List<Attribute> updatedUnionAllOutput
+        ) {
+            // Rebuild the newUnionAll's output to ensure the correct attributes are used
+            List<Attribute> oldOutput = unionAll.output();
+            List<Attribute> newOutput = new ArrayList<>(oldOutput.size());
+
+            for (int i = 0; i < oldOutput.size(); i++) {
+                Attribute oldAttr = oldOutput.get(i);
+                DataType commonType = commonTypes.get(i);
+
+                if (oldAttr.dataType() != commonType) {
+                    // keep the id unchanged, otherwise the downstream operators won't recognize the attribute
+                    ReferenceAttribute newAttr = new ReferenceAttribute(
+                        oldAttr.source(),
+                        null,
+                        oldAttr.name(),
+                        commonType,
+                        oldAttr.nullable(),
+                        oldAttr.id(),
+                        oldAttr.synthetic()
+                    );
+                    newOutput.add(newAttr);
+                    updatedUnionAllOutput.add(newAttr);
+                } else {
+                    newOutput.add(oldAttr);
+                }
+            }
+            return new UnionAll(unionAll.source(), newChildren, newOutput);
+        }
+
+        /**
+         * Update the attributes referencing the updated UnionAll output.
+         */
+        private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
+            LogicalPlan plan,
+            List<Attribute> updatedUnionAllOutput
+        ) {
+            Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
+            return plan.transformExpressionsUp(Attribute.class, expr -> {
+                Attribute updated = idToUpdatedAttr.get(expr.id());
+                return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
+            });
+        }
+    }
+
+    /**
+     * Prune branches of a UnionAll that resolve to empty subqueries.
+     * For example, given the following plan, the index resolution of 'remote:missingIndex' is EMPTY_SUBQUERY:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[remote:missingIndex]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     * The branch with EMPTY_SUBQUERY index resolution is pruned in the plan after the rule is applied:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     */
+    private static class PruneEmptyUnionAllBranch extends ParameterizedAnalyzerRule<UnionAll, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
+            Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
+            // check if any child is an UnresolvedRelation that resolves to an empty subquery
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            for (LogicalPlan child : unionAll.children()) {
+                // check for UnresolvedRelation in the child plan tree
+                Holder<Boolean> isEmptySubquery = new Holder<>(Boolean.FALSE);
+                child.forEachUp(UnresolvedRelation.class, ur -> {
+                    IndexResolution resolution = indexResolutions.get(ur.indexPattern());
+                    if (resolution == IndexResolution.EMPTY_SUBQUERY) {
+                        isEmptySubquery.set(Boolean.TRUE);
+                    }
+                });
+                if (isEmptySubquery.get() == false) {
+                    newChildren.add(child);
+                }
+            }
+            return newChildren.size() == unionAll.children().size() ? unionAll : unionAll.replaceChildren(newChildren);
         }
     }
 }

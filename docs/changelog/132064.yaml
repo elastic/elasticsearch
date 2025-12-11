@@ -1,5 +1,0 @@
-pr: 132064
-summary: Only Allow Enabling Streams If No Conflicting Indices Exist
-area: Data streams
-type: enhancement
-issues: []

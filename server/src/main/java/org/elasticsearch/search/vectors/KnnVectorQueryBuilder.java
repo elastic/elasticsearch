@@ -262,11 +262,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.k = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.numCands = in.readOptionalVInt();
-        } else {
-            this.numCands = in.readVInt();
-        }
+        this.numCands = in.readOptionalVInt();
         if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
@@ -278,11 +274,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             this.queryVector = VectorData.fromFloats(in.readFloatArray());
         }
         this.filterQueries.addAll(readQueries(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.vectorSimilarity = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
@@ -343,6 +335,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
+    public KnnVectorQueryBuilder setFilterQueries(List<QueryBuilder> filterQueries) {
+        Objects.requireNonNull(filterQueries);
+        this.filterQueries.clear();
+        this.filterQueries.addAll(filterQueries);
+        return this;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (queryVectorSupplier != null) {
@@ -352,21 +351,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(k);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalVInt(numCands);
-        } else {
-            if (numCands == null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + NUM_CANDS_FIELD.getPreferredName()
-                        + "] field was mandatory in previous releases "
-                        + "and is required to be non-null by some nodes. "
-                        + "Please make sure to provide the parameter as part of the request."
-                );
-            } else {
-                out.writeVInt(numCands);
-            }
-        }
+        out.writeOptionalVInt(numCands);
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
@@ -376,9 +361,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             out.writeFloatArray(queryVector.asFloatVector());
         }
         writeQueries(out, filterQueries);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
             throw new IllegalArgumentException(
                 format(

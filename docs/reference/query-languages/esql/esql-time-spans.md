@@ -120,7 +120,7 @@ POST /_query
 | week | w, weeks |
 | day | d, days |
 | hour | h, hours |
-| minute | min, minutes |
+| minute | m, min, minutes |
 | second | s, sec, seconds |
 | millisecond | ms, milliseconds |
 

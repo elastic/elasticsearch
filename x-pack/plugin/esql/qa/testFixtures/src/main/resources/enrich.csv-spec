@@ -763,3 +763,21 @@ FROM sample_data
 message:keyword       | language_code:keyword | first_language_name:keyword | language_name:keyword
 Connected to 10.1.0.1 | 1                     | English                     | English
 ;
+
+enrichOnSameFieldTwiceValues
+required_capability: enrich_load
+required_capability: attribute_equals_respects_name_id
+
+ROW a = 1, b = 2
+| EVAL language_code = a
+| ENRICH languages_policy ON language_code
+| RENAME language_name AS language_name_a
+| EVAL language_code = b
+| ENRICH languages_policy ON language_code
+| RENAME language_name AS language_name_b
+| STATS values(language_name_a), values(language_name_b)
+;
+
+values(language_name_a):keyword | values(language_name_b):keyword
+English                         | French
+;

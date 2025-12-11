@@ -44,6 +44,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
@@ -65,12 +66,12 @@ import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -182,15 +183,8 @@ public class OperatorTests extends MapperServiceTestCase {
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(
-                    new ValuesSourceReaderOperator.FieldInfo(
-                        "v",
-                        ElementType.LONG,
-                        false,
-                        f -> new BlockDocValuesReader.LongsBlockLoader("v")
-                    )
-                ),
-                List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, false, f -> new LongsBlockLoader("v"))),
+                new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 0
@@ -410,9 +404,9 @@ public class OperatorTests extends MapperServiceTestCase {
             try (CannedSourceOperator sourceOperator = new CannedSourceOperator(dataDriverPages.iterator())) {
                 HashAggregationOperator.HashAggregationOperatorFactory aggFactory =
                     new HashAggregationOperator.HashAggregationOperatorFactory(
-                        List.of(new BlockHash.GroupSpec(2, ElementType.LONG)),
-                        AggregatorMode.FINAL,
-                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(0, 1))),
+                        List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+                        AggregatorMode.INTERMEDIATE,
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2))),
                         Integer.MAX_VALUE,
                         null
                     );
@@ -432,7 +426,7 @@ public class OperatorTests extends MapperServiceTestCase {
 
             assertThat(reduceDriverPages, hasSize(1));
             Page result = reduceDriverPages.getFirst();
-            assertThat(result.getBlockCount(), equalTo(2));
+            assertThat(result.getBlockCount(), equalTo(3));
             LongBlock groupsBlock = result.getBlock(0);
             LongVector groups = groupsBlock.asVector();
             LongBlock countsBlock = result.getBlock(1);
@@ -490,7 +484,7 @@ public class OperatorTests extends MapperServiceTestCase {
     static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, List<LuceneSliceQueue.QueryAndTags> queryAndTags, int limit) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
-            List.of(searchContext),
+            new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
@@ -508,7 +502,7 @@ public class OperatorTests extends MapperServiceTestCase {
     ) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneCountOperator.Factory(
-            List.of(searchContext),
+            new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),

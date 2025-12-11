@@ -1,5 +1,0 @@
-pr: 127223
-summary: Wrap ES KNN queries with PatienceKNN query
-area: Vector Search
-type: feature
-issues: []

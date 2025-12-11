@@ -2,7 +2,8 @@
 
 ## `TO_AGGREGATE_METRIC_DOUBLE` [esql-to_aggregate_metric_double]
 ```{applies_to}
-stack: coming
+stack: preview 9.2.0
+serverless: preview
 ```
 
 **Syntax**

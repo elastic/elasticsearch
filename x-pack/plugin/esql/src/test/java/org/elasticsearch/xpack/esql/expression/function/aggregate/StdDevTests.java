@@ -41,7 +41,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(StdDevTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
                 var value = ((Number) fieldValue).doubleValue();
                 welfordAlgorithm.add(value);
             }
-            var result = welfordAlgorithm.evaluate();
+            var result = welfordAlgorithm.evaluate(true);
             var expected = Double.isFinite(result) ? result : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

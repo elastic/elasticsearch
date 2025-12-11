@@ -215,7 +215,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_18_6 = new Version(8_18_06_99);
     public static final Version V_8_18_7 = new Version(8_18_07_99);
     public static final Version V_8_18_8 = new Version(8_18_08_99);
-    public static final Version V_8_18_9 = new Version(8_18_09_99);
     public static final Version V_8_19_0 = new Version(8_19_00_99);
     public static final Version V_8_19_1 = new Version(8_19_01_99);
     public static final Version V_8_19_2 = new Version(8_19_02_99);
@@ -223,6 +222,9 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_19_4 = new Version(8_19_04_99);
     public static final Version V_8_19_5 = new Version(8_19_05_99);
     public static final Version V_8_19_6 = new Version(8_19_06_99);
+    public static final Version V_8_19_7 = new Version(8_19_07_99);
+    public static final Version V_8_19_8 = new Version(8_19_08_99);
+    public static final Version V_8_19_9 = new Version(8_19_09_99);
     public static final Version V_9_0_0 = new Version(9_00_00_99);
     public static final Version V_9_0_1 = new Version(9_00_01_99);
     public static final Version V_9_0_2 = new Version(9_00_02_99);
@@ -232,7 +234,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_9_0_6 = new Version(9_00_06_99);
     public static final Version V_9_0_7 = new Version(9_00_07_99);
     public static final Version V_9_0_8 = new Version(9_00_08_99);
-    public static final Version V_9_0_9 = new Version(9_00_09_99);
     public static final Version V_9_1_0 = new Version(9_01_00_99);
     public static final Version V_9_1_1 = new Version(9_01_01_99);
     public static final Version V_9_1_2 = new Version(9_01_02_99);
@@ -240,7 +241,13 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_9_1_4 = new Version(9_01_04_99);
     public static final Version V_9_1_5 = new Version(9_01_05_99);
     public static final Version V_9_1_6 = new Version(9_01_06_99);
+    public static final Version V_9_1_7 = new Version(9_01_07_99);
+    public static final Version V_9_1_8 = new Version(9_01_08_99);
+    public static final Version V_9_1_9 = new Version(9_01_09_99);
     public static final Version V_9_2_0 = new Version(9_02_00_99);
+    public static final Version V_9_2_1 = new Version(9_02_01_99);
+    public static final Version V_9_2_2 = new Version(9_02_02_99);
+    public static final Version V_9_2_3 = new Version(9_02_03_99);
     public static final Version V_9_3_0 = new Version(9_03_00_99);
     public static final Version CURRENT = V_9_3_0;
 

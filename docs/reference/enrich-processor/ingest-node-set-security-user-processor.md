@@ -39,4 +39,5 @@ The following example adds all user details for the current authenticated user t
   ]
 }
 ```
+% NOTCONSOLE
 

@@ -18,6 +18,7 @@ POST /_sql?format=txt
   "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 
@@ -30,6 +31,8 @@ Frank Herbert    |Dune                |604            |1965-06-01T00:00:00.000Z
 Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00.000Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 ```
+% TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
+% TESTRESPONSE[non_json]
 
 ::::{admonition} Using Kibana Console
 :class: tip

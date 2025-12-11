@@ -69,12 +69,12 @@
         "description": "If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
       },
       "retry_on_conflict": {
-        "type": "number",
+        "type": "int",
         "default": 0,
         "description": "Specify how many times should the operation be retried when a conflict occurs (default: 0)"
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value"
       },
       "timeout": {
@@ -83,11 +83,11 @@
         "description": "Explicit operation timeout"
       },
       "if_seq_no": {
-        "type": "number",
+        "type": "long",
         "description": "only perform the update operation if the last operation that has changed the document has the specified sequence number"
       },
       "if_primary_term": {
-        "type": "number",
+        "type": "long",
         "description": "only perform the update operation if the last operation that has changed the document has the specified primary term"
       },
       "require_alias": {

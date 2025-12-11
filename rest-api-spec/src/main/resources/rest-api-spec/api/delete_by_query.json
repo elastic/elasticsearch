@@ -43,10 +43,10 @@
       "default_operator": {
         "type": "enum",
         "options": [
-          "AND",
-          "OR"
+          "and",
+          "or"
         ],
-        "default": "OR",
+        "default": "or",
         "description": "The default operator for query string query (AND or OR)"
       },
       "df": {
@@ -54,7 +54,7 @@
         "description": "The field to use as default where no field prefix is given in the query string"
       },
       "from": {
-        "type": "number",
+        "type": "long",
         "default": 0,
         "description": "Starting offset (default: 0)"
       },
@@ -78,7 +78,7 @@
         "description": "What to do when the delete by query hits version conflicts?"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -123,15 +123,19 @@
         "description": "Explicit timeout for each search request. Defaults to no timeout."
       },
       "max_docs": {
-        "type": "number",
+        "type": "long",
         "description": "Maximum number of documents to process (default: all documents)"
       },
       "sort": {
+        "deprecated": {
+          "version": "9.0.0",
+          "description": "This query parameter is not supported and will be removed in a future version"
+        },
         "type": "list",
         "description": "A comma-separated list of <field>:<direction> pairs"
       },
       "terminate_after": {
-        "type": "number",
+        "type": "long",
         "description": "The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
       },
       "stats": {
@@ -162,7 +166,7 @@
         "description": "Sets the number of shard copies that must be active before proceeding with the delete by query operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
       },
       "scroll_size": {
-        "type": "number",
+        "type": "long",
         "default": 1000,
         "description": "Size on the scroll request powering the delete by query"
       },

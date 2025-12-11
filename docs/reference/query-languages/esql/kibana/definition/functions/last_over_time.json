@@ -10,7 +10,13 @@
           "name" : "field",
           "type" : "counter_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -22,7 +28,13 @@
           "name" : "field",
           "type" : "counter_integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -34,7 +46,13 @@
           "name" : "field",
           "type" : "counter_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -46,7 +64,13 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -58,7 +82,13 @@
           "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -70,7 +100,13 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -78,7 +114,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS max_cost=max(last_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)"
+    "TS k8s\n| STATS max_cost=MAX(LAST_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

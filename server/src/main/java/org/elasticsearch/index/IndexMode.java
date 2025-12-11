@@ -127,11 +127,6 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.STORED;
         }
-
-        @Override
-        public boolean useDefaultPostingsFormat() {
-            return true;
-        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -245,6 +240,16 @@ public enum IndexMode {
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
         }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
+        }
     },
     LOGSDB("logsdb") {
         @Override
@@ -329,6 +334,16 @@ public enum IndexMode {
         @Override
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
+        }
+
+        @Override
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
+            return true;
         }
     },
     LOOKUP("lookup") {
@@ -564,9 +579,17 @@ public enum IndexMode {
     }
 
     /**
-     * Whether the default posting format (for inverted indices) from Lucene should be used.
+     * Whether by default to use the ES 8.12 {@link org.apache.lucene.codecs.PostingsFormat}. This is a historical PostingsFormat we used
+     * for all indices by default. However, starting with Lucene 10.3, we began using a new, more modern format, for standard indices.
      */
-    public boolean useDefaultPostingsFormat() {
+    public boolean useEs812PostingsFormat() {
+        return false;
+    }
+
+    /**
+     * Whether by default to use the time series doc values codec.
+     */
+    public boolean useTimeSeriesDocValuesCodec() {
         return false;
     }
 

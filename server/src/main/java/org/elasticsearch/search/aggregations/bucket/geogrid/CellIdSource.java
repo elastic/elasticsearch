@@ -9,17 +9,15 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
-import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.SortingNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
@@ -56,37 +54,39 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public final SortedNumericDocValues longValues(LeafReaderContext ctx) {
+    public final SortedNumericLongValues longValues(LeafReaderContext ctx) {
         final MultiGeoPointValues multiGeoPointValues = valuesSource.geoPointValues(ctx);
         final GeoPointValues values = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(multiGeoPointValues);
         if (geoBoundingBox.isUnbounded()) {
-            return values == null ? unboundedCellMultiValues(multiGeoPointValues) : DocValues.singleton(unboundedCellSingleValue(values));
+            return values == null
+                ? unboundedCellMultiValues(multiGeoPointValues)
+                : SortedNumericLongValues.singleton(unboundedCellSingleValue(values));
         } else {
             return values == null
                 ? boundedCellMultiValues(multiGeoPointValues, geoBoundingBox)
-                : DocValues.singleton(boundedCellSingleValue(values, geoBoundingBox));
+                : SortedNumericLongValues.singleton(boundedCellSingleValue(values, geoBoundingBox));
         }
     }
 
     /**
      * Generate an unbounded iterator of grid-cells for singleton case.
      */
-    protected abstract NumericDocValues unboundedCellSingleValue(GeoPointValues values);
+    protected abstract LongValues unboundedCellSingleValue(GeoPointValues values);
 
     /**
      * Generate a bounded iterator of grid-cells for singleton case.
      */
-    protected abstract NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox);
+    protected abstract LongValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox);
 
     /**
      * Generate an unbounded iterator of grid-cells for multi-value case.
      */
-    protected abstract SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values);
+    protected abstract SortedNumericLongValues unboundedCellMultiValues(MultiGeoPointValues values);
 
     /**
      * Generate a bounded iterator of grid-cells for multi-value case.
      */
-    protected abstract SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox);
+    protected abstract SortedNumericLongValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox);
 
     @Override
     public final SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
@@ -120,7 +120,7 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
      * the multi-value geo-doc-values. Class must encode the values and then
      * sort them in order to account for the cells correctly.
      */
-    protected abstract static class CellMultiValues extends AbstractSortingNumericDocValues {
+    protected abstract static class CellMultiValues extends SortingNumericLongValues {
         private final MultiGeoPointValues geoValues;
         protected final int precision;
 
@@ -162,7 +162,7 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
      * Class representing the long-encoded grid-cells belonging to
      * the singleton geo-doc-values.
      */
-    protected abstract static class CellSingleValue extends AbstractNumericDocValues {
+    protected abstract static class CellSingleValue extends LongValues {
         private final GeoPointValues geoValues;
         protected final int precision;
         protected long value;
@@ -191,10 +191,5 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
          * @return          true if the value needs to be added, otherwise false.
          */
         protected abstract boolean advance(org.elasticsearch.common.geo.GeoPoint target);
-
-        @Override
-        public int docID() {
-            return -1;
-        }
     }
 }

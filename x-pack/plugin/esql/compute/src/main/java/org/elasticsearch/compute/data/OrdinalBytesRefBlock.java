@@ -91,41 +91,33 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public BytesRefBlock filter(int... positions) {
-        if (positions.length * ordinals.getTotalValueCount() >= bytes.getPositionCount() * ordinals.getPositionCount()) {
-            OrdinalBytesRefBlock result = null;
-            IntBlock filteredOrdinals = ordinals.filter(positions);
-            try {
-                result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
-                bytes.incRef();
-            } finally {
-                if (result == null) {
-                    filteredOrdinals.close();
+        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
+        // may reappear when hashing the dictionary in BlockHash.
+        // TODO: merge this BytesRefArrayBlock#filter
+        final OrdinalBytesRefVector vector = asVector();
+        if (vector != null) {
+            return vector.filter(positions).asBlock();
+        }
+        BytesRef scratch = new BytesRef();
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendBytesRef(getBytesRef(first + c, scratch));
+                    }
+                    builder.endPositionEntry();
                 }
             }
-            return result;
-        } else {
-            // TODO: merge this BytesRefArrayBlock#filter
-            BytesRef scratch = new BytesRef();
-            try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
-                for (int pos : positions) {
-                    if (isNull(pos)) {
-                        builder.appendNull();
-                        continue;
-                    }
-                    int valueCount = getValueCount(pos);
-                    int first = getFirstValueIndex(pos);
-                    if (valueCount == 1) {
-                        builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
-                    } else {
-                        builder.beginPositionEntry();
-                        for (int c = 0; c < valueCount; c++) {
-                            builder.appendBytesRef(getBytesRef(first + c, scratch));
-                        }
-                        builder.endPositionEntry();
-                    }
-                }
-                return builder.mvOrdering(mvOrdering()).build();
-            }
+            return builder.mvOrdering(mvOrdering()).build();
         }
     }
 

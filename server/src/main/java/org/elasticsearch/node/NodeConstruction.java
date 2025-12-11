@@ -209,7 +209,9 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
+import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -709,7 +711,8 @@ class NodeConstruction {
         modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
 
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
-        TaskManager taskManager = new TaskManager(
+        TaskManager taskManager = serviceProvider.newTaskManager(
+            pluginsService,
             settings,
             threadPool,
             Stream.concat(
@@ -727,12 +730,7 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        SamplingService samplingService = new SamplingService(
-            scriptService,
-            clusterService,
-            projectResolver,
-            threadPool.relativeTimeInMillisSupplier()
-        );
+        SamplingService samplingService = SamplingService.create(scriptService, clusterService, settings);
         modules.bindToInstance(SamplingService.class, samplingService);
         clusterService.addListener(samplingService);
 
@@ -825,7 +823,8 @@ class NodeConstruction {
                 clusterService.getClusterSettings(),
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
-                rerouteService
+                rerouteService,
+                telemetryProvider.getMeterRegistry()
             )::onNewInfo
         );
 
@@ -1009,8 +1008,15 @@ class NodeConstruction {
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
-            LinkedProjectConfigService.class,
-            () -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver)
+            LinkedProjectConfigService.Provider.class,
+            () -> Optional::empty
+        )
+            .create()
+            .orElseGet(() -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
+
+        final var projectRoutingResolver = pluginsService.loadSingletonServiceProvider(
+            ProjectRoutingResolver.class,
+            () -> ProjectRoutingResolver.NOOP
         );
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
@@ -1037,7 +1043,8 @@ class NodeConstruction {
             projectResolver,
             slowLogFieldProvider,
             indexingLimits,
-            linkedProjectConfigService
+            linkedProjectConfigService,
+            projectRoutingResolver
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1156,7 +1163,7 @@ class NodeConstruction {
             localNodeFactory,
             settingsModule.getClusterSettings(),
             taskManager,
-            telemetryProvider.getTracer(),
+            telemetryProvider,
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
             projectResolver
@@ -1187,6 +1194,10 @@ class NodeConstruction {
             transportService,
             indicesService
         );
+        final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
+            new CachingSnapshotAndShardByStateMetricsService(clusterService);
+        snapshotMetrics.createSnapshotsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getSnapshotsByState);
+        snapshotMetrics.createSnapshotShardsByStateMetric(cachingSnapshotAndShardByStateMetricsService::getShardsByState);
 
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
@@ -1362,6 +1373,7 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
         });
 
         if (ReadinessService.enabled(environment)) {

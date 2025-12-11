@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -1081,10 +1081,10 @@ public abstract class DocsV3Support {
 
     public static class SettingsDocsSupport extends DocsV3Support {
 
-        private final QuerySettings setting;
+        private final QuerySettingDef<?> setting;
 
-        public SettingsDocsSupport(QuerySettings setting, Class<?> testClass, Callbacks callbacks) {
-            super("settings", setting.settingName(), testClass, Set::of, callbacks);
+        public SettingsDocsSupport(QuerySettingDef<?> setting, Class<?> testClass, Callbacks callbacks) {
+            super("settings", setting.name(), testClass, Set::of, callbacks);
             this.setting = setting;
         }
 

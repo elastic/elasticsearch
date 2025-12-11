@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.application.rules.QueryRulesetListItem;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
+import java.util.List;
 import java.util.Map;
 
 public class ListQueryRulesetsActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<
@@ -26,8 +28,8 @@ public class ListQueryRulesetsActionResponseBWCSerializingTests extends Abstract
         return ListQueryRulesetsAction.Response::new;
     }
 
-    private static ListQueryRulesetsAction.Response randomQueryRulesetListItem() {
-        return new ListQueryRulesetsAction.Response(randomList(10, () -> {
+    private static List<QueryRulesetListItem> randomQueryRulesetList() {
+        return randomList(10, () -> {
             QueryRuleset queryRuleset = EnterpriseSearchModuleTestUtils.randomQueryRuleset();
             Map<QueryRuleCriteriaType, Integer> criteriaTypeToCountMap = Map.of(
                 randomFrom(QueryRuleCriteriaType.values()),
@@ -38,17 +40,22 @@ public class ListQueryRulesetsActionResponseBWCSerializingTests extends Abstract
                 randomIntBetween(1, 10)
             );
             return new QueryRulesetListItem(queryRuleset.id(), queryRuleset.rules().size(), criteriaTypeToCountMap, ruleTypeToCountMap);
-        }), randomLongBetween(0, 1000));
+        });
     }
 
     @Override
     protected ListQueryRulesetsAction.Response mutateInstance(ListQueryRulesetsAction.Response instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        QueryPage<QueryRulesetListItem> originalQueryPage = instance.queryPage();
+        QueryPage<QueryRulesetListItem> mutatedQueryPage = randomValueOtherThan(
+            originalQueryPage,
+            () -> new QueryPage<>(randomQueryRulesetList(), randomLongBetween(0, 1000), ListQueryRulesetsAction.Response.RESULT_FIELD)
+        );
+        return new ListQueryRulesetsAction.Response(mutatedQueryPage.results(), mutatedQueryPage.count());
     }
 
     @Override
     protected ListQueryRulesetsAction.Response createTestInstance() {
-        return randomQueryRulesetListItem();
+        return new ListQueryRulesetsAction.Response(randomQueryRulesetList(), randomLongBetween(0, 1000));
     }
 
     @Override

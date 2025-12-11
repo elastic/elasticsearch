@@ -51,7 +51,7 @@ TS k8s
 
 irate_cost:double  | time_bucket:datetime
 null               | 2024-05-10T00:01:00.000Z
-7.836832264957264  | 2024-05-10T00:09:00.000Z
+7.836832264957265  | 2024-05-10T00:09:00.000Z
 3.590324074074074  | 2024-05-10T00:17:00.000Z
 2.6708333333333334 | 2024-05-10T00:02:00.000Z
 2.2916666666666665 | 2024-05-10T00:08:00.000Z
@@ -67,7 +67,7 @@ irate_with_filtering
 required_capability: ts_command_v0
 // tag::irate[]
 TS k8s | WHERE pod == "one"
-| STATS irate_bytes_in = sum(irate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| STATS irate_bytes_in = SUM(IRATE(network.total_bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)
 // end::irate[]
 | SORT time_bucket, cluster | LIMIT 10;
 
@@ -138,26 +138,70 @@ null                  | 2024-05-10T00:01:00.000Z
 88.83333333333333     | 2024-05-10T00:13:00.000Z
 81.04464285714286     | 2024-05-10T00:15:00.000Z
 61.58823529411765     | 2024-05-10T00:19:00.000Z
+;
 
+datenanos_irate_long
+required_capability: ts_command_v0
+required_capability: ts_rate_datenanos
+
+TS datenanos-k8s
+| STATS irate_bytes_in=avg(irate(network.total_bytes_in) + 10) BY time_bucket = bucket(@timestamp,1minute)
+| SORT irate_bytes_in DESC, time_bucket DESC | LIMIT 10;
+
+irate_bytes_in:double | time_bucket:date_nanos
+null                  | 2024-05-10T00:01:00.000Z
+150.58333333333331    | 2024-05-10T00:02:00.000Z
+144.5314713064713     | 2024-05-10T00:09:00.000Z
+126.41911764705883    | 2024-05-10T00:22:00.000Z
+122.83333333333333    | 2024-05-10T00:00:00.000Z
+103.43529411764706    | 2024-05-10T00:14:00.000Z
+98.6875               | 2024-05-10T00:11:00.000Z
+88.83333333333333     | 2024-05-10T00:13:00.000Z
+81.04464285714286     | 2024-05-10T00:15:00.000Z
+61.58823529411765     | 2024-05-10T00:19:00.000Z
 ;
 
 irate_combined_avg
 required_capability: ts_command_v0
 TS k8s
 | STATS avg_irate_bytes = avg(irate(network.total_bytes_in)), avg_irate_cost = avg(irate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
-| EVAL ratio = avg_irate_bytes / avg_irate_cost
+| EVAL avg_irate_bytes = ROUND(avg_irate_bytes, 5), avg_irate_cost = ROUND(avg_irate_cost, 5), ratio = ROUND(avg_irate_bytes / avg_irate_cost, 5)
+| KEEP avg_irate_bytes, avg_irate_cost, cluster, time_bucket, ratio
 | SORT time_bucket, cluster | LIMIT 10;
 
-avg_irate_bytes:double | avg_irate_cost:double | cluster:keyword | time_bucket:datetime     | ratio:double
-4.37482276552044       | 0.12927101967799642   | prod            | 2024-05-10T00:00:00.000Z | 33.84225464004049
-284.63440860215053     | 2.112455197132616     | qa              | 2024-05-10T00:00:00.000Z | 134.74103923647934
-26.055199430199433     | 0.46879451566951563   | staging         | 2024-05-10T00:00:00.000Z | 55.57914727946065
-9.893214497920377      | 0.18585561497326206   | prod            | 2024-05-10T00:10:00.000Z | 53.23064626992117
-28.57226890756303      | 0.20140056022408961   | qa              | 2024-05-10T00:10:00.000Z | 141.8678720445063
-21.898989322941418     | 0.2425173462598612    | staging         | 2024-05-10T00:10:00.000Z | 90.29865146007454
-119.52228682170542     | 1.0260416666666667    | prod            | 2024-05-10T00:20:00.000Z | 116.48872624247431
-4.428024083196497      | 0.0808531746031746    | qa              | 2024-05-10T00:20:00.000Z | 54.76623651364503
-1.5050835148874364     | 0.12549927378358752   | staging         | 2024-05-10T00:20:00.000Z | 11.992766726943941
+avg_irate_bytes:double | avg_irate_cost:double | cluster:keyword | time_bucket:datetime   | ratio:double
+4.37482                | 0.12927               | prod            | 2024-05-10T00:00:00.000Z | 33.8425
+284.63441              | 2.11246               | qa              | 2024-05-10T00:00:00.000Z | 134.74073
+26.0552                | 0.46879               | staging         | 2024-05-10T00:00:00.000Z | 55.57968
+9.89321                | 0.18586               | prod            | 2024-05-10T00:10:00.000Z | 53.22937
+28.57227               | 0.2014                | qa              | 2024-05-10T00:10:00.000Z | 141.86827
+21.89899               | 0.24252               | staging         | 2024-05-10T00:10:00.000Z | 90.29767
+119.52229              | 1.02604               | prod            | 2024-05-10T00:20:00.000Z | 116.48892
+4.42802                | 0.08085               | qa              | 2024-05-10T00:20:00.000Z | 54.76834
+1.50508                | 0.1255                | staging         | 2024-05-10T00:20:00.000Z | 11.99267
+
+;
+
+datenanos_irate_combined_avg
+required_capability: ts_command_v0
+required_capability: ts_rate_datenanos
+TS datenanos-k8s
+| STATS avg_irate_bytes = avg(irate(network.total_bytes_in)), avg_irate_cost = avg(irate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL avg_irate_bytes = ROUND(avg_irate_bytes, 5), avg_irate_cost = ROUND(avg_irate_cost, 5), ratio = ROUND(avg_irate_bytes / avg_irate_cost, 5)
+| KEEP avg_irate_bytes, avg_irate_cost, cluster, time_bucket, ratio
+| SORT time_bucket, cluster | LIMIT 10;
+
+avg_irate_bytes:double | avg_irate_cost:double | cluster:keyword | time_bucket:date_nanos   | ratio:double
+4.37482                | 0.12927               | prod            | 2024-05-10T00:00:00.000Z | 33.8425
+284.63441              | 2.11246               | qa              | 2024-05-10T00:00:00.000Z | 134.74073
+26.0552                | 0.46879               | staging         | 2024-05-10T00:00:00.000Z | 55.57968
+9.89321                | 0.18586               | prod            | 2024-05-10T00:10:00.000Z | 53.22937
+28.57227               | 0.2014                | qa              | 2024-05-10T00:10:00.000Z | 141.86827
+21.89899               | 0.24252               | staging         | 2024-05-10T00:10:00.000Z | 90.29767
+119.52229              | 1.02604               | prod            | 2024-05-10T00:20:00.000Z | 116.48892
+4.42802                | 0.08085               | qa              | 2024-05-10T00:20:00.000Z | 54.76834
+1.50508                | 0.1255                | staging         | 2024-05-10T00:20:00.000Z | 11.99267
+
 ;
 
 irate_combined_sum

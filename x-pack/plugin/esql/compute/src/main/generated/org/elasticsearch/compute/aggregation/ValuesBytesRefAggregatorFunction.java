@@ -148,7 +148,7 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
     assert values.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
+    BytesRef valuesScratch = new BytesRef();
     ValuesBytesRefAggregator.combineIntermediate(state, values);
   }
 

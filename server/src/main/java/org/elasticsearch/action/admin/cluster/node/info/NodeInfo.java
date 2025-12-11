@@ -11,8 +11,6 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -64,29 +62,10 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            version = in.readString();
-            compatibilityVersions = CompatibilityVersions.readVersion(in);
-            indexVersion = IndexVersion.readVersion(in);
-        } else {
-            Version legacyVersion = Version.readVersion(in);
-            version = legacyVersion.toString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
-            } else {
-                compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(legacyVersion.id), Map.of());
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                indexVersion = IndexVersion.readVersion(in);
-            } else {
-                indexVersion = IndexVersion.fromId(legacyVersion.id);
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
-        } else {
-            componentVersions = Map.of();
-        }
+        version = in.readString();
+        compatibilityVersions = CompatibilityVersions.readVersion(in);
+        indexVersion = IndexVersion.readVersion(in);
+        componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
         build = Build.readBuild(in);
         if (in.readBoolean()) {
             totalIndexingBuffer = ByteSizeValue.ofBytes(in.readLong());
@@ -107,9 +86,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
-        }
+        addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
     }
 
     public NodeInfo(
@@ -242,16 +219,10 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeString(version);
-        } else {
-            Version.writeVersion(Version.fromString(version), out);
-        }
+        out.writeString(version);
         compatibilityVersions.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            IndexVersion.writeVersion(indexVersion, out);
-            out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
-        }
+        IndexVersion.writeVersion(indexVersion, out);
+        out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
@@ -274,8 +245,6 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         out.writeOptionalWriteable(getInfo(AggregationInfo.class));
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
-        }
+        out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
     }
 }

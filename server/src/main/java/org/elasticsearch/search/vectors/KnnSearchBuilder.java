@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.V_8_11_X;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -346,14 +345,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.querySupplier = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.similarity = in.readOptionalFloat();
-        } else {
-            this.similarity = null;
-        }
-        if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
-            this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
-        }
+        this.similarity = in.readOptionalFloat();
+        this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
     }
 
@@ -606,12 +599,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             out.writeOptionalString(queryName);
         }
         out.writeOptionalNamedWriteable(queryVectorBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(similarity);
-        }
-        if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
-            out.writeOptionalWriteable(innerHitBuilder);
-        }
+        out.writeOptionalFloat(similarity);
+        out.writeOptionalWriteable(innerHitBuilder);
         out.writeOptionalWriteable(rescoreVectorBuilder);
     }
 

@@ -9,7 +9,7 @@ mapped_pages:
 
 The *Elastic PostgreSQL connector* is a connector for [PostgreSQL](https://www.postgresql.org). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*). View the specific [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/postgresql.py) (branch *main*, compatible with Elastic *9.0*).
+This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*). View the specific [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/postgresql) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
 As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
@@ -47,6 +47,7 @@ PUT _connector/my-postgresql-connector
   "service_type": "postgresql"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -211,8 +212,9 @@ You can deploy the PostgreSQL connector as a self-managed connector using Docker
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -347,6 +349,7 @@ $$$es-connectors-postgresql-client-sync-rules-advanced-examples-1$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-postgresql-client-sync-rules-advanced-examples-1-id-columns$$$
 **Multiple table queries with `id_columns`**
@@ -371,6 +374,7 @@ In 8.15.0, we added a new optional `id_columns` field in our advanced sync rules
   }
 ]
 ```
+% NOTCONSOLE
 
 This example uses the `id_columns` field to specify the unique fields `emp_id` and `c_id` for the `employee` and `customer` tables, respectively.
 
@@ -385,6 +389,7 @@ $$$es-connectors-postgresql-client-sync-rules-advanced-examples-2$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-postgresql-client-sync-rules-advanced-examples-3$$$
 **`JOIN` operations**
@@ -397,6 +402,7 @@ $$$es-connectors-postgresql-client-sync-rules-advanced-examples-3$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 ::::{warning}
 When using advanced rules, a query can bypass the configuration field `tables`. This will happen if the query specifies a table that doesn’t appear in the configuration. This can also happen if the configuration specifies `*` to fetch all tables while the advanced sync rule requests for only a subset of tables.

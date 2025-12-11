@@ -19,6 +19,7 @@ POST /_sql/translate
   "fetch_size": 10
 }
 ```
+% TEST[setup:library]
 
 Which returns:
 

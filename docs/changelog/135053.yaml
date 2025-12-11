@@ -1,5 +1,0 @@
-pr: 135053
-summary: Make `SecureString` comparisons constant time
-area: Infra/Core
-type: enhancement
-issues: []

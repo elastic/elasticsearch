@@ -75,7 +75,12 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
 
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-        indexNameExpressionResolver.concreteIndexNames(clusterService.state(), request);
+        SamplingService.throwIndexNotFoundExceptionIfNotDataStreamOrIndex(
+            indexNameExpressionResolver,
+            projectResolver,
+            clusterService.state(),
+            request
+        );
         SamplingMetadata samplingMetadata = projectResolver.getProjectMetadata(clusterService.state()).custom(SamplingMetadata.TYPE);
         final int maxSamples;
         if (samplingMetadata == null) {

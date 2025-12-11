@@ -11,6 +11,12 @@
           "type" : "aggregate_metric_double",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,
@@ -23,6 +29,12 @@
           "type" : "double",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,
@@ -35,6 +47,12 @@
           "type" : "integer",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,
@@ -47,6 +65,12 @@
           "type" : "long",
           "optional" : false,
           "description" : "Expression that outputs values to average."
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to compute the average"
         }
       ],
       "variadic" : false,
@@ -54,7 +78,7 @@
     }
   ],
   "examples" : [
-    "TS k8s\n| STATS max_cost=max(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)"
+    "TS k8s\n| STATS max_cost=MAX(AVG_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)"
   ],
   "preview" : true,
   "snapshot_only" : false

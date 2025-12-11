@@ -51,12 +51,16 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
      * and increment an id from the global counter, thus avoiding potential conflicts between the
      * id in the stream and id's during local re-planning on the data node.
      */
-    static final class NameIdMapper implements LongFunction<NameId> {
+    public static class NameIdMapper implements LongFunction<NameId> {
         final Map<Long, NameId> seen = new HashMap<>();
 
         @Override
         public NameId apply(long streamNameId) {
             return seen.computeIfAbsent(streamNameId, k -> new NameId());
+        }
+
+        protected Map<Long, NameId> seen() {
+            return seen;
         }
     }
 
@@ -74,9 +78,22 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     private final Configuration configuration;
 
     public PlanStreamInput(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, Configuration configuration) {
+        this(streamInput, namedWriteableRegistry, configuration, null);
+    }
+
+    /**
+     * @param idMapper should always be null in production! Custom mappers are only used in tests to force ID values to be the same after
+     *                 serialization and deserialization, which is not the case when they are generated as usual.
+     */
+    public PlanStreamInput(
+        StreamInput streamInput,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Configuration configuration,
+        NameIdMapper idMapper
+    ) {
         super(streamInput, namedWriteableRegistry);
         this.configuration = configuration;
-        this.nameIdFunction = new NameIdMapper();
+        this.nameIdFunction = idMapper == null ? new NameIdMapper() : idMapper;
     }
 
     public Configuration configuration() throws IOException {

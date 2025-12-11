@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -124,7 +124,7 @@ public class Options {
             }
 
             Object optionExprLiteral = ((Literal) optionExpr).value();
-            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            String optionName = BytesRefs.toString(optionExprLiteral);
             DataType dataType = allowedOptions.get(optionName);
 
             // valueExpr could be a MapExpression, but for now functions only accept literal values in options
@@ -135,7 +135,7 @@ public class Options {
             }
 
             Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
+            String optionValue = BytesRefs.toString(valueExprLiteral);
             // validate the optionExpr is supported
             if (dataType == null) {
                 throw new InvalidArgumentException(
@@ -173,7 +173,7 @@ public class Options {
             }
 
             Object optionExprLiteral = ((Literal) optionExpr).value();
-            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
+            String optionName = BytesRefs.toString(optionExprLiteral);
             Collection<DataType> allowedDataTypes = allowedOptions.get(optionName);
 
             // valueExpr could be a MapExpression, but for now functions only accept literal values in options

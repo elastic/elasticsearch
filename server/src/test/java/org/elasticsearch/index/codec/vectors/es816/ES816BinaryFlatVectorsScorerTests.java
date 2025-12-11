@@ -24,7 +24,6 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.IOException;
@@ -51,7 +50,7 @@ public class ES816BinaryFlatVectorsScorerTests extends LuceneTestCase {
             VectorUtil.l2normalize(centroid);
         }
 
-        byte[] vector = new byte[discretizedDimensions / 8 * BQSpaceUtils.B_QUERY];
+        byte[] vector = new byte[discretizedDimensions / 8 * BinaryQuantizer.B_QUERY];
         random().nextBytes(vector);
         float distanceToCentroid = random().nextFloat(0f, 10_000.0f);
         float vl = random().nextFloat(-1000f, 1000f);

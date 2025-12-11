@@ -16,7 +16,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -49,6 +48,8 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -182,7 +183,7 @@ public class FunctionScoreTests extends ESTestCase {
         public LeafNumericFieldData load(LeafReaderContext context) {
             return new LeafNumericFieldData() {
                 @Override
-                public SortedNumericDocValues getLongValues() {
+                public SortedNumericLongValues getLongValues() {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -240,8 +241,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        protected boolean isIndexed() {
-            return false;
+        protected IndexType indexType() {
+            return IndexType.NONE;
         }
     }
 

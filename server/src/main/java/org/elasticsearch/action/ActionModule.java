@@ -58,8 +58,6 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
-import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportSnapshottableFeaturesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
@@ -129,19 +127,30 @@ import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAct
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
+import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.GetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.GetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
+import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.RestGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
+import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetAllSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
+import org.elasticsearch.action.admin.indices.sampling.TransportPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.TransportGetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
-import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -366,6 +375,7 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
 import org.elasticsearch.rest.action.cat.RestAllocationAction;
 import org.elasticsearch.rest.action.cat.RestCatAction;
+import org.elasticsearch.rest.action.cat.RestCatCircuitBreakerAction;
 import org.elasticsearch.rest.action.cat.RestCatComponentTemplateAction;
 import org.elasticsearch.rest.action.cat.RestCatRecoveryAction;
 import org.elasticsearch.rest.action.cat.RestFielddataAction;
@@ -687,14 +697,14 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportUpdateSnapshotStatusAction.TYPE, TransportUpdateSnapshotStatusAction.class);
         actions.register(TransportRestoreSnapshotAction.TYPE, TransportRestoreSnapshotAction.class);
         actions.register(TransportSnapshotsStatusAction.TYPE, TransportSnapshotsStatusAction.class);
-        actions.register(SnapshottableFeaturesAction.INSTANCE, TransportSnapshottableFeaturesAction.class);
-        actions.register(ResetFeatureStateAction.INSTANCE, TransportResetFeatureStateAction.class);
+        actions.register(TransportSnapshottableFeaturesAction.TYPE, TransportSnapshottableFeaturesAction.class);
+        actions.register(TransportResetFeatureStateAction.TYPE, TransportResetFeatureStateAction.class);
         actions.register(TransportGetShardSnapshotAction.TYPE, TransportGetShardSnapshotAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(TransportIndicesShardStoresAction.TYPE, TransportIndicesShardStoresAction.class);
         actions.register(TransportCreateIndexAction.TYPE, TransportCreateIndexAction.class);
-        actions.register(ResizeAction.INSTANCE, TransportResizeAction.class);
+        actions.register(TransportResizeAction.TYPE, TransportResizeAction.class);
         actions.register(RolloverAction.INSTANCE, TransportRolloverAction.class);
         actions.register(LazyRolloverAction.INSTANCE, LazyRolloverAction.TransportLazyRolloverAction.class);
         actions.register(TransportDeleteIndexAction.TYPE, TransportDeleteIndexAction.class);
@@ -824,7 +834,11 @@ public class ActionModule extends AbstractModule {
 
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
             actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
+            actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
             actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
+            actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
+            actions.register(GetSampleConfigurationAction.INSTANCE, TransportGetSampleConfigurationAction.class);
+            actions.register(GetAllSampleConfigurationAction.INSTANCE, TransportGetAllSampleConfigurationAction.class);
         }
 
         return unmodifiableMap(actions.getRegistry());
@@ -1014,6 +1028,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction());
         registerHandler.accept(new RestAliasAction());
         registerHandler.accept(new RestThreadPoolAction());
+        registerHandler.accept(new RestCatCircuitBreakerAction());
         registerHandler.accept(new RestPluginsAction());
         registerHandler.accept(new RestFielddataAction());
         registerHandler.accept(new RestNodeAttrsAction());
@@ -1057,7 +1072,11 @@ public class ActionModule extends AbstractModule {
 
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
             registerHandler.accept(new RestGetSampleAction());
+            registerHandler.accept(new RestPutSampleConfigurationAction());
             registerHandler.accept(new RestGetSampleStatsAction());
+            registerHandler.accept(new RestDeleteSampleConfigurationAction());
+            registerHandler.accept(new RestGetSampleConfigurationAction());
+            registerHandler.accept(new RestGetAllSampleConfigurationAction());
         }
     }
 
@@ -1098,7 +1117,7 @@ public class ActionModule extends AbstractModule {
         return reservedClusterStateService;
     }
 
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(
                 ExtendedSearchUsageMetric.class,

@@ -118,12 +118,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         }
 
         this.modelId = in.readOptionalString();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
 
         if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
@@ -192,20 +187,8 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
-
-        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            // An old node expects this data to be present, so we need to send at least the booleans
-            // indicating that the fields are not set
-            out.writeOptionalEnum(null);
-            out.writeOptionalVInt(null);
-            out.writeOptionalVInt(null);
-        }
-
         out.writeOptionalString(modelId);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
         if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             out.writeEnum(apiVersion);
         }

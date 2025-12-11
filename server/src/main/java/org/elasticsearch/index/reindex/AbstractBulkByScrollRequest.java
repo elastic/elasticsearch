@@ -137,6 +137,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     protected abstract Self self();
 
+    /**
+     * Whether the request supports remote indices in the search request.
+     */
+    public boolean supportsRemoteIndicesSearch() {
+        return false;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = searchRequest.validate();

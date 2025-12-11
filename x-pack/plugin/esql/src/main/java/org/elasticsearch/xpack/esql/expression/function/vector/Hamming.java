@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,7 +27,52 @@ import java.io.IOException;
 public class Hamming extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hamming", Hamming::new);
-    static final SimilarityEvaluatorFunction SIMILARITY_FUNCTION = Hamming::calculateSimilarity;
+    public static final DenseVectorFieldMapper.SimilarityFunction SIMILARITY_FUNCTION = new DenseVectorFieldMapper.SimilarityFunction() {
+        @Override
+        public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+            return Hamming.calculateSimilarity(leftVector, rightVector);
+        }
+
+        @Override
+        public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+            throw new UnsupportedOperationException("Hamming distance is not supported for float vectors");
+        }
+
+        @Override
+        public BlockLoaderFunctionConfig.Function function() {
+            return BlockLoaderFunctionConfig.Function.V_HAMMING;
+        }
+
+        @Override
+        public String toString() {
+            return "V_HAMMING";
+        }
+    };
+    public static final DenseVectorFieldMapper.SimilarityFunction EVALUATOR_SIMILARITY_FUNCTION =
+        new DenseVectorFieldMapper.SimilarityFunction() {
+            @Override
+            public float calculateSimilarity(byte[] leftVector, byte[] rightVector) {
+                return Hamming.calculateSimilarity(leftVector, rightVector);
+            }
+
+            @Override
+            public float calculateSimilarity(float[] leftVector, float[] rightVector) {
+                byte[] a = new byte[leftVector.length];
+                for (int i = 0; i < leftVector.length; i++) {
+                    a[i] = (byte) leftVector[i];
+                }
+                byte[] b = new byte[rightVector.length];
+                for (int i = 0; i < rightVector.length; i++) {
+                    b[i] = (byte) rightVector[i];
+                }
+                return Hamming.calculateSimilarity(a, b);
+            }
+
+            @Override
+            public BlockLoaderFunctionConfig.Function function() {
+                return BlockLoaderFunctionConfig.Function.V_HAMMING;
+            }
+        };
 
     @FunctionInfo(
         returnType = "double",
@@ -55,8 +102,12 @@ public class Hamming extends VectorSimilarityFunction {
     }
 
     @Override
-    protected SimilarityEvaluatorFunction getSimilarityFunction() {
+    public DenseVectorFieldMapper.SimilarityFunction getSimilarityFunction() {
         return SIMILARITY_FUNCTION;
+    }
+
+    public DenseVectorFieldMapper.SimilarityFunction getEvaluatorSimilarityFunction() {
+        return EVALUATOR_SIMILARITY_FUNCTION;
     }
 
     @Override
@@ -74,15 +125,10 @@ public class Hamming extends VectorSimilarityFunction {
         return ENTRY.name;
     }
 
-    public static float calculateSimilarity(float[] leftScratch, float[] rightScratch) {
-        byte[] a = new byte[leftScratch.length];
-        byte[] b = new byte[rightScratch.length];
-        for (int i = 0; i < leftScratch.length; i++) {
-            a[i] = (byte) leftScratch[i];
+    public static float calculateSimilarity(byte[] leftScratch, byte[] rightScratch) {
+        if (leftScratch.length != rightScratch.length) {
+            throw new IllegalArgumentException("vector dimensions differ:" + leftScratch.length + "!=" + rightScratch.length);
         }
-        for (int i = 0; i < leftScratch.length; i++) {
-            b[i] = (byte) rightScratch[i];
-        }
-        return VectorUtil.xorBitCount(a, b);
+        return VectorUtil.xorBitCount(leftScratch, rightScratch);
     }
 }

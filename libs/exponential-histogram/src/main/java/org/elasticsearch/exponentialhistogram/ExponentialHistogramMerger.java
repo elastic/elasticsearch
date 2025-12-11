@@ -36,7 +36,8 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMa
  * while keeping the bucket count in the result below a given limit.
  */
 public class ExponentialHistogramMerger implements Accountable, Releasable {
-
+    // OpenTelemetry SDK default, we might make this configurable later
+    private static final int MAX_HISTOGRAM_BUCKETS = 320;
     private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class) + DownscaleStats.SIZE;
 
     // Our algorithm is not in-place, therefore we use two histograms and ping-pong between them
@@ -52,6 +53,14 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
 
     private final ExponentialHistogramCircuitBreaker circuitBreaker;
     private boolean closed = false;
+
+    /**
+     * Creates a new instance with the OpenTelemetry SDK default bucket limit of {@link ExponentialHistogramMerger#MAX_HISTOGRAM_BUCKETS}
+     * @param circuitBreaker the circuit breaker to use to limit memory allocations
+     */
+    public static ExponentialHistogramMerger create(ExponentialHistogramCircuitBreaker circuitBreaker) {
+        return create(MAX_HISTOGRAM_BUCKETS, circuitBreaker);
+    }
 
     /**
      * Creates a new instance with the specified bucket limit.
@@ -89,7 +98,11 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         downscaleStats = new DownscaleStats();
     }
 
-    static ExponentialHistogramMerger createForTesting(int bucketLimit, int maxScale, ExponentialHistogramCircuitBreaker circuitBreaker) {
+    public static ExponentialHistogramMerger createWithMaxScale(
+        int bucketLimit,
+        int maxScale,
+        ExponentialHistogramCircuitBreaker circuitBreaker
+    ) {
         circuitBreaker.adjustBreaker(BASE_SIZE);
         return new ExponentialHistogramMerger(bucketLimit, maxScale, circuitBreaker);
     }
@@ -137,6 +150,38 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         return retVal;
     }
 
+    /**
+     * Gets the current merged histogram without clearing this merger.
+     * Note that the ownership of the returned histogram remains with this merger,
+     * so the caller must not close it.
+     * The returned histogram is only valid until the next call to {@link #add(ExponentialHistogram)}, or until the merger is closed.
+     *
+     * @return the current merged histogram
+     */
+    public ExponentialHistogram get() {
+        assert closed == false : "ExponentialHistogramMerger already closed";
+        return (result == null) ? ExponentialHistogram.empty() : result;
+    }
+
+    /**
+     * Merges the given histogram into the current result, not upscaling it.
+     * This should be used when merging intermediate results to prevent accumulating errors.
+     *
+     * @param toAdd the histogram to merge
+     */
+    public void addWithoutUpscaling(ExponentialHistogram toAdd) {
+        add(toAdd, false);
+    }
+
+    /**
+     * Merges the given histogram into the current result. The histogram might be upscaled if needed.
+     *
+     * @param toAdd the histogram to merge
+     */
+    public void add(ExponentialHistogram toAdd) {
+        add(toAdd, true);
+    }
+
     // This algorithm is very efficient if B has roughly as many buckets as A.
     // However, if B is much smaller we still have to iterate over all buckets of A.
     // This can be optimized by buffering the buckets of small histograms and only merging them when we have enough buckets.
@@ -148,12 +193,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     // It would be possible to only enable the buffering for small histograms,
     // but the optimization seems not worth the added complexity at this point.
 
-    /**
-     * Merges the given histogram into the current result.
-     *
-     * @param toAdd the histogram to merge
-     */
-    public void add(ExponentialHistogram toAdd) {
+    private void add(ExponentialHistogram toAdd, boolean allowUpscaling) {
         ExponentialHistogram a = result == null ? ExponentialHistogram.empty() : result;
         ExponentialHistogram b = toAdd;
 
@@ -176,6 +216,10 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         // This might involve increasing the scale for B, which would increase its indices.
         // We need to ensure that we do not exceed MAX_INDEX / MIN_INDEX in this case.
         int targetScale = Math.min(maxScale, a.scale());
+        if (allowUpscaling == false) {
+            targetScale = Math.min(targetScale, b.scale());
+        }
+
         if (targetScale > b.scale()) {
             if (negBucketsB.hasNext()) {
                 long smallestIndex = negBucketsB.peekIndex();

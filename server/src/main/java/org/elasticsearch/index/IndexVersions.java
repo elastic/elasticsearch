@@ -187,8 +187,22 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_0 = def(9_038_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion IGNORED_SOURCE_COALESCED_ENTRIES = def(9_039_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion BACKPORT_UPGRADE_TO_LUCENE_10_3_1 = def(9_039_0_01, Version.LUCENE_10_3_1);
+    public static final IndexVersion BACKPORT_UPGRADE_TO_LUCENE_10_3_2 = def(9_039_0_02, Version.LUCENE_10_3_2);
     public static final IndexVersion KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = def(9_040_0_00, Version.LUCENE_10_3_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_3_1 = def(9_041_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_042_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion SKIPPERS_ENABLED_BY_DEFAULT = def(9_043_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID = def(9_044_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion TIME_SERIES_DIMENSIONS_USE_SKIPPERS = def(9_045_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion TIME_SERIES_ALL_FIELDS_USE_SKIPPERS = def(9_046_0_00, Version.LUCENE_10_3_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_3_2 = def(9_047_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion SECURITY_MIGRATIONS_METADATA_FLATTENED_UPDATE = def(9_048_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STANDARD_INDEXES_USE_SKIPPERS = def(9_049_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion NESTED_PATH_LIMIT = def(9_050_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion GENERIC_DENSE_VECTOR_FORMAT = def(9_051_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion SKIPPER_DEFAULTS_ONLY_ON_TSDB = def(9_052_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISK_BBQ_LICENSE_ENFORCEMENT = def(9_053_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES = def(9_054_0_00, Version.LUCENE_10_3_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

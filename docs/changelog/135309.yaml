@@ -1,5 +1,0 @@
-pr: 135309
-summary: Enable semantic search CCS when ccs_minimize_roundtrips=true
-area: Vector Search
-type: enhancement
-issues: []

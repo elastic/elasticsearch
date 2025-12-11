@@ -20,8 +20,8 @@
           ],
           "parts": {
             "transform_id": {
-              "type": "string",
-              "description": "The id of the transform for which to get stats. '_all' or '*' implies all transforms"
+              "type": "list",
+              "description": "Comma-separated list of transform identifiers or wildcard expressions. You can get information for all transforms by using `_all`, by specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`."
             }
           }
         }
@@ -29,12 +29,12 @@
     },
     "params": {
       "from": {
-        "type": "number",
+        "type": "long",
         "default": 0,
         "description": "skips a number of transform stats, defaults to 0"
       },
       "size": {
-        "type": "number",
+        "type": "long",
         "default": 100,
         "description": "specifies a max number of transform stats to get, defaults to 100"
       },

@@ -12,11 +12,45 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-## 9.1.5 [elasticsearch-9.1.5-breaking-changes]
+
+## 9.2.2 [elasticsearch-9.2.2-breaking-changes]
 
 There are no breaking changes associated with this release.
 
+## 9.1.8 [elasticsearch-9.1.8-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.7 [elasticsearch-9.1.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.1 [elasticsearch-9.2.1-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.6 [elasticsearch-9.1.6-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.2.0 [elasticsearch-9.2.0-breaking-changes]
+
+Ingest Node:
+* Simulate API: Return 400 on invalid processor(s) [#130325](https://github.com/elastic/elasticsearch/pull/130325) (issue: [#120731](https://github.com/elastic/elasticsearch/issues/120731))
+
+Mapping:
+* Don't enable norms for fields of type text when the index mode is LogsDB or TSDB [#131317](https://github.com/elastic/elasticsearch/pull/131317)
+
+Vector Search:
+* Enable `exclude_source_vectors` by default for new indices [#131907](https://github.com/elastic/elasticsearch/pull/131907)
+
+
+
 ## 9.0.8 [elasticsearch-9.0.8-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.1.5 [elasticsearch-9.1.5-breaking-changes]
 
 There are no breaking changes associated with this release.
 

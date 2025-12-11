@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -179,6 +180,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }).toList();
                     TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
                     return new TestCaseSupplier.TestCase(
+                        oc.getSource(),
+                        oc.getConfiguration(),
                         data,
                         evaluatorToString.evaluatorToString(finalNullPosition, nulledData, oc.evaluatorToString()),
                         expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
@@ -211,6 +214,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 )
                                 .toList();
                             return new TestCaseSupplier.TestCase(
+                                oc.getSource(),
+                                oc.getConfiguration(),
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
                                 expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
@@ -399,9 +404,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // By definition, functions never support UNSUPPORTED
                 return false;
             }
-            if (t == DataType.DOC_DATA_TYPE || t == DataType.PARTIAL_AGG) {
+            if (t == DataType.DOC_DATA_TYPE) {
                 /*
-                 * Doc and partial_agg are special and functions aren't
+                 * Doc is special and functions aren't
                  * defined to take these. They'll use them implicitly if needed.
                  */
                 return false;
@@ -650,12 +655,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Those will show up in the layout in whatever order a depth first traversal finds them.
      */
     protected static void buildLayout(Layout.Builder builder, Expression e) {
+        dedupAndBuildLayout(new HashSet<>(), builder, e);
+    }
+
+    private static void dedupAndBuildLayout(Set<NameId> seen, Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
-            builder.append(f);
+            if (seen.add(f.id())) {
+                builder.append(f);
+            }
             return;
         }
         for (Expression c : e.children()) {
-            buildLayout(builder, c);
+            dedupAndBuildLayout(seen, builder, c);
         }
     }
 

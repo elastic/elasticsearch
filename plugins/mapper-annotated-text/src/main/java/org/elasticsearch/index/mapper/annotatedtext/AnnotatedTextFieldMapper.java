@@ -81,7 +81,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         );
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceContext {
+    public static class Builder extends TextFamilyBuilder {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
@@ -100,7 +100,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             boolean isSyntheticSourceEnabled,
             boolean isWithinMultiField
         ) {
-            super(name, indexCreatedVersion, isSyntheticSourceEnabled, isWithinMultiField);
+            super(name, indexCreatedVersion, isWithinMultiField);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
@@ -111,7 +111,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion())) {
                     return false;
                 }
-                return isSyntheticSourceEnabled() && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
             });
         }
 

@@ -1,5 +1,0 @@
-pr: 133546
-summary: "Support geohash, geotile and geohex grid types in ST_INTERSECTS and ST_DISJOINT"
-area: "ES|QL"
-type: enhancement
-issues: []

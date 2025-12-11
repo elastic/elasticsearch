@@ -36,7 +36,7 @@ public class ClusterBlockTests extends ESTestCase {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
             TransportVersion version = randomVersion(random());
-            ClusterBlock clusterBlock = randomClusterBlock(version);
+            ClusterBlock clusterBlock = randomClusterBlock();
 
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(version);
@@ -51,12 +51,12 @@ public class ClusterBlockTests extends ESTestCase {
     }
 
     public void testToStringDanglingComma() {
-        final ClusterBlock clusterBlock = randomClusterBlock(randomVersion(random()));
+        final ClusterBlock clusterBlock = randomClusterBlock();
         assertThat(clusterBlock.toString(), not(endsWith(",")));
     }
 
     public void testGlobalBlocksCheckedIfNoIndicesSpecified() {
-        ClusterBlock globalBlock = randomClusterBlock(randomVersion(random()));
+        ClusterBlock globalBlock = randomClusterBlock();
         ClusterBlocks clusterBlocks = new ClusterBlocks(Collections.singleton(globalBlock), Map.of());
         ClusterBlockException exception = clusterBlocks.indicesBlockedException(
             randomProjectIdOrDefault(),
@@ -144,9 +144,9 @@ public class ClusterBlockTests extends ESTestCase {
         final ProjectId project2 = randomUniqueProjectId();
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
         final var project1Index = randomIdentifier();
-        final var indexBlock = randomClusterBlock(randomVersion());
-        final var globalBlock = randomClusterBlock(randomVersion());
-        final var projectGlobalBlock = randomClusterBlock(randomVersion());
+        final var indexBlock = randomClusterBlock();
+        final var globalBlock = randomClusterBlock();
+        final var projectGlobalBlock = randomClusterBlock();
         if (randomBoolean()) {
             builder.addIndexBlock(project1, project1Index, indexBlock);
         }
@@ -162,12 +162,9 @@ public class ClusterBlockTests extends ESTestCase {
         assertTrue(clusterBlocks.hasGlobalBlock(project1, projectGlobalBlock));
     }
 
-    private static ClusterBlock randomClusterBlock(TransportVersion version) {
+    private static ClusterBlock randomClusterBlock() {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
-        final EnumSet<ClusterBlockLevel> levels = ClusterBlock.filterLevels(
-            EnumSet.allOf(ClusterBlockLevel.class),
-            level -> ClusterBlockLevel.REFRESH.equals(level) == false
-        );
+        final EnumSet<ClusterBlockLevel> levels = EnumSet.allOf(ClusterBlockLevel.class);
         return new ClusterBlock(
             randomInt(),
             uuid,

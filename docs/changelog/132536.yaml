@@ -1,5 +1,0 @@
-pr: 132536
-summary: Avoid stack overflow in `IndicesClusterStateService` `applyClusterState`
-area: Cluster Coordination
-type: bug
-issues: []

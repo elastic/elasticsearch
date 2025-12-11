@@ -1,5 +1,0 @@
-pr: 135524
-summary: Add time range bucketing attribute to APM shard search latency metrics
-area: Search
-type: enhancement
-issues: []

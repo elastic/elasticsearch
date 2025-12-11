@@ -37,7 +37,7 @@ import static java.util.Collections.emptyList;
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {
     private static final int TO_STRING_MAX_PROP = 10;
-    private static final int TO_STRING_MAX_WIDTH = 110;
+    public static final int TO_STRING_MAX_WIDTH = 110;
 
     private final Source source;
     private final List<T> children;
@@ -171,6 +171,23 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         forEachDown(n -> {
             if (predicate.test(n)) {
                 l.add(n);
+            }
+        });
+        return l.isEmpty() ? emptyList() : l;
+    }
+
+    public <E extends T> List<E> collect(Class<E> typeToken) {
+        return collect(typeToken, n -> true);
+    }
+
+    public <E extends T> List<E> collect(Class<E> typeToken, Predicate<? super E> predicate) {
+        List<E> l = new ArrayList<>();
+        forEachDown(n -> {
+            if (typeToken.isInstance(n)) {
+                E e = typeToken.cast(n);
+                if (predicate.test(e)) {
+                    l.add(e);
+                }
             }
         });
         return l.isEmpty() ? emptyList() : l;

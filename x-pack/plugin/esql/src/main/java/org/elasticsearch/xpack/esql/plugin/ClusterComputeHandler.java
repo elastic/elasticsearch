@@ -11,7 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
@@ -259,7 +261,17 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(plan, true);
+        ReductionPlan reductionPlan = ComputeService.reductionPlan(
+            computeService.plannerSettings(),
+            computeService.createFlags(),
+            configuration,
+            configuration.newFoldContext(),
+            plan,
+            true,
+            false,
+            configuration.profile() ? new PlanTimeProfile() : null
+        );
+        PhysicalPlan coordinatorPlan = reductionPlan.nodeReducePlan();
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
@@ -282,13 +294,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         "remote_reduce",
                         clusterAlias,
                         flags,
-                        List.of(),
+                        EmptyIndexedByShardId.instance(),
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(
@@ -297,7 +310,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     flags,
                     configuration,
-                    plan,
+                    reductionPlan.dataNodePlan(),
                     concreteIndices,
                     originalIndices,
                     exchangeSource,

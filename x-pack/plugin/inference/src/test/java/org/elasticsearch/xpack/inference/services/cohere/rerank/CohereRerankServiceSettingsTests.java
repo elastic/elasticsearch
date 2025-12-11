@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,7 +38,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
     public static CohereRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
         return new CohereRerankServiceSettings(
             randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
-            randomFrom(new String[] { null, randomAlphaOfLength(10) }),
+            randomAlphaOfLengthOrNull(10),
             rateLimitSettings,
             CohereServiceSettings.CohereApiVersion.V2
         );
@@ -78,20 +78,25 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected CohereRerankServiceSettings mutateInstance(CohereRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereRerankServiceSettingsTests::createRandom);
+        URI uri = instance.uri();
+        var uriString = uri == null ? null : uri.toString();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        var apiVersion = instance.apiVersion();
+        switch (randomInt(3)) {
+            case 0 -> uriString = randomValueOtherThan(uriString, () -> randomAlphaOfLengthOrNull(8));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(10));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 3 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomFrom(CohereServiceSettings.CohereApiVersion.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new CohereRerankServiceSettings(uriString, modelId, rateLimitSettings, apiVersion);
     }
 
     @Override
     protected CohereRerankServiceSettings mutateInstanceForVersion(CohereRerankServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_15_0)) {
-            // We always default to the same rate limit settings, if a node is on a version before rate limits were introduced
-            return new CohereRerankServiceSettings(
-                instance.uri(),
-                instance.modelId(),
-                CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
-                CohereServiceSettings.CohereApiVersion.V1
-            );
-        } else if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
             return new CohereRerankServiceSettings(
                 instance.uri(),
                 instance.modelId(),

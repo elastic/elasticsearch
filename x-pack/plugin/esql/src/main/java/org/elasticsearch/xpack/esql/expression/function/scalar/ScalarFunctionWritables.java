@@ -23,8 +23,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
@@ -98,6 +101,7 @@ public class ScalarFunctionWritables {
         entries.add(Locate.ENTRY);
         entries.add(Log.ENTRY);
         entries.add(Md5.ENTRY);
+        entries.add(NetworkDirection.ENTRY);
         entries.add(Now.ENTRY);
         entries.add(Or.ENTRY);
         entries.add(Pi.ENTRY);
@@ -116,6 +120,8 @@ public class ScalarFunctionWritables {
         entries.add(Tau.ENTRY);
         entries.add(ToLower.ENTRY);
         entries.add(ToUpper.ENTRY);
+        entries.add(HistogramPercentile.ENTRY);
+        entries.add(ExtractHistogramComponent.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());
         return entries;

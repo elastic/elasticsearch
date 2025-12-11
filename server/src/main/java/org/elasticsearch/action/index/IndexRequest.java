@@ -14,7 +14,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -75,9 +74,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
 
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
     private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
     private static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
+    static final TransportVersion INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS = TransportVersion.fromName(
+        "ingest_request_dynamic_template_params"
+    );
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
 
@@ -146,6 +147,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     private Map<String, String> dynamicTemplates = Map.of();
+    private Map<String, Map<String, String>> dynamicTemplateParams = Map.of();
 
     /**
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
@@ -193,29 +195,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         ifPrimaryTerm = in.readVLong();
         requireAlias = in.readBoolean();
         dynamicTemplates = in.readMap(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readBoolean(); // obsolete, prior to tracking normalisedBytesParsed
+        this.listExecutedPipelines = in.readBoolean();
+        if (listExecutedPipelines) {
+            List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+            this.executedPipelines = possiblyImmutableExecutedPipelines == null
+                ? null
+                : new ArrayList<>(possiblyImmutableExecutedPipelines);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.listExecutedPipelines = in.readBoolean();
-            if (listExecutedPipelines) {
-                List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
-                this.executedPipelines = possiblyImmutableExecutedPipelines == null
-                    ? null
-                    : new ArrayList<>(possiblyImmutableExecutedPipelines);
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            requireDataStream = in.readBoolean();
-        } else {
-            requireDataStream = false;
-        }
+        requireDataStream = in.readBoolean();
 
         includeSourceOnError = in.readBoolean();
 
         if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
+        }
+
+        if (in.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS)) {
+            dynamicTemplateParams = in.readMap(StreamInput::readString, i -> i.readMap(StreamInput::readString));
         }
     }
 
@@ -773,24 +769,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(requireAlias);
         out.writeMap(dynamicTemplates, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(false); // obsolete, prior to tracking normalisedBytesParsed
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(listExecutedPipelines);
-            if (listExecutedPipelines) {
-                out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
-            }
+        out.writeBoolean(listExecutedPipelines);
+        if (listExecutedPipelines) {
+            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(requireDataStream);
-        }
+        out.writeBoolean(requireDataStream);
 
         out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
+        }
+        if (out.getTransportVersion().supports(INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS)) {
+            out.writeMap(dynamicTemplateParams, StreamOutput::writeString, (o, v) -> o.writeMap(v, StreamOutput::writeString));
         }
     }
 
@@ -897,6 +888,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return indexRouting.indexShard(this);
     }
 
+    @Override
+    public int rerouteAtSourceDuringResharding(IndexRouting indexRouting) {
+        return indexRouting.rerouteToTarget(this);
+    }
+
     public IndexRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;
@@ -944,6 +940,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public Map<String, String> getDynamicTemplates() {
         return dynamicTemplates;
+    }
+
+    public IndexRequest setDynamicTemplateParams(Map<String, Map<String, String>> dynamicTemplateParams) {
+        this.dynamicTemplateParams = dynamicTemplateParams;
+        return this;
+    }
+
+    public Map<String, Map<String, String>> getDynamicTemplateParams() {
+        return dynamicTemplateParams;
     }
 
     public Object getRawTimestamp() {

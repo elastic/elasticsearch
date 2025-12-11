@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -79,7 +80,9 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
         );
         EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
-            List.of(new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)),
+            new IndexedByShardIdFromSingleton<>(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
+            ),
             null,
             TEST_PLANNER_SETTINGS
         );
@@ -88,7 +91,6 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
                 Source.EMPTY,
                 "test",
                 IndexMode.STANDARD,
-                Map.of(),
                 List.of(),
                 null,
                 null,

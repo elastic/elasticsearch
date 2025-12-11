@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.sampling.SamplingMetadata;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeight
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFactory;
@@ -56,6 +58,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexBalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
@@ -140,6 +143,7 @@ public class ClusterModule extends AbstractModule {
     private final AllocationStatsService allocationStatsService;
     private final TelemetryProvider telemetryProvider;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
+    private final AllocationBalancingRoundMetrics balancingRoundMetrics;
 
     public ClusterModule(
         Settings settings,
@@ -167,6 +171,7 @@ public class ClusterModule extends AbstractModule {
             balancingWeightsFactory
         );
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
+        this.balancingRoundMetrics = new AllocationBalancingRoundMetrics(telemetryProvider.getMeterRegistry());
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
@@ -179,7 +184,8 @@ public class ClusterModule extends AbstractModule {
             writeLoadForecaster,
             nodeAllocationStatsAndWeightsCalculator,
             this::explainShardAllocation,
-            desiredBalanceMetrics
+            desiredBalanceMetrics,
+            balancingRoundMetrics
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
@@ -321,6 +327,9 @@ public class ClusterModule extends AbstractModule {
         // Streams
         registerProjectCustom(entries, StreamsMetadata.TYPE, StreamsMetadata::new, StreamsMetadata::readDiffFrom);
 
+        // Actions
+        entries.addAll(ActionModule.getNamedWriteables());
+
         return entries;
     }
 
@@ -408,6 +417,13 @@ public class ClusterModule extends AbstractModule {
                 StreamsMetadata::fromXContent
             )
         );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(RegisteredPolicySnapshots.TYPE),
+                RegisteredPolicySnapshots::parse
+            )
+        );
         return entries;
     }
 
@@ -482,6 +498,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new IndexBalanceAllocationDecider(settings, clusterSettings));
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
@@ -510,7 +527,8 @@ public class ClusterModule extends AbstractModule {
         WriteLoadForecaster writeLoadForecaster,
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
         ShardAllocationExplainer shardAllocationExplainer,
-        DesiredBalanceMetrics desiredBalanceMetrics
+        DesiredBalanceMetrics desiredBalanceMetrics,
+        AllocationBalancingRoundMetrics balancingRoundMetrics
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
@@ -527,7 +545,8 @@ public class ClusterModule extends AbstractModule {
                 reconciler,
                 nodeAllocationStatsAndWeightsCalculator,
                 shardAllocationExplainer,
-                desiredBalanceMetrics
+                desiredBalanceMetrics,
+                balancingRoundMetrics
             )
         );
 

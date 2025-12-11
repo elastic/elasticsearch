@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-public class AmazonBedrockStreamingProcessor<T> {
+class AmazonBedrockStreamingProcessor<T> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingProcessor.class);
 
     final AtomicReference<Throwable> error = new AtomicReference<>(null);
@@ -60,7 +60,7 @@ public class AmazonBedrockStreamingProcessor<T> {
         ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
         error.set(
             new ElasticsearchException(
-                org.elasticsearch.core.Strings.format(
+                Strings.format(
                     "AmazonBedrock StreamingChatProcessor failure: [%s]",
                     amazonBedrockRuntimeException.getMessage()
                 ),

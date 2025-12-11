@@ -256,8 +256,7 @@ public class ClusterStateChanges {
             public IndexMetadata verifyIndexMetadata(
                 IndexMetadata indexMetadata,
                 IndexVersion minimumIndexCompatibilityVersion,
-                IndexVersion minimumReadOnlyIndexCompatibilityVersion,
-                MetadataVerificationMode verificationMethod
+                IndexVersion minimumReadOnlyIndexCompatibilityVersion
             ) {
                 return indexMetadata;
             }

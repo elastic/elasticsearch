@@ -294,18 +294,12 @@ public class GatewayMetaState implements Closeable {
      */
     static Metadata upgradeMetadata(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
         boolean changed = false;
-        IndexMetadataVerifier.MetadataVerificationMode metadataVerificationMode = metadata.clusterUUIDCommitted() // If true, a cluster
-                                                                                                                  // already exists
-            ? IndexMetadataVerifier.MetadataVerificationMode.NO_UPGRADE
-            : IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE;
-
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
         for (ProjectMetadata projectMetadata : metadata.projects().values()) {
             final ProjectMetadata upgradedProjectMetadata = upgradeProjectMetadata(
                 projectMetadata,
                 indexMetadataVerifier,
-                metadataUpgrader,
-                metadataVerificationMode
+                metadataUpgrader
             );
             changed |= projectMetadata != upgradedProjectMetadata;
             upgradedMetadata.put(upgradedProjectMetadata);
@@ -316,8 +310,7 @@ public class GatewayMetaState implements Closeable {
     private static ProjectMetadata upgradeProjectMetadata(
         ProjectMetadata metadata,
         IndexMetadataVerifier indexMetadataVerifier,
-        MetadataUpgrader metadataUpgrader,
-        IndexMetadataVerifier.MetadataVerificationMode metadataVerificationMode
+        MetadataUpgrader metadataUpgrader
     ) {
         boolean changed = false;
         final ProjectMetadata.Builder upgradedMetadata = ProjectMetadata.builder(metadata);
@@ -326,7 +319,7 @@ public class GatewayMetaState implements Closeable {
                 indexMetadata,
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersions.MINIMUM_READONLY_COMPATIBLE,
-                metadataVerificationMode
+                false
             );
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);

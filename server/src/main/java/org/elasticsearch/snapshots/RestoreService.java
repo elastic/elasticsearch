@@ -1466,8 +1466,7 @@ public final class RestoreService implements ClusterStateApplier {
                     snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
                         snapshotIndexMetadata,
                         minIndexCompatibilityVersion,
-                        minReadOnlyIndexCompatibilityVersion,
-                        IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+                        minReadOnlyIndexCompatibilityVersion
                     );
                 } catch (Exception ex) {
                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);

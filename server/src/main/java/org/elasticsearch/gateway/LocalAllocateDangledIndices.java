@@ -179,8 +179,7 @@ public class LocalAllocateDangledIndices {
                             newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(
                                 indexMetadata,
                                 minIndexCompatibilityVersion,
-                                minReadOnlyIndexCompatibilityVersion,
-                                IndexMetadataVerifier.MetadataVerificationMode.WITH_UPGRADE
+                                minReadOnlyIndexCompatibilityVersion
                             );
                             newIndexMetadata = IndexMetadata.builder(newIndexMetadata)
                                 .settings(

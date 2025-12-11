@@ -24,6 +24,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.CCMRestBaseIT.ENABLE_CCM_REQUEST;
 import static org.elasticsearch.xpack.inference.CCMRestBaseIT.putCCMConfiguration;
@@ -67,6 +68,8 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
 
     private static final String GET_METHOD = "GET";
 
+    private final AtomicBoolean initializedCcm = new AtomicBoolean(false);
+
     public AuthorizationTaskExecutorUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
@@ -103,9 +106,16 @@ public class AuthorizationTaskExecutorUpgradeIT extends ParameterizedRollingUpgr
 
         if (isUpgradedCluster()) {
             logger.info("Cluster is fully upgraded scenario");
-            var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
 
-            assertTrue(response.isEnabled());
+            if (initializedCcm.compareAndSet(false, true)) {
+                logger.info("Enabling CCM to trigger authorization task creation");
+                mockEISServer.enqueueAuthorizeAllModelsResponse();
+                var response = putCCMConfiguration(ENABLE_CCM_REQUEST);
+
+                assertTrue(response.isEnabled());
+            } else {
+                logger.info("Skipping enabling CCM as it has already been done");
+            }
 
             // once fully upgraded, the authorization polling task should be created
             assertBusy(() -> assertTrue(doesAuthPollingTaskExist()));

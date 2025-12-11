@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.junit.Before;
@@ -31,6 +32,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_CROSS_CLUSTER_ACCESS;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.lastTransportVersionPermission;
@@ -168,15 +171,15 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
     }
 
     public void testPermissionsPerVersion() {
-        testPermissionPerVersion("monitor_enrich", ROLE_REMOTE_CLUSTER_PRIVS);
-        testPermissionPerVersion("monitor_stats", ROLE_MONITOR_STATS);
+        testPermissionPerVersion("monitor_enrich", VERSION_CROSS_CLUSTER_ACCESS, ROLE_REMOTE_CLUSTER_PRIVS);
+        testPermissionPerVersion("monitor_stats", MANAGE_ROLES_PRIVILEGE, ROLE_MONITOR_STATS);
     }
 
-    private void testPermissionPerVersion(String permission, TransportVersion version) {
+    private void testPermissionPerVersion(String permission, TransportVersion beforeVersion, TransportVersion version) {
         // test permission before, after and on the version
         String[] privileges = randomBoolean() ? new String[] { permission } : new String[] { permission, "foo", "bar" };
         String[] before = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
-            .collapseAndRemoveUnsupportedPrivileges("*", TransportVersionUtils.getPreviousVersion(version));
+            .collapseAndRemoveUnsupportedPrivileges("*", beforeVersion);
         // empty set since permissions is not allowed in the before version
         assertThat(Set.of(before), equalTo(Collections.emptySet()));
         String[] on = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))

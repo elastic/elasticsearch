@@ -73,38 +73,38 @@ public class BytesRefSwissTableTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         BytesRef scratch = new BytesRef();
 
-        try (BytesRefSwissTable ord = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
-            assertThat(ord.size(), equalTo(0));
+        try (BytesRefSwissTable hash = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
+            assertThat(hash.size(), equalTo(0));
 
             for (int i = 0; i < v.length; i++) {
-                assertThat(ord.add(v[i]), equalTo(i));
-                assertThat(ord.size(), equalTo(i + 1));
-                assertThat(ord.get(i, scratch), equalTo(v[i]));
-                assertThat(ord.add(v[i]), equalTo(i));
-                assertThat(ord.size(), equalTo(i + 1));
+                assertThat(hash.add(v[i]), equalTo(i));
+                assertThat(hash.size(), equalTo(i + 1));
+                assertThat(hash.get(i, scratch), equalTo(v[i]));
+                assertThat(hash.add(v[i]), equalTo(i));
+                assertThat(hash.size(), equalTo(i + 1));
             }
             for (int i = 0; i < v.length; i++) {
-                assertThat(ord.add(v[i]), equalTo(i));
+                assertThat(hash.add(v[i]), equalTo(i));
             }
-            assertThat(ord.size(), equalTo(v.length));
+            assertThat(hash.size(), equalTo(v.length));
 
             for (int i = 0; i < v.length; i++) {
-                assertThat(ord.find(v[i]), equalTo(i));
+                assertThat(hash.find(v[i]), equalTo(i));
             }
-            assertThat(ord.size(), equalTo(v.length));
+            assertThat(hash.size(), equalTo(v.length));
 
             BytesRef other = new BytesRef("not_in_set");
             while (values.contains(other)) {
                 other = new BytesRef(other.utf8ToString() + "_");
             }
-            assertThat(ord.find(other), equalTo(-1));
+            assertThat(hash.find(other), equalTo(-1));
 
-            assertStatus(ord);
+            assertStatus(hash);
             // Note: we cannot easily assert recycler.open size because BigArrays (BytesRefArray) usage
             // is mixed with SwissTable's usage. SwissTable uses explicit pages for IDs.
 
             BytesRef[] iterated = new BytesRef[count];
-            for (BytesRefSwissTable.Itr itr = ord.iterator(); itr.next();) {
+            for (BytesRefSwissTable.Itr itr = hash.iterator(); itr.next();) {
                 assertThat(iterated[itr.id()], nullValue());
                 iterated[itr.id()] = BytesRef.deepCopyOf(itr.key(scratch));
             }
@@ -113,7 +113,7 @@ public class BytesRefSwissTableTests extends ESTestCase {
             }
             // values densely pack into the keys array will be store in insertion order
             for (int i = 0; i < v.length; i++) {
-                assertThat(ord.get(i, scratch), equalTo(v[i]));
+                assertThat(hash.get(i, scratch), equalTo(v[i]));
             }
         }
         assertThat(recycler.open, hasSize(0));
@@ -129,35 +129,34 @@ public class BytesRefSwissTableTests extends ESTestCase {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
-        try (BytesRefArray sharedArray = new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays)) {
-            try (
-                BytesRefSwissTable leftOrd = new BytesRefSwissTable(recycler, breaker, sharedArray);
-                BytesRefSwissTable rightOrd = new BytesRefSwissTable(recycler, breaker, sharedArray);
-            ) {
-                assertThat(leftOrd.size(), equalTo(0));
-                assertThat(rightOrd.size(), equalTo(0));
+        try (
+            BytesRefArray sharedArray = new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays);
+            BytesRefSwissTable leftHash = new BytesRefSwissTable(recycler, breaker, sharedArray);
+            BytesRefSwissTable rightHash = new BytesRefSwissTable(recycler, breaker, sharedArray)
+        ) {
+            assertThat(leftHash.size(), equalTo(0));
+            assertThat(rightHash.size(), equalTo(0));
 
-                for (int i = 0; i < count; i++) {
-                    // Add to left
-                    int idLeft = leftOrd.add(left[i]);
-                    // Add to right
-                    int idRight = rightOrd.add(right[i]);
+            for (int i = 0; i < count; i++) {
+                // Add to left
+                int idLeft = leftHash.add(left[i]);
+                // Add to right
+                int idRight = rightHash.add(right[i]);
 
-                    assertThat(idLeft, equalTo(2 * i));
-                    assertThat(idRight, equalTo(2 * i + 1));
-                }
-
-                assertThat(leftOrd.size(), equalTo(count));
-                assertThat(rightOrd.size(), equalTo(count));
-
-                for (int i = 0; i < count; i++) {
-                    assertThat(leftOrd.find(left[i]), equalTo(2 * i));
-                    assertThat(rightOrd.find(right[i]), equalTo(2 * i + 1));
-                }
-
-                assertStatus(leftOrd);
-                assertStatus(rightOrd);
+                assertThat(idLeft, equalTo(2 * i));
+                assertThat(idRight, equalTo(2 * i + 1));
             }
+
+            assertThat(leftHash.size(), equalTo(count));
+            assertThat(rightHash.size(), equalTo(count));
+
+            for (int i = 0; i < count; i++) {
+                assertThat(leftHash.find(left[i]), equalTo(2 * i));
+                assertThat(rightHash.find(right[i]), equalTo(2 * i + 1));
+            }
+
+            assertStatus(leftHash);
+            assertStatus(rightHash);
         }
         assertThat(recycler.open, hasSize(0));
     }
@@ -181,9 +180,9 @@ public class BytesRefSwissTableTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (BytesRefSwissTable ord = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
+            try (BytesRefSwissTable hash = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
                 for (int i = 0; i < v.length; i++) {
-                    ord.add(v[i]);
+                    hash.add(v[i]);
                 }
             }
         });
@@ -191,8 +190,8 @@ public class BytesRefSwissTableTests extends ESTestCase {
         assertThat(recycler.open, hasSize(0));
     }
 
-    private void assertStatus(BytesRefSwissTable ord) {
-        SwissTable.Status status = ord.status();
+    private void assertStatus(BytesRefSwissTable hash) {
+        SwissTable.Status status = hash.status();
 
         if (expectedGrowCount == 0) {
             // In small core, capacity is fixed.

@@ -35,7 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
-// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 20)
 public class LongSwissTableTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
@@ -53,9 +52,7 @@ public class LongSwissTableTests extends ESTestCase {
 
     private enum AddType {
         SINGLE_VALUE,
-        ARRAY,
-        // todo potentially remove this entirely, same as in LongSwissTable
-        // BUILDER;
+        ARRAY
     }
 
     private final AddType addType;
@@ -87,59 +84,47 @@ public class LongSwissTableTests extends ESTestCase {
 
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
-            assertThat(ord.size(), equalTo(0));
+        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
+            assertThat(hash.size(), equalTo(0));
 
             switch (addType) {
                 case SINGLE_VALUE -> {
                     for (int i = 0; i < v.length; i++) {
-                        assertThat(ord.add(v[i]), equalTo(i));
-                        assertThat(ord.size(), equalTo(i + 1));
-                        assertThat(ord.get(i), equalTo(v[i]));
-                        assertThat(ord.add(v[i]), equalTo(i));
-                        assertThat(ord.size(), equalTo(i + 1));
+                        assertThat(hash.add(v[i]), equalTo(i));
+                        assertThat(hash.size(), equalTo(i + 1));
+                        assertThat(hash.get(i), equalTo(v[i]));
+                        assertThat(hash.add(v[i]), equalTo(i));
+                        assertThat(hash.size(), equalTo(i + 1));
                     }
                     for (int i = 0; i < v.length; i++) {
-                        assertThat(ord.add(v[i]), equalTo(i));
+                        assertThat(hash.add(v[i]), equalTo(i));
                     }
-                    assertThat(ord.size(), equalTo(v.length));
+                    assertThat(hash.size(), equalTo(v.length));
                 }
                 case ARRAY -> {
                     int[] target = new int[v.length];
-                    ord.add(v, target, v.length);
+                    hash.add(v, target, v.length);
                     assertThat(target, equalTo(IntStream.range(0, count).toArray()));
-                    assertThat(ord.size(), equalTo(v.length));
+                    assertThat(hash.size(), equalTo(v.length));
 
                     Arrays.fill(target, 0);
-                    ord.add(v, target, v.length);
+                    hash.add(v, target, v.length);
                     assertThat(target, equalTo(IntStream.range(0, count).toArray()));
-                    assertThat(ord.size(), equalTo(v.length));
+                    assertThat(hash.size(), equalTo(v.length));
                 }
-                // todo potentially remove this entirely, same as in ordinator64
-                // case BUILDER -> {
-                // LongBlock.Builder target = LongBlock.newBlockBuilder(count);
-                // ord.add(v, target, v.length);
-                // assertThat(target.build(), equalTo(new LongArrayVector(LongStream.range(0, count).toArray(), count).asBlock()));
-                // assertThat(ord.currentSize(), equalTo(v.length));
-                //
-                // target = LongBlock.newBlockBuilder(count);
-                // ord.add(v, target, v.length);
-                // assertThat(target.build(), equalTo(new LongArrayVector(LongStream.range(0, count).toArray(), count).asBlock()));
-                // assertThat(ord.currentSize(), equalTo(v.length));
-                // }
                 default -> throw new IllegalArgumentException();
             }
             for (int i = 0; i < v.length; i++) {
-                assertThat(ord.find(v[i]), equalTo(i));
+                assertThat(hash.find(v[i]), equalTo(i));
             }
-            assertThat(ord.size(), equalTo(v.length));
-            assertThat(ord.find(randomValueOtherThanMany(values::contains, ESTestCase::randomLong)), equalTo(-1));
+            assertThat(hash.size(), equalTo(v.length));
+            assertThat(hash.find(randomValueOtherThanMany(values::contains, ESTestCase::randomLong)), equalTo(-1));
 
-            assertStatus(ord);
+            assertStatus(hash);
             assertThat("Only currently used pages are open", recycler.open, hasSize(expectedKeyPageCount + expectedIdPageCount));
 
             Long[] iterated = new Long[count];
-            for (LongSwissTable.Itr itr = ord.iterator(); itr.next();) {
+            for (LongSwissTable.Itr itr = hash.iterator(); itr.next();) {
                 assertThat(iterated[itr.id()], nullValue());
                 iterated[itr.id()] = itr.key();
             }
@@ -148,7 +133,7 @@ public class LongSwissTableTests extends ESTestCase {
             }
             // values densely pack into the keys array will be store in insertion order
             for (int i = 0; i < v.length; i++) {
-                assertThat(ord.get(i), equalTo(v[i]));
+                assertThat(hash.get(i), equalTo(v[i]));
             }
         }
         assertThat(recycler.open, hasSize(0));
@@ -165,22 +150,17 @@ public class LongSwissTableTests extends ESTestCase {
         }
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
+            try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
                 switch (addType) {
                     case SINGLE_VALUE -> {
                         for (int i = 0; i < v.length; i++) {
-                            assertThat(ord.add(v[i]), equalTo(i));
+                            assertThat(hash.add(v[i]), equalTo(i));
                         }
                     }
                     case ARRAY -> {
                         int[] target = new int[v.length];
-                        ord.add(v, target, v.length);
+                        hash.add(v, target, v.length);
                     }
-                    // todo potentially remove this entirely, same as in ordinator64
-                    // case BUILDER -> {
-                    // LongBlock.Builder target = LongBlock.newBlockBuilder(count);
-                    // ord.add(v, target, v.length);
-                    // }
                     default -> throw new IllegalArgumentException();
                 }
             }
@@ -203,7 +183,7 @@ public class LongSwissTableTests extends ESTestCase {
     private void testSameBucketCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
+        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
             // mask must match the table mask used by LongSwissTable
             int mask = 0xFFFF; // oversized; we only need lower bits locked
             long base = randomLong();
@@ -212,13 +192,13 @@ public class LongSwissTableTests extends ESTestCase {
 
             Map<Long, Integer> expected = new HashMap<>();
             for (long k : keys) {
-                int id = ord.add(k);
+                int id = hash.add(k);
                 expected.put(k, id);
             }
 
             // Verify lookups
             for (long k : keys) {
-                assertThat(ord.find(k), equalTo(expected.get(k)));
+                assertThat(hash.find(k), equalTo(expected.get(k)));
             }
         }
     }
@@ -238,23 +218,23 @@ public class LongSwissTableTests extends ESTestCase {
     private void testSameControlDataCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
+        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
             int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
             long[] keys = makeSameControlDataKeys(control, count);
             Map<Long, Integer> expected = new HashMap<>();
             for (long k : keys) {
-                int id = ord.add(k);
+                int id = hash.add(k);
                 expected.put(k, id);
             }
 
             // All must be findable despite metadata aliasing
             for (long k : keys) {
-                assertThat(ord.find(k), equalTo(expected.get(k)));
+                assertThat(hash.find(k), equalTo(expected.get(k)));
             }
 
             // Check iteration completeness
             int seen = 0;
-            var itr = ord.iterator();
+            var itr = hash.iterator();
             while (itr.next()) {
                 assertTrue(expected.containsKey(itr.key()));
                 seen++;
@@ -276,7 +256,7 @@ public class LongSwissTableTests extends ESTestCase {
     private void testWorstCaseCollisionClusterImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable ord = new LongSwissTable(recycler, breaker)) {
+        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
             // Pick a fixed 7-bit metadata and fixed low bits.
             int control = randomIntBetween(1, 120);
             long fixedBucketBits = randomLong() & 0xFFFF; // lock bucket range
@@ -291,18 +271,18 @@ public class LongSwissTableTests extends ESTestCase {
 
             Map<Long, Integer> expected = new HashMap<>();
             for (long k : keys) {
-                int id = ord.add(k);
+                int id = hash.add(k);
                 expected.put(k, id);
             }
 
             // Validate correctness
             for (long k : keys) {
-                assertThat(ord.find(k), equalTo(expected.get(k)));
+                assertThat(hash.find(k), equalTo(expected.get(k)));
             }
 
             // Validate iteration covers all keys
             int total = 0;
-            var itr = ord.iterator();
+            var itr = hash.iterator();
             while (itr.next()) {
                 long key = itr.key();
                 assertTrue("Iteration returned unexpected key " + key, expected.containsKey(key));
@@ -332,8 +312,8 @@ public class LongSwissTableTests extends ESTestCase {
         return result;
     }
 
-    private void assertStatus(LongSwissTable ord) {
-        SwissTable.Status status = ord.status();
+    private void assertStatus(LongSwissTable hash) {
+        SwissTable.Status status = hash.status();
         assertThat(status.size(), equalTo(count));
         if (expectedGrowCount == 0) {
             assertThat(status.growCount(), equalTo(0));

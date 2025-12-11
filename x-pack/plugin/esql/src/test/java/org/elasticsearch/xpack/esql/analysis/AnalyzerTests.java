@@ -2580,28 +2580,40 @@ public class AnalyzerTests extends ESTestCase {
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction("v_cosine(bfloat16_vector, query)", CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+                checkDenseVectorEvalCastingSimilarityFunction(
+                    "v_cosine(bfloat16_vector, query)",
+                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
+                );
             }
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(bfloat16_vector, query)", CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+                checkDenseVectorEvalCastingSimilarityFunction(
+                    "v_dot_product(bfloat16_vector, query)",
+                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
+                );
             }
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(bfloat16_vector, query)", CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+                checkDenseVectorEvalCastingSimilarityFunction(
+                    "v_l1_norm(bfloat16_vector, query)",
+                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
+                );
             }
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(bfloat16_vector, query)", CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName());
+                checkDenseVectorEvalCastingSimilarityFunction(
+                    "v_l2_norm(bfloat16_vector, query)",
+                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
+                );
             }
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {

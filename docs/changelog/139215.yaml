@@ -1,5 +1,0 @@
-pr: 139215
-summary: "Allocation: write load decider uses `canAllocate` for replacement"
-area: Allocation
-type: bug
-issues: []

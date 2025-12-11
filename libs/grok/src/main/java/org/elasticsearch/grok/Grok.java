@@ -131,7 +131,11 @@ public final class Grok {
             } finally {
                 matcherWatchdog.unregister(matcher);
             }
-
+            if (result == Matcher.INTERRUPTED) {
+                throw new RuntimeException(
+                    "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
+                );
+            }
             if (result < 0) {
                 return res.append(grokPattern).toString();
             }
@@ -185,6 +189,11 @@ public final class Grok {
             result = matcher.search(0, text.length(), Option.DEFAULT);
         } finally {
             matcherWatchdog.unregister(matcher);
+        }
+        if (result == Matcher.INTERRUPTED) {
+            throw new RuntimeException(
+                "grok pattern matching was interrupted after [" + matcherWatchdog.maxExecutionTimeInMillis() + "] ms"
+            );
         }
         return (result != -1);
     }

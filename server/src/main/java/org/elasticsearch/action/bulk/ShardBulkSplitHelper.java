@@ -19,7 +19,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,10 +111,12 @@ public final class ShardBulkSplitHelper {
                 }
             }
         });
+        BulkItemRequest[] originalItemRequests = originalRequest.items();
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalItemRequests.length];
         // Item responses should match the order of the original item requests
-        BulkItemResponse[] bulkItemResponses = Arrays.stream(originalRequest.items())
-            .map(bulkItemRequest -> itemResponsesById.get(bulkItemRequest.id()))
-            .toArray(BulkItemResponse[]::new);
+        for (int i = 0; i < bulkItemResponses.length; i++) {
+            bulkItemResponses[i] = itemResponsesById.get(originalItemRequests[i].id());
+        }
         BulkShardResponse bulkShardResponse = new BulkShardResponse(originalRequest.shardId(), bulkItemResponses);
         // TODO: Decide how to handle
         bulkShardResponse.setShardInfo(responses.get(originalRequest.shardId()).v1().getShardInfo());

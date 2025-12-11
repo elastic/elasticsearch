@@ -22,10 +22,10 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.VectorScorerFactory;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
@@ -53,7 +53,6 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneSco
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.readNodeCorrectionConstant;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
-import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 
 /**
  * Benchmark that compares bulk scoring of various scalar quantized vector similarity function
@@ -87,28 +86,88 @@ public class VectorScorerInt7uBulkBenchmark {
     public int numVectors;
     public int numVectorsToScore;
 
-    Path path;
-    Directory dir;
-    IndexInput in;
-    VectorScorerFactory factory;
+    public enum Implementation {
+        SCALAR,
+        LUCENE,
+        NATIVE
+    }
+
+    @Param
+    public Implementation implementation;
+
+    public enum Function {
+        DOT_PRODUCT(VectorSimilarityType.DOT_PRODUCT);
+
+        private final VectorSimilarityType type;
+
+        Function(VectorSimilarityType type) {
+            this.type = type;
+        }
+
+        public VectorSimilarityType type() {
+            return type;
+        }
+
+        public VectorSimilarityFunction function() {
+            return VectorSimilarityType.of(type);
+        }
+    }
+
+    @Param
+    public Function function;
+
+    private Path path;
+    private Directory dir;
+    private IndexInput in;
+
+    private static class ScalarDotProduct implements UpdateableRandomVectorScorer {
+        private final QuantizedByteVectorValues values;
+        private final float scoreCorrectionConstant;
+
+        private byte[] queryVector;
+        private float queryVectorCorrectionConstant;
+
+        private ScalarDotProduct(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+            this.values = values;
+            this.scoreCorrectionConstant = scoreCorrectionConstant;
+        }
+
+        @Override
+        public float score(int ordinal) throws IOException {
+            var vec2 = values.vectorValue(ordinal);
+            var vec2CorrectionConstant = readNodeCorrectionConstant(values, ordinal);
+            int dotProduct = 0;
+            for (int i = 0; i < queryVector.length; i++) {
+                dotProduct += queryVector[i] * vec2[i];
+            }
+            float adjustedDistance = dotProduct * scoreCorrectionConstant + queryVectorCorrectionConstant + vec2CorrectionConstant;
+            return (1 + adjustedDistance) / 2;
+        }
+
+        @Override
+        public int maxOrd() {
+            return 0;
+        }
+
+        @Override
+        public void setScoringOrdinal(int targetOrd) throws IOException {
+            queryVector = values.vectorValue(targetOrd);
+            queryVectorCorrectionConstant = readNodeCorrectionConstant(values, targetOrd);
+        }
+    }
 
     float[] scores;
     int[] ordinals;
     int[] ids;
-    QuantizedByteVectorValues dotProductValues;
-    float scoreCorrectionConstant;
     int targetOrd;
 
-    UpdateableRandomVectorScorer luceneDotScorer;
-    UpdateableRandomVectorScorer nativeDotScorer;
+    UpdateableRandomVectorScorer scorer;
+    RandomVectorScorer queryScorer;
 
-    RandomVectorScorer luceneDotScorerQuery;
-    RandomVectorScorer nativeDotScorerQuery;
-
-    @Setup(Level.Trial)
+    @Setup
     public void setup() throws IOException {
         numVectorsToScore = Math.min(numVectors, 20_000);
-        factory = getScorerFactoryOrDie();
+        VectorScorerFactory factory = getScorerFactoryOrDie();
 
         var random = ThreadLocalRandom.current();
         path = Files.createTempDirectory("Int7uBulkScorerBenchmark");
@@ -120,30 +179,44 @@ public class VectorScorerInt7uBulkBenchmark {
         List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
         Collections.shuffle(list, random);
         ids = IntStream.range(0, numVectors).toArray();
-        ordinals = list.stream().limit(numVectorsToScore).mapToInt(i -> i).toArray();
+        ordinals = list.stream().limit(numVectorsToScore).mapToInt(Integer::intValue).toArray();
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
 
-        dotProductValues = vectorValues(dims, numVectors, in, VectorSimilarityFunction.DOT_PRODUCT);
-        scoreCorrectionConstant = dotProductValues.getScalarQuantizer().getConstantMultiplier();
+        var values = vectorValues(dims, numVectors, in, function.function());
+        float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
 
-        luceneDotScorer = luceneScoreSupplier(dotProductValues, VectorSimilarityFunction.DOT_PRODUCT).scorer();
-        luceneDotScorer.setScoringOrdinal(targetOrd);
-        nativeDotScorer = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, dotProductValues, scoreCorrectionConstant)
-            .orElseThrow()
-            .scorer();
-        nativeDotScorer.setScoringOrdinal(targetOrd);
-
-        if (supportsHeapSegments()) {
-            // setup for getInt7SQVectorScorer / query vector scoring
-            float[] queryVec = new float[dims];
-            for (int i = 0; i < dims; i++) {
-                queryVec[i] = random.nextFloat();
-            }
-            luceneDotScorerQuery = luceneScorer(dotProductValues, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
-            nativeDotScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.DOT_PRODUCT, dotProductValues, queryVec)
-                .orElseThrow();
+        float[] queryVec = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            queryVec[i] = random.nextFloat();
         }
+
+        switch (implementation) {
+            case SCALAR:
+                scorer = switch (function) {
+                    case DOT_PRODUCT -> new ScalarDotProduct(values, scoreCorrectionConstant);
+                };
+
+                if (supportsHeapSegments()) {
+                    // only run this if there's something to compare it against
+                    queryScorer = scorer;
+                }
+                break;
+            case LUCENE:
+                scorer = luceneScoreSupplier(values, function.function()).scorer();
+                if (supportsHeapSegments()) {
+                    queryScorer = luceneScorer(values, function.function(), queryVec);
+                }
+                break;
+            case NATIVE:
+                scorer = factory.getInt7SQVectorScorerSupplier(function.type(), in, values, scoreCorrectionConstant).orElseThrow().scorer();
+                if (supportsHeapSegments()) {
+                    queryScorer = factory.getInt7SQVectorScorer(function.function(), values, queryVec).orElseThrow();
+                }
+                break;
+        }
+
+        scorer.setScoringOrdinal(targetOrd);
     }
 
     @TearDown
@@ -153,100 +226,44 @@ public class VectorScorerInt7uBulkBenchmark {
     }
 
     @Benchmark
-    public float[] dotProductLuceneMultipleSequential() throws IOException {
+    public float[] dotProductMultipleSequential() throws IOException {
         for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = luceneDotScorer.score(v);
+            scores[v] = scorer.score(v);
         }
         return scores;
     }
 
     @Benchmark
-    public float[] dotProductLuceneMultipleRandom() throws IOException {
+    public float[] dotProductMultipleRandom() throws IOException {
         for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = luceneDotScorer.score(ordinals[v]);
+            scores[v] = scorer.score(ordinals[v]);
         }
         return scores;
     }
 
     @Benchmark
-    public float[] dotProductLuceneQueryMultipleRandom() throws IOException {
+    public float[] dotProductQueryMultipleRandom() throws IOException {
         for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = luceneDotScorerQuery.score(ordinals[v]);
+            scores[v] = queryScorer.score(ordinals[v]);
         }
         return scores;
     }
 
     @Benchmark
-    public float[] dotProductNativeMultipleSequential() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = nativeDotScorer.score(v);
-        }
+    public float[] dotProductMultipleSequentialBulk() throws IOException {
+        scorer.bulkScore(ids, scores, ordinals.length);
         return scores;
     }
 
     @Benchmark
-    public float[] dotProductNativeMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = nativeDotScorer.score(ordinals[v]);
-        }
+    public float[] dotProductMultipleRandomBulk() throws IOException {
+        scorer.bulkScore(ordinals, scores, ordinals.length);
         return scores;
     }
 
     @Benchmark
-    public float[] dotProductNativeQueryMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = nativeDotScorerQuery.score(ordinals[v]);
-        }
+    public float[] dotProductQueryMultipleRandomBulk() throws IOException {
+        queryScorer.bulkScore(ordinals, scores, ordinals.length);
         return scores;
-    }
-
-    @Benchmark
-    public float[] dotProductNativeMultipleSequentialBulk() throws IOException {
-        nativeDotScorer.bulkScore(ids, scores, ordinals.length);
-        return scores;
-    }
-
-    @Benchmark
-    public float[] dotProductNativeMultipleRandomBulk() throws IOException {
-        nativeDotScorer.bulkScore(ordinals, scores, ordinals.length);
-        return scores;
-    }
-
-    @Benchmark
-    public float[] dotProductNativeQueryMultipleRandomBulk() throws IOException {
-        nativeDotScorerQuery.bulkScore(ordinals, scores, ordinals.length);
-        return scores;
-    }
-
-    @Benchmark
-    public float[] dotProductScalarMultipleSequential() throws IOException {
-        var queryVector = dotProductValues.vectorValue(targetOrd);
-        var queryVectorCorrectionConstant = readNodeCorrectionConstant(dotProductValues, targetOrd);
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scalarDotScore(v, queryVector, queryVectorCorrectionConstant);
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] dotProductScalarMultipleRandom() throws IOException {
-        var queryVector = dotProductValues.vectorValue(targetOrd);
-        var queryVectorCorrectionConstant = readNodeCorrectionConstant(dotProductValues, targetOrd);
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scalarDotScore(ordinals[v], queryVector, queryVectorCorrectionConstant);
-        }
-        return scores;
-    }
-
-    private float scalarDotScore(int ordinal, byte[] queryVector, float queryVectorCorrectionConstant) throws IOException {
-        var vec2 = dotProductValues.vectorValue(ordinal);
-        var vec2CorrectionConstant = readNodeCorrectionConstant(dotProductValues, ordinal);
-        int dotProduct = 0;
-        for (int i = 0; i < queryVector.length; i++) {
-
-            dotProduct += queryVector[i] * vec2[i];
-        }
-        float adjustedDistance = dotProduct * scoreCorrectionConstant + queryVectorCorrectionConstant + vec2CorrectionConstant;
-        return (1 + adjustedDistance) / 2;
     }
 }

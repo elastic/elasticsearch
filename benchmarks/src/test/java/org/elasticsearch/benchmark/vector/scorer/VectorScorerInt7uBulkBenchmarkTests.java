@@ -36,40 +36,63 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
 
     public void testDotProductSequential() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBulkBenchmark();
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.numVectorsToScore = 200;
-            bench.setup();
-            try {
-                float[] expected = bench.dotProductScalarMultipleSequential();
-                assertArrayEquals(expected, bench.dotProductLuceneMultipleSequential(), delta);
-                assertArrayEquals(expected, bench.dotProductNativeMultipleSequential(), delta);
-            } finally {
-                bench.teardown();
+            // scalar first
+            float[] expected = null;
+            for (var impl : VectorScorerInt7uBulkBenchmark.Implementation.values()) {
+                var bench = new VectorScorerInt7uBulkBenchmark();
+                bench.function = VectorScorerInt7uBulkBenchmark.Function.DOT_PRODUCT;
+                bench.implementation = impl;
+                bench.dims = dims;
+                bench.numVectors = 1000;
+                bench.numVectorsToScore = 200;
+                bench.setup();
+
+                try {
+                    float[] result = bench.dotProductMultipleSequential();
+                    if (expected == null) {
+                        assert impl == VectorScorerInt7uBulkBenchmark.Implementation.SCALAR;
+                        expected = result;
+                        continue;
+                    }
+
+                    assertArrayEquals(impl.toString(), expected, result, delta);
+                    assertArrayEquals(impl.toString(), expected, bench.dotProductMultipleSequentialBulk(), delta);
+
+                } finally {
+                    bench.teardown();
+                }
             }
         }
     }
 
     public void testDotProductRandom() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBulkBenchmark();
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.numVectorsToScore = 200;
-            bench.setup();
-            try {
-                float[] expected = bench.dotProductScalarMultipleRandom();
-                assertArrayEquals(expected, bench.dotProductLuceneMultipleRandom(), delta);
-                assertArrayEquals(expected, bench.dotProductNativeMultipleRandom(), delta);
-                assertArrayEquals(expected, bench.dotProductNativeMultipleRandomBulk(), delta);
-                if (supportsHeapSegments()) {
-                    assertArrayEquals(expected, bench.dotProductLuceneQueryMultipleRandom(), delta);
-                    assertArrayEquals(expected, bench.dotProductNativeQueryMultipleRandom(), delta);
-                    assertArrayEquals(expected, bench.dotProductNativeQueryMultipleRandomBulk(), delta);
+            float[] expected = null;
+            for (var impl : VectorScorerInt7uBulkBenchmark.Implementation.values()) {
+                var bench = new VectorScorerInt7uBulkBenchmark();
+                bench.dims = dims;
+                bench.numVectors = 1000;
+                bench.numVectorsToScore = 200;
+                bench.setup();
+
+                try {
+                    float[] result = bench.dotProductMultipleRandom();
+                    if (expected == null) {
+                        assert impl == VectorScorerInt7uBulkBenchmark.Implementation.SCALAR;
+                        expected = result;
+                        continue;
+                    }
+
+                    assertArrayEquals(impl.toString(), expected, result, delta);
+                    assertArrayEquals(impl.toString(), expected, bench.dotProductMultipleRandomBulk(), delta);
+
+                    if (supportsHeapSegments()) {
+                        assertArrayEquals(impl.toString(), expected, bench.dotProductQueryMultipleRandom(), delta);
+                        assertArrayEquals(impl.toString(), expected, bench.dotProductQueryMultipleRandomBulk(), delta);
+                    }
+                } finally {
+                    bench.teardown();
                 }
-            } finally {
-                bench.teardown();
             }
         }
     }

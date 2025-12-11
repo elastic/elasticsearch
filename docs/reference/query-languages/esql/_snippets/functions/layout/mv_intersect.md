@@ -2,7 +2,8 @@
 
 ## `MV_INTERSECT` [esql-mv_intersect]
 ```{applies_to}
-stack: ga 9.3.0
+stack: preview 9.3.0
+serverless: preview
 ```
 
 **Syntax**

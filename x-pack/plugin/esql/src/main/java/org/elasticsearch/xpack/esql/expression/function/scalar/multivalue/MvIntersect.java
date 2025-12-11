@@ -84,13 +84,14 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
             "unsigned_long",
             "version" },
         description = "Returns a subset of the inputs sets that contains the intersection of values in provided mv arguments.",
+        preview = true,
         examples = {
             @Example(file = "mv_intersect", tag = "testMvIntersectWithIntValues"),
             @Example(file = "mv_intersect", tag = "testMvIntersectWithLongValues"),
             @Example(file = "mv_intersect", tag = "testMvIntersectWithBooleanValues"),
             @Example(file = "mv_intersect", tag = "testMvIntersectWithDoubleValues"),
             @Example(file = "mv_intersect", tag = "testMvIntersectWithBytesRefValues") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public MvIntersect(
         Source source,

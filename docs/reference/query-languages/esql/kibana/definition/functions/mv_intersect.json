@@ -372,6 +372,6 @@
     null,
     null
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

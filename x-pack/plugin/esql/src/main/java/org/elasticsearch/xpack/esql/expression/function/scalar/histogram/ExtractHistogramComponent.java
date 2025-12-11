@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 /**
- * Extracts a {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component} from an exponential histogram.
+ * Extracts a {@link org.elasticsearch.compute.data.HistogramBlock.Component} from a histogram (either exponential histogram or TDigest).
  * Note that this function is currently only intended for usage in surrogates and not available as a user-facing function.
  * Therefore, it is intentionally not registered in {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  */
@@ -68,7 +68,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     @FunctionInfo(returnType = { "double" })
     public ExtractHistogramComponent(
         Source source,
-        @Param(name = "histogram", type = { "exponential_histogram" }) Expression field,
+        @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,
         @Param(name = "component", type = { "integer" }) Expression componentOrdinal
     ) {
         super(source, List.of(field, componentOrdinal));
@@ -137,10 +137,10 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
     protected TypeResolution resolveType() {
         TypeResolution histoTypeCheck = isType(
             field,
-            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM,
+            dt -> dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
-            "exponential_histogram"
+            "exponential_histogram", "tdigest"
         );
         TypeResolution componentOrdinalCheck = isType(componentOrdinal, dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer").and(
             isFoldable(componentOrdinal, sourceText(), SECOND)
@@ -179,7 +179,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         @Override
         public Block eval(Page page) {
             try (Block block = fieldEvaluator.eval(page)) {
-                return ((ExponentialHistogramBlock) block).buildHistogramComponentBlock(componentToExtract);
+                return ((HistogramBlock) block).buildHistogramComponentBlock(componentToExtract);
             }
         }
 

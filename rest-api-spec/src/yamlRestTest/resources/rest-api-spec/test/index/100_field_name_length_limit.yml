@@ -12,6 +12,7 @@ setup:
         body:
           settings:
             index:
+              auto_expand_replicas: '0-1'
               mapping:
                 field_name_length:
                   ignore_dynamic_beyond_limit: true
@@ -20,7 +21,8 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: yellow
+        index: test_index
+        wait_for_status: green
 
   - do:
       index:
@@ -63,6 +65,7 @@ setup:
         body:
           settings:
             index:
+              auto_expand_replicas: '0-1'
               mapping:
                 field_name_length:
                   ignore_dynamic_beyond_limit: true
@@ -71,7 +74,8 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: yellow
+        index: test_index
+        wait_for_status: green
 
   - do:
       index:
@@ -115,6 +119,7 @@ setup:
         body:
           settings:
             index:
+              auto_expand_replicas: '0-1'
               mapping:
                 source.mode: synthetic
                 field_name_length:
@@ -124,7 +129,8 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: yellow
+        index: test_index
+        wait_for_status: green
 
   - do:
       index:
@@ -167,6 +173,7 @@ setup:
         body:
           settings:
             index:
+              auto_expand_replicas: '0-1'
               mapping:
                 source.mode: synthetic
                 field_name_length:
@@ -176,7 +183,8 @@ setup:
             dynamic: true
   - do:
       cluster.health:
-        wait_for_status: yellow
+        index: test_index
+        wait_for_status: green
 
   - do:
       index:

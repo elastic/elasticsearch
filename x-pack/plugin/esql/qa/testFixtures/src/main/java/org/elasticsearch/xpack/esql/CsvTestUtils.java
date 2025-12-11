@@ -626,6 +626,7 @@ public final class CsvTestUtils {
             return switch (actualType) {
                 case NULL -> NULL;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
+                case HISTOGRAM -> HISTOGRAM;
                 default -> KEYWORD;
             };
         }

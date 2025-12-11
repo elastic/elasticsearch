@@ -67,6 +67,8 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Analyzer multiIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
     protected static Analyzer subqueryAnalyzer;
+    protected static Map<String, EsField> mappingBaseConversion;
+    protected static Analyzer baseConversionAnalyzer;
 
     protected static EnrichResolution enrichResolution;
 
@@ -171,7 +173,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         List<EsIndex> metricIndices = new ArrayList<>();
-        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled()) {
+        if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.isEnabled()) {
             Map<String, EsField> expHistoMetricMapping = loadMapping("exp_histo_sample-mappings.json");
             metricIndices.add(
                 EsIndexGenerator.esIndex("exp_histo_sample", expHistoMetricMapping, Map.of("exp_histo_sample", IndexMode.TIME_SERIES))
@@ -239,6 +241,28 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 EsqlTestUtils.TEST_CFG,
                 new EsqlFunctionRegistry(),
                 mergeIndexResolutions(indexResolutions(test), defaultSubqueryResolution()),
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
+        // Some tests use data from the baseConversion index, so we load it here
+        mappingBaseConversion = loadMapping("mapping-base_conversion.json");
+        EsIndex baseConversion = new EsIndex(
+            "base_conversion",
+            mappingBaseConversion,
+            Map.of("base_conversion", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        baseConversionAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(baseConversion),
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution()

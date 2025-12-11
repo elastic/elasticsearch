@@ -310,7 +310,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected boolean supportsExponentialHistograms() {
         return RestEsqlTestCase.hasCapabilities(
             client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.capabilityName())
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
         );
     }
 

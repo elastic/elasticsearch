@@ -252,14 +252,14 @@ public class SemanticChunkScorerTests extends MapperServiceTestCase {
                 var execContext = createSearchExecutionContext(mapperService);
                 var luceneQuery = execContext.toQuery(request.source().query()).query();
 
-
                 SearchHit hit = new SearchHit(docID);
                 try {
                     hit.sourceRef(source.source());
                     if (useLegacyFormat == false) {
                         // Required for hit.field() to work without going through fetch phase
-                        String fullBodyText =
-                            (String) XContentHelper.convertToMap(source.source(), false, XContentType.JSON).v2().get("body");
+                        String fullBodyText = (String) XContentHelper.convertToMap(source.source(), false, XContentType.JSON)
+                            .v2()
+                            .get("body");
                         hit.setDocumentField(new DocumentField("body", List.of(fullBodyText)));
                     }
 

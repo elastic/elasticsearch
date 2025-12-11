@@ -23,6 +23,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -36,19 +38,12 @@ record CmdLineArgs(
     int numDocs,
     int numQueries,
     KnnIndexTester.IndexType indexType,
-    int numCandidates,
-    int k,
-    double[] visitPercentages,
     int ivfClusterSize,
-    float overSamplingFactor,
     int hnswM,
     int hnswEfConstruction,
-    int searchThreads,
-    int numSearchers,
     int indexThreads,
     boolean reindex,
     boolean forceMerge,
-    float filterSelectivity,
     long seed,
     VectorSimilarityFunction vectorSpace,
     int quantizeBits,
@@ -60,7 +55,7 @@ record CmdLineArgs(
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
-    boolean filterCached
+    List<SearchParameters> searchParams
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -94,6 +89,7 @@ record CmdLineArgs(
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
+    static final ParseField SEARCH_PARAMS = new ParseField("search_params");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -141,6 +137,11 @@ record CmdLineArgs(
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
         PARSER.declareBoolean(Builder::setFilterCached, FILTER_CACHED);
+        PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
+    }
+
+    public int numberOfSearchRuns() {
+        return searchParams.size();
     }
 
     @Override
@@ -156,16 +157,10 @@ record CmdLineArgs(
         builder.field(NUM_DOCS_FIELD.getPreferredName(), numDocs);
         builder.field(NUM_QUERIES_FIELD.getPreferredName(), numQueries);
         builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
-        builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
-        builder.field(K_FIELD.getPreferredName(), k);
         // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
-        builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
         builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
-        builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
         builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
         builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
-        builder.field(SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
-        builder.field(NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
         builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
         builder.field(REINDEX_FIELD.getPreferredName(), reindex);
         builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
@@ -174,16 +169,15 @@ record CmdLineArgs(
         builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
         builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
         builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
-        builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
         builder.field(SEED_FIELD.getPreferredName(), seed);
         builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
         builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
         builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
         builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
-        builder.field(FILTER_CACHED.getPreferredName(), filterCached);
         if (mergePolicy != null) {
             builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
         }
+        builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
         return builder.endObject();
     }
 
@@ -222,6 +216,7 @@ record CmdLineArgs(
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
         private boolean filterCached = true;
+        private List<SearchParameters.Builder> searchParams = null;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -383,6 +378,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setSearchParams(List<SearchParameters.Builder> searchParams) {
+            this.searchParams = searchParams;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -392,25 +392,64 @@ record CmdLineArgs(
                     "dimensions must be a positive integer or -1 for when dimension is available in the vector file"
                 );
             }
+
+            boolean setVisitPercentageToZero = (indexType.equals(KnnIndexTester.IndexType.IVF) && numQueries > 0) == false;
+            if (setVisitPercentageToZero) {
+                Arrays.fill(visitPercentages, 0.0);
+            }
+
+            var baseSearchParams = new SearchParameters(
+                numCandidates,
+                k,
+                visitPercentages[0],
+                overSamplingFactor,
+                searchThreads,
+                numSearchers,
+                filterSelectivity,
+                filterCached,
+                earlyTermination
+            );
+
+            if (visitPercentages.length > 1 && (searchParams != null && searchParams.isEmpty() == false)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "The %1$s option is incompatible with setting multiple values of %2$s. Use %1$s to control %2$s",
+                        SEARCH_PARAMS,
+                        VISIT_PERCENTAGE_FIELD
+                    )
+                );
+            }
+
+            List<SearchParameters> searchRuns = new ArrayList<>();
+
+            if (searchParams == null || searchParams.isEmpty()) {
+                // single base case
+                searchRuns.add(baseSearchParams);
+
+                // Convert the list of visit percentages to the search params format.
+                // This is for backwards compatibility where multiple values of visit
+                // percentage would equate to multiple searches
+                for (int i = 1; i < visitPercentages.length; i++) {
+                    searchRuns.add(SearchParameters.builder().setVisitPercentage(visitPercentages[i]).buildWithDefaults(baseSearchParams));
+                }
+            } else {
+                for (var so : searchParams) {
+                    searchRuns.add(so.buildWithDefaults(baseSearchParams));
+                }
+            }
+
             return new CmdLineArgs(
                 docVectors,
                 queryVectors,
                 numDocs,
                 numQueries,
                 indexType,
-                numCandidates,
-                k,
-                visitPercentages,
                 ivfClusterSize,
-                overSamplingFactor,
                 hnswM,
                 hnswEfConstruction,
-                searchThreads,
-                numSearchers,
                 indexThreads,
                 reindex,
                 forceMerge,
-                filterSelectivity,
                 seed,
                 vectorSpace,
                 quantizeBits,
@@ -422,7 +461,7 @@ record CmdLineArgs(
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
                 onDiskRescore,
-                filterCached
+                searchRuns
             );
         }
     }

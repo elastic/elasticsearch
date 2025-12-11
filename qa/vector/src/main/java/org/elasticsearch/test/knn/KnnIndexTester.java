@@ -241,24 +241,11 @@ public class KnnIndexTester {
         FormattedResults formattedResults = new FormattedResults();
 
         for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
-            double[] visitPercentages = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
-                ? cmdLineArgs.visitPercentages()
-                : new double[] { 0 };
             String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
-            Results indexResults = new Results(
-                cmdLineArgs.docVectors().get(0).getFileName().toString(),
-                indexType,
-                cmdLineArgs.numDocs(),
-                cmdLineArgs.filterSelectivity()
-            );
-            Results[] results = new Results[visitPercentages.length];
-            for (int i = 0; i < visitPercentages.length; i++) {
-                results[i] = new Results(
-                    cmdLineArgs.docVectors().get(0).getFileName().toString(),
-                    indexType,
-                    cmdLineArgs.numDocs(),
-                    cmdLineArgs.filterSelectivity()
-                );
+            Results indexResults = new Results(cmdLineArgs.docVectors().get(0).getFileName().toString(), indexType, cmdLineArgs.numDocs());
+            Results[] results = new Results[cmdLineArgs.numberOfSearchRuns()];
+            for (int i = 0; i < results.length; i++) {
+                results[i] = new Results(cmdLineArgs.docVectors().get(0).getFileName().toString(), indexType, cmdLineArgs.numDocs());
             }
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
@@ -291,9 +278,9 @@ public class KnnIndexTester {
             }
             numSegments(indexPath, indexResults);
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
+                KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
                 for (int i = 0; i < results.length; i++) {
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, visitPercentages[i]);
-                    knnSearcher.runSearch(results[i], cmdLineArgs.earlyTermination());
+                    knnSearcher.runSearch(results[i], cmdLineArgs.searchParams().get(i));
                 }
             }
             formattedResults.queryResults.addAll(List.of(results));
@@ -460,7 +447,7 @@ public class KnnIndexTester {
         final String indexType, indexName;
         public long docAddTimeMS;
         int numDocs;
-        final float filterSelectivity;
+        float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
@@ -474,11 +461,10 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
 
-        Results(String indexName, String indexType, int numDocs, float filterSelectivity) {
+        Results(String indexName, String indexType, int numDocs) {
             this.indexName = indexName;
             this.indexType = indexType;
             this.numDocs = numDocs;
-            this.filterSelectivity = filterSelectivity;
         }
     }
 

@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,13 +33,13 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
      * Creates a producer that can be used for downsampling labels.
      */
     static LastValueFieldProducer create(String name, String fieldType) {
-        assert "aggregate_metric_double".equals(fieldType) == false
+        assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType) == false
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
-        assert "exponential_histogram".equals(fieldType) == false
+        assert ExponentialHistogramFieldProducer.TYPE.equals(fieldType) == false
             : "field type cannot be exponential histogram: " + fieldType + " for field " + name;
-        if ("histogram".equals(fieldType)) {
-            return new LastValueFieldProducer.HistogramFieldProducer(name);
-        } else if ("flattened".equals(fieldType)) {
+        assert TDigestHistogramFieldProducer.TYPE.equals(fieldType) == false
+            : "field type cannot be histogram: " + fieldType + " for field " + name;
+        if ("flattened".equals(fieldType)) {
             return new LastValueFieldProducer.FlattenedFieldProducer(name);
         }
         return new LastValueFieldProducer(name);
@@ -95,26 +95,6 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
 
     public Object lastValue() {
         return lastValue;
-    }
-
-    static final class HistogramFieldProducer extends LastValueFieldProducer {
-        private HistogramFieldProducer(String name) {
-            super(name);
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                final HistogramValue histogramValue = (HistogramValue) lastValue();
-                final List<Double> values = new ArrayList<>();
-                final List<Long> counts = new ArrayList<>();
-                while (histogramValue.next()) {
-                    values.add(histogramValue.value());
-                    counts.add(histogramValue.count());
-                }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
-            }
-        }
     }
 
     static final class FlattenedFieldProducer extends LastValueFieldProducer {

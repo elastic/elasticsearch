@@ -133,7 +133,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
         throws IOException {
         PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
 
-        MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap());
+        MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
         testCase(buildIndex, verify, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 }

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -78,9 +80,17 @@ class FieldValueFetcher {
         return fieldProducer;
     }
 
+    public HistogramValues getHistogramLeaf(LeafReaderContext context) throws IOException {
+        LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
+        return histogramFieldData.getHistogramValues();
+    }
+
     private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false
             : "Aggregate metric double should be handled by a dedicated FieldValueFetcher";
+        if (TDigestHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
+            return TDigestHistogramFieldProducer.create(name(), samplingMethod);
+        }
         if (ExponentialHistogramFieldProducer.TYPE.equals(fieldType.typeName())) {
             return ExponentialHistogramFieldProducer.create(name(), samplingMethod);
         }

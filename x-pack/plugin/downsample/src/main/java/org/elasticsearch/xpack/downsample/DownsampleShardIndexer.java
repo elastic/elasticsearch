@@ -390,6 +390,11 @@ class DownsampleShardIndexer {
                         lastValueFieldProducer,
                         fieldValueFetcher.getLeaf(ctx)
                     );
+                } else if (fieldProducer instanceof TDigestHistogramFieldProducer histogramFieldProducer) {
+                    fieldCollectors[i] = new LeafDownsampleCollector.FieldCollector<>(
+                        histogramFieldProducer,
+                        fieldValueFetcher.getHistogramLeaf(ctx)
+                    );
                 }
             }
 

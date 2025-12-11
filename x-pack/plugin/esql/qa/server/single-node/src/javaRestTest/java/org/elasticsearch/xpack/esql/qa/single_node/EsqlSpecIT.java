@@ -58,16 +58,13 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     protected boolean supportsExponentialHistograms() {
         return RestEsqlTestCase.hasCapabilities(
             client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.capabilityName())
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
         );
     }
 
     @Override
     protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(
-            client(),
-            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
-        );
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V1.capabilityName()));
     }
 
     @Before

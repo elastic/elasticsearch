@@ -3580,7 +3580,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
 
-        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2.isEnabled() == false) {
             var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
             expectError(
                 "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",

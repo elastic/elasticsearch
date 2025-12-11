@@ -324,7 +324,7 @@ public final class FetchPhase {
         };
 
         try {
-            SearchHit[] hits = docsIterator.iterate(
+            FetchPhaseDocsIterator.IterateResult result = docsIterator.iterate(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
                 docIdsToLoad,
@@ -336,10 +336,15 @@ public final class FetchPhase {
             );
 
             if (context.isCancelled()) {
-                for (SearchHit hit : hits) {
+                // Clean up hits array
+                for (SearchHit hit :  result.hits) {
                     if (hit != null) {
                         hit.decRef();
                     }
+                }
+                // Clean up last chunk if present
+                if (result.lastChunk != null) {
+                    result.lastChunk.decRef();
                 }
                 throw new TaskCancelledException("cancelled");
             }
@@ -347,14 +352,22 @@ public final class FetchPhase {
             TotalHits totalHits = context.getTotalHits();
 
             if (writer == null) {
-                return new SearchHits(hits, totalHits, context.getMaxScore());
+                // Non-streaming mode: return all hits
+                return new SearchHits(result.hits, totalHits, context.getMaxScore());
             } else {
-                for (SearchHit hit : hits) {
+                // Streaming mode: return last chunk (may be empty)
+                // Clean up the hits array
+                for (SearchHit hit : result.hits) {
                     if (hit != null) {
                         hit.decRef();
                     }
                 }
-                return SearchHits.empty(totalHits, context.getMaxScore());
+                // Return last chunk or empty
+                if (result.lastChunk != null) {
+                    return result.lastChunk;
+                } else {
+                    return SearchHits.empty(totalHits, context.getMaxScore());
+                }
             }
         } finally {
             long bytes = docsIterator.getRequestBreakerBytes();

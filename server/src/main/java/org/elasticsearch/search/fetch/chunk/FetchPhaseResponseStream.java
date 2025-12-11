@@ -40,12 +40,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(FetchPhaseResponseStream.class);
 
-    /**
-     * Buffer size before checking circuit breaker. Same as SearchContext's memAccountingBufferSize.
-     * This reduces contention by batching circuit breaker checks.
-     */
-    private static final int MEM_ACCOUNTING_BUFFER_SIZE = 512; // 512KB
-
     private final int shardIndex;
     private final int expectedDocs;
 
@@ -100,8 +94,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
             if (logger.isTraceEnabled()) {
                 logger.info(
-                    "Received [{}] chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
-                    chunk.timestampMillis(),
+                    "Received chunk [{}] docs for shard [{}]: [{}/{}] hits accumulated, [{}] breaker bytes, used breaker bytes [{}]",
                     chunk.hits().getHits().length,
                     shardIndex,
                     queue.size(),
@@ -157,6 +150,20 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
+     * Adds a single hit to the accumulated result. Used for processing the last chunk embedded in FetchSearchResult.
+     */
+    void addHit(SearchHit hit) {
+        queue.add(hit);
+    }
+
+    /**
+     * Tracks circuit breaker bytes without checking. Used when coordinator processes the embedded last chunk.
+     */
+    void trackBreakerBytes(int bytes) {
+        totalBreakerBytes.addAndGet(bytes);
+    }
+
+    /**
      * Releases accumulated hits and circuit breaker bytes when hits are released from memory.
      */
     @Override
@@ -179,9 +186,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
-            // if(circuitBreaker.getUsed() >= totalBreakerBytes) {
             circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
-            // }
             if (logger.isTraceEnabled()) {
                 logger.info(
                     "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",

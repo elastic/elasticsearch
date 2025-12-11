@@ -20,12 +20,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
@@ -173,10 +176,39 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         // Listener that builds final result from accumulated chunks
         ActionListener<FetchSearchResult> childListener = ActionListener.wrap(dataNodeResult -> {
             try {
-                ShardSearchContextId ctxId = dataNodeResult.getContextId();
-                SearchShardTarget shardTarget = dataNodeResult.getSearchShardTarget();
-                ProfileResult profileResult = dataNodeResult.profileResult();
-                FetchSearchResult finalResult = responseStream.buildFinalResult(ctxId, shardTarget, profileResult);
+                // Process the embedded last chunk if present
+                SearchHits lastChunk = dataNodeResult.hits();
+                if (lastChunk != null && lastChunk.getHits().length > 0) {
+
+                    if (logger.isTraceEnabled()) {
+                        logger.info(
+                            "Received final chunk [{}] for shard [{}]",
+                            lastChunk.getHits().length,
+                            request.shardFetchRequest.getShardSearchRequest().shardId()
+                        );
+                    }
+
+                    // Add last chunk hits to the stream
+                    for (SearchHit hit : lastChunk.getHits()) {
+                        hit.incRef();
+                        responseStream.addHit(hit);
+
+                        // Track circuit breaker for last chunk
+                        BytesReference sourceRef = hit.getSourceRef();
+                        if (sourceRef != null) {
+                            int hitBytes = sourceRef.length() * 2;
+                            circuitBreaker.addEstimateBytesAndMaybeBreak(hitBytes, "fetch_last_chunk");
+                            responseStream.trackBreakerBytes(hitBytes);
+                        }
+                    }
+                }
+
+                // Build final result from all accumulated hits
+                FetchSearchResult finalResult = responseStream.buildFinalResult(
+                    dataNodeResult.getContextId(),
+                    dataNodeResult.getSearchShardTarget(),
+                    dataNodeResult.profileResult());
+
                 listener.onResponse(new Response(finalResult));
             } catch (Exception e) {
                 listener.onFailure(e);

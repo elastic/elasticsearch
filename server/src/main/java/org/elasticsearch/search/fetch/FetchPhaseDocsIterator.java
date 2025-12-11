@@ -75,7 +75,7 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Iterate over a set of docsIds within a particular shard and index reader.
      */
-    public final SearchHit[] iterate(
+/*    public final SearchHit[] iterate(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
         int[] docIds,
@@ -85,7 +85,7 @@ abstract class FetchPhaseDocsIterator {
         // Delegate to new method with null writer to maintain backward compatibility
         // When writer is null, no streaming chunks are sent (original behavior)
         return iterate(shardTarget, indexReader, docIds, allowPartialResults, querySearchResult, null, 0, null);
-    }
+    }*/
 
     /**
      * Iterate over a set of docsIds within a particular shard and index reader.
@@ -94,7 +94,6 @@ abstract class FetchPhaseDocsIterator {
      * in chunks of size {@code chunkSize}. This reduces memory footprint for large result sets
      * by streaming results to the coordinator as they are produced.
      * Legacy mode: When {@code chunkWriter} is null, behaves exactly like the original
-     * {@link #iterate(SearchShardTarget, IndexReader, int[], boolean, QuerySearchResult)} method.
      *
      * @param shardTarget         the shard being fetched from
      * @param indexReader         the index reader
@@ -105,7 +104,7 @@ abstract class FetchPhaseDocsIterator {
      * @param chunkSize           number of hits per chunk (only used if chunkWriter is non-null)
      * @return array of SearchHits in the order of the original docIds
      */
-    public final SearchHit[] iterate(
+    public final IterateResult iterate(
         SearchShardTarget shardTarget,
         IndexReader indexReader,
         int[] docIds,
@@ -121,6 +120,7 @@ abstract class FetchPhaseDocsIterator {
         final boolean streamingEnabled = chunkWriter != null && chunkSize > 0;
         List<SearchHit> chunkBuffer = streamingEnabled ? new ArrayList<>(chunkSize) : null;
         int shardIndex = streamingEnabled ? shardTarget.getShardId().id() : -1;
+        SearchHits lastChunk = null;
 
         for (int index = 0; index < docIds.length; index++) {
             docs[index] = new DocIdToIndex(docIds[index], index);
@@ -138,7 +138,7 @@ abstract class FetchPhaseDocsIterator {
             } catch (ContextIndexSearcher.TimeExceededException e) {
                 SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
                 assert allowPartialResults;
-                return SearchHits.EMPTY;
+                return new IterateResult(SearchHits.EMPTY, lastChunk);
             }
             for (int i = 0; i < docs.length; i++) {
                 try {
@@ -157,7 +157,8 @@ abstract class FetchPhaseDocsIterator {
                         hit.incRef();
                         chunkBuffer.add(hit);
 
-                        if (chunkBuffer.size() >= chunkSize) {
+                        // Send intermediate chunks -not when it's the last iteration
+                        if (chunkBuffer.size() >= chunkSize && i < docs.length - 1) {
                             // Send HIT chunk
                             pendingChunks.add(
                                 sendChunk(
@@ -185,19 +186,26 @@ abstract class FetchPhaseDocsIterator {
                     assert allowPartialResults;
                     SearchHit[] partialSearchHits = new SearchHit[i];
                     System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
-                    return partialSearchHits;
+                    return new IterateResult(partialSearchHits, lastChunk);
                 }
             }
 
-            // Send final partial chunk if streaming is enabled and buffer has remaining hits
+            // Return the final partial chunk if streaming is enabled and buffer has remaining hits
             if (streamingEnabled && chunkBuffer.isEmpty() == false) {
-                ;
-                pendingChunks.add(
-                    sendChunk(chunkWriter, chunkBuffer, shardIndex, docs.length - chunkBuffer.size(), docIds.length, Float.NaN)
+                SearchHit[] lastHitsArray = chunkBuffer.toArray(new SearchHit[0]);
+
+                // DecRef for SearchHits constructor (will increment)
+                for (SearchHit hit : lastHitsArray) {
+                    hit.decRef();
+                }
+
+                lastChunk = new SearchHits(
+                    lastHitsArray,
+                    new TotalHits(lastHitsArray.length, TotalHits.Relation.EQUAL_TO),
+                    Float.NaN
                 );
                 chunkBuffer.clear();
             }
-
         } catch (SearchTimeoutException e) {
             throw e;
         } catch (CircuitBreakingException e) {
@@ -213,7 +221,7 @@ abstract class FetchPhaseDocsIterator {
             }
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
-        return searchHits;
+        return new IterateResult(searchHits, lastChunk);
     }
 
     /**
@@ -333,6 +341,20 @@ abstract class FetchPhaseDocsIterator {
         @Override
         public int compareTo(DocIdToIndex o) {
             return Integer.compare(docId, o.docId);
+        }
+    }
+
+    /**
+     * Add result class to carry both hits array and last chunk for streaming version
+     */
+    static class IterateResult {
+
+        final SearchHit[] hits;
+        final SearchHits lastChunk;  // null for non-streaming mode
+
+        IterateResult(SearchHit[] hits, SearchHits lastChunk) {
+            this.hits = hits;
+            this.lastChunk = lastChunk;
         }
     }
 }

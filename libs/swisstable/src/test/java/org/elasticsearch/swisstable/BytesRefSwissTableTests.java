@@ -71,6 +71,7 @@ public class BytesRefSwissTableTests extends ESTestCase {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        BytesRef scratch = new BytesRef();
 
         try (BytesRefSwissTable ord = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
             assertThat(ord.size(), equalTo(0));
@@ -78,6 +79,7 @@ public class BytesRefSwissTableTests extends ESTestCase {
             for (int i = 0; i < v.length; i++) {
                 assertThat(ord.add(v[i]), equalTo(i));
                 assertThat(ord.size(), equalTo(i + 1));
+                assertThat(ord.get(i, scratch), equalTo(v[i]));
                 assertThat(ord.add(v[i]), equalTo(i));
                 assertThat(ord.size(), equalTo(i + 1));
             }
@@ -102,7 +104,6 @@ public class BytesRefSwissTableTests extends ESTestCase {
             // is mixed with SwissTable's usage. SwissTable uses explicit pages for IDs.
 
             BytesRef[] iterated = new BytesRef[count];
-            BytesRef scratch = new BytesRef();
             for (BytesRefSwissTable.Itr itr = ord.iterator(); itr.next();) {
                 assertThat(iterated[itr.id()], nullValue());
                 iterated[itr.id()] = BytesRef.deepCopyOf(itr.key(scratch));

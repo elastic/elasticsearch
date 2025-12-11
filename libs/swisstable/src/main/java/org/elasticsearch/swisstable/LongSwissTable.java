@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Assigns {@code int} ids to {@code long}s, vending the ids in order they are added.
@@ -606,21 +607,14 @@ public final class LongSwissTable extends SwissTable implements Releasable {
     }
 
     /**
-     * Returns the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
+     * Returns the key at <code>0 &lt;= id &lt;= size()</code>.
+     * The result is undefined if the id is unused.
+     * @param id the id returned when the key was added
+     * @return the key
      */
-    public long get(final int index) {
-        if (this.bigCore == null) {
-            // return this.smallCore.key(id(slot));
-            return this.smallCore.key(index);
-        }
-        return bigCore.key(index);  // TODO: get id from slot???
-    }
-
-    public int id(final int index) {
-        if (this.bigCore == null) {
-            return this.smallCore.id(index);
-        }
-        return bigCore.id(index);
+    public long get(final int id) {
+        Objects.checkIndex(id, size());
+        return smallCore != null ? smallCore.key(id) : bigCore.key(id);
     }
 
     private int keyOffset(final int id) {

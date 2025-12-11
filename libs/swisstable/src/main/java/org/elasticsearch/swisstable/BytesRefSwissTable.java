@@ -27,6 +27,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Assigns {@code int} ids to {@code BytesRef}s, vending the ids in order they are added.
@@ -528,42 +529,19 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
     }
 
     /**
-     * Returns the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
-     * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
+     * Returns the key at <code>0 &lt;= id &lt;= size()</code>.
+     * The result is undefined if the id is unused.
+     * @param id the id returned when the key was added
+     * @return the key
      */
     public BytesRef get(long id, BytesRef dest) {
+        Objects.checkIndex(id, size());
         return bytesRefs.get(id, dest);
     }
 
+    /** Returns the key array. */
     public BytesRefArray getBytesRefs() {
         return bytesRefs;
-    }
-
-    //
-    // /**
-    // * Fills the scratch BytesRef with the key at the specified slot.
-    // * This is compliant with the pattern used in LongSwissTable, though here it involves
-    // * an indirect lookup via the ID.
-    // * @return the given BytesRef, dest
-    // */
-    // public BytesRef key(int index, BytesRef dest) {
-    ////        int id;
-////        if (this.bigCore == null) {
-////            id = this.smallCore.id(index);
-////        } else {
-////            id = bigCore.id(slot);
-////        }
-//        //if (index >= 0) {
-    // bytesRefs.get(index, dest);
-    // //}
-    // return dest;
-    // }
-
-    int id(int slot) {
-        if (this.bigCore == null) {
-            return this.smallCore.id(slot);
-        }
-        return bigCore.id(slot);
     }
 
     int idOffset(int slot) {

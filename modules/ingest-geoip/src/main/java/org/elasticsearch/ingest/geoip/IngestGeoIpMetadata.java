@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -69,7 +68,7 @@ public final class IngestGeoIpMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public Map<String, DatabaseConfigurationMetadata> getDatabases() {
@@ -138,7 +137,7 @@ public final class IngestGeoIpMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_16_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 

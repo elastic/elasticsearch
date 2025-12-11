@@ -481,6 +481,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139335
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/200_dense_vector_docvalue_fields/dense_vector docvalues with bfloat16}
+  issue: https://github.com/elastic/elasticsearch/issues/139368
 
 # Examples:
 #

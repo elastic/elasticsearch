@@ -11,8 +11,12 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.MetadataMappingService.PutMappingClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -21,10 +25,13 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,6 +40,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
 
 public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
 
@@ -191,8 +199,57 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata.getSettings().get("index.mapping.total_fields.limit"), equalTo("42"));
     }
 
-    private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {
-        return Collections.singletonList(new MetadataMappingService.PutMappingClusterStateUpdateTask(request, ActionListener.running(() -> {
+    /**
+     * Test that putting an identical mapping results in a no-op and does not submit a cluster state update task.
+     */
+    public void testMappingNoOpUpdateExactEquals() throws IOException {
+        runNoOpMappingUpdateTest("""
+            {"_doc":{"properties":{"field":{"type":"keyword"}}}}""");
+    }
+
+    /**
+     * Test that putting a mapping that is semantically identical but syntactically different results in a no-op.
+     */
+    public void test() throws IOException {
+        runNoOpMappingUpdateTest("""
+            {"properties": {"field": {"type": "keyword", "ignore_above": "2147483647"}}}""");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void runNoOpMappingUpdateTest(String updatedMapping) throws IOException {
+        // Create index with initial mapping
+        final var indexService = createIndex("test", Settings.EMPTY, "_doc", "field", "type=keyword");
+
+        // Set up MetadataMappingService with a mocked ClusterService that prevents and monitors task submission
+        final ClusterService clusterService = Mockito.spy(getInstanceFromNode(ClusterService.class));
+        final MasterServiceTaskQueue<PutMappingClusterStateUpdateTask> masterServiceTaskQueue = Mockito.mock(MasterServiceTaskQueue.class);
+        Mockito.doThrow(new AssertionError("not supposed to run")).when(masterServiceTaskQueue).submitTask(any(), any(), any());
+        Mockito.when(clusterService.<PutMappingClusterStateUpdateTask>createTaskQueue(any(), any(), any()))
+            .thenReturn(masterServiceTaskQueue);
+        final MetadataMappingService metadataMappingService = new MetadataMappingService(
+            clusterService,
+            getInstanceFromNode(IndicesService.class),
+            IndexSettingProviders.EMPTY
+        );
+
+        // Put updated mapping
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            updatedMapping,
+            randomBoolean(),
+            indexService.index()
+        );
+        metadataMappingService.putMapping(request, future);
+        safeGet(future);
+
+        // Verify that no cluster state update task was submitted
+        Mockito.verifyNoInteractions(masterServiceTaskQueue);
+    }
+
+    private static List<PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {
+        return Collections.singletonList(new PutMappingClusterStateUpdateTask(request, ActionListener.running(() -> {
             throw new AssertionError("task should not complete publication");
         })));
     }

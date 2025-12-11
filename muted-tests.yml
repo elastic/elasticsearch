@@ -400,9 +400,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testAggregateMetricDoubleInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/138620
-- class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
-  method: testSynthesizeArrayRandom
-  issue: https://github.com/elastic/elasticsearch/issues/138730
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768

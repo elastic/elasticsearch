@@ -17,7 +17,7 @@ import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -174,7 +174,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
             return new Max(
                 source(),
-                ExtractHistogramComponent.create(source(), field(), ExponentialHistogramBlock.Component.MAX),
+                ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX),
                 filter(),
                 window()
             );

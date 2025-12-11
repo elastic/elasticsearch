@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -99,7 +100,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         if (ordinal == null) {
             return null;
         }
-        return ExponentialHistogramBlock.Component.values()[ordinal.intValue()];
+        return HistogramBlock.Component.values()[ordinal.intValue()];
     }
 
     @Override
@@ -178,7 +179,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         @Override
         public Block eval(Page page) {
             try (Block block = fieldEvaluator.eval(page)) {
-                return ((ExponentialHistogramBlock) block).buildExponentialHistogramComponentBlock(componentToExtract);
+                return ((ExponentialHistogramBlock) block).buildHistogramComponentBlock(componentToExtract);
             }
         }
 

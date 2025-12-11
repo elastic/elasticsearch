@@ -246,6 +246,41 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         valueCountsBuilder.copyFrom(valueCounts, beginInclusive, endExclusive);
     }
 
+
+    @Override
+    public DoubleBlock buildHistogramComponentBlock(Component component) {
+        // as soon as we support multi-values, we need to implement this differently,
+        // as the sub-blocks will be flattened and the position count won't match anymore
+        // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
+        assert doesHaveMultivaluedFields() == false;
+        return switch (component) {
+            case MIN -> {
+                minima.incRef();
+                yield minima;
+            }
+            case MAX -> {
+                maxima.incRef();
+                yield maxima;
+            }
+            case SUM -> {
+                sums.incRef();
+                yield sums;
+            }
+            case COUNT -> {
+                try(var doubleBuilder = blockFactory().newDoubleBlockBuilder(valueCounts.getPositionCount())) {
+                    for (int i = 0; i < valueCounts.getPositionCount(); i++) {
+                        if (isNull(i)) {
+                            doubleBuilder.appendNull();
+                        } else {
+                            doubleBuilder.appendDouble(valueCounts.getLong(valueCounts.getFirstValueIndex(i)));
+                        }
+                    }
+                    yield doubleBuilder.build();
+                }
+            }
+        };
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Block.writeTypedBlock(encodedDigests, out);

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -137,7 +137,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
             Sum valuesSum = new Sum(s, field, filter(), window(), summationMode);
             Sum totalCount = new Sum(
                 s,
-                ExtractHistogramComponent.create(s, field, ExponentialHistogramBlock.Component.COUNT),
+                ExtractHistogramComponent.create(s, field, HistogramBlock.Component.COUNT),
                 filter(),
                 window(),
                 summationMode

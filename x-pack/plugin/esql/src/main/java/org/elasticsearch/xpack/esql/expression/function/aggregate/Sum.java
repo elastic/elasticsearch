@@ -14,7 +14,7 @@ import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -184,7 +184,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         if (field.dataType() == EXPONENTIAL_HISTOGRAM) {
             return new Sum(
                 s,
-                ExtractHistogramComponent.create(source(), field, ExponentialHistogramBlock.Component.SUM),
+                ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.SUM),
                 filter(),
                 window(),
                 summationMode

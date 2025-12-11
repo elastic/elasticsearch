@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,7 +35,7 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (ExponentialHistogramBlock.Component component : ExponentialHistogramBlock.Component.values()) {
+        for (ExponentialHistogramBlock.Component component : HistogramBlock.Component.values()) {
             TestCaseSupplier.TypedDataSupplier componentOrdinalSupplier = new TestCaseSupplier.TypedDataSupplier(
                 "<" + component + ">",
                 component::ordinal,

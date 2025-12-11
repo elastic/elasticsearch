@@ -17,7 +17,7 @@ import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -174,7 +174,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
             return new Min(
                 source(),
-                ExtractHistogramComponent.create(source(), field(), ExponentialHistogramBlock.Component.MIN),
+                ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MIN),
                 filter(),
                 window()
             );

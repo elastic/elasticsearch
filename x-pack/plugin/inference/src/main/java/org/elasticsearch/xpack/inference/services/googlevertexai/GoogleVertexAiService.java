@@ -280,11 +280,13 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         ActionListener<List<ChunkedInference>> listener
     ) {
         GoogleVertexAiModel googleVertexAiModel = (GoogleVertexAiModel) model;
+        GoogleVertexAiEmbeddingsServiceSettings serviceSettings = (GoogleVertexAiEmbeddingsServiceSettings) googleVertexAiModel
+            .getServiceSettings();
         var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
-            EMBEDDING_MAX_BATCH_SIZE,
+            serviceSettings.maxBatchSize() == null ? EMBEDDING_MAX_BATCH_SIZE : serviceSettings.maxBatchSize(),
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -306,6 +308,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                 serviceSettings.dimensionsSetByUser(),
                 serviceSettings.maxInputTokens(),
                 embeddingSize,
+                serviceSettings.maxBatchSize(),
                 serviceSettings.similarity(),
                 serviceSettings.rateLimitSettings()
             );

@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
 import software.amazon.awssdk.core.document.Document;
-import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.AnyToolChoice;
+import software.amazon.awssdk.services.bedrockruntime.model.AutoToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
@@ -17,32 +18,37 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Flow;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getUnifiedConverseMessageList;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.convertChatCompletionMessagesToConverse;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.toDocument;
 
 public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
+    private static final String AUTO_TOOL_CHOICE = "auto";
+    private static final String REQUIRED_TOOL_CHOICE = "required";
+    private static final String NONE_TOOL_CHOICE = "none";
+    private static final Set<String> VALID_TOOL_CHOICES = Set.of(AUTO_TOOL_CHOICE, REQUIRED_TOOL_CHOICE, NONE_TOOL_CHOICE);
+    private static final String FUNCTION_TYPE = "function";
+
     public static final String USER_ROLE = "user";
     private final AmazonBedrockChatCompletionRequestEntity requestEntity;
-    private AmazonBedrockChatCompletionResponseListener listener;
     private final boolean stream;
 
     public AmazonBedrockChatCompletionRequest(
@@ -58,13 +64,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
 
     @Override
     protected void executeRequest(AmazonBedrockBaseClient client) {
-        var converseRequest = getConverseRequest();
-
-        try {
-            SocketAccess.doPrivileged(() -> client.converse(converseRequest, listener));
-        } catch (IOException e) {
-            listener.onFailure(new RuntimeException(e));
-        }
+        throw new UnsupportedOperationException("Unsupported operation, use streaming execution instead");
     }
 
     @Override
@@ -72,88 +72,100 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         return TaskType.CHAT_COMPLETION;
     }
 
-    private ConverseRequest getConverseRequest() {
-        var converseRequest = ConverseRequest.builder()
-            .modelId(amazonBedrockModel.model())
-            .messages(getUnifiedConverseMessageList(requestEntity.messages()));
-
-        inferenceConfig(requestEntity).ifPresent(converseRequest::inferenceConfig);
-        return converseRequest.build();
-    }
-
-    public void executeChatCompletionRequest(
-        AmazonBedrockBaseClient awsBedrockClient,
-        AmazonBedrockChatCompletionResponseListener chatCompletionResponseListener
-    ) {
-        this.listener = chatCompletionResponseListener;
-        this.executeRequest(awsBedrockClient);
-    }
-
     public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> executeStreamChatCompletionRequest(
         AmazonBedrockBaseClient awsBedrockClient
     ) {
+        var toolChoice = convertToolChoice(requestEntity.tools(), requestEntity.toolChoice());
+
+        var toolsEnabled = toolChoice != null;
+
+        var translatedMessages = convertChatCompletionMessagesToConverse(requestEntity.messages(), toolsEnabled);
         var converseStreamRequest = ConverseStreamRequest.builder()
-            .messages(getUnifiedConverseMessageList(requestEntity.messages()))
+            .messages(translatedMessages.messages())
+            .system(translatedMessages.systemContent())
             .modelId(amazonBedrockModel.model());
 
-        if (requestEntity.tools() != null) {
-            requestEntity.tools().forEach(tool -> {
-                try {
-                    converseStreamRequest.toolConfig(
-                        ToolConfiguration.builder()
-                            .tools(
-                                Tool.builder()
-                                    .toolSpec(
-                                        ToolSpecification.builder()
-                                            .name(tool.function().name())
-                                            .description(tool.function().description())
-                                            .inputSchema(ToolInputSchema.fromJson(Document.fromMap(paramToDocumentMap(tool))))
-                                            .build()
-                                    )
-                                    .build()
-                            )
-                            .toolChoice(
-                                ToolChoice.builder().tool(SpecificToolChoice.builder().name(tool.function().name()).build()).build()
-                            )
-                            .build()
-                    );
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+        if (toolsEnabled) {
+            converseStreamRequest.toolConfig(
+                ToolConfiguration.builder().tools(convertTools(requestEntity.tools())).toolChoice(toolChoice.build()).build()
+            );
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
         return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
     }
 
-    private Document toDocument(Object value) {
-        return switch (value) {
-            case null -> Document.fromNull();
-            case String stringValue -> Document.fromString(stringValue);
-            case Integer numberValue -> Document.fromNumber(numberValue);
-            case List<?> values -> Document.fromList(values.stream().map(v -> {
-                if (v instanceof String) {
-                    return Document.fromString((String) v);
-                }
-                return Document.fromNull();
-            }).collect(Collectors.toList()));
-            case Map<?, ?> mapValue -> {
-                final Map<String, Document> converted = new HashMap<>();
-                for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                    converted.put(String.valueOf(entry.getKey()), toDocument(entry.getValue()));
-                }
-                yield Document.fromMap(converted);
-            }
-            default -> Document.mapBuilder().build();
+    private static ToolChoice.Builder convertToolChoice(
+        @Nullable List<UnifiedCompletionRequest.Tool> tools,
+        @Nullable UnifiedCompletionRequest.ToolChoice toolChoice
+    ) {
+        if (tools == null || tools.isEmpty()) {
+            return null;
+        }
+
+        return determineToolChoice(toolChoice);
+    }
+
+    private static ToolChoice.Builder determineToolChoice(@Nullable UnifiedCompletionRequest.ToolChoice toolChoice) {
+        // If a specific tool choice isn't provided, the chat completion schema (openai) defaults to "auto"
+        if (toolChoice == null) {
+            return ToolChoice.builder().auto(AutoToolChoice.builder().build());
+        }
+
+        return switch (toolChoice) {
+            case UnifiedCompletionRequest.ToolChoiceString toolChoiceString -> switch (toolChoiceString.value()) {
+                case AUTO_TOOL_CHOICE -> ToolChoice.builder().auto(AutoToolChoice.builder().build());
+                case REQUIRED_TOOL_CHOICE -> ToolChoice.builder().any(AnyToolChoice.builder().build());
+                case NONE_TOOL_CHOICE -> null;
+                default -> throw new IllegalArgumentException(
+                    Strings.format("Invalid tool choice [%s], must be one of %s", toolChoiceString.value(), VALID_TOOL_CHOICES)
+                );
+            };
+            case UnifiedCompletionRequest.ToolChoiceObject toolChoiceObject -> ToolChoice.builder()
+                .tool(SpecificToolChoice.builder().name(toolChoiceObject.function().name()).build());
         };
     }
 
-    private Map<String, Document> paramToDocumentMap(UnifiedCompletionRequest.Tool tool) throws IOException {
-        Map<String, Document> paramDocuments = new HashMap<>();
+    private static List<Tool> convertTools(@Nullable List<UnifiedCompletionRequest.Tool> tools) {
+        if (tools == null || tools.isEmpty()) {
+            return List.of();
+        }
+
+        var builtTools = new ArrayList<Tool>();
+
+        for (var requestTool : tools) {
+            if (requestTool.type().equals(FUNCTION_TYPE) == false) {
+                throw new IllegalArgumentException(
+                    Strings.format("Unsupported tool type [%s], only [%s] is supported", requestTool.type(), FUNCTION_TYPE)
+                );
+            }
+
+            builtTools.add(
+                Tool.builder()
+                    .toolSpec(
+                        ToolSpecification.builder()
+                            .name(requestTool.function().name())
+                            .description(requestTool.function().description())
+                            .inputSchema(ToolInputSchema.fromJson(Document.fromMap(paramToDocumentMap(requestTool))))
+                            .build()
+                    )
+                    .build()
+            );
+        }
+
+        return builtTools;
+    }
+
+    private static Map<String, Document> paramToDocumentMap(UnifiedCompletionRequest.Tool tool) {
+        if (tool.function().parameters() == null) {
+            return Map.of();
+        }
+
+        var paramDocuments = new HashMap<String, Document>();
         for (Map.Entry<String, Object> entry : tool.function().parameters().entrySet()) {
             paramDocuments.put(entry.getKey(), toDocument(entry.getValue()));
         }
+
         return paramDocuments;
     }
 

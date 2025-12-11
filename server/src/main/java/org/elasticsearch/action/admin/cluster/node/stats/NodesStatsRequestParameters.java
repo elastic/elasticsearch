@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,14 +37,14 @@ public class NodesStatsRequestParameters implements Writeable {
 
     public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
-        requestedMetrics = Metric.readSetFrom(in);
+        requestedMetrics = in.readEnumSet(Metric.class);
         includeShardsStats = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         indices.writeTo(out);
-        Metric.writeSetTo(out, requestedMetrics);
+        out.writeEnumSet(requestedMetrics);
         out.writeBoolean(includeShardsStats);
     }
 
@@ -108,26 +107,6 @@ public class NodesStatsRequestParameters implements Writeable {
             var metric = NAMES_MAP.get(name);
             assert metric != null;
             return metric;
-        }
-
-        public static void writeSetTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeEnumSet(metrics);
-            } else {
-                out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
-            }
-        }
-
-        public static EnumSet<Metric> readSetFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                return in.readEnumSet(Metric.class);
-            } else {
-                return in.readCollection((i) -> EnumSet.noneOf(Metric.class), (is, out) -> {
-                    var name = is.readString();
-                    var metric = Metric.get(name);
-                    out.add(metric);
-                });
-            }
         }
 
         public String metricName() {

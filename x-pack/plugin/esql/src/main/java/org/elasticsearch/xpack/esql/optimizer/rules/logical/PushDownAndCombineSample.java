@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -67,6 +68,7 @@ public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimi
             || child instanceof Eval
             || child instanceof Filter
             || child instanceof Insist
+            || child instanceof IpLookup
             || child instanceof OrderBy
             || child instanceof Project
             || child instanceof RegexExtract) {

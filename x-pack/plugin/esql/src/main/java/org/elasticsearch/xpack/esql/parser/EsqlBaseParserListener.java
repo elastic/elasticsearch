@@ -786,6 +786,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#ipLookupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterIpLookupCommand(EsqlBaseParser.IpLookupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#ipLookupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitIpLookupCommand(EsqlBaseParser.IpLookupCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
    */

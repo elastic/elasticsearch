@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -1164,6 +1165,53 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             checkForRemoteClusters(p, source, "COMPLETION");
             return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
         };
+    }
+
+    @Override
+    public PlanFactory visitIpLookupCommand(EsqlBaseParser.IpLookupCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute targetField = visitQualifiedName(ctx.qualifiedName());
+        if (targetField == null) {
+            throw new ParsingException(source(ctx), "Missing target field in IP_LOOKUP command");
+        }
+
+        Expression ipAddress = expression(ctx.primaryExpression());
+
+        String tmpDatabaseName = null;
+        EsqlBaseParser.CommandNamedParametersContext namedParamsCtx = ctx.commandNamedParameters();
+
+        if (namedParamsCtx != null) {
+            MapExpression parsedOptions = visitCommandNamedParameters(namedParamsCtx);
+            if (parsedOptions != null) {
+                Map<String, Expression> tmpOptions = new HashMap<>(parsedOptions.keyFoldedMap());
+                Expression databaseFileExpr = tmpOptions.remove(IpLookup.DATABASE_FILE_OPTION);
+                if (databaseFileExpr != null) {
+                    if (databaseFileExpr instanceof Literal && DataType.isString(databaseFileExpr.dataType()) == false) {
+                        throw new ParsingException(
+                            databaseFileExpr.source(),
+                            "Option {} for IP_LOOKUP must be a string literal, found [{}]",
+                            IpLookup.DATABASE_FILE_OPTION,
+                            databaseFileExpr.dataType().typeName()
+                        );
+                    }
+                    // the toString() method of Literal should be correct here
+                    tmpDatabaseName = databaseFileExpr.toString();
+                }
+
+                // check for unrecognized options
+                if (tmpOptions.isEmpty() == false) {
+                    throw new ParsingException(
+                        source(namedParamsCtx),
+                        "Invalid option(s) [{}] in IP_LOOKUP. Valid options: [{}].",
+                        String.join(", ", tmpOptions.keySet()),
+                        IpLookup.DATABASE_FILE_OPTION
+                    );
+                }
+            }
+        }
+        final String databaseName = tmpDatabaseName;
+        return p -> new IpLookup(source, p, ipAddress, targetField, databaseName);
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {

@@ -71,6 +71,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? ipLookupCommand
     ;
 
 whereCommand
@@ -361,6 +362,10 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+ipLookupCommand
+    : DEV_IP_LOOKUP qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand

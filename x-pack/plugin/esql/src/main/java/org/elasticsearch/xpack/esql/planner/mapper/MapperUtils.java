@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.IpLookup;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.IpLookupExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -147,6 +149,17 @@ public class MapperUtils {
         if (p instanceof Subquery) {
             // A Subquery node is just a placeholder for the subquery plan, so we just return the child plan
             return child;
+        }
+
+        if (p instanceof IpLookup ipLookup) {
+            return new IpLookupExec(
+                ipLookup.source(),
+                child,
+                ipLookup.ipAddress(),
+                ipLookup.databaseFile(),
+                ipLookup.resolvedGeoLocationFields(),
+                ipLookup.geoLocationFieldTemplates()
+            );
         }
 
         return unsupported(p);

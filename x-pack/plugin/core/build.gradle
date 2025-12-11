@@ -65,7 +65,7 @@ dependencies {
   // And having a module dependency counts as using the jar, so we can't make it `runtimeOnly` :(
 
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
 
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
@@ -161,8 +161,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.jms.Message',
     // HttpClient5 can use Conscrypt (TLS using BoringSSL), but we don't want that
     'org.conscrypt.Conscrypt',
-    // SLF4j via HttpClient5
-    'org.slf4j.ext.EventData'
   )
 }
 

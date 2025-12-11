@@ -93,7 +93,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         );
 
         List<Object[]> params = new ArrayList<>();
-        for (boolean forcePackedHash : new boolean[] { /*false, */ true }) { // TODO: force packed is not implemented
+        for (boolean forcePackedHash : new boolean[] { false, true }) {
             for (int groups : new int[] { 1, 2, 3, 4, 5, 10 }) {
                 for (int maxValuesPerPosition : new int[] { 1, 3 }) {
                     for (int dups : new int[] { 0, 2 }) {

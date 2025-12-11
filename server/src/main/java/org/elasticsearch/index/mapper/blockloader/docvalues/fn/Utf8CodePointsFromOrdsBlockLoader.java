@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
@@ -166,7 +167,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             try {
                 ords = new int[count];
                 if (ordinals instanceof OptionalColumnAtATimeReader direct) {
-                    var block = direct.tryRead(new OrdsBuilder(ords), docs, offset, nullsFiltered, null, false);
+                    var block = direct.tryRead(new OrdsBuilder(ords, ordinals), docs, offset, nullsFiltered, null, false);
                     if (block != null) {
                         int[] result = ords;
                         ords = null;
@@ -220,7 +221,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             int count = docs.count() - offset;
             if (ordinals instanceof OptionalColumnAtATimeReader direct) {
                 int[] ords = new int[count];
-                var block = direct.tryRead(new OrdsBuilder(ords), docs, offset, nullsFiltered, null, false);
+                var block = direct.tryRead(new OrdsBuilder(ords, ordinals), docs, offset, nullsFiltered, null, false);
                 if (block != null) {
                     try (IntBuilder builder = factory.ints(count)) {
                         for (int ord : ords) {
@@ -713,7 +714,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             try {
                 ords = new int[docs.count() - offset];
                 if (ordinals instanceof OptionalColumnAtATimeReader direct) {
-                    var block = direct.tryRead(new OrdsBuilder(ords), docs, offset, nullsFiltered, null, false);
+                    var block = direct.tryRead(new OrdsBuilder(ords, ordinals), docs, offset, nullsFiltered, null, false);
                     if (block != null) {
                         int[] result = ords;
                         ords = null;
@@ -743,9 +744,24 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         private final int[] ords;
         private int ordIndex = 0;
+        private final SortedDocValues ordinals;
 
-        OrdsBuilder(int[] ords) {
+        OrdsBuilder(int[] ords, SortedDocValues ordinals) {
             this.ords = ords;
+            this.ordinals = ordinals;
+        }
+
+        @Override
+        public Block constantBytes(BytesRef value, int count) {
+            // TODO: ordinal is known by caller... can this lookup be avoided?
+            try {
+                int ord = ordinals.lookupTerm(value);
+                Arrays.fill(ords, ordIndex, count, ord);
+                ordIndex = 1;
+                return () -> {};
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         public SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense) {

@@ -15,6 +15,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -64,8 +66,11 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends ESTestCase {
     public void test() throws IOException {
         int mvCount = 0;
         IndexWriterConfig iwc = newIndexWriterConfig();
+        // TODO: include this as a test scenario:
         if (lowCardinality && blockAtATime && multiValues == false && missingValues == false) {
-            // iwc.setIndexSort(new Sort(new SortedSetSortField("field", false)));
+            if (randomBoolean()) {
+                iwc.setIndexSort(new Sort(new SortedSetSortField("field", false)));
+            }
             var docValuesCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
             iwc.setCodec(docValuesCodec);
         }

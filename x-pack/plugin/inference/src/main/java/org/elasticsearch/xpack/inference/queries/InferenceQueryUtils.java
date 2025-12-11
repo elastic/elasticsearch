@@ -50,7 +50,6 @@ import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
-import static org.elasticsearch.xpack.core.ml.action.InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API;
 
 public final class InferenceQueryUtils {
     /**
@@ -544,15 +543,8 @@ public final class InferenceQueryUtils {
         List<String> inferenceIds,
         ActionListener<Map<FullyQualifiedInferenceId, InferenceResults>> inferenceResultsMapListener
     ) {
-        // TODO: Get timeout from INFERENCE_QUERY_TIMEOUT
         List<CoordinatedInferenceAction.Request> inferenceRequests = inferenceIds.stream().map(inferenceId -> {
-            var request = CoordinatedInferenceAction.Request.forTextInput(
-                inferenceId,
-                List.of(query),
-                null,
-                false,
-                DEFAULT_TIMEOUT_FOR_API
-            );
+            var request = CoordinatedInferenceAction.Request.forTextInput(inferenceId, List.of(query), null, false, null);
             request.setHighPriority(true);
             request.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
             return request;

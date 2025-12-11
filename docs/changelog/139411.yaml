@@ -1,0 +1,6 @@
+pr: 139411
+summary: "[Inference API] Add Chat Completion to Amazon Bedrock for the Inference\
+  \ API"
+area: Inference
+type: enhancement
+issues: []

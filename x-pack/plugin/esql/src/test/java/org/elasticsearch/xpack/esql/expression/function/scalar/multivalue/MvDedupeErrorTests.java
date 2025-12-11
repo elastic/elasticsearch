@@ -49,6 +49,11 @@ public class MvDedupeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
          * new type you may we to temporarily relax this.
          */
         assertThat("all signatures except dense_vector, aggregate_metric_double or date_range should be supported", checked, equalTo(2));
+        assertThat(
+            "all signatures except dense_vector, aggregate_metric_double and exponential_histogram should be supported",
+            checked,
+            equalTo(3)
+        );
     }
 
 }

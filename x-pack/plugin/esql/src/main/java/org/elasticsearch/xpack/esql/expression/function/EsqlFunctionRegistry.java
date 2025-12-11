@@ -565,7 +565,7 @@ public class EsqlFunctionRegistry {
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
-                def(Hamming.class, Hamming::new, "v_hamming")} };
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -580,7 +580,7 @@ public class EsqlFunctionRegistry {
                 def(Last.class, bi(Last::new), "last"),
                 def(Term.class, bi(Term::new), "term"),
                 // dense vector functions
-                def(Magnitude.class, Magnitude::new, "v_magnitude")} };
+                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

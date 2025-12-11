@@ -58,7 +58,6 @@ public class PushVectorSimilarityToLoadIT extends ESRestTestCase {
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
-
     public void testVCosine() throws IOException {
         test(
             justType("dense_vector"),

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -59,6 +58,6 @@ public class TestQueryRulesetActionRequestBWCSerializingTests extends AbstractBW
 
     @Override
     protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(TransportVersions.V_8_16_0)).collect(Collectors.toList());
+        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(TransportVersion.minimumCompatible())).collect(Collectors.toList());
     }
 }

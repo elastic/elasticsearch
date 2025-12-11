@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -75,9 +78,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
-    public static final String SUM_FIELD_NAME = "sum";
-    public static final String MIN_FIELD_NAME = "min";
-    public static final String MAX_FIELD_NAME = "max";
+
     public static final String CONTENT_TYPE = "tdigest";
 
     private static TDigestFieldMapper toType(FieldMapper in) {
@@ -368,21 +369,14 @@ public class TDigestFieldMapper extends FieldMapper {
             }
             subParser.nextToken();
             // TODO: Here we should build a t-digest out of the input, based on the settings on the field
-            TDigestParser.ParsedTDigest parsedTDigest = TDigestParser.parse(fullPath(), subParser);
+            TDigestParser.ParsedTDigest parsedTDigest = TDigestParser.parse(
+                fullPath(),
+                subParser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
 
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-
-            for (int i = 0; i < parsedTDigest.centroids().size(); i++) {
-                long count = parsedTDigest.counts().get(i);
-                assert count >= 0;
-                // we do not add elements with count == 0
-                if (count > 0) {
-                    streamOutput.writeVLong(count);
-                    streamOutput.writeDouble(parsedTDigest.centroids().get(i));
-                }
-            }
-
-            BytesRef docValue = streamOutput.bytes().toBytesRef();
+            BytesRef docValue = encodeCentroidsAndCounts(parsedTDigest.centroids(), parsedTDigest.counts());
             Field digestField = new BinaryDocValuesField(fullPath(), docValue);
 
             // Add numeric doc values fields for the summary data
@@ -456,6 +450,23 @@ public class TDigestFieldMapper extends FieldMapper {
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+    }
+
+    private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+
+        for (int i = 0; i < centroids.size(); i++) {
+            long count = counts.get(i);
+            assert count >= 0;
+            // we do not add elements with count == 0
+            if (count > 0) {
+                streamOutput.writeVLong(count);
+                streamOutput.writeDouble(centroids.get(i));
+            }
+        }
+
+        BytesRef docValue = streamOutput.bytes().toBytesRef();
+        return docValue;
     }
 
     private static String valuesCountSubFieldName(String fullPath) {

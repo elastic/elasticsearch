@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
@@ -570,23 +569,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             int successfulTemp = in.readVInt();
             int skippedTemp = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
-                if (clusterList.isEmpty()) {
-                    this.clusterInfo = Collections.emptyMap();
-                    this.successful = successfulTemp;
-                    this.skipped = skippedTemp;
-                } else {
-                    Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
-                    clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
-                    this.clusterInfo = m;
-                    this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
-                    this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
-                }
-            } else {
+            List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
+            if (clusterList.isEmpty()) {
+                this.clusterInfo = Collections.emptyMap();
                 this.successful = successfulTemp;
                 this.skipped = skippedTemp;
-                this.clusterInfo = Collections.emptyMap();
+            } else {
+                Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
+                clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
+                this.clusterInfo = m;
+                this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
+                this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
             }
             int running = getClusterStateCount(Cluster.Status.RUNNING);
             int partial = getClusterStateCount(Cluster.Status.PARTIAL);
@@ -628,13 +621,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-                if (clusterInfo != null) {
-                    List<Cluster> clusterList = clusterInfo.values().stream().toList();
-                    out.writeCollection(clusterList);
-                } else {
-                    out.writeCollection(Collections.emptyList());
-                }
+            if (clusterInfo != null) {
+                List<Cluster> clusterList = clusterInfo.values().stream().toList();
+                out.writeCollection(clusterList);
+            } else {
+                out.writeCollection(Collections.emptyList());
             }
         }
 
@@ -922,11 +913,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                this.skipUnavailable = in.readBoolean();
-            } else {
-                this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
-            }
+            this.skipUnavailable = in.readBoolean();
         }
 
         /**
@@ -1027,9 +1014,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                out.writeBoolean(skipUnavailable);
-            }
+            out.writeBoolean(skipUnavailable);
         }
 
         @Override

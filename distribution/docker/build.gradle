@@ -24,6 +24,12 @@ apply plugin: 'elasticsearch.repositories'
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
 
+// FIPS version for Docker builds: '140-2' (default) or '140-3'
+// Use -Ddocker.fips.version=140-3 to build with FIPS 140-3 / BC 2.x libraries
+ext.isFips140_3 = providers.systemProperty('docker.fips.version').getOrElse(
+  buildParams.fipsMode ?: '140-2'
+) == '140-3'
+
 repositories {
   // Define a repository that allows Gradle to fetch a resource from GitHub. This
   // is only used to fetch the `tini` binary, when building the Iron Bank docker image
@@ -105,6 +111,7 @@ configurations {
   metricbeat_x86_64
   metricbeat_fips_x86_64
   fips
+  fips_140_3
 }
 
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
@@ -129,8 +136,14 @@ dependencies {
   metricbeat_fips_aarch64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_fips_x86_64 "beats:metricbeat-fips:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
 
+  // FIPS 140-2 libraries (default)
   fips "org.bouncycastle:bc-fips:1.0.2.6"
   fips "org.bouncycastle:bctls-fips:1.0.19"
+
+  // FIPS 140-3 libraries
+  fips_140_3 "org.bouncycastle:bc-fips:2.0.1"
+  fips_140_3 "org.bouncycastle:bctls-fips:2.0.22"
+  fips_140_3 "org.bouncycastle:bcutil-fips:2.0.5"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base, String publicationContext = '' ->
@@ -142,6 +155,9 @@ ext.expansions = { Architecture architecture, DockerBase base, String publicatio
   // an image for every single change. Therefore, outside of CI, we fix the
   // build time to midnight so that the Docker build cache is usable.
   def buildDate = buildParams.ci ? buildParams.buildDate : buildParams.buildDate.truncatedTo(ChronoUnit.DAYS).toString()
+
+  // BC-FIPS version depends on FIPS version (140-2 vs 140-3)
+  def bcFipsVersion = isFips140_3 ? '2.0.1' : '1.0.2.6'
 
   return [
     'arch'               : architecture.classifier,
@@ -156,7 +172,8 @@ ext.expansions = { Architecture architecture, DockerBase base, String publicatio
     'docker_context'     : publicationContext,
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
-    'retry'              : ShellRetry
+    'retry'              : ShellRetry,
+    'bc_fips_version'    : bcFipsVersion
   ]
 }
 
@@ -336,7 +353,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
 
         into("fips") {
           into("libs") {
-            from configurations.fips
+            from(isFips140_3 ? configurations.fips_140_3 : configurations.fips)
           }
           into("resources") {
             from tasks.named('fipsDockerResources')
@@ -575,11 +592,13 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 }
 
 // fips
+String fipsPolicySourceFilename = isFips140_3 ? 'fips_java_140_3.policy' : 'fips_java.policy'
+
 TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsDockerResources', ExportElasticsearchBuildResourcesTask)
 fipsResourcesTask.configure {
   outputDir = project.layout.buildDirectory.dir('fips-docker-resources').get().asFile
   copy 'fips_java.security'
-  copy 'fips_java.policy'
+  copy fipsPolicySourceFilename, 'fips_java.policy'
 }
 
 for (final Architecture architecture : Architecture.values()) {

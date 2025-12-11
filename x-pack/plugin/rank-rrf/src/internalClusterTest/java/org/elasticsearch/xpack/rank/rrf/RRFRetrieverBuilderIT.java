@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -38,6 +39,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.rank.FailingQueryPlugin;
+import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
+import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -64,7 +68,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(RRFRankPlugin.class);
+        return List.of(RRFRankPlugin.class, FailingQueryPlugin.class);
     }
 
     @Before
@@ -920,5 +924,26 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
+    }
+
+    public void testRRFRetrieverPartialSearchErrors() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(new MatchAllQueryBuilder());
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(false).setSource(source);
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertTrue(ex.getSuppressed()[0].getMessage().contains("simulated failure"));
     }
 }

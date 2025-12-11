@@ -93,7 +93,7 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
 
     @Override
     public void testInexistentIndexNameWithoutWildcard() {
-        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        assumeFalse("skip_unavailable=true causes partial result with corresponding remote being skipped", isSkipUnavailable());
         super.testInexistentIndexNameWithoutWildcard();
     }
 

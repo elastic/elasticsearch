@@ -269,7 +269,7 @@ class FetchSearchPhase extends SearchPhase {
             aggregatedDfs
         );
 
-        if (connection.getTransportVersion().supports(CHUNKED_FETCH_PHASE) && shouldUseChunking(entry)) {
+        if (connection.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
             shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
             shardFetchRequest.setCoordinatingTaskId(context.getTask().getId());
 
@@ -284,10 +284,6 @@ class FetchSearchPhase extends SearchPhase {
         } else {
             context.getSearchTransport().sendExecuteFetch(connection, shardFetchRequest, context.getTask(), listener);
         }
-    }
-
-    private boolean shouldUseChunking(List<Integer> docIds) {
-        return docIds != null && docIds.size() > 10; // TODO set it properly
     }
 
     private void moveToNextPhase(

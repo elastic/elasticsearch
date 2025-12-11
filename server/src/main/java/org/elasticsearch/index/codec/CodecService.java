@@ -59,7 +59,10 @@ public class CodecService implements CodecProvider {
             // Use the default Lucene compression when the synthetic id is used even if the ZSTD feature flag is enabled
             codecs.put(DEFAULT_CODEC, new ES93TSDBDefaultCompressionLucene103Codec(legacyBestSpeedCodec, bigArrays));
         } else if (ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays, threadPool));
+            codecs.put(
+                DEFAULT_CODEC,
+                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays, threadPool)
+            );
         } else {
             codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
         }

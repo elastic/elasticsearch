@@ -210,7 +210,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
     /**
      * Test that putting a mapping that is semantically identical but syntactically different results in a no-op.
      */
-    public void test() throws IOException {
+    public void testMappingNoOpUpdateSemanticEquals() throws IOException {
         runNoOpMappingUpdateTest("""
             {"properties": {"field": {"type": "keyword", "ignore_above": "2147483647"}}}""");
     }

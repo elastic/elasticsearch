@@ -825,12 +825,7 @@ public class GrokTests extends ESTestCase {
             });
             t.start();
         };
-        Grok grok = new Grok(
-            GrokBuiltinPatterns.get(ecsCompatibility),
-            grokPattern,
-            MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
-            logger::warn
-        );
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), grokPattern, MatcherWatchdog.newInstance(200), logger::warn);
 
         // hunting a rare test failure -- sometimes we get a failure in the expectThrows below, and the most
         // logical reason for it to be hit is that the matcher watchdog just never even started up.

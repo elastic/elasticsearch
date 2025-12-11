@@ -11,8 +11,6 @@ package org.elasticsearch.grok;
 import org.joni.Matcher;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
 
 /**
  * Provides an interface for protecting code that uses joni's {@link org.joni.Matcher}
@@ -45,21 +43,11 @@ public interface MatcherWatchdog {
     void unregister(Matcher matcher);
 
     /**
-     * Returns an implementation that checks for each fixed interval if there are threads that have invoked {@link #register(Matcher)}
-     * and not {@link #unregister(Matcher)} and have been in this state for longer than the specified max execution interval and
-     * then interrupts these threads.
+     * Returns an implementation that relies on the {@link org.joni.Matcher#setTimeout(long)} method.
      *
-     * @param interval              The fixed interval to check if there are threads to interrupt
-     * @param maxExecutionTime      The time a thread has the execute an operation.
-     * @param relativeTimeSupplier  A supplier that returns relative time
-     * @param scheduler             A scheduler that is able to execute a command for each fixed interval
+     * @param maxExecutionTime The time in millis that a matcher has to execute an operation.
      */
-    static MatcherWatchdog newInstance(
-        long interval,
-        long maxExecutionTime,
-        LongSupplier relativeTimeSupplier,
-        BiConsumer<Long, Runnable> scheduler
-    ) {
+    static MatcherWatchdog newInstance(long maxExecutionTime) {
         return new Default(maxExecutionTime);
     }
 

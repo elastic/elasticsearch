@@ -30,19 +30,7 @@ public class MatcherWatchdogTests extends ESTestCase {
 
     public void testInterrupt() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
-        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
-            try {
-                Thread.sleep(delay);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
-            Thread thread = new Thread(() -> {
-                if (run.get()) {
-                    command.run();
-                }
-            });
-            thread.start();
-        });
+        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(100);
 
         // need to call #register() method on a different thread, assertBusy() fails if current thread gets interrupted
         AtomicBoolean interrupted = new AtomicBoolean(false);
@@ -63,12 +51,7 @@ public class MatcherWatchdogTests extends ESTestCase {
     public void testIdleIfNothingRegistered() throws Exception {
         long interval = 1L;
         ScheduledExecutorService threadPool = mock(ScheduledExecutorService.class);
-        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(
-            interval,
-            Long.MAX_VALUE,
-            System::currentTimeMillis,
-            (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS)
-        );
+        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(Long.MAX_VALUE);
         // Periodic action is not scheduled because no thread is registered
         verifyNoMoreInteractions(threadPool);
 

@@ -17,12 +17,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -82,10 +82,13 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
             "long",
             "unsigned_long",
             "version" },
-        description = """
-            Returns a subset of the inputs sets that contains the intersection of values in provided mv arguments
-            """,
-        examples = { @Example(file = "mv_intersect", tag = "testMvIntersectWithIntValues") },
+        description = "Returns a subset of the inputs sets that contains the intersection of values in provided mv arguments.",
+        examples = {
+            @Example(file = "mv_intersect", tag = "testMvIntersectWithIntValues"),
+            @Example(file = "mv_intersect", tag = "testMvIntersectWithLongValues"),
+            @Example(file = "mv_intersect", tag = "testMvIntersectWithBooleanValues"),
+            @Example(file = "mv_intersect", tag = "testMvIntersectWithDoubleValues"),
+            @Example(file = "mv_intersect", tag = "testMvIntersectWithBytesRefValues") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") }
     )
     public MvIntersect(
@@ -146,6 +149,11 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
 
     static void appendEmptySet(Block.Builder builder) {
         builder.appendNull();
+    }
+
+    @Override
+    public boolean foldable() {
+        return field1.foldable() && field2.foldable();
     }
 
     @Evaluator(extraName = "Boolean")
@@ -345,14 +353,14 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         }
 
         // ensure all children are the same type
-        DataType field1Type = field1.dataType();
-        DataType field2Type = field2.dataType();
+        ElementType field1Type = PlannerUtils.toElementType(field1.dataType());
+        ElementType field2Type = PlannerUtils.toElementType(field2.dataType());
 
-        if (field1Type != field2Type && field1Type.equals(DataType.NULL) == false && field2Type.equals(DataType.NULL) == false) {
+        if (field1Type != field2Type && field1Type.equals(ElementType.NULL) == false && field2Type.equals(ElementType.NULL) == false) {
             return new TypeResolution("All child fields must be the same type");
         }
 
-        Expression evaluatedField = field1Type.equals(DataType.NULL) ? field2 : field1;
+        Expression evaluatedField = field1Type.equals(ElementType.NULL) ? field2 : field1;
 
         this.dataType = evaluatedField.dataType().noText();
 
@@ -366,11 +374,6 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         }
 
         return resolution;
-    }
-
-    @Override
-    public Object fold(FoldContext ctx) {
-        return super.fold(source(), ctx);
     }
 
     @Override

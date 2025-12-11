@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.extras.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.elasticsearch.index.mapper.extras.RankFeaturesFieldMapper.RankFeaturesFieldType;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -224,7 +223,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     in.readVLong(),
                     in.readLong(),
                     in.readLong(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readLong() : -1
+                    in.readLong()
                 );
             }
 
@@ -250,9 +249,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 out.writeVLong(evictions);
                 out.writeLong(hitsTimeInMillis);
                 out.writeLong(missesTimeInMillis);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                    out.writeLong(cacheSizeInBytes);
-                }
+                out.writeLong(cacheSizeInBytes);
             }
         }
     }

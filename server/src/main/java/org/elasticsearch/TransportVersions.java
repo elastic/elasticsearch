@@ -58,7 +58,6 @@ public class TransportVersions {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_14_0 = def(8_636_0_01);
-    public static final TransportVersion V_8_16_0 = def(8_772_0_01);
 
     /*
      * STOP! READ THIS FIRST! No, really,

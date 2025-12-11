@@ -103,6 +103,7 @@ if (buildParams.inFipsJvm) {
           systemProperty 'javax.net.ssl.keyStorePassword', 'password'
           systemProperty 'javax.net.ssl.keyStoreType', 'BCFKS'
           systemProperty 'org.bouncycastle.fips.approved_only', 'true'
+          systemProperty 'org.bouncycastle.native.cpu_variant', 'java'
           // Setting security explicitly off as a default behavior for the tests which normally run
           // with no x-pack. Tests having security explicitly enabled/disabled will override this setting
           setting 'xpack.security.enabled', 'false'
@@ -131,6 +132,7 @@ if (buildParams.inFipsJvm) {
         task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", fipsPolicy))
         task.systemProperty('javax.net.ssl.trustStore', fipsTrustStore)
         task.systemProperty('org.bouncycastle.fips.approved_only', 'true')
+        task.systemProperty('org.bouncycastle.native.cpu_variant', 'java')
       }
     }
   }

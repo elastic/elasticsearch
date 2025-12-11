@@ -1741,6 +1741,11 @@ public class EsqlCapabilities {
          */
         TOP_SNIPPETS_FUNCTION,
 
+        /**
+         * Support for the MV_INTERSECT function which returns the set intersection of two multivalued fields
+         */
+        FN_MV_INTERSECT,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

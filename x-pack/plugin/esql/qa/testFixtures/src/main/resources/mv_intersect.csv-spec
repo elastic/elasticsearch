@@ -1,5 +1,6 @@
 testMvIntersectWithIntValues
-// tag:testMvIntersectWithIntValues
+required_capability: fn_mv_intersect
+// tag:testMvIntersectWithIntValues[]
 row 
 a = [1, 2, 3, 4, 5], 
 b = [2, 3, 4, 5, 6]
@@ -7,11 +8,13 @@ b = [2, 3, 4, 5, 6]
 | KEEP finalValue;
 
 finalValue:integer 
-[2, 3, 4, 5]          
+[2, 3, 4, 5]
+// end:testMvIntersectWithIntValues[]
 ;
 
 testMvIntersectWithLongValues
-// tag:testMvIntersectWithLongValues
+required_capability: fn_mv_intersect
+// tag:testMvIntersectWithLongValues[]
 row 
 a = [1, 2, 3, 4, 5]::long, 
 b = [2, 3, 4, 5, 6]::long
@@ -20,10 +23,12 @@ b = [2, 3, 4, 5, 6]::long
 
 finalValue:long 
 [2, 3, 4, 5]
+// end:testMvIntersectWithLongValues[]
 ;
 
 testMvIntersectWithBooleanValues
-// tag:testMvIntersectWithBooleanValues
+required_capability: fn_mv_intersect
+// tag:testMvIntersectWithBooleanValues[]
 row
 a = [true, false, false, false],
 b = [false]
@@ -32,10 +37,12 @@ b = [false]
 
 finalValue:boolean 
 [false]
+// end:testMvIntersectWithBooleanValues[]
 ;
 
 testMvIntersectWithDoubleValues
-// tag:testMvIntersectWithDoubleValues
+required_capability: fn_mv_intersect
+// tag:testMvIntersectWithDoubleValues[]
 row
 a = [5.2, 10.5, 1.12345, 2.6928],
 b = [10.5, 2.6928]
@@ -44,10 +51,12 @@ b = [10.5, 2.6928]
 
 finalValue:double 
 [10.5, 2.6928]
+// end:testMvIntersectWithDoubleValues[]
 ;
 
 testMvIntersectWithBytesRefValues
-// tag:testMvIntersectWithBytesRefValues
+required_capability: fn_mv_intersect
+// tag:testMvIntersectWithBytesRefValues[]
 row
 a = ["one", "two", "three", "four", "five"],
 b = ["one", "four"]
@@ -56,4 +65,5 @@ b = ["one", "four"]
 
 finalValue:keyword
 ["one", "four"]
+// end:testMvIntersectWithBytesRefValues[]
 ;

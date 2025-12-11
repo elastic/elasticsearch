@@ -934,12 +934,11 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     public void testBareAvgOverTimeByTBucket() {
         record TimeSeries(String cluster, String host, String tbucket) {
-            // Cluster and host are dimensions so grouping here by both of them is equal to grouping by _tsid (group by all)
+            // Cluster and host are dimensions so grouping by both of them is equal to grouping by _tsid (group by all)
         }
         record Sample(int count, double sum) {
 
         }
-        // Build expected values per (cluster, host, tbucket) - each time series in each time bucket
         Map<TimeSeries, Sample> buckets = new HashMap<>();
         var rounding = new Rounding.Builder(TimeValue.timeValueMillis(TimeValue.timeValueMinutes(1).millis())).build().prepareForUnknown();
         for (Doc doc : docs) {

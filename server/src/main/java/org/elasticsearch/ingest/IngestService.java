@@ -174,7 +174,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
         final Settings settings = env.settings();
-        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings).getMillis();
         return MatcherWatchdog.newInstance(maxExecutionTimeMillis);
     }
 

@@ -18,7 +18,7 @@ Slow logs are emitted under `fileset.name = "slowlog"`, logger names `index.sear
 By default, all thresholds default to `-1`, which disables slow logging.
 
 
-## Settings for search operations
+## Settings for search operations [search-slow-log]
 
 Search slow logs emit per shard. They must be enabled separately for the shard’s [query and fetch search phases](https://www.elastic.co/blog/understanding-query-then-fetch-vs-dfs-query-then-fetch).
 
@@ -82,7 +82,7 @@ The following request enables slow logs and includes information about who trigg
 
 
 
-## Settings for indexing operations 
+## Settings for indexing operations [index-slow-log]
 
 Indexing slow logs emit per index document.
 

@@ -25,11 +25,13 @@ public enum FeatureFlag {
         Version.fromString("9.2.0"),
         null
     ),
+
     RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
     INFERENCE_API_CCM("es.inference_api_ccm_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
     TSDB_SYNTHETIC_ID_FEATURE_FLAG("es.tsdb_synthetic_id_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
     GPU_FORMAT("es.gpu_vectors_indexing_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
-    ESQL_VIEWS("es.esql_views_feature_flag_enabled=true", Version.fromString("9.3.0"), null);
+    ESQL_VIEWS("es.esql_views_feature_flag_enabled=true", Version.fromString("9.3.0"), null),
+    EXTENDED_DOC_VALUES_PARAMS("es.extended_doc_values_options_enabled=true", Version.fromString("9.3.0"), null);
 
     public final String systemProperty;
     public final Version from;

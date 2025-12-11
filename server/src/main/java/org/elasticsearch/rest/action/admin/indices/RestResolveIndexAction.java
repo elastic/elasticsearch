@@ -98,7 +98,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }
 
-    private static String parseProjectRouting(XContentParser parser) throws IOException {
+    private static String parseProjectRouting(XContentParser parser) throws ParsingException {
         try {
             XContentParser.Token first = parser.nextToken();
             if (first == null) {

@@ -30,8 +30,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc"),
             InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
-            "model",
-            JinaAIEmbeddingType.FLOAT
+            "modelName",
+            JinaAIEmbeddingType.FLOAT,
+            512
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -39,7 +40,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"float","task":"retrieval.passage","late_chunking":true}"""));
+            {"input":["abc"],"model":"modelName","embedding_type":"float",\
+            "task":"retrieval.passage","late_chunking":true,"dimensions":512}"""));
     }
 
     public void testXContent_WritesOnlyLateChunkingField_WhenItIsTheOnlyOptionalFieldDefined() throws IOException {
@@ -48,6 +50,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(null, false),
             "model",
+            null,
             null
         );
 
@@ -69,6 +72,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(null, true),
             "model",
+            null,
             null
         );
 
@@ -96,6 +100,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             null,
             new JinaAIEmbeddingsTaskSettings(InputType.SEARCH, null),
             "model",
+            null,
             null
         );
 
@@ -113,7 +118,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             null,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.FLOAT
+            JinaAIEmbeddingType.FLOAT,
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -130,7 +136,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.CLUSTERING,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.BIT
+            JinaAIEmbeddingType.BIT,
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -147,7 +154,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.SEARCH,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.BINARY
+            JinaAIEmbeddingType.BINARY,
+            null
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

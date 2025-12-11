@@ -34,6 +34,7 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
     private final String model;
     private final String inferenceEntityId;
     private final JinaAIEmbeddingType embeddingType;
+    private final Integer dimensions;
 
     public JinaAIEmbeddingsRequest(List<String> input, InputType inputType, JinaAIEmbeddingsModel embeddingsModel) {
         Objects.requireNonNull(embeddingsModel);
@@ -45,6 +46,7 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
         model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
         inferenceEntityId = embeddingsModel.getInferenceEntityId();
+        dimensions = embeddingsModel.getServiceSettings().dimensions();
     }
 
     @Override
@@ -52,7 +54,7 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, inputType, taskSettings, model, embeddingType))
+            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, inputType, taskSettings, model, embeddingType, dimensions))
                 .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

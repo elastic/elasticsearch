@@ -81,18 +81,17 @@ public class SemanticTextChunkUtils {
     }
 
     public static List<Query> queries(FieldMapper embeddingsField, TaskType taskType, Query query) throws IOException {
-        final List<Query> queries = switch (taskType) {
+        return switch (taskType) {
             case SPARSE_EMBEDDING -> extractSparseVectorQueries(
                 (SparseVectorFieldMapper.SparseVectorFieldType) embeddingsField.fieldType(),
                 query
             );
             case TEXT_EMBEDDING -> extractDenseVectorQueries(
-                (DenseVectorFieldMapper.DenseVectorFieldType) embeddingsField.fieldType(),
+                (DenseVectorFieldType) embeddingsField.fieldType(),
                 query
             );
             default -> throw new IllegalStateException("Wrong task type for a semantic text field, got [" + taskType.name() + "]");
         };
-        return queries;
     }
 
     public static List<OffsetAndScore> extractOffsetAndScores(

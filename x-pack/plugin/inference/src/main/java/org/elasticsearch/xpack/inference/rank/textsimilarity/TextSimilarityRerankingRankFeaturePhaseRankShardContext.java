@@ -69,8 +69,10 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
                         SemanticTextFieldMapper.SemanticTextFieldType fieldType = semanticTextFieldMapper.fieldType();
 
-                        // We can't guarantee that all semantic_text embeddings will be compatible with indexed chunking settings,
-                        // so we take a hard line, scoring using BM25 if reranking on a semantic_text field with specified chunking_settings
+                        // We can't guarantee that the size of all semantic_text embeddings will match requested chunking settings,
+                        // since chunking settings attached to the semantic text field may be updated dynamically.
+                        // Therefore, we take a hard line, scoring using BM25 if we're specifying chunking settings while reranking on
+                        // snippets.
                         if (chunkScorerConfig.chunkingSettings() != null) {
                             scoredChunks = chunkAndScoreBm25(docField.getValue().toString(), size);
                         } else {

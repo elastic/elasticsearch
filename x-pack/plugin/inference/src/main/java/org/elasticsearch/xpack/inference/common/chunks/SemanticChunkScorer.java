@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
@@ -56,11 +57,18 @@ public class SemanticChunkScorer {
         String inferenceText,
         int maxResults
     ) throws IOException {
+        // TODO Determine if we should support backfilling here
         if (inferenceText == null || inferenceText.trim().isEmpty()) {
             return new ArrayList<>();
         }
 
-        List<Query> queries = queries(fieldType.getEmbeddingsField(), fieldType.getModelSettings().taskType(), searchContext.query());
+        MinimalServiceSettings modelSettings = fieldType.getModelSettings();
+        if (modelSettings == null) {
+            // Null model settings mean that nothing was indexed yet, so we can short-circuit
+            return new ArrayList<>();
+        }
+
+        List<Query> queries = queries(fieldType.getEmbeddingsField(), modelSettings.taskType(), searchContext.query());
         if (queries.isEmpty()) {
             return new ArrayList<>();
         }

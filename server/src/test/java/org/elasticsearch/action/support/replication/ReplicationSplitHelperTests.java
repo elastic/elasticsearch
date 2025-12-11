@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedTriConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -148,11 +147,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedTriConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            TestReplicationRequest,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, request, listener) -> {
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> {
                 primaryExecuted.set(true);
                 primaryRequest.set(request);
                 try {
@@ -240,11 +236,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedTriConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            TestReplicationRequest,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, request, listener) -> {
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> {
                 primaryExecuted.set(true);
                 listener.onResponse(new TestResponse());
             };
@@ -366,11 +359,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedTriConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            TestReplicationRequest,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, request, listener) -> {
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> {
                 primaryExecuted.set(true);
                 primaryRequest.set(request);
                 primaryListener.set(listener);
@@ -503,11 +493,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference shardReference =
             mock(TransportReplicationAction.PrimaryShardReference.class);
 
-        CheckedTriConsumer<
-            TransportReplicationAction<TestReplicationRequest, TestReplicationRequest, TestResponse>.PrimaryShardReference,
-            TestReplicationRequest,
-            ActionListener<TestResponse>,
-            Exception> executePrimaryRequest = (shardRef, request, listener) -> primaryListener.set(listener);
+        ReplicationSplitHelper.PrimaryRequestExecutor<TestReplicationRequest, TestReplicationRequest, TestResponse> executePrimaryRequest =
+            (shardRef, request, listener) -> primaryListener.set(listener);
 
         PlainActionFuture<TestResponse> completionListener = new PlainActionFuture<>();
 

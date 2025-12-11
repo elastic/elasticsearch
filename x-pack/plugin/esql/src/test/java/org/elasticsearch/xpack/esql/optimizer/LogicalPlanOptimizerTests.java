@@ -10342,8 +10342,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // Eval[[TOLOWER($$language_name$temp_name$23{r}#24) AS $$to_lower(langua>$COUNT$0#22]]
         var eval = as(aggregate.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
-        var evalField = as(eval.fields().get(0), Alias.class);
-        assertThat(evalField.child(), instanceOf(ToLower.class));
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var evalField = as(evalFieldAlias.child(), ToLower.class);
+
+        assertThat(evalFieldAlias.name(), is("$$to_lower(langua>$COUNT$0"));
+        assertThat(count1.field(), is(evalFieldAlias.toAttribute()));
+        assertThat(evalField.source().text(), is("to_lower(language_name)"));
 
         // Enrich[ANY,languages_idx[KEYWORD],language_name{f}#17,...]
         var enrich = as(eval.child(), Enrich.class);

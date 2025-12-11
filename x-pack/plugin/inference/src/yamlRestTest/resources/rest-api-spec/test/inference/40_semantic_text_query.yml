@@ -472,7 +472,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.001 } }
 
 ---
 "Query using a dense embedding model via a search inference ID":

@@ -790,17 +790,17 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
         final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
 
-        assert startTs < endTs: "expected startTs < endTs, got " + startTs + " < " + endTs;
+        assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
         final double slope = (endValue - startValue) / (endTs - startTs);
         if (isLowerBoundary) {
-            assert startTs < tbucketStart: "expected startTs < firstTsSec, got " + startTs + " < " + tbucketStart;
+            assert startTs < tbucketStart : "expected startTs < firstTsSec, got " + startTs + " < " + tbucketStart;
             if (endValue > startValue) {
                 return startValue + slope * (tbucketStart - startTs);
             } else {
                 return 0;
             }
         } else {
-            assert tbucketEnd < endTs: "expected lastTsSec < endTs, got " + tbucketEnd + " < " + endTs;
+            assert tbucketEnd < endTs : "expected lastTsSec < endTs, got " + tbucketEnd + " < " + endTs;
             if (endValue > startValue) {
                 return startValue + slope * (endTs - tbucketEnd);
             } else {

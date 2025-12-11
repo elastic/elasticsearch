@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -58,7 +57,6 @@ import org.elasticsearch.xpack.core.security.action.role.QueryRoleResponse.Query
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
@@ -90,6 +88,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.NONE;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
@@ -491,10 +491,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 );
             } else if (Arrays.stream(role.getConditionalClusterPrivileges())
                 .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
-                && clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
+                && clusterService.state().getMinTransportVersion().before(MANAGE_ROLES_PRIVILEGE)) {
                     return new IllegalStateException(
                         "all nodes must have version ["
-                            + TransportVersions.V_8_16_0.toReleaseVersion()
+                            + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                             + "] or higher to support the manage roles privilege"
                     );
                 }
@@ -662,7 +662,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
         if (role.hasRemoteClusterPermissions() == false
             && clusterService.state().getMinTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
-            builder.array(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName(), RemoteClusterPermissions.NONE);
+            builder.array(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName(), NONE);
         }
         if (role.hasDescription() == false && clusterService.state().getMinTransportVersion().onOrAfter(SECURITY_ROLE_DESCRIPTION)) {
             builder.field(RoleDescriptor.Fields.DESCRIPTION.getPreferredName(), "");

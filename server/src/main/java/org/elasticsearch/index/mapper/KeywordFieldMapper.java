@@ -1514,7 +1514,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             } else {
                 assert offsetsFieldName == null;
-                assert sourceKeepMode == SourceKeepMode.NONE;
                 layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
             }
         }

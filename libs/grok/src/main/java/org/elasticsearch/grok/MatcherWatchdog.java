@@ -76,7 +76,7 @@ public interface MatcherWatchdog {
         return Noop.INSTANCE;
     }
 
-    class Noop implements MatcherWatchdog {
+    final class Noop implements MatcherWatchdog {
 
         private static final Noop INSTANCE = new Noop();
 
@@ -94,7 +94,7 @@ public interface MatcherWatchdog {
         public void unregister(Matcher matcher) {}
     }
 
-    class Default implements MatcherWatchdog {
+    final class Default implements MatcherWatchdog {
 
         private final long interval;
         private final long maxExecutionTime;

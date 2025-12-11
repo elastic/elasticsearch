@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
@@ -1104,7 +1105,7 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version that will only remove one of the two privileges
-        final TransportVersion olderVersion = TransportVersion.fromId(8772001);
+        final TransportVersion olderVersion = RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 
         Map<String, Object> rewrittenMetadata = with2privs.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();
         assertThat(rewrittenMetadata.keySet(), equalTo(with2privs.getAuthenticatingSubject().getMetadata().keySet()));

@@ -734,11 +734,6 @@ public class ShardStateAction {
                                 indexMetadata.getNumberOfShards(),
                                 startedShardEntry.timestampRange
                             );
-                            /*
-                             * Only track 'event.ingested' range this if the cluster state min transport version is on/after the version
-                             * where we added 'event.ingested'. If we don't do that, we will have different cluster states on different
-                             * nodes because we can't send this data over the wire to older nodes.
-                             */
                             IndexLongFieldRange newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
                                 startedShardEntry.shardId.id(),
                                 indexMetadata.getNumberOfShards(),

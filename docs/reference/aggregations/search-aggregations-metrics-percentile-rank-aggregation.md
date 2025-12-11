@@ -49,8 +49,8 @@ The response will look like this:
  "aggregations": {
     "load_time_ranks": {
       "values": {
-        "500.0": 55.0,
-        "600.0": 64.0
+        "500.0": 90.01,
+        "600.0": 100.0
       }
     }
   }
@@ -60,7 +60,7 @@ The response will look like this:
 % TESTRESPONSE[s/"500.0": 55.0/"500.0": 55.00000000000001/]
 % TESTRESPONSE[s/"600.0": 64.0/"600.0": 64.0/]
 
-From this information you can determine you are hitting the 99% load time target but not quite hitting the 95% load time target
+From this information you can determine you are hitting the 99% load time target but not quite hitting the 95% load time target.
 
 ## Keyed Response [_keyed_response_5]
 

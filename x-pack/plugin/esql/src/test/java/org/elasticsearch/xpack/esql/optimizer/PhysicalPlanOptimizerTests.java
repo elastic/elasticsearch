@@ -235,7 +235,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
-    private EsqlParser parser;
     private Mapper mapper;
     private TestDataSource testData;
     private TestDataSource testDataLimitedRaw;
@@ -297,7 +296,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @Before
     public void init() {
-        parser = new EsqlParser();
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
         var enrichResolution = setupEnrichResolution();
@@ -3250,6 +3248,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Source.EMPTY,
             index.name(),
             IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
             index.indexNameWithModes(),
             esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );
@@ -8179,7 +8179,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         var flags = new EsqlFlags(true);
-        plan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        plan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -8558,7 +8558,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
             var flags = new EsqlFlags(true);
-            var localPlan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), fragment, stats);
+            var localPlan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), fragment, stats, null);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 
@@ -8601,7 +8601,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(new Versioned<>(logical, dataSource.minimumVersion()));
         // System.out.println("Physical\n" + physical);

@@ -1692,7 +1692,6 @@ enrichLookupStatsBug
 required_capability: join_lookup_v12
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
-required_capability: exponential_histogram
 
 from *
 | enrich languages_policy on cluster

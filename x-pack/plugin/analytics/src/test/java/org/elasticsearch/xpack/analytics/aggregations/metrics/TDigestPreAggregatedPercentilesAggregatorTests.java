@@ -120,7 +120,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     ) throws IOException {
         PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
 
-        MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap());
+        MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
         testCase(buildIndex, verify, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 }

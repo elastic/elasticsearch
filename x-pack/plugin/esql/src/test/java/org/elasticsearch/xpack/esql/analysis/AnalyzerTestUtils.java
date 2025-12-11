@@ -150,7 +150,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {
-        var plan = new EsqlParser().createStatement(query);
+        var plan = EsqlParser.INSTANCE.parseQuery(query);
         // System.out.println(plan);
         var analyzed = analyzer.analyze(plan);
         // System.out.println(analyzed);
@@ -184,7 +184,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, String index, String mapping, QueryParams params) {
-        var plan = new EsqlParser().createStatement(query, params);
+        var plan = EsqlParser.INSTANCE.parseQuery(query, params);
         var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, index), loadMapping(mapping, index));
         var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query));
         return analyzer.analyze(plan);
@@ -203,7 +203,9 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
-        return IndexResolution.valid(new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Set.of()));
+        return IndexResolution.valid(
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
+        );
     }
 
     public static IndexResolution loadMapping(String resource, String indexName) {
@@ -321,7 +323,9 @@ public final class AnalyzerTestUtils {
             new IndexPattern(Source.EMPTY, "test_mixed_types"),
             loadMapping("mapping-default-incompatible.json", "test_mixed_types"),
             new IndexPattern(Source.EMPTY, "k8s"),
-            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES)
+            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES),
+            new IndexPattern(Source.EMPTY, "remote:missingIndex"),
+            IndexResolution.EMPTY_SUBQUERY
         );
     }
 
@@ -408,6 +412,8 @@ public final class AnalyzerTestUtils {
             "index*",
             Map.of(dateDateNanos, dateDateNanosField, dateDateNanosLong, dateDateNanosLongField),
             Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD, "index3", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
             Set.of()
         );
         return IndexResolution.valid(index);

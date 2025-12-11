@@ -142,7 +142,6 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
                 window(),
                 summationMode
             );
-            // TODO handle empty histograms ( => 0.0 / 0.0) gracefully without triggering a warning
             return new Div(s, valuesSum, totalCount);
         }
         if (field.foldable()) {

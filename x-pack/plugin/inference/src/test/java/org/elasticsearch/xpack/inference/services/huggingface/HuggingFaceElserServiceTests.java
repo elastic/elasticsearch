@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -130,6 +131,27 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(1));
             assertThat(requestMap.get("inputs"), Matchers.is(List.of("abc")));
+        }
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_SEARCH,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            assertThat(listener.actionGet(TIMEOUT), empty());
+            assertThat(webServer.requests(), empty());
         }
     }
 

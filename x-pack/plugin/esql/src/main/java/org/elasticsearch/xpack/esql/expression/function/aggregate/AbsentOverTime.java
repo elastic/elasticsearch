@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Similar to {@link Absent}, but it is used to check the absence of values over a time series in the given field.
@@ -65,10 +66,17 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
-        ) Expression field
+                "version",
+                "exponential_histogram" }
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the absent over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
     public AbsentOverTime(Source source, Expression field, Expression filter, Expression window) {

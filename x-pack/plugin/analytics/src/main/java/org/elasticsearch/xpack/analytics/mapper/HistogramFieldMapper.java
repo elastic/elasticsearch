@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -79,6 +79,11 @@ public class HistogramFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Boolean>> coerce;
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * Only the metric type histogram is supported.
+         */
+        private final Parameter<TimeSeriesParams.MetricType> metric;
 
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
@@ -89,22 +94,24 @@ public class HistogramFieldMapper extends FieldMapper {
                 ignoreMalformedByDefault
             );
             this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+        }
+
+        public Builder metric(TimeSeriesParams.MetricType metric) {
+            this.metric.setValue(metric);
+            return this;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
-                return new Parameter<?>[] { ignoreMalformed, coerce, meta };
-            } else {
-                return new Parameter<?>[] { ignoreMalformed, meta };
-            }
+            return new Parameter<?>[] { ignoreMalformed, coerce, meta, metric };
         }
 
         @Override
         public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
                 leafName(),
-                new HistogramFieldType(context.buildFullName(leafName()), meta.getValue()),
+                new HistogramFieldType(context.buildFullName(leafName()), meta.getValue(), this.metric.getValue()),
                 builderParams(this, context),
                 this
             );
@@ -121,6 +128,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     private final Explicit<Boolean> coerce;
     private final boolean coerceByDefault;
+    private final TimeSeriesParams.MetricType metricType;
 
     public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -128,6 +136,7 @@ public class HistogramFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerce = builder.coerce.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.metricType = builder.metric.get();
     }
 
     @Override
@@ -146,7 +155,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault).metric(metricType).init(this);
     }
 
     @Override
@@ -155,9 +164,11 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     public static class HistogramFieldType extends MappedFieldType {
+        private final TimeSeriesParams.MetricType metricType;
 
-        public HistogramFieldType(String name, Map<String, String> meta) {
+        public HistogramFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
             super(name, IndexType.docValuesOnly(), false, meta);
+            this.metricType = metricType;
         }
 
         @Override
@@ -173,6 +184,11 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public boolean isSearchable() {
             return false;
+        }
+
+        @Override
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
         }
 
         @Override
@@ -323,8 +339,7 @@ public class HistogramFieldMapper extends FieldMapper {
             subParser.nextToken();
 
             HistogramParser.ParsedHistogram parsedHistogram;
-            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
-                && coerce()
+            if (coerce()
                 && subParser.currentToken() == XContentParser.Token.FIELD_NAME
                 && ExponentialHistogramParser.isExponentialHistogramSubFieldName(subParser.currentName())) {
                 ExponentialHistogramParser.ParsedExponentialHistogram parsedExponential = ExponentialHistogramParser.parse(
@@ -342,11 +357,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 assert count >= 0;
                 // we do not add elements with count == 0
                 if (count > 0) {
-                    if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                        streamOutput.writeVLong(count);
-                    } else {
-                        streamOutput.writeVInt(Math.toIntExact(count));
-                    }
+                    streamOutput.writeVLong(count);
                     streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.values().get(i)));
                 }
             }
@@ -413,11 +424,7 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public boolean next() throws IOException {
             if (streamInput.available() > 0) {
-                if (streamInput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                    count = streamInput.readVLong();
-                } else {
-                    count = streamInput.readVInt();
-                }
+                count = streamInput.readVLong();
                 value = Double.longBitsToDouble(streamInput.readLong());
                 return true;
             }

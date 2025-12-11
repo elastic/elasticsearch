@@ -43,7 +43,7 @@ public class VectorComparisonUtilsBenchmarkTests extends ESTestCase {
         consumer = new TestConsumer(size);
         bench.bytePanamaImpl(consumer);
         assertArrayEquals(expected, consumer.mask);
-
+        /*
         consumer = new TestConsumer(size);
         bench.bytePanamaDirectImpl(consumer);
         assertArrayEquals(expected, consumer.mask);
@@ -51,6 +51,7 @@ public class VectorComparisonUtilsBenchmarkTests extends ESTestCase {
         consumer = new TestConsumer(size);
         bench.bytePanamaDirectImpltoLong(consumer);
         assertArrayEquals(expected, consumer.mask);
+         */
     }
 
     public void testLong() {
@@ -70,7 +71,7 @@ public class VectorComparisonUtilsBenchmarkTests extends ESTestCase {
         consumer = new TestConsumer(size);
         bench.panamaImpl(consumer);
         assertArrayEquals(expected, consumer.mask);
-
+        /*
         consumer = new TestConsumer(size);
         bench.panamaDirectImpl(consumer);
         assertArrayEquals(expected, consumer.mask);
@@ -78,6 +79,7 @@ public class VectorComparisonUtilsBenchmarkTests extends ESTestCase {
         consumer = new TestConsumer(size);
         bench.panamaDirectImpltoLong(consumer);
         assertArrayEquals(expected, consumer.mask);
+        */
     }
 
     @ParametersFactory

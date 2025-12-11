@@ -126,7 +126,7 @@ public class VectorComparisonUtilsByteBenchmark {
             }
         }
     }
-
+    /*
     // This allows for straightforward comparison of using the Panama Vector API directly.
     // To ensure that the VectorComparisonUtils indirection does not add overhead - which it does not
 
@@ -181,5 +181,5 @@ public class VectorComparisonUtilsByteBenchmark {
             }
         }
     }
-
+    */
 }

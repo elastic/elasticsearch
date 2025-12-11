@@ -23,7 +23,7 @@ import java.io.IOException;
  * values.
  */
 final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFieldProducer<ExponentialHistogramValuesReader> {
-
+    static final String TYPE = "exponential_histogram";
     private ExponentialHistogramMerger merger = null;
 
     ExponentialHistogramMetricFieldProducer(String name) {
@@ -33,10 +33,7 @@ final class ExponentialHistogramMetricFieldProducer extends AbstractDownsampleFi
     /**
      * @return the requested produces based on the sampling method for metric of type exponential histogram
      */
-    static AbstractDownsampleFieldProducer<?> createMetricProducerForExponentialHistogram(
-        String name,
-        DownsampleConfig.SamplingMethod samplingMethod
-    ) {
+    static AbstractDownsampleFieldProducer<?> create(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
             case AGGREGATE -> new ExponentialHistogramMetricFieldProducer(name);
             case LAST_VALUE -> new LastValueFieldProducer.ExponentialHistogramFieldProducer(name);

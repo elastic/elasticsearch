@@ -31,7 +31,9 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleField
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
@@ -117,18 +119,16 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
      * @return the created field type
      */
     private AggregateMetricDoubleFieldType createDefaultFieldType(String fieldName) {
-        AggregateMetricDoubleFieldType fieldType = new AggregateMetricDoubleFieldType(fieldName);
-
+        EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = new EnumMap<>(Metric.class);
         for (Metric m : List.of(Metric.min, Metric.max)) {
             String subfieldName = subfieldName(fieldName, m);
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(
                 subfieldName,
                 NumberFieldMapper.NumberType.DOUBLE
             );
-            fieldType.addMetricField(m, subfield);
+            metricFields.put(m, subfield);
         }
-        fieldType.setDefaultMetric(Metric.min);
-        return fieldType;
+        return new AggregateMetricDoubleFieldType(fieldName, null, Metric.min, metricFields, Map.of());
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Max> verify)

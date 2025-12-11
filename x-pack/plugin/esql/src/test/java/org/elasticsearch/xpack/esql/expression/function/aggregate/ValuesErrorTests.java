@@ -37,13 +37,17 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double"
+                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double or exponential_histogram"
             )
         );
     }
 
     @Override
     protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(2));
+        assertThat(
+            "all signatures except for dense_vector, aggregate_metric_double or exponential_histogram should be supported",
+            checked,
+            equalTo(3)
+        );
     }
 }

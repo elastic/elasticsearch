@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -50,11 +51,21 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
         preview = true,
         examples = { @Example(file = "k8s-timeseries-delta", tag = "delta") }
     )
-    public Delta(Source source, @Param(name = "field", type = { "long", "integer", "double" }) Expression field, Expression timestamp) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+    public Delta(
+        Source source,
+        @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the delta over time",
+            optional = true
+        ) Expression window,
+        Expression timestamp
+    ) {
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    private Delta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+    public Delta(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
@@ -76,7 +87,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected NodeInfo<Delta> info() {
-        return NodeInfo.create(this, Delta::new, field(), timestamp);
+        return NodeInfo.create(this, Delta::new, field(), filter(), window(), timestamp);
     }
 
     @Override
@@ -123,7 +134,7 @@ public class Delta extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public String toString() {
-        return "delta(" + field() + ")";
+        return "delta(" + field() + ", " + timestamp() + ")";
     }
 
     @Override

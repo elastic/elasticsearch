@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
@@ -39,6 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
@@ -136,9 +138,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
     }
 
     public static void writeJSONFile(String node, String json, Logger logger, Long version, Path targetPath) throws Exception {
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
+        Files.createDirectories(targetPath.getParent());
         Path tempFilePath = createTempFile();
 
         String jsonWithVersion = Strings.format(json, version);
@@ -194,22 +194,29 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
+        Function<ClusterState, Boolean> clusterStateProcessor = clusterState -> {
+            ReservedStateMetadata reservedState = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+            if (reservedState != null && reservedState.version() == fileSettingsVersion) {
+                metadataVersion.set(clusterState.metadata().version());
+                savedClusterState.countDown();
+                logger.info(
+                    "done waiting for file settings [version: {}, metadata version: {}]",
+                    clusterState.version(),
+                    clusterState.metadata().version()
+                );
+                return true;
+            }
+            return false;
+        };
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null && reservedState.version() == fileSettingsVersion) {
+                if (clusterStateProcessor.apply(event.state())) {
                     clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
-                    savedClusterState.countDown();
-                    logger.info(
-                        "done waiting for file settings [version: {}, metadata version: {}]",
-                        event.state().version(),
-                        event.state().metadata().version()
-                    );
                 }
             }
         });
+        clusterStateProcessor.apply(clusterService.state());
 
         return new Tuple<>(savedClusterState, metadataVersion);
     }
@@ -510,11 +517,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         assertHasErrors(metadataVersion, "not_cluster_settings");
 
-        // write json with new error without version increment to simulate ES failing to process settings after a restart for a new reason
-        // (usually, this would be due to a code change)
-        writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get());
-        assertHasErrors(metadataVersion, "not_cluster_settings");
-        internalCluster().restartNode(masterNode);
+        // capture the watched file settings file before shutting down the master node
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        Path fileSettingsFile = fileSettingsService.watchedFile();
+
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                // write json with new error without version increment to simulate ES failing to process settings after a restart for
+                // a new reason (usually, this would be due to a code change)
+                writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get(), fileSettingsFile);
+                return Settings.EMPTY;
+            }
+        });
         ensureGreen();
 
         assertBusy(() -> assertHasErrors(metadataVersion, "bad_cluster_settings"));

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -26,7 +27,6 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -90,6 +90,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         float[] targetQuery,
         IndexInput postingListSlice,
         AcceptDocs acceptDocs,
+        float approximateCost,
+        FloatVectorValues values,
         float visitRatio
     ) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
@@ -389,11 +391,6 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
         // max postings list size, no longer utilized
         indexInput.readVInt();
         return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, acceptDocs);
-    }
-
-    @Override
-    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        return Map.of();
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {

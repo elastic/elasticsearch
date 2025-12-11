@@ -80,7 +80,10 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             BulkInferenceRequestItemIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
 
-            OngoingInferenceResult result = new OngoingInferenceResult(input, new ArrayList<>());
+            // ✅ Pre-size based on estimated request count
+            int estimatedSize = requests.estimatedSize();
+            int initialCapacity = Math.max(10, Math.min(estimatedSize, 10000)); // Cap at 10k for safety
+            OngoingInferenceResult result = new OngoingInferenceResult(input, new ArrayList<>(initialCapacity));
             listener = listener.delegateResponse((l, e) -> {
                 Releasables.close(result);
                 l.onFailure(e);

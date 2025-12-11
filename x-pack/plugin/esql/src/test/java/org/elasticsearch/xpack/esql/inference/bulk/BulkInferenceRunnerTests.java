@@ -20,6 +20,7 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -160,10 +161,12 @@ public class BulkInferenceRunnerTests extends ESTestCase {
                     });
                     return null;
                 });
-                ArrayList<BulkInferenceResponse> output = new ArrayList<>();
+                List<BulkInferenceResponse> output = Collections.synchronizedList(new ArrayList<>());
 
                 ActionListener<Void> listener = ActionListener.wrap(r -> {
-                    assertThat(output.stream().map(BulkInferenceResponse::response).toList(), equalTo(responses));
+                    synchronized (output) {
+                        assertThat(output.stream().map(BulkInferenceResponse::response).toList(), equalTo(responses));
+                    }
                     latch.countDown();
                 }, ESTestCase::fail);
 

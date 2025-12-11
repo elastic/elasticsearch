@@ -35,6 +35,9 @@ class CompletionInferenceRequestIterator implements BulkInferenceRequestItemIter
 
     private int currentPos = 0;
 
+    private static final int[] SHAPE_SINGLE_ONE = new int[] { 1 };
+    private static final int[] SHAPE_SINGLE_ZERO = new int[] { 0 };
+
     /**
      * Constructs a new iterator from the given block of prompts.
      *
@@ -77,8 +80,7 @@ class CompletionInferenceRequestIterator implements BulkInferenceRequestItemIter
         }
 
         // Create shape array of exact size
-        int[] shape = Arrays.copyOf(shapeBuffer, shapeSize);
-        return new BulkInferenceRequestItem(inferenceRequest(nextPrompt), shape);
+        return new BulkInferenceRequestItem(inferenceRequest(nextPrompt), createShape());
     }
 
     private void addToShape(int value) {
@@ -87,6 +89,14 @@ class CompletionInferenceRequestIterator implements BulkInferenceRequestItemIter
             shapeBuffer = Arrays.copyOf(shapeBuffer, shapeBuffer.length * 2);
         }
         shapeBuffer[shapeSize++] = value;
+    }
+
+    private int[] createShape() {
+        if (shapeSize == 1) {
+            return shapeBuffer[0] == 1 ? SHAPE_SINGLE_ONE : SHAPE_SINGLE_ZERO;
+        }
+
+        return Arrays.copyOf(shapeBuffer, shapeSize);
     }
 
     /**

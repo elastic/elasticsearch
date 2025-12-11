@@ -105,7 +105,7 @@ class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuil
     private static float[] toFloatArray(byte[] values) {
         float[] floatArray = new float[values.length];
         for (int i = 0; i < values.length; i++) {
-            floatArray[i] = ((Byte) values[i]).floatValue();
+            floatArray[i] = (float) values[i];
         }
         return floatArray;
     }

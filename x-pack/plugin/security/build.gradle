@@ -70,8 +70,8 @@ dependencies {
     exclude group: 'org.bouncycastle'
   }
 
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  // provided by x-pack-core
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -431,8 +431,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.DataSource',
     'javax.activation.FileDataSource',
     'javax.activation.FileTypeMap',
-    // SLF4j
-    'org.slf4j.ext.EventData'
   )
 }
 

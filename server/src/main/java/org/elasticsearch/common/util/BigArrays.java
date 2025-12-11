@@ -614,6 +614,10 @@ public class BigArrays {
         }
     }
 
+    public ByteArray newByteArrayWrapper(byte[] bytes) {
+        return validate(new ByteArrayWrapper(this, bytes, bytes.length, null, false));
+    }
+
     /**
      * Allocate a new {@link ByteArray} initialized with zeros.
      * @param size          the initial length of the array

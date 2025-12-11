@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -16,7 +15,6 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Pruning;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.time.DateUtils;
@@ -31,7 +29,6 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.lucene.comparators.XLongComparator;
-import org.elasticsearch.lucene.comparators.XNumericComparator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -113,40 +110,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         return wrap(getLongValues(context, lMissingValue), maxDoc);
-                    }
-
-                    @Override
-                    protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
-                        throws IOException {
-                        Sort indexSort = context.reader().getMetaData().sort();
-                        if (indexSort == null) {
-                            return super.buildCompetitiveDISIBuilder(context);
-                        }
-                        SortField[] sortFields = indexSort.getSort();
-                        if (sortFields.length != 2) {
-                            return super.buildCompetitiveDISIBuilder(context);
-                        }
-                        if (sortFields[1].getField().equals(field) == false) {
-                            return super.buildCompetitiveDISIBuilder(context);
-                        }
-                        DocValuesSkipper skipper = context.reader().getDocValuesSkipper(field);
-                        DocValuesSkipper primaryFieldSkipper = context.reader().getDocValuesSkipper(sortFields[0].getField());
-                        if (primaryFieldSkipper == null || skipper.docCount() != maxDoc || primaryFieldSkipper.docCount() != maxDoc) {
-                            return super.buildCompetitiveDISIBuilder(context);
-                        }
-                        return new CompetitiveDISIBuilder(this) {
-                            @Override
-                            protected int docCount() {
-                                return skipper.docCount();
-                            }
-
-                            @Override
-                            protected void doUpdateCompetitiveIterator() {
-                                competitiveIterator.update(
-                                    new SecondarySortIterator(docValues, skipper, primaryFieldSkipper, minValueAsLong, maxValueAsLong)
-                                );
-                            }
-                        };
                     }
                 };
             }

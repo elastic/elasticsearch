@@ -41,7 +41,7 @@ import java.util.Map;
  * Transport action for shard recovery operation. This transport action does not actually
  * perform shard recovery, it only reports on recoveries (both active and complete).
  */
-public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
+public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState, Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -103,7 +103,13 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     }
 
     @Override
-    protected void shardOperation(RecoveryRequest request, ShardRouting shardRouting, Task task, ActionListener<RecoveryState> listener) {
+    protected void shardOperation(
+        RecoveryRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        Void nodeContext,
+        ActionListener<RecoveryState> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());

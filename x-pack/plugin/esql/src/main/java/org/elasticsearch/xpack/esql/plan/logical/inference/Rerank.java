@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -24,12 +21,10 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -39,49 +34,37 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerificationAware, TelemetryAware {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
-    public static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
+    private static final String DEFAULT_INFERENCE_ID = ".rerank-v1-elasticsearch";
 
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private List<Attribute> lazyOutput;
 
-    public Rerank(Source source, LogicalPlan child, Expression queryText, List<Alias> rerankFields, Attribute scoreAttribute) {
-        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), queryText, rerankFields, scoreAttribute);
+    public Rerank(
+        Source source,
+        LogicalPlan child,
+        Expression rowLimit,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute
+    ) {
+        this(source, child, Literal.keyword(Source.EMPTY, DEFAULT_INFERENCE_ID), rowLimit, queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank(
         Source source,
         LogicalPlan child,
         Expression inferenceId,
+        Expression rowLimit,
         Expression queryText,
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        super(source, child, inferenceId);
+        super(source, child, inferenceId, rowLimit);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;
-    }
-
-    public Rerank(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readCollectionAsList(Alias::new),
-            in.readNamedWriteable(Attribute.class)
-        );
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeNamedWriteable(queryText);
-        out.writeCollection(rerankFields());
-        out.writeNamedWriteable(scoreAttribute);
     }
 
     public Expression queryText() {
@@ -106,7 +89,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
-        return new Rerank(source(), child(), newInferenceId, queryText, rerankFields, scoreAttribute);
+        return new Rerank(source(), child(), newInferenceId, rowLimit(), queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank withRerankFields(List<Alias> newRerankFields) {
@@ -114,7 +97,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), queryText, newRerankFields, scoreAttribute);
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, newRerankFields, scoreAttribute);
     }
 
     public Rerank withScoreAttribute(Attribute newScoreAttribute) {
@@ -122,17 +105,12 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             return this;
         }
 
-        return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, newScoreAttribute);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+        return new Rerank(source(), child(), inferenceId(), rowLimit(), queryText, rerankFields, newScoreAttribute);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute);
+        return new Rerank(source(), newChild, inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
@@ -147,7 +125,15 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     @Override
     public Rerank withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, this.renameScoreAttribute(newNames.get(0)));
+        return new Rerank(
+            source(),
+            child(),
+            inferenceId(),
+            rowLimit(),
+            queryText,
+            rerankFields,
+            this.renameScoreAttribute(newNames.get(0))
+        );
     }
 
     private Attribute renameScoreAttribute(String newName) {
@@ -175,8 +161,13 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     @Override
+    public boolean isFoldable() {
+        return false;
+    }
+
+    @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute);
+        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), rowLimit(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override

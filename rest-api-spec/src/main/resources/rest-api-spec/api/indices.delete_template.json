@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "7.8.0",
+      "description": "Legacy index templates are deprecated in favor of composable templates"
+    },
     "headers": {
       "accept": [
         "application/json"

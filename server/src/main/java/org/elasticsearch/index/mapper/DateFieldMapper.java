@@ -400,9 +400,14 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         private IndexType indexType(String fullFieldName) {
-            boolean hasDocValuesSkipper = shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName);
-            if (hasDocValuesSkipper) {
+            if (shouldUseDocValuesSkipper(indexSettings, docValues.getValue(), fullFieldName)) {
                 return IndexType.skippers();
+            }
+            if (index.get() == false && docValues.get()) {
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
             }
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
@@ -841,9 +846,10 @@ public final class DateFieldMapper extends FieldMapper {
                 }
                 for (LeafReaderContext ctx : leaves) {
                     DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
-                    assert skipper != null : "no skipper for field:" + name() + " and reader:" + reader;
-                    minValue = Long.min(minValue, skipper.minValue());
-                    maxValue = Long.max(maxValue, skipper.maxValue());
+                    if (skipper != null) {
+                        minValue = Long.min(minValue, skipper.minValue());
+                        maxValue = Long.max(maxValue, skipper.maxValue());
+                    }
                 }
                 return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }

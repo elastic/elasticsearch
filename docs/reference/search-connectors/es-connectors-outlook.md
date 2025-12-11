@@ -193,7 +193,7 @@ You can deploy the Outlook connector as a self-managed connector using Docker. F
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
 % NOTCONSOLE
 
@@ -347,5 +347,5 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is included in the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/outlook.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/outlook) (branch *main*, compatible with Elastic *9.0*).
 

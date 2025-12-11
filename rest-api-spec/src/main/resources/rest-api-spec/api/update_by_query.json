@@ -78,7 +78,7 @@
         "description": "What to do when the update by query hits version conflicts?"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

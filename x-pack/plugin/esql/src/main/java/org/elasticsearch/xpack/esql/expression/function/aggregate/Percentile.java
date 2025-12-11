@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -74,7 +75,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     )
     public Percentile(
         Source source,
-        @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
+        @Param(name = "number", type = { "double", "integer", "long", "exponential_histogram" }) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, percentile);
@@ -127,10 +128,10 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
         TypeResolution resolution = isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == DataType.EXPONENTIAL_HISTOGRAM,
             sourceText(),
             FIRST,
-            "numeric except unsigned_long"
+            "exponential_histogram or numeric except unsigned_long"
         );
         if (resolution.unresolved()) {
             return resolution;
@@ -168,6 +169,9 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     public Expression surrogate() {
         var field = field();
 
+        if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+            return new HistogramPercentile(source(), new HistogramMerge(source(), field, filter(), window()), percentile());
+        }
         if (field.foldable()) {
             return new MvPercentile(source(), new ToDouble(source(), field), percentile());
         }

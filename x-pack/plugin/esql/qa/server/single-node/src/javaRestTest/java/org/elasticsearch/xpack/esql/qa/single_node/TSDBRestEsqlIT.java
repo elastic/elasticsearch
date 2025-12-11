@@ -12,6 +12,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -48,10 +49,12 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
     public void testTimeSeriesQuerying() throws IOException {
         var settings = Settings.builder()
-            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
-            .build();
+            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false);
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+            settings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        }
         String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-k8s-mapping.json"));
-        createIndex("k8s", settings, mapping);
+        createIndex("k8s", settings.build(), mapping);
 
         Request bulk = new Request("POST", "/k8s/_bulk");
         bulk.addParameter("refresh", "true");

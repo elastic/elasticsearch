@@ -33,6 +33,8 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
@@ -373,14 +376,15 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         assertEquals(num_primaries, canMatchMeasurements.size());
         for (Measurement measurement : canMatchMeasurements) {
             Map<String, Object> attributes = measurement.attributes();
-            assertEquals(5, attributes.size());
+            assertThat(attributes.size(), Matchers.greaterThanOrEqualTo(4));
             assertEquals("user", attributes.get("target"));
             assertEquals("hits_only", attributes.get("query_type"));
             assertEquals("_score", attributes.get("sort"));
             assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
-            // the range query was rewritten to one without bounds: we do track the time range filter from value but we don't set
-            // the time range filter field because no range query is executed at the shard level.
-            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+            // the shards that get short-cut filtered because they are empty won't have time range attributes in their metric attributes
+            if (attributes.containsKey("time_range_filter_from")) {
+                assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
+            }
         }
         final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
         // the two docs are at most spread across two shards, other shards are empty and get filtered out
@@ -408,6 +412,47 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             assertEquals("_score", attributes.get("sort"));
             assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
             // no time range filter bucketing on the fetch phase, because the query was rewritten to one without bounds
+        }
+    }
+
+    public void testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex() {
+        // create an index with a large number of documents so no shard should be empty and no shard will be short-circuited in can match
+        String indexName = "every_shard_has_documents";
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, num_primaries)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        LocalDate baseDate = LocalDate.of(2024, 11, 1);
+        for (int i = 1; i <= num_primaries * 2; i++) {
+            LocalDate docDate = baseDate.plusMonths(i - 1);
+            prepareIndex(indexName).setId(Integer.toString(i))
+                .setSource("body", "doc" + i, "@timestamp", docDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+                .setRefreshPolicy(IMMEDIATE)
+                .get();
+
+        }
+
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
+        assertResponse(client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, num_primaries * 2L);
+        });
+        final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_METRIC);
+        assertEquals(num_primaries, canMatchMeasurements.size());
+        for (Measurement measurement : canMatchMeasurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertThat(attributes.entrySet(), hasSize(5));
+            assertEquals("user", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            assertEquals(false, attributes.get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+            assertEquals("older_than_14_days", attributes.get("time_range_filter_from"));
         }
     }
 

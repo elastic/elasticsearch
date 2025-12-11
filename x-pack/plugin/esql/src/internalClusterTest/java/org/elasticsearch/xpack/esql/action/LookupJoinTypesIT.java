@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
@@ -74,6 +75,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
@@ -248,6 +250,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == AGGREGATE_METRIC_DOUBLE  // need special handling for loads at the moment
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
+                        || type == TDIGEST
                         || type == GEOHASH
                         || type == GEOTILE
                         || type == GEOHEX
@@ -862,7 +865,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
         String query = String.format(Locale.ROOT, "FROM %s | KEEP %s", indexName, fieldName);
-        try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+        try (var response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
             ColumnInfo info = response.response().columns().getFirst();
             assertThat("Expected index '" + indexName + "' to have column '" + fieldName + ": " + query, info.name(), is(fieldName));
             Iterator<Object> results = response.response().column(0).iterator();
@@ -879,7 +882,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         @Override
         public void doTest() {
             String query = testQuery(operation);
-            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+            try (var response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
                 Iterator<Object> results = response.response().column(0).iterator();
                 assertTrue("Expected at least one result for query: " + query, results.hasNext());
                 Object indexedResult = response.response().column(0).iterator().next();
@@ -975,7 +978,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         @Override
         public void doTest() {
             String query = testQuery(operation);
-            try (var response = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+            try (var response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
                 Iterator<Object> results = response.response().column(0).iterator();
 
                 assertTrue("Expected at least two results for query, but result was empty: " + query, results.hasNext());
@@ -1016,7 +1019,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 "Expected exception " + exception().getSimpleName() + " but no exception was thrown: " + query,
                 () -> {
                     // noinspection EmptyTryBlock
-                    try (var ignored = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query).get()) {
+                    try (var ignored = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
                         // We use try-with-resources to ensure the request is closed if the exception is not thrown (less cluttered errors)
                     }
                 }

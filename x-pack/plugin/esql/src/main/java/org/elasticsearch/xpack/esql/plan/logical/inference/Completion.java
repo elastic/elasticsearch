@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -22,10 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -37,40 +32,25 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        LogicalPlan.class,
-        "Completion",
-        Completion::new
-    );
     private final Expression prompt;
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
 
-    public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField);
+    public Completion(Source source, LogicalPlan p, Expression rowLimit, Expression prompt, Attribute targetField) {
+        this(source, p, Literal.NULL, rowLimit, prompt, targetField);
     }
 
-    public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
-        super(source, child, inferenceId);
+    public Completion(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression rowLimit,
+        Expression prompt,
+        Attribute targetField
+    ) {
+        super(source, child, inferenceId, rowLimit);
         this.prompt = prompt;
         this.targetField = targetField;
-    }
-
-    public Completion(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Attribute.class)
-        );
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeNamedWriteable(prompt);
-        out.writeNamedWriteable(targetField);
     }
 
     public Expression prompt() {
@@ -87,22 +67,17 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, prompt, targetField);
+        return new Completion(source(), child(), newInferenceId, rowLimit(), prompt, targetField);
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), prompt, targetField);
+        return new Completion(source(), newChild, inferenceId(), rowLimit(), prompt, targetField);
     }
 
     @Override
     public TaskType taskType() {
         return TaskType.COMPLETION;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
     }
 
     @Override
@@ -122,7 +97,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), prompt, this.renameTargetField(newNames.get(0)));
+        return new Completion(source(), child(), inferenceId(), rowLimit(), prompt, this.renameTargetField(newNames.get(0)));
     }
 
     private Attribute renameTargetField(String newName) {
@@ -144,6 +119,11 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     }
 
     @Override
+    public boolean isFoldable() {
+        return prompt.foldable();
+    }
+
+    @Override
     public void postAnalysisVerification(Failures failures) {
         if (prompt.resolved() && DataType.isString(prompt.dataType()) == false) {
             failures.add(fail(prompt, "prompt must be of type [{}] but is [{}]", TEXT.typeName(), prompt.dataType().typeName()));
@@ -152,7 +132,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), prompt, targetField);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), rowLimit(), prompt, targetField);
     }
 
     @Override

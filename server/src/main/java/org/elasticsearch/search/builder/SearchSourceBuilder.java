@@ -10,7 +10,6 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
@@ -129,6 +128,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     public static final ParseField RETRIEVER = new ParseField("retriever");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
@@ -235,14 +235,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
-        } else {
-            QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-            if (queryBuilder != null) {
-                subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
-            }
-        }
+        subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
         }
@@ -277,22 +270,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-                KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
-                knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
-            } else {
-                knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            skipInnerHits = in.readBoolean();
-        } else {
-            skipInnerHits = false;
-        }
+        knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
+        rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        skipInnerHits = in.readBoolean();
     }
 
     @Override
@@ -313,15 +293,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeCollection(subSearchSourceBuilders);
-        } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
-            throw new IllegalArgumentException(
-                "cannot serialize [sub_searches] to version [" + out.getTransportVersion().toReleaseVersion() + "]"
-            );
-        } else {
-            out.writeOptionalNamedWriteable(query());
-        }
+        out.writeCollection(subSearchSourceBuilders);
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
@@ -361,30 +333,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-                if (knnSearch.size() > 1) {
-                    throw new IllegalArgumentException(
-                        "Versions before ["
-                            + TransportVersions.V_8_7_0.toReleaseVersion()
-                            + "] don't support multiple [knn] search clauses and search was sent to ["
-                            + out.getTransportVersion().toReleaseVersion()
-                            + "]"
-                    );
-                }
-                out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
-            } else {
-                out.writeCollection(knnSearch);
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalNamedWriteable(rankBuilder);
-        } else if (rankBuilder != null) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            out.writeBoolean(skipInnerHits);
-        }
+        out.writeCollection(knnSearch);
+        out.writeOptionalNamedWriteable(rankBuilder);
+        out.writeBoolean(skipInnerHits);
     }
 
     /**
@@ -1329,6 +1280,28 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
      *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param searchUsageHolder holder for the search usage statistics
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     *
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      * @param searchUsageHolder holder for the search usage statistics
@@ -1340,7 +1313,29 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     * This variant does not record search features usage. Most times the variant that accepts a {@link SearchUsageHolder} and records
+     * usage stats into it is the one to use.
+     *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     /**
@@ -1357,10 +1352,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean checkTrailingTokens,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     private SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
         XContentParser parser,
         boolean checkTrailingTokens,
         Consumer<SearchUsage> searchUsageConsumer,
@@ -1382,7 +1378,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (PROJECT_ROUTING.match(currentFieldName, parser.getDeprecationHandler()) && searchRequest != null) {
+                    /*
+                     * If project_routing was specified as a query parameter too, setProjectRouting() will throw
+                     * an error to prevent setting twice or overwriting previously set value.
+                     */
+                    searchRequest.setProjectRouting(parser.text());
+                } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     size(parser.intValue());

@@ -221,8 +221,10 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         );
         Map<String, Object> metrics = evaluate(getMapping("metrics-generic.otel-default"), "properties.metrics.properties");
         assertThat(evaluate(metrics, "double_gauge.type"), equalTo("double"));
+        assertThat(evaluate(metrics, "double_gauge.meta.unit"), equalTo("By"));
         assertThat(evaluate(metrics, "double_gauge.time_series_metric"), equalTo("gauge"));
         assertThat(evaluate(metrics, "long_gauge.type"), equalTo("long"));
+        assertThat(evaluate(metrics, "long_gauge.meta.unit"), equalTo("By"));
         assertThat(evaluate(metrics, "long_gauge.time_series_metric"), equalTo("gauge"));
     }
 

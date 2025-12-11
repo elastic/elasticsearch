@@ -1,0 +1,6 @@
+pr: 138126
+summary: Improving performance of stats APIs when the number of shards is very large
+area: Stats
+type: bug
+issues:
+ - 97222

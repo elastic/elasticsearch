@@ -185,7 +185,7 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
 
                 consumerLabels.forEach(consumerLabel -> {
                     SetOnce<Boolean> hasRun = new SetOnce<>();
-                    ctx.registerUniqueRewriteAction(
+                    ctx.registerUniqueAsyncAction(
                         // we register the same action multiple times
                         new TestQueryRewriteAsyncAction(actionLabel, execCounter, failAction && failedActionStep == actionLabel),
                         (result) -> {

@@ -634,7 +634,7 @@ public class QueryRewriteContext {
      * After the async action is executed, all consumers associated with it will be executed and receive as argument
      * the result of the async action.
      */
-    public <T> void registerUniqueRewriteAction(QueryRewriteAsyncAction<T> action, Consumer<T> consumer) {
+    public <T> void registerUniqueAsyncAction(QueryRewriteAsyncAction<T> action, Consumer<T> consumer) {
         uniqueRewriteActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);
     }
 }

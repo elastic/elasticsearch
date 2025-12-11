@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 /**
  * Represents a unique action that needs to be executed asynchronously during query rewriting.
  * A {@link QueryRewriteAsyncAction} is registered using
- * {@link QueryRewriteContext#registerUniqueRewriteAction(QueryRewriteAsyncAction, Consumer)}.
+ * {@link QueryRewriteContext#registerUniqueAsyncAction(QueryRewriteAsyncAction, Consumer)}.
  * This is useful when we want to remove duplicate and costly async actions that take part in query rewriting, such as generating
  * embeddings for semantic search.
  * Since we need to determine whether an action has already been registered, we require implementors to provide implementations for

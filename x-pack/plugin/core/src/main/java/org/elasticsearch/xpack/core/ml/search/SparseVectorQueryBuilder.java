@@ -276,7 +276,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
 
-        queryRewriteContext.registerUniqueRewriteAction(
+        queryRewriteContext.registerUniqueAsyncAction(
             new SparseInferenceRewriteAction(inferenceId, query),
             inferenceResponse -> {
                 textExpansionResultsSupplier.set((TextExpansionResults) inferenceResponse.getInferenceResults().getFirst());

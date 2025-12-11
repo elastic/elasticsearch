@@ -60,7 +60,9 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
 
     public void testInexistentIndexNameWithWildcard() throws IOException {
         for (String pattern : List.of("inexistent*", "inexistent1*,inexistent2*")) {
-            assertEmpty(pattern);
+            // This behavior was changed before the 9.3.0 release.
+            // While the cluster is upgrading, we might get any of two behaviors depending on a coordination node version.
+            assertEmptyOrError(pattern, 400, "Unknown index [" + clusterSpecificIndexName(pattern) + "]");
         }
     }
 
@@ -113,7 +115,16 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
     private void assertError(String indexName, int statusCode, String errorMessage) {
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(createRequest(indexName)));
         assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
-        assertThat(exc.getMessage(), containsString("\"reason\" : \"" + errorMessage + "\""));
+        assertThat(exc.getMessage(), containsString(errorMessage));
+    }
+
+    private void assertEmptyOrError(String indexName, int statusCode, String errorMessage) throws IOException {
+        try {
+            assertEmpty(indexName);
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
+            assertThat(e.getMessage(), containsString(errorMessage));
+        }
     }
 
     private Request createRequest(String indexName) throws IOException {

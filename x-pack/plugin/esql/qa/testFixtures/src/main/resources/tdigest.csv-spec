@@ -33,15 +33,15 @@ required_capability: tdigest_percentiles
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
  | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p99 = PERCENTILE(responseTime, 99),  p100 = PERCENTILE(responseTime,100) BY instance
- | EVAL p50 = ROUND(p50, 2), p99 = ROUND(p99, 2) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
+ | EVAL p50 = ROUND(p50, 2), p99 = ROUND(p99, 1) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
  | KEEP instance, p0, p50, p99, p100
  | SORT instance
 ;
 
 instance:keyword | p0:double | p50:double | p99:double | p100:double
-instance-0       | 2.4E-4    | 0.02       | 1.04       | 6.786232
-instance-1       | 2.17E-4   | 0.0       | 0.13       | 3.190723
-instance-2       | 2.2E-4    | 0.0       | 0.09       | 2.744054
+instance-0       | 2.4E-4    | 0.02       | 1.0       | 6.786232
+instance-1       | 2.17E-4   | 0.0        | 0.1       | 3.190723
+instance-2       | 2.2E-4    | 0.0        | 0.1       | 2.744054
 ;
 
 

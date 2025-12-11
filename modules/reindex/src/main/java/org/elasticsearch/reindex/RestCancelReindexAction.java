@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -48,9 +47,8 @@ public class RestCancelReindexAction extends BaseRestHandler {
             throw new IllegalArgumentException("invalid taskId provided: " + taskIdParam);
         }
 
-        final ProjectId projectId = client.projectResolver().getProjectId();
         final boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
-        final CancelReindexRequest cancelRequest = new CancelReindexRequest(projectId, waitForCompletion);
+        final CancelReindexRequest cancelRequest = new CancelReindexRequest(waitForCompletion);
         cancelRequest.setTargetTaskId(taskId);
         cancelRequest.setTimeout(request.paramAsTime("timeout", TimeValue.THIRTY_SECONDS));
 

@@ -10,43 +10,37 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /** A request to cancel an ongoing reindex task. */
 public class CancelReindexRequest extends BaseTasksRequest<CancelReindexRequest> {
 
-    private final ProjectId projectId;
     private final boolean waitForCompletion;
 
     public CancelReindexRequest(StreamInput in) throws IOException {
         super(in);
-        projectId = ProjectId.readFrom(in);
         waitForCompletion = in.readBoolean();
     }
 
-    public CancelReindexRequest(ProjectId projectId, boolean waitForCompletion) {
-        this.projectId = Objects.requireNonNull(projectId, "projectId");
+    public CancelReindexRequest(boolean waitForCompletion) {
         this.waitForCompletion = waitForCompletion;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        projectId.writeTo(out);
         out.writeBoolean(waitForCompletion);
     }
 
     @Override
     public String getDescription() {
-        return "waitForCompletion[" + waitForCompletion + "], targetTaskId[" + getTargetTaskId() + "], projectId[" + projectId + "]";
+        return "waitForCompletion[" + waitForCompletion + "], targetTaskId[" + getTargetTaskId() + "]";
     }
 
     @Override
@@ -56,10 +50,6 @@ public class CancelReindexRequest extends BaseTasksRequest<CancelReindexRequest>
             validationException = addValidationError("task id must be provided", validationException);
         }
         return validationException;
-    }
-
-    public ProjectId getProjectId() {
-        return projectId;
     }
 
     public boolean waitForCompletion() {

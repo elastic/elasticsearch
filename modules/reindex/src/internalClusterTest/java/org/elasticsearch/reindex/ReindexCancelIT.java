@@ -18,7 +18,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -230,14 +229,14 @@ public class ReindexCancelIT extends ReindexTestCase {
     }
 
     private CancelReindexResponse cancelReindexSynchronously(final TaskId taskId) {
-        final CancelReindexRequest request = new CancelReindexRequest(ProjectId.DEFAULT, true);
+        final CancelReindexRequest request = new CancelReindexRequest(true);
         request.setTargetTaskId(taskId);
         request.setTimeout(TimeValue.timeValueSeconds(30));
         return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();
     }
 
     private CancelReindexResponse cancelReindexAsynchronously(final TaskId taskId) {
-        final CancelReindexRequest request = new CancelReindexRequest(ProjectId.DEFAULT, false);
+        final CancelReindexRequest request = new CancelReindexRequest(false);
         request.setTargetTaskId(taskId);
         request.setTimeout(TimeValue.timeValueSeconds(30));
         return client().execute(TransportCancelReindexAction.TYPE, request).actionGet();

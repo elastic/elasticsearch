@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -45,11 +46,14 @@ public class TransportCancelReindexAction extends TransportTasksAction<
     public static final ActionType<CancelReindexResponse> TYPE = new ActionType<>("cluster:admin/reindex/cancel");
     private static final Logger LOG = LogManager.getLogger(TransportCancelReindexAction.class);
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public TransportCancelReindexAction(
         final ClusterService clusterService,
         final TransportService transportService,
-        final ActionFilters actionFilters
+        final ActionFilters actionFilters,
+        final ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -60,6 +64,7 @@ public class TransportCancelReindexAction extends TransportTasksAction<
             CancelReindexTaskResponse::new,
             transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
+        this.projectResolver = Objects.requireNonNull(projectResolver, "projectResolver");
     }
 
     @Override
@@ -81,7 +86,7 @@ public class TransportCancelReindexAction extends TransportTasksAction<
             return List.of();
         }
 
-        final ProjectId requestProjectId = request.getProjectId();
+        final ProjectId requestProjectId = projectResolver.getProjectId();
         final String taskProjectId = task.getProjectId();
         if (taskProjectId == null) {
             if (ProjectId.DEFAULT.equals(requestProjectId) == false) {

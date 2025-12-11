@@ -478,7 +478,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         final FloatVectorValues floatVectorValues = centroidSupplier.asFloatVectorValues();
         // we use the HierarchicalKMeans to partition the space of all vectors across merging segments
         // this are small numbers so we run it wih all the centroids.
-        final KMeansResult kMeansResult = new HierarchicalKMeans(
+        final KMeansResult kMeansResult = HierarchicalKMeans.ofSerial(
             fieldInfo.getVectorDimension(),
             HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
             HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
@@ -523,7 +523,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
         // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
         // preliminary tests suggest recall is good using only centroids but need to do further evaluation
-        KMeansResult kMeansResult = new HierarchicalKMeans(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
+        KMeansResult kMeansResult = HierarchicalKMeans.ofSerial(floatVectorValues.dimension()).cluster(floatVectorValues, vectorPerCluster);
         float[][] centroids = kMeansResult.centroids();
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", centroids.length);

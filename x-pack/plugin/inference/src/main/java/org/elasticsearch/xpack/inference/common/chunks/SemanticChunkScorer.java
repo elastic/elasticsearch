@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.common.chunks;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -76,14 +77,9 @@ public class SemanticChunkScorer {
         IndexSearcher searcher = searchContext.searcher();
         int docId = hit.docId();
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-        // Find the leaf that contains this doc
-        LeafReaderContext leafContext = null;
-        for (LeafReaderContext ctx : leaves) {
-            if (docId >= ctx.docBase && docId < ctx.docBase + ctx.reader().maxDoc()) {
-                leafContext = ctx;
-                break;
-            }
-        }
+        int readerIndex = ReaderUtil.subIndex(docId, leaves);
+        LeafReaderContext leafContext = leaves.get(readerIndex);
+
         List<ScoredChunk> scoredChunks = new ArrayList<>();
         if (leafContext != null) {
             LeafReader leafReader = leafContext.reader();

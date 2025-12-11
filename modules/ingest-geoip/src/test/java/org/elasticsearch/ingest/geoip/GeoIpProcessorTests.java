@@ -645,9 +645,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         List<Double> locationArray = (List<Double>) location;
         assertThat(locationArray.size(), equalTo(2));
-        // Verify longitude and latitude are present in the array
-        assertThat(locationArray.get(0), notNullValue()); // longitude
-        assertThat(locationArray.get(1), notNullValue()); // latitude
+        assertThat(locationArray.get(0), equalTo(-87.6285));
+        assertThat(locationArray.get(1), equalTo(41.8798));
 
         // Verify that the nested "my.geo" object was NOT created
         assertThat(sourceAndMetadata.containsKey("my.geo"), is(false));

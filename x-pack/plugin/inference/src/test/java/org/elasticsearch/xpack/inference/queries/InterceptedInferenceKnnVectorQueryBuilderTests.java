@@ -309,6 +309,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         }
     }
 
+    @Override
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.TEXT_EMBEDDING, KnnVectorQueryBuilder.NAME);
     }

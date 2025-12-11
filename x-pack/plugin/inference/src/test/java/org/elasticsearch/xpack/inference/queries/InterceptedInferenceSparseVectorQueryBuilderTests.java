@@ -181,6 +181,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         assertThat(dataRewrittenTestIndex2, equalTo(expectedDataRewrittenTestIndex2));
     }
 
+    @Override
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.SPARSE_EMBEDDING, SparseVectorQueryBuilder.NAME);
     }

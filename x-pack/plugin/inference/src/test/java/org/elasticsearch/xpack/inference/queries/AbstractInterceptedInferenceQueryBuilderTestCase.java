@@ -192,6 +192,8 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, contextCurrent);
     }
 
+    public abstract void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception;
+
     protected void ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType taskType, String queryName) throws Exception {
         final String inferenceId;
         final MinimalServiceSettings serviceSettings;

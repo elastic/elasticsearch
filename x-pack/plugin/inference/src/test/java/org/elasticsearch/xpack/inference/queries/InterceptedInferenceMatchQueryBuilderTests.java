@@ -169,6 +169,7 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         assertThat(dataRewrittenTestIndex3, equalTo(matchQuery));
     }
 
+    @Override
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.SPARSE_EMBEDDING, MatchQueryBuilder.NAME);
     }

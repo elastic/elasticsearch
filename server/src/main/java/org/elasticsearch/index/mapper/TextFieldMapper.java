@@ -1492,7 +1492,7 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     /**
-     * Returns whether the current index version supports not storing keyword multi fields when they trip ignore_above. The consequence
+     * Returns whether the current index version blah supports not storing keyword multi fields when they trip ignore_above. The consequence
      * of this check is that the store parameter will be simplified and defaulted to false.
      */
     public static boolean keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(final IndexVersion indexCreatedVersion) {

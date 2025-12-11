@@ -349,9 +349,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorMultipleNodesIT
   method: testAuthorizationTaskGetsRelocatedToAnotherNode_WhenTheNodeThatIsRunningItShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/137911
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/138012
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/138055
@@ -388,9 +385,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/138471
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletion_DoesNotRemoveEndpointWhenNoLongerAuthorized
-  issue: https://github.com/elastic/elasticsearch/issues/138480
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
@@ -406,12 +400,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testAggregateMetricDoubleInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/138620
-- class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
-  method: testSynthesizeArrayRandom
-  issue: https://github.com/elastic/elasticsearch/issues/138730
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesEisChatCompletionEndpoint
-  issue: https://github.com/elastic/elasticsearch/issues/138764
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
@@ -442,12 +430,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/139066
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/139127
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/139128
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543
@@ -481,9 +463,24 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_half_byte_quantized_bfloat16/Knn search with mip}
   issue: https://github.com/elastic/elasticsearch/issues/139254
-- class: org.elasticsearch.xpack.security.authc.saml.SamlServiceProviderMetadataIT
-  method: testAuthenticationWhenMetadataIsUnreliable
-  issue: https://github.com/elastic/elasticsearch/issues/139067
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/138764
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/139300
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139303
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139304
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139335
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/200_dense_vector_docvalue_fields/dense_vector docvalues with bfloat16}
+  issue: https://github.com/elastic/elasticsearch/issues/139368
 
 # Examples:
 #

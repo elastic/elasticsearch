@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest.geoip.direct;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
@@ -138,12 +137,7 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
     }
 
     private static Provider readProvider(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            return in.readNamedWriteable(Provider.class);
-        } else {
-            // prior to the above version, everything was always a maxmind, so this half of the if is logical
-            return new Maxmind(in.readString());
-        }
+        return in.readNamedWriteable(Provider.class);
     }
 
     public static DatabaseConfiguration parse(XContentParser parser, String id) {
@@ -154,15 +148,7 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(name);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeNamedWriteable(provider);
-        } else {
-            if (provider instanceof Maxmind maxmind) {
-                out.writeString(maxmind.accountId);
-            } else {
-                assert false : "non-maxmind DatabaseConfiguration.Provider [" + provider.getWriteableName() + "]";
-            }
-        }
+        out.writeNamedWriteable(provider);
     }
 
     @Override

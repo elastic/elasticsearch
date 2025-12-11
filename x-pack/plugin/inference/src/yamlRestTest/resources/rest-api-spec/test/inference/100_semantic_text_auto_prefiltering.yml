@@ -47,27 +47,27 @@ setup:
         index: test-index
         refresh: true
         body: |
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "1" }}
           {"dense_field_1": "violins", "dense_field_2": "cats", "keyword_field_1": "label_1", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_1"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "2" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "3" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "4" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "5" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "6" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "7" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "8" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "9" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "10" }}
           {"dense_field_1": "violins", "keyword_field_1": "label_2", "keyword_field_2": "label_2", "nested_field": {"keyword_field_sub": "label_2"}}
-          {"index": { "_index" : "test-index" }}
+          {"index": { "_index" : "test-index", "_id": "11" }}
           {"dense_field_1": "pianos", "dense_field_2": "cats", "keyword_field_1": "label_1", "keyword_field_2": "label_1", "nested_field": {"keyword_field_sub": "label_1"}}
 
 ---
@@ -340,6 +340,11 @@ setup:
 
 ---
 "Test 2 must semantic matches":
+  # Semantic matches are rewritten as nested queries. As nested queries
+  # are excluded as pre-filters. This test shows that there is no auto-prefiltering
+  # in this scenario. The first match clauses will return the first 10 documents
+  # which all contain "violins" in the dense_field_1. The second match clause will
+  # basically operate as a field_exists query and thus we expect a single result.
 
   - do:
       search:
@@ -380,6 +385,11 @@ setup:
 
 ---
 "Test 2 must semantic matches in their own bool queries":
+  # Semantic matches are rewritten as nested queries. As nested queries
+  # are excluded as pre-filters. This test shows that there is no auto-prefiltering
+  # in this scenario. The bool query will return the first 10 documents
+  # which all contain "violins" in the dense_field_1. The second bool query will
+  # basically operate as a field_exists query and thus we expect a single result.
 
   - do:
       search:
@@ -750,6 +760,7 @@ setup:
           }
 
   - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
 
 ---
 "Test bool filter with must nested and non-nested terms - non-nested is used as prefilter":

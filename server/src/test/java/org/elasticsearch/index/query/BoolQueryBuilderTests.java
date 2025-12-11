@@ -766,7 +766,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return null;
+            return TransportVersion.current();
         }
     }
 }

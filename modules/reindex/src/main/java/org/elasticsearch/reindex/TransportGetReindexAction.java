@@ -20,6 +20,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskResult;
@@ -30,8 +32,9 @@ import org.elasticsearch.transport.TransportService;
  * is actually a reindex task before returning it.
  */
 public class TransportGetReindexAction extends HandledTransportAction<GetReindexRequest, GetReindexResponse> {
-
     public static final ActionType<GetReindexResponse> TYPE = new ActionType<>("cluster:monitor/reindex/get");
+
+    private static final Logger logger = LogManager.getLogger(TransportGetReindexAction.class);
 
     private final Client client;
 
@@ -51,13 +54,20 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
 
         // Look for reindex task on the node inferred from the task id for running reindex task,
         // or from the ".tasks" system index for completed tasks
-        // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
         client.admin().cluster().getTask(getTaskRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetTaskResponse response) {
                 TaskResult taskResult = response.getTask();
+                // Found a matching task by id, but it's not a reindex task, treat it as not found to prevent leaking other tasks
                 if (ReindexAction.NAME.equals(taskResult.getTask().action()) == false) {
-                    // Found a matching task by id, but it's not a reindex task, treat it as not found to prevent leaking other tasks
+                    logger.debug("task [{}] requested as reindex but is [{}], returning not found", taskId, taskResult.getTask().action());
+                    listener.onFailure(notFoundException(taskId));
+                    return;
+                }
+                // Found a matching reindex task by id, but it's a reindex subtask, treat it as not found to hide slicing implementation
+                // details
+                if (taskResult.getTask().parentTaskId() != null) {
+                    logger.debug("reindex subtask [{}] requested directly, returning not found", taskId);
                     listener.onFailure(notFoundException(taskId));
                     return;
                 }
@@ -78,6 +88,8 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
                         public void onFailure(Exception e) {
                             if (e instanceof ResourceNotFoundException) {
                                 // Wraps the task not found exception to hide task details
+                                logger.debug("task [{}] not found, returning as reindex not found", taskId);
+                                // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
                                 listener.onFailure(notFoundException(taskId));
                             } else {
                                 listener.onFailure(e);
@@ -93,6 +105,8 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
             public void onFailure(Exception e) {
                 if (e instanceof ResourceNotFoundException) {
                     // Wraps the task not found exception to hide task details
+                    logger.debug("task [{}] not found, returning as reindex not found", taskId);
+                    // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
                     listener.onFailure(notFoundException(taskId));
                 } else {
                     listener.onFailure(e);

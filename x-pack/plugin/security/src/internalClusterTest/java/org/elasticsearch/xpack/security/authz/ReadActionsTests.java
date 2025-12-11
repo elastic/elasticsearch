@@ -32,6 +32,7 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExcep
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -221,6 +222,38 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
         // Exclusion works without prior wildcards
         assertReturnedIndices(trySearch("test10", "test111", "test112", "-test111", "-test112", "index*"), "test10");
+    }
+
+    public void testEmptyExpressionIsInvalid() {
+        createIndicesWithRandomAliases("test1");
+
+        final List<String[]> expressionsList = List.of(
+            new String[] { "" },
+            new String[] { "*", "" },
+            new String[] { "test1", "" },
+            new String[] { "*", "", "test1" }
+        );
+        for (var expressions : expressionsList) {
+            final var e = expectThrows(ElasticsearchSecurityException.class, () -> trySearch(expressions).get());
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getMessage(), containsString("Index expression cannot be empty"));
+        }
+    }
+
+    public void testExclusionPrefixOnItsOwnIsInvalid() {
+        createIndicesWithRandomAliases("test1");
+
+        final List<String[]> expressionsList = List.of(
+            new String[] { "-" },
+            new String[] { "*", "-" },
+            new String[] { "test1", "-" },
+            new String[] { "*", "-", "test1" }
+        );
+        for (var expressions : expressionsList) {
+            final var e = expectThrows(ElasticsearchSecurityException.class, () -> trySearch(expressions).get());
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getMessage(), containsString("Index exclusion cannot be empty"));
+        }
     }
 
     public void testMissingDateMath() {

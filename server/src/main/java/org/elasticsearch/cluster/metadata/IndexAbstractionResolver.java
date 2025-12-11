@@ -32,6 +32,7 @@ import java.util.function.Function;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.invalidExpression;
 
 public class IndexAbstractionResolver {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -123,11 +124,18 @@ public class IndexAbstractionResolver {
         final boolean includeDataStreams,
         final Set<String> remoteExpressions
     ) {
+        if (localIndexExpression.isEmpty()) {
+            throw invalidExpression(false);
+        }
+
         String indexAbstraction;
         boolean minus = false;
         if (localIndexExpression.charAt(0) == '-') {
             indexAbstraction = localIndexExpression.substring(1);
             minus = true;
+            if (indexAbstraction.isEmpty()) {
+                throw invalidExpression(true);
+            }
         } else {
             indexAbstraction = localIndexExpression;
         }

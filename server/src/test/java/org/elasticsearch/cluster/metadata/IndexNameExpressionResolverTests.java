@@ -1049,6 +1049,31 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(0, indexNames.length);
     }
 
+    public void testNegationOnItsOwnIsInvalid() {
+        final var project = ProjectMetadata.builder(randomUniqueProjectId()).put(indexBuilder("testXXX").state(State.OPEN)).build();
+
+        final var context = new IndexNameExpressionResolver.Context(
+            project,
+            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, randomBoolean()),
+            SystemIndexAccessLevel.NONE
+        );
+
+        final List<String[]> expressionsList = List.of(
+            new String[] { "-" },
+            new String[] { "*", "-" },
+            new String[] { "testXXX", "-" },
+            new String[] { "*", "-", "testXXX" }
+        );
+
+        for (var expressions : expressionsList) {
+            expectThrows(
+                IllegalArgumentException.class,
+                containsString("Index exclusion cannot be empty"),
+                () -> indexNameExpressionResolver.concreteIndexNames(context, expressions)
+            );
+        }
+    }
+
     public void testConcreteIndicesWildcardAndAliases() {
         ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetadata.builder("foo")))

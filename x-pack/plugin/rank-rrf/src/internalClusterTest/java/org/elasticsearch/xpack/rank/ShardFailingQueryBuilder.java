@@ -66,9 +66,9 @@ public class ShardFailingQueryBuilder extends AbstractQueryBuilder<ShardFailingQ
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        if(context.getShardId() % 2 == 0) {
+        if (context.getShardId() % 2 == 0) {
             throw new CorruptIndexException("simulated failure", (DataInput) null);
-        }else{
+        } else {
             return new MatchAllDocsQuery();
         }
     }
@@ -83,4 +83,3 @@ public class ShardFailingQueryBuilder extends AbstractQueryBuilder<ShardFailingQ
         return 0;
     }
 }
-

@@ -41,7 +41,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.rank.FailingQueryPlugin;
 import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
-import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 import org.junit.Before;
 
 import java.io.IOException;

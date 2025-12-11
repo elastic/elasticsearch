@@ -16,18 +16,23 @@ import java.util.List;
 import java.util.stream.Stream;
 
 public class FailingQueryPlugin extends Plugin implements SearchPlugin {
-    public FailingQueryPlugin() {
-    }
+    public FailingQueryPlugin() {}
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return List.of(new QuerySpec<QueryBuilder>(
-            ShardFailingQueryBuilder.NAME, ShardFailingQueryBuilder::new, ShardFailingQueryBuilder::fromXContent));
+        return List.of(
+            new QuerySpec<QueryBuilder>(
+                ShardFailingQueryBuilder.NAME,
+                ShardFailingQueryBuilder::new,
+                ShardFailingQueryBuilder::fromXContent
+            )
+        );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Stream.of(new NamedWriteableRegistry.Entry(
-            ShardFailingQueryBuilder.class, ShardFailingQueryBuilder.NAME, ShardFailingQueryBuilder::new)).toList();
+        return Stream.of(
+            new NamedWriteableRegistry.Entry(ShardFailingQueryBuilder.class, ShardFailingQueryBuilder.NAME, ShardFailingQueryBuilder::new)
+        ).toList();
     }
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -41,6 +40,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.rank.FailingQueryPlugin;
+import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
 
@@ -127,9 +127,9 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             TEXT_FIELD,
             "search term term",
             VECTOR_FIELD,
-            new float[]{2.0f}
+            new float[] { 2.0f }
         );
-        indexDoc(INDEX, "doc_3", DOC_FIELD, "doc_3", TOPIC_FIELD, "technology", VECTOR_FIELD, new float[]{3.0f});
+        indexDoc(INDEX, "doc_3", DOC_FIELD, "doc_3", TOPIC_FIELD, "technology", VECTOR_FIELD, new float[] { 3.0f });
         indexDoc(INDEX, "doc_4", DOC_FIELD, "doc_4", TOPIC_FIELD, "technology", TEXT_FIELD, "term term term term");
         indexDoc(INDEX, "doc_5", DOC_FIELD, "doc_5", TOPIC_FIELD, "science", TEXT_FIELD, "irrelevant stuff");
         indexDoc(
@@ -140,7 +140,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             TEXT_FIELD,
             "search term term term term term term",
             VECTOR_FIELD,
-            new float[]{6.0f}
+            new float[] { 6.0f }
         );
         indexDoc(
             INDEX,
@@ -152,7 +152,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             TEXT_FIELD,
             "term term term term term term term",
             VECTOR_FIELD,
-            new float[]{7.0f}
+            new float[] { 7.0f }
         );
         refresh(INDEX);
     }
@@ -180,7 +180,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         // this one retrieves docs 2, 3, 6, and 7
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[]{2.0f},
+            new float[] { 2.0f },
             null,
             10,
             100,
@@ -247,7 +247,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         // with scores 1, 0.5, 0.05882353, 0.03846154
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[]{2.0f},
+            new float[] { 2.0f },
             null,
             10,
             100,
@@ -325,7 +325,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         // with scores 1, 0.5, 0.05882353, 0.03846154
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[]{2.0f},
+            new float[] { 2.0f },
             null,
             10,
             100,
@@ -416,20 +416,20 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                                 new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
                             ),
                             rankWindowSize,
-                            new float[]{2.0f, 1.0f},
-                            new ScoreNormalizer[]{IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE}
+                            new float[] { 2.0f, 1.0f },
+                            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
                         ),
                         null
                     ),
                     // this one bring just doc 7 which should be ranked first eventually with a score of 100
                     new CompoundRetrieverBuilder.RetrieverSource(
-                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[]{7.0f}, null, 1, 100, null, null, null),
+                        new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 7.0f }, null, 1, 100, null, null, null),
                         null
                     )
                 ),
                 rankWindowSize,
-                new float[]{1.0f, 100.0f},
-                new ScoreNormalizer[]{IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE}
+                new float[] { 1.0f, 100.0f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
             )
         );
 
@@ -479,7 +479,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         // with scores 1, 0.5, 0.05882353, 0.03846154
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[]{2.0f},
+            new float[] { 2.0f },
             null,
             10,
             100,
@@ -578,7 +578,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         // with scores 1, 0.5, 0.05882353, 0.03846154
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
             VECTOR_FIELD,
-            new float[]{2.0f},
+            new float[] { 2.0f },
             null,
             10,
             100,
@@ -613,8 +613,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                     new CompoundRetrieverBuilder.RetrieverSource(standard2, null)
                 ),
                 rankWindowSize,
-                new float[]{1, 5f},
-                new ScoreNormalizer[]{IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE}
+                new float[] { 1, 5f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
             )
         );
         source.explain(true);
@@ -808,7 +808,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
             "vector",
             null,
-            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[]{3}),
+            new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
             10,
             10,
             null,
@@ -836,7 +836,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
     }
 
     public void testRewriteOnce() {
-        final float[] vector = new float[]{1};
+        final float[] vector = new float[] { 1 };
         AtomicInteger numAsyncCalls = new AtomicInteger();
         QueryVectorBuilder vectorBuilder = new QueryVectorBuilder() {
             @Override
@@ -905,8 +905,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             null,
             MinMaxScoreNormalizer.INSTANCE,
             10,
-            new float[]{1.0f, 1.0f, 1.0f},
-            new ScoreNormalizer[]{null, L2ScoreNormalizer.INSTANCE, null}
+            new float[] { 1.0f, 1.0f, 1.0f },
+            new ScoreNormalizer[] { null, L2ScoreNormalizer.INSTANCE, null }
         );
 
         assertThat(linearRetriever.getNormalizers()[0], equalTo(MinMaxScoreNormalizer.INSTANCE));

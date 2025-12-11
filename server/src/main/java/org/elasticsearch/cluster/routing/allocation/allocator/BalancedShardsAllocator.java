@@ -530,13 +530,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // if the simulated weight delta with the shard moved away is better than the weight delta
                     // with the shard remaining on the current node, and we are allowed to allocate to the
                     // node in question, then allow the rebalance
-                    if (rebalanceConditionsMet
-                        && canAllocate.type().higherThan(Type.NOT_PREFERRED) // same as NO for rebalancing
-                        && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
-                        // Overwrite the best decision since it is better than the last. This means YES decisions will replace
-                        // THROTTLE decisions, and THROTTLE/YES will replace the default NO.
+                    if (rebalanceConditionsMet && canAllocate.type().higherThan(bestRebalanceCanAllocateDecisionType)) {
+                        // Overwrite the best decision since it is better than the last. This means that YES/THROTTLE decisions will replace
+                        // NOT_PREFERRED/NO decisions, and a YES decision will replace a THROTTLE decision. NOT_PREFERRED will also replace
+                        // NO, even if neither are acted upon for rebalancing, for allocation explain purposes.
                         bestRebalanceCanAllocateDecisionType = canAllocate.type();
-                        targetNode = node;
+                        if (canAllocate.type().higherThan(Type.NOT_PREFERRED)) {
+                            // Movement is only allowed to THROTTLE/YES nodes. NOT_PREFERRED is the same as no for rebalancing, since
+                            // rebalancing aims to distribute resource usage and NOT_PREFERRED means the move could cause hot-spots.
+                            targetNode = node;
+                        }
                     }
                 }
                 Tuple<ModelNode, Decision> nodeResult = Tuple.tuple(node, canAllocate);

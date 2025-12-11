@@ -21,8 +21,8 @@ grant {
 };
 
 // rely on the caller's socket permissions, the JSSE TLS implementation here is always allowed to connect
-// FIPS 140-3: bctls-fips 2.1.22
-grant codeBase "file:${jdk.module.path}/bctls-fips-2.1.22.jar" {
+// FIPS 140-3: bctls-fips 2.0.22
+grant codeBase "file:${jdk.module.path}/bctls-fips-2.0.22.jar" {
   permission java.net.SocketPermission "*", "connect";
 };
 

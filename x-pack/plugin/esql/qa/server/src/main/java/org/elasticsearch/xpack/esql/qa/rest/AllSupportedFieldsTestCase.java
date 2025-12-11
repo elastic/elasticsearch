@@ -19,7 +19,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.MapMatcher;
@@ -41,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -340,7 +345,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     ) {
         MapMatcher expectedColumns = matchesMap().entry(LOOKUP_ID_FIELD, "integer");
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type) == false) {
+            if (supportedInIndex(type, minimumVersion) == false) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -372,7 +377,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         MapMatcher expectedValues = matchesMap();
         expectedValues = expectedValues.entry(LOOKUP_ID_FIELD, equalTo(123));
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type) == false) {
+            if (supportedInIndex(type, minimumVersion) == false) {
                 continue;
             }
             if (expectNonEnrichableFields == false && supportedInEnrich(type) == false) {
@@ -724,6 +729,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private static final String LOOKUP_ID_FIELD = "lookup_id";
 
     protected static void createAllTypesIndex(RestClient client, String indexName, String nodeId, IndexMode mode) throws IOException {
+        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
+        TransportVersion minimumVersion = minVersion(nodeInfoMap);
+
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         {
             config.startObject("settings");
@@ -746,7 +754,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.endObject();
 
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type) == false) {
+                if (supportedInIndex(type, minimumVersion) == false) {
                     continue;
                 }
                 config.startObject(fieldName(type));
@@ -784,12 +792,21 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
+    private static final ExponentialHistogram EXPONENTIAL_HISTOGRAM_VALUE = ExponentialHistogram.create(
+        10,
+        ExponentialHistogramCircuitBreaker.noop(),
+        IntStream.range(0, 100).mapToDouble(i -> i).toArray()
+    );
+
     protected static void createAllTypesDoc(RestClient client, String indexName) throws IOException {
+        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
+        TransportVersion minimumVersion = minVersion(nodeInfoMap);
+
         XContentBuilder doc = JsonXContent.contentBuilder().startObject();
         doc.field(LOOKUP_ID_FIELD);
         doc.value(123);
         for (DataType type : DataType.values()) {
-            if (supportedInIndex(type) == false) {
+            if (supportedInIndex(type, minimumVersion) == false) {
                 continue;
             }
             doc.field(fieldName(type));
@@ -811,6 +828,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("value_count", 25);
                     doc.endObject();
                 }
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
@@ -823,6 +841,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected static void createEnrichPolicy(RestClient client, String indexName, String policyName) throws IOException {
+        Map<String, NodeInfo> nodeInfoMap = fetchNodeToInfo(client, null);
+        TransportVersion minimumVersion = minVersion(nodeInfoMap);
+
         XContentBuilder policyConfig = JsonXContent.contentBuilder().startObject();
         {
             policyConfig.startObject("match");
@@ -831,7 +852,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             policyConfig.field("match_field", LOOKUP_ID_FIELD);
             List<String> enrichFields = new ArrayList<>();
             for (DataType type : DataType.values()) {
-                if (supportedInIndex(type) == false || supportedInEnrich(type) == false) {
+                if (supportedInIndex(type, minimumVersion) == false || supportedInEnrich(type) == false) {
                     continue;
                 }
                 enrichFields.add(fieldName(type));
@@ -883,6 +904,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
             }
+            case EXPONENTIAL_HISTOGRAM -> {
+                try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                    ExponentialHistogramXContent.serialize(builder, EXPONENTIAL_HISTOGRAM_VALUE);
+                    Map<String, ?> parsedJson = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), true);
+                    yield equalTo(parsedJson);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             case DENSE_VECTOR -> {
                 // See expectedType for an explanation
                 if (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) == false
@@ -898,7 +928,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     /**
      * Is the type supported in indices?
      */
-    private static boolean supportedInIndex(DataType t) {
+    private static boolean supportedInIndex(DataType t, TransportVersion minimumVersion) {
         return switch (t) {
             // These are supported but implied by the index process.
             // TODO: current versions already support _tsid; update this once we can tell whether all nodes support it.
@@ -907,11 +937,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 UNSUPPORTED,
                 // You can't index these - they are just constants.
                 DATE_PERIOD, TIME_DURATION, GEOTILE, GEOHASH, GEOHEX,
-                // TODO(b/133393): Once we remove the feature-flag of the exp-histo field type (!= ES|QL type),
+                // TODO(b/133393): Once we remove the feature-flag of the tdigest field type (!= ES|QL type),
                 // replace this with a capability check
-                EXPONENTIAL_HISTOGRAM, TDIGEST,
+                TDIGEST,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false);
             default -> true;
         };
     }
@@ -924,6 +955,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             // Enrich policies don't work with types that have mandatory fields in the mapping.
             // https://github.com/elastic/elasticsearch/issues/127350
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
+                // https://github.com/elastic/elasticsearch/issues/139255
+                EXPONENTIAL_HISTOGRAM,
                 // https://github.com/elastic/elasticsearch/issues/137699
                 DENSE_VECTOR -> false;
             default -> true;
@@ -1069,7 +1102,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return minVersion(allNodeToInfo());
     }
 
-    protected TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) throws IOException {
+    protected static TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) throws IOException {
         return nodeToInfo.values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
     }
 }

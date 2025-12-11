@@ -40,7 +40,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportReshardAction extends TransportMasterNodeAction<ReshardIndexRequest, ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("indices:admin/reshard");
 
     private final ReshardIndexService reshardIndexService;
     private final ProjectResolver projectResolver;
@@ -106,7 +106,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
         final ReshardIndexClusterStateUpdateRequest updateRequest = new ReshardIndexClusterStateUpdateRequest(
             projectResolver.getProjectId(),
             concreteIndices[0],
-            request.multiple()
+            request.newShardCount()
         );
 
         reshardIndexService.reshardIndex(

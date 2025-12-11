@@ -1,0 +1,36 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 1
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term term"
+          keyword: "other"
+
+---
+"Test reshard split":
+  - do:
+      _internal.post_reshard_split:
+        body:
+          index: test
+          split_shard_count: 4
+  - match: { $body: "" }
+
+---
+"Test reshard split fails with invalid shard count":
+  - do:
+      catch: bad_request
+      _internal.post_reshard_split:
+        body:
+          index: test
+          split_shard_count: 2
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }

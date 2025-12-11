@@ -433,12 +433,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/139066
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/139127
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/139128
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543

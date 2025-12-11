@@ -64,6 +64,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature BBQ_DISK_STATS_SUPPORT = new NodeFeature("mapper.bbq_disk_stats_support");
     static final NodeFeature SKIPPERS_ON_UNINDEXED_FIELDS = new NodeFeature("mapper.skippers_on_unindexed_fields");
     static final NodeFeature STORED_FIELDS_SPEC_MERGE_BUG = new NodeFeature("mapper.stored_fields_spec_merge_bug");
+    static final NodeFeature EXPONENTIAL_HISTOGRAM_TYPE = new NodeFeature("mapper.exponential_histogram_type");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -111,7 +112,8 @@ public class MapperFeatures implements FeatureSpecification {
             BBQ_DISK_STATS_SUPPORT,
             SKIPPERS_ON_UNINDEXED_FIELDS,
             STORED_FIELDS_SPEC_MERGE_BUG,
-            GENERIC_VECTOR_FORMAT
+            GENERIC_VECTOR_FORMAT,
+            EXPONENTIAL_HISTOGRAM_TYPE
         );
     }
 }

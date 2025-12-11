@@ -262,11 +262,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.k = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.numCands = in.readOptionalVInt();
-        } else {
-            this.numCands = in.readVInt();
-        }
+        this.numCands = in.readOptionalVInt();
         if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
@@ -275,14 +271,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
-            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-            } else {
-                in.readBoolean();
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-                in.readBoolean(); // used for byteQueryVector, which was always null
-            }
+            this.queryVector = VectorData.fromFloats(in.readFloatArray());
         }
         this.filterQueries.addAll(readQueries(in));
         this.vectorSimilarity = in.readOptionalFloat();
@@ -362,35 +351,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(k);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalVInt(numCands);
-        } else {
-            if (numCands == null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + NUM_CANDS_FIELD.getPreferredName()
-                        + "] field was mandatory in previous releases "
-                        + "and is required to be non-null by some nodes. "
-                        + "Please make sure to provide the parameter as part of the request."
-                );
-            } else {
-                out.writeVInt(numCands);
-            }
-        }
+        out.writeOptionalVInt(numCands);
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
-            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeFloatArray(queryVector.asFloatVector());
-            } else {
-                out.writeBoolean(true);
-                out.writeFloatArray(queryVector.asFloatVector());
-                out.writeBoolean(false); // used for byteQueryVector, which was always null
-            }
+            out.writeFloatArray(queryVector.asFloatVector());
         }
         writeQueries(out, filterQueries);
         out.writeOptionalFloat(vectorSimilarity);

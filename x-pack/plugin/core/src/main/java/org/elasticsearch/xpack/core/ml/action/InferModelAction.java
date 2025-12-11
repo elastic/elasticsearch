@@ -175,17 +175,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
             this.inferenceTimeout = in.readTimeValue();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                textInput = in.readOptionalStringCollectionAsList();
-            } else {
-                textInput = null;
-            }
-            highPriority = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
-            } else {
-                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
-            }
+            this.textInput = in.readOptionalStringCollectionAsList();
+            this.highPriority = in.readBoolean();
+            prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 chunked = in.readBoolean();
             } else {
@@ -262,13 +254,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
             out.writeTimeValue(inferenceTimeout);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                out.writeOptionalStringCollection(textInput);
-            }
+            out.writeOptionalStringCollection(textInput);
             out.writeBoolean(highPriority);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeEnum(prefixType);
-            }
+            out.writeEnum(prefixType);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeBoolean(chunked);
             }

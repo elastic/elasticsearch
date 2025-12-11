@@ -382,8 +382,11 @@ public class ClusterStateCreationUtils {
             final DiscoveryNode node = DiscoveryNodeUtils.builder("ml_" + i).roles(Set.of(DiscoveryNodeRole.ML_ROLE)).build();
             discoBuilder = discoBuilder.add(node);
         }
-        discoBuilder.localNodeId(randomFrom(indexNodeIds));
-        discoBuilder.masterNodeId(randomFrom(indexNodeIds));
+
+        String localNodeId = randomFrom(indexNodeIds);
+        discoBuilder.localNodeId(localNodeId);
+        discoBuilder.masterNodeId(localNodeId);
+
         IndexState index = buildIndex(indexName, numberOfPrimaries, indexNodeIds, shardAllocationStrategy);
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
@@ -236,14 +235,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
-        } else {
-            QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-            if (queryBuilder != null) {
-                subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
-            }
-        }
+        subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
         }
@@ -278,18 +270,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-            KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
-            knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
-        } else {
-            knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
-        }
+        knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
         rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            skipInnerHits = in.readBoolean();
-        } else {
-            skipInnerHits = false;
-        }
+        skipInnerHits = in.readBoolean();
     }
 
     @Override
@@ -350,24 +333,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-            if (knnSearch.size() > 1) {
-                throw new IllegalArgumentException(
-                    "Versions before ["
-                        + TransportVersions.V_8_7_0.toReleaseVersion()
-                        + "] don't support multiple [knn] search clauses and search was sent to ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "]"
-                );
-            }
-            out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
-        } else {
-            out.writeCollection(knnSearch);
-        }
+        out.writeCollection(knnSearch);
         out.writeOptionalNamedWriteable(rankBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
-            out.writeBoolean(skipInnerHits);
-        }
+        out.writeBoolean(skipInnerHits);
     }
 
     /**

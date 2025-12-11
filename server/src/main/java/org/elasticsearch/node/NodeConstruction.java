@@ -824,7 +824,8 @@ class NodeConstruction {
                 clusterService.getClusterSettings(),
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
-                rerouteService
+                rerouteService,
+                telemetryProvider.getMeterRegistry()
             )::onNewInfo
         );
 

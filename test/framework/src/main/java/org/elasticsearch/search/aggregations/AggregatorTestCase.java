@@ -1281,7 +1281,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private static ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")).build(null, null).getValuesSourceType();
     }
 
     /**

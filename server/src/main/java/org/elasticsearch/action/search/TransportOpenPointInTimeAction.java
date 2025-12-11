@@ -11,9 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -38,7 +36,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -70,7 +67,6 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
@@ -130,21 +126,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     @Override
     protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
-        final ClusterState clusterState = clusterService.state();
-        // Check if all the nodes in this cluster know about the service
-        if (request.allowPartialSearchResults() && clusterState.getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    format(
-                        "The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading. "
-                            + "Please wait until the upgrade is fully completed and try again."
-                    ),
-                    RestStatus.BAD_REQUEST
-                )
-            );
-            return;
-        }
-
         final boolean resolveCrossProject = crossProjectModeDecider.resolvesCrossProject(request);
         if (resolveCrossProject) {
             executeOpenPitCrossProject((SearchTask) task, request, listener);

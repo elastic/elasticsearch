@@ -227,7 +227,8 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         return TransportVersion.minimumCompatible();
     }
 
-    public ElasticsearchInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         var mutableServiceSettings = new HashMap<>(serviceSettings);
 

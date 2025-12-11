@@ -1592,18 +1592,21 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
 
-        MapperService bfloat16MapperService = mapperServiceForFieldWithModelSettings(
-            fieldName,
-            inferenceId,
-            new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                1024,
-                SimilarityMeasure.COSINE,
-                DenseVectorFieldMapper.ElementType.BFLOAT16
+        var e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperServiceForFieldWithModelSettings(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.BFLOAT16
+                )
             )
         );
-        assertMapperService.accept(bfloat16MapperService, DenseVectorFieldMapper.ElementType.BFLOAT16);
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testSettingAndUpdatingChunkingSettings() throws IOException {

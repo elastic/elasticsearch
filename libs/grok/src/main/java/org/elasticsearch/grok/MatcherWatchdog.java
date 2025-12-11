@@ -18,10 +18,10 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * Protects against long running operations that happen between the register and unregister invocations.
+ * Protects against long-running operations that happen between the register and unregister invocations.
  * Threads that invoke {@link #register(Matcher)}, but take too long to invoke the {@link #unregister(Matcher)} method
  * will be interrupted.
- *
+ * <p>
  * This is needed for Joni's {@link org.joni.Matcher#search(int, int, int)} method, because
  * it can end up spinning endlessly if the regular expression is too complex. Joni has checks
  * that for every 30k iterations it checks if the current thread is interrupted and if so

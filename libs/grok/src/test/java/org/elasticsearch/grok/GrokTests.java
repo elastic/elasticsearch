@@ -313,7 +313,7 @@ public class GrokTests extends ESTestCase {
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals(28.4f, matches.get("duration"));
         matches = grok.captures("test N/A");
-        assertEquals(null, matches.get("duration"));
+        assertNull(matches.get("duration"));
     }
 
     public void testNilWithNoCoercion() {
@@ -327,7 +327,7 @@ public class GrokTests extends ESTestCase {
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals("28.4", matches.get("duration"));
         matches = grok.captures("test N/A");
-        assertEquals(null, matches.get("duration"));
+        assertNull(matches.get("duration"));
     }
 
     public void testUnicodeSyslog() {
@@ -465,7 +465,7 @@ public class GrokTests extends ESTestCase {
         assertCaptureConfig(g, Map.of("EXCITED_NAME_0", STRING, "NAME_21", STRING, "NAME_22", STRING));
 
         assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(bank, pattern));
-        assertEquals(true, g.match(text));
+        assertTrue(g.match(text));
 
         Object actual = g.captures(text);
         Map<String, Object> expected = new HashMap<>();
@@ -672,7 +672,7 @@ public class GrokTests extends ESTestCase {
         assertEquals(httpVersion.v2(), matches.get(httpVersion.v1().getKey()));
         assertEquals(bytes.v2(), matches.get(bytes.v1().getKey()));
         assertEquals(referrer.v2(), matches.get(referrer.v1().getKey()));
-        assertEquals(null, matches.get("port"));
+        assertNull(matches.get("port"));
         assertEquals(agent.v2(), matches.get(agent.v1().getKey()));
         assertEquals(rawRequest.v2(), matches.get(rawRequest.v1().getKey()));
         for (var additionalField : additionalFields) {
@@ -980,7 +980,7 @@ public class GrokTests extends ESTestCase {
         return grok.match(utf8, 0, utf8.length, extracter);
     }
 
-    private abstract class ThrowingNativeExtracterMap implements NativeExtracterMap<GrokCaptureExtracter> {
+    private abstract static class ThrowingNativeExtracterMap implements NativeExtracterMap<GrokCaptureExtracter> {
         @Override
         public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
             throw new IllegalArgumentException();

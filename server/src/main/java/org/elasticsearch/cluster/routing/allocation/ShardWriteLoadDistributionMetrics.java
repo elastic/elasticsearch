@@ -193,13 +193,13 @@ public class ShardWriteLoadDistributionMetrics {
             shardWriteLoadSumMetrics.add(new DoubleWithAttributes(totalShardWriteLoad, nodeAttrs));
         }
 
+        lastMetricsCollected = false;
         for (int i = 0; i < trackedPercentiles.length; i++) {
             lastWriteLoadDistributionMetrics.set(i, writeLoadDistributionMetrics[i]);
         }
         lastWriteLoadPrioritisationThresholdMetrics.set(writeLoadPrioritisationThresholdMetrics);
         lastShardCountExceedingPrioritisationThresholdMetrics.set(shardCountsExceedingPrioritisationThresholdMetrics);
         lastWriteLoadSumMetrics.set(shardWriteLoadSumMetrics);
-        lastMetricsCollected = false;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -242,26 +242,30 @@ public class ShardWriteLoadDistributionMetrics {
 
     // visible for testing
     final Collection<DoubleWithAttributes> getWriteLoadDistributionMetrics(int index) {
+        final var metrics = lastWriteLoadDistributionMetrics.getAndSet(index, List.of());
         lastMetricsCollected = true;
-        return lastWriteLoadDistributionMetrics.getAndSet(index, List.of());
+        return metrics;
     }
 
     // visible for testing
     final Collection<DoubleWithAttributes> getWriteLoadPrioritisationThresholdMetrics() {
+        final var metrics = lastWriteLoadPrioritisationThresholdMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
-        return lastWriteLoadPrioritisationThresholdMetrics.getAndSet(List.of());
+        return metrics;
     }
 
     // visible for testing
     final Collection<LongWithAttributes> getWriteLoadPrioritisationThresholdPercentileRankMetrics() {
+        final var metrics = lastShardCountExceedingPrioritisationThresholdMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
-        return lastShardCountExceedingPrioritisationThresholdMetrics.getAndSet(List.of());
+        return metrics;
     }
 
     // visible for testing
     final Collection<DoubleWithAttributes> getWriteLoadSumMetrics() {
+        final var metrics = lastWriteLoadSumMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
-        return lastWriteLoadSumMetrics.getAndSet(List.of());
+        return metrics;
     }
 
     // visible for testing

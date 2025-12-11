@@ -28,7 +28,7 @@
               "description": "ID of the job to get bucket results from"
             },
             "timestamp": {
-              "type": "string",
+              "type": "date",
               "description": "The timestamp of the desired single bucket result"
             }
           }

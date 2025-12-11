@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -93,11 +92,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()) {
-                return new Parameter<?>[] { ignoreMalformed, coerce, meta };
-            } else {
-                return new Parameter<?>[] { ignoreMalformed, meta };
-            }
+            return new Parameter<?>[] { ignoreMalformed, coerce, meta };
         }
 
         @Override
@@ -323,8 +318,7 @@ public class HistogramFieldMapper extends FieldMapper {
             subParser.nextToken();
 
             HistogramParser.ParsedHistogram parsedHistogram;
-            if (ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
-                && coerce()
+            if (coerce()
                 && subParser.currentToken() == XContentParser.Token.FIELD_NAME
                 && ExponentialHistogramParser.isExponentialHistogramSubFieldName(subParser.currentName())) {
                 ExponentialHistogramParser.ParsedExponentialHistogram parsedExponential = ExponentialHistogramParser.parse(
@@ -342,11 +336,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 assert count >= 0;
                 // we do not add elements with count == 0
                 if (count > 0) {
-                    if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                        streamOutput.writeVLong(count);
-                    } else {
-                        streamOutput.writeVInt(Math.toIntExact(count));
-                    }
+                    streamOutput.writeVLong(count);
                     streamOutput.writeLong(Double.doubleToRawLongBits(parsedHistogram.values().get(i)));
                 }
             }
@@ -413,11 +403,7 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public boolean next() throws IOException {
             if (streamInput.available() > 0) {
-                if (streamInput.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-                    count = streamInput.readVLong();
-                } else {
-                    count = streamInput.readVInt();
-                }
+                count = streamInput.readVLong();
                 value = Double.longBitsToDouble(streamInput.readLong());
                 return true;
             }

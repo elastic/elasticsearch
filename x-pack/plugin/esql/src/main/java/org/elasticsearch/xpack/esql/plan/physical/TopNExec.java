@@ -53,7 +53,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         this(source, child, order, limit, estimatedRowSize, Set.of());
     }
 
-    public TopNExec(
+    private TopNExec(
         Source source,
         PhysicalPlan child,
         List<Order> order,
@@ -138,11 +138,6 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(this.estimatedRowSize, size)
             ? this
             : new TopNExec(source(), child(), order, limit, size, docValuesAttributes);
-    }
-
-    @Override
-    public String nodeString() {
-        return docValuesAttributes.isEmpty() ? super.nodeString() : super.nodeString() + "<" + docValuesAttributes + ">";
     }
 
     @Override

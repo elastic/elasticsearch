@@ -97,7 +97,22 @@ public final class AutoPrefilteringUtils {
             prunedBool.minimumShouldMatch(originalBool.minimumShouldMatch());
         } else {
             int originalMsm = Queries.calculateMinShouldMatch(originalBool.should().size(), originalBool.minimumShouldMatch());
-            prunedBool.minimumShouldMatch(originalMsm <= prunedBool.should().size() ? originalMsm : prunedBool.should().size());
+            int numPrunedClauses = originalBool.should().size() - prunedBool.should().size();
+            // We need to adjust the minimum should match to account for the pruned clauses.
+            // We considered the following approaches:
+            // 1. strict approach: set to min(remaining_should_clauses, original_msm)
+            // 2. lenient approach: if msm is set and at least one should clause is pruned, prune all should clauses.
+            // 3. middle ground approach: set to max(0, original_msm - remaining_should_clauses)
+            // Let us imagine a query with 5 should clauses. 2 get pruned. msm is 3. 1 remaining clause matches.
+            // Approach 1 would make the entire bool query to not match as we would retain msm of 3 but only 1 clause would match.
+            // We do not know whether the pruned clauses would match or not. Thus, this approach seems too restrictive.
+            // Approach 2 would mean we prune all should clauses and the query would match,
+            // even if none of the remaining should clauses match.
+            // Approach 3 would mean we adjust the msm to 3 - 2 = 1. This would mean that the query would match if at least one
+            // of the remaining clauses matches.
+            // We opt for the lenient approach. It is as if we assume the pruned clauses matched. Seems to be the best compromise.
+            int prunedMsm = Math.max(0, originalMsm - numPrunedClauses);
+            prunedBool.minimumShouldMatch(prunedMsm);
         }
     }
 

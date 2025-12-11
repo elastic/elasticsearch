@@ -87,7 +87,7 @@ public class AutoPrefilteringUtilsTests extends ESTestCase {
         assertThat(pruned.isPresent(), is(true));
         BoolQueryBuilder expected = new BoolQueryBuilder();
         nonPrunedClauses.forEach(expected::should);
-        expected.minimumShouldMatch(originalMsm <= nonPrunedClauses.size() ? originalMsm : nonPrunedClauses.size());
+        expected.minimumShouldMatch(Math.max(0, originalMsm - prunedClauses.size()));
         assertThat(pruned.get(), equalTo(expected));
     }
 
@@ -106,8 +106,7 @@ public class AutoPrefilteringUtilsTests extends ESTestCase {
         BoolQueryBuilder expected = new BoolQueryBuilder();
         nonPrunedClauses.forEach(expected::should);
         // We expect num_pruned + num_non_pruned + originalMsm (adding as it's negative) - num_pruned = non_pruned + originalMsm
-        int originalPositiveMsm = query.should().size() + originalMsm;
-        expected.minimumShouldMatch(originalPositiveMsm <= nonPrunedClauses.size() ? originalPositiveMsm : nonPrunedClauses.size());
+        expected.minimumShouldMatch(Math.max(0, nonPrunedClauses.size() + originalMsm));
         assertThat(pruned.get(), equalTo(expected));
     }
 
@@ -124,7 +123,7 @@ public class AutoPrefilteringUtilsTests extends ESTestCase {
         assertThat(pruned.isPresent(), is(true));
         BoolQueryBuilder expected = new BoolQueryBuilder();
         nonPrunedClauses.forEach(expected::should);
-        expected.minimumShouldMatch(2);
+        expected.minimumShouldMatch(1);
         assertThat(pruned.get(), equalTo(expected));
     }
 

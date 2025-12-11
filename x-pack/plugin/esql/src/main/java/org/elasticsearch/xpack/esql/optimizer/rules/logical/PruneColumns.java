@@ -123,7 +123,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         } else {
             // not expecting high groups cardinality, nested loops in lists should be fine, no need for a HashSet
             if (inlineJoin && aggregate.groupings().containsAll(remaining)) {
-                // An INLINEJOIN right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
+                // An InlineJoin right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
                 // already part of the IJ output (from the left-hand side): the agg can just be dropped entirely.
                 p = emptyLocalRelation(aggregate);
             } else { // not an INLINEJOIN or there are actually aggregates to compute
@@ -140,7 +140,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         used.addAll(ij.references());
         var right = pruneColumns(ij.right(), used, true);
         if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
-            p = ij.left();
+            // InlineJoin updates the order of the output, so even if the computation is dropped, the groups need to be pulled to the end.
+            // So we keep just the left side of the join (i.e. drop the computations), but place a Project on top to keep the right order.
+            List<Attribute> newOutput = new ArrayList<>(ij.output());
+            AttributeSet leftOutputSet = ij.left().outputSet();
+            newOutput.removeIf(attr -> leftOutputSet.contains(attr) == false);
+            p = new Project(ij.source(), ij.left(), newOutput);
             recheck.set(true);
         } else if (right != ij.right()) {
             // if the right side has been updated, replace it

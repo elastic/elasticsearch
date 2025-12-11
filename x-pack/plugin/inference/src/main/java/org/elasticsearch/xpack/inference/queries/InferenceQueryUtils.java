@@ -163,31 +163,14 @@ public final class InferenceQueryUtils {
             l.onResponse(combineLocalAndRemoteInferenceInfo(localInferenceInfoSupplier.get(), remoteInferenceInfoSupplier.get()));
         }))) {
             ActionListener<InferenceInfo> localInferenceInfoListener = refs.acquire(localInferenceInfoSupplier::set);
-            getLocalInferenceInfo(
-                queryRewriteContext,
-                inferenceInfoRequest.fields(),
-                inferenceInfoRequest.resolveWildcards(),
-                inferenceInfoRequest.useDefaultFields(),
-                localInferenceInfoListener,
-                inferenceInfoRequest.query(),
-                inferenceInfoRequest.inferenceResultsMap(),
-                inferenceInfoRequest.inferenceIdOverride()
-            );
+            getLocalInferenceInfo(queryRewriteContext, inferenceInfoRequest, localInferenceInfoListener);
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
                 ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener = refs
                     .acquire(remoteInferenceInfoSupplier::set);
 
                 if (inferenceInfoRequest.alwaysSkipRemotes() == false) {
-                    getRemoteInferenceInfo(
-                        queryRewriteContext,
-                        inferenceInfoRequest.fields(),
-                        inferenceInfoRequest.resolveWildcards(),
-                        inferenceInfoRequest.useDefaultFields(),
-                        remoteInferenceInfoListener,
-                        inferenceInfoRequest.query(),
-                        inferenceInfoRequest.inferenceIdOverride()
-                    );
+                    getRemoteInferenceInfo(queryRewriteContext, inferenceInfoRequest, remoteInferenceInfoListener);
                 } else {
                     // Even if we are skipping remotes, we still need to collect the remote cluster transport versions
                     // for downstream validation. This only requires opening a connection to the remote cluster,
@@ -238,19 +221,18 @@ public final class InferenceQueryUtils {
 
     private static void getLocalInferenceInfo(
         QueryRewriteContext queryRewriteContext,
-        Map<String, Float> fields,
-        boolean resolveWildcards,
-        boolean useDefaultFields,
-        ActionListener<InferenceInfo> localInferenceInfoListener,
-        @Nullable String query,
-        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        @Nullable FullyQualifiedInferenceId inferenceIdOverride
+        InferenceInfoRequest inferenceInfoRequest,
+        ActionListener<InferenceInfo> localInferenceInfoListener
     ) {
+        String query = inferenceInfoRequest.query();
+        FullyQualifiedInferenceId inferenceIdOverride = inferenceInfoRequest.inferenceIdOverride();
+        var inferenceResultsMap = inferenceInfoRequest.inferenceResultsMap();
+
         Map<String, Set<InferenceFieldMetadata>> localInferenceFields = getLocalInferenceFields(
             queryRewriteContext.getResolvedIndices(),
-            fields,
-            resolveWildcards,
-            useDefaultFields
+            inferenceInfoRequest.fields(),
+            inferenceInfoRequest.resolveWildcards(),
+            inferenceInfoRequest.useDefaultFields()
         );
 
         int indexCount = localInferenceFields.size();
@@ -308,12 +290,8 @@ public final class InferenceQueryUtils {
 
     private static void getRemoteInferenceInfo(
         QueryRewriteContext queryRewriteContext,
-        Map<String, Float> fields,
-        boolean resolveWildcards,
-        boolean useDefaultFields,
-        ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener,
-        @Nullable String query,
-        @Nullable FullyQualifiedInferenceId inferenceIdOverride
+        InferenceInfoRequest inferenceInfoRequest,
+        ActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> remoteInferenceInfoListener
     ) {
         var remoteIndices = queryRewriteContext.getResolvedIndices().getRemoteClusterIndices();
         GroupedActionListener<Map<String, Tuple<GetInferenceFieldsAction.Response, TransportVersion>>> gal =
@@ -321,16 +299,16 @@ public final class InferenceQueryUtils {
 
         // When an inference ID override is set, inference is only performed on the local cluster. Set the query to null in this case
         // to disable remote inference result generation.
-        String effectiveQuery = inferenceIdOverride == null ? query : null;
+        final String effectiveQuery = inferenceInfoRequest.inferenceIdOverride() == null ? inferenceInfoRequest.query() : null;
         for (var entry : remoteIndices.entrySet()) {
             String clusterAlias = entry.getKey();
             OriginalIndices originalIndices = entry.getValue();
 
             GetInferenceFieldsAction.Request request = new GetInferenceFieldsAction.Request(
                 Set.of(originalIndices.indices()),
-                fields,
-                resolveWildcards,
-                useDefaultFields,
+                inferenceInfoRequest.fields(),
+                inferenceInfoRequest.resolveWildcards(),
+                inferenceInfoRequest.useDefaultFields(),
                 effectiveQuery,
                 originalIndices.indicesOptions()
             );

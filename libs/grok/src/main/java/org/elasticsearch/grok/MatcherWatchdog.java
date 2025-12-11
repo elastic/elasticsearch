@@ -111,6 +111,7 @@ public interface MatcherWatchdog {
             this.scheduler = scheduler;
         }
 
+        @Override
         public void register(Matcher matcher) {
             registered.getAndIncrement();
             Long previousValue = registry.put(matcher, relativeTimeSupplier.getAsLong());
@@ -125,6 +126,7 @@ public interface MatcherWatchdog {
             return maxExecutionTime;
         }
 
+        @Override
         public void unregister(Matcher matcher) {
             Long previousValue = registry.remove(matcher);
             registered.decrementAndGet();

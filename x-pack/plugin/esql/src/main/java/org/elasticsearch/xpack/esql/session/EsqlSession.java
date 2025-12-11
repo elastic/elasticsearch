@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -53,6 +54,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -98,6 +102,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.dataTypeSupported;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 public class EsqlSession {
@@ -620,6 +625,16 @@ public class EsqlSession {
                         }
                     });
                 }
+                // check the EsField data types in all subqueries against the minimum transport version of the whole query,
+                // across all clusters, make sure the minimum transport version is compatible with all data types in all subqueries
+                TransportVersion minimumTransportVersion = r.minimumTransportVersion();
+                r.indexResolution.forEach((indexPattern, indexResolution) -> {
+                    if (indexResolution.isValid()) {
+                        // check the EsFields in the EsIndex against the minimum transport version
+                        EsIndex esIndex = indexResolution.get();
+                        validateFieldDataTypesAgainstVersion(esIndex, minimumTransportVersion, preAnalysis);
+                    }
+                });
             }
             return r;
         })
@@ -640,6 +655,40 @@ public class EsqlSession {
                 (l, r) -> analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l)
             )
             .addListener(logicalPlanListener);
+    }
+
+    private void validateFieldDataTypesAgainstVersion(
+        EsIndex esIndex,
+        TransportVersion minTransportVersion,
+        PreAnalyzer.PreAnalysis preAnalysis
+    ) {
+        Map<String, EsField> mapping = esIndex.mapping();
+        boolean isSnapshot = Build.current().isSnapshot();
+
+        mapping.replaceAll((fieldName, field) -> {
+            DataType dataType = field.getDataType();
+            SupportedVersion supportedVersion = dataType.supportedVersion();
+
+            // supported on all nodes → leave as is
+            if (supportedVersion == SupportedVersion.SUPPORTED_ON_ALL_NODES) {
+                return field;
+            }
+
+            boolean typeSupported = dataTypeSupported(
+                dataType,
+                minTransportVersion,
+                isSnapshot,
+                preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+                preAnalysis.useDenseVectorWhenNotSupported()
+            );
+
+            if (typeSupported == false) {
+                // mark this field type as UNSUPPORTED
+                return new UnsupportedEsField(fieldName, List.of(dataType.esType()));
+            }
+
+            return field;
+        });
     }
 
     /**

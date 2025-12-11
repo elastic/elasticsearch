@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -169,11 +168,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
         this.maxAssignedAllocations = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-        } else {
-            this.adaptiveAllocationsSettings = null;
-        }
+        this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
     }
 
     public boolean isRoutedToNode(String nodeId) {
@@ -371,9 +366,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
         out.writeVInt(maxAssignedAllocations);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(adaptiveAllocationsSettings);
-        }
+        out.writeOptionalWriteable(adaptiveAllocationsSettings);
     }
 
     public Optional<AllocationStatus> calculateAllocationStatus() {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -177,9 +176,6 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeWriteable);
             out.writeOptionalWriteable(rolloverConfiguration);
-            if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-                out.writeOptionalWriteable(null);
-            }
         }
 
         @Override

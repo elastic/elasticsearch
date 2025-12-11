@@ -48,6 +48,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -322,7 +324,7 @@ public class ClusterStateCreationUtils {
         }
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(randomFrom(nodes));
-        IndexState index = buildIndex(indexName, numberOfPrimaries, nodes);
+        IndexState index = buildIndex(indexName, numberOfPrimaries, nodes, ShardAllocationStrategy.Random);
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
@@ -346,6 +348,24 @@ public class ClusterStateCreationUtils {
         int numberOfSearchNodes,
         int numberOfMLNodes
     ) {
+        return buildServerlessRoleNodes(
+            indexName,
+            numberOfPrimaries,
+            numberOfIndexNodes,
+            numberOfSearchNodes,
+            numberOfMLNodes,
+            ShardAllocationStrategy.Random
+        );
+    }
+
+    public static ClusterState buildServerlessRoleNodes(
+        String indexName,
+        int numberOfPrimaries,
+        int numberOfIndexNodes,
+        int numberOfSearchNodes,
+        int numberOfMLNodes,
+        ShardAllocationStrategy shardAllocationStrategy
+    ) {
         ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> indexNodeIds = new HashSet<>();
@@ -364,7 +384,7 @@ public class ClusterStateCreationUtils {
         }
         discoBuilder.localNodeId(randomFrom(indexNodeIds));
         discoBuilder.masterNodeId(randomFrom(indexNodeIds));
-        IndexState index = buildIndex(indexName, numberOfPrimaries, indexNodeIds);
+        IndexState index = buildIndex(indexName, numberOfPrimaries, indexNodeIds, shardAllocationStrategy);
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
@@ -375,19 +395,44 @@ public class ClusterStateCreationUtils {
         return state.build();
     }
 
+    public enum ShardAllocationStrategy {
+        Random {
+            @Override
+            public Function<ShardId, String> shardAllocationFunction(Set<String> nodes) {
+                return shardId -> randomFrom(nodes);
+            }
+        },
+        RoundRobin {
+            @Override
+            public Function<ShardId, String> shardAllocationFunction(Set<String> nodes) {
+                final List<String> nodeIds = new ArrayList<>(nodes);
+                final AtomicInteger shardIndex = new AtomicInteger(0);
+                return shardId -> nodeIds.get(shardIndex.getAndIncrement() % nodeIds.size());
+            }
+        };
+
+        public abstract Function<ShardId, String> shardAllocationFunction(Set<String> nodes);
+    }
+
     private record IndexState(IndexMetadata indexMetadata, IndexRoutingTable.Builder indexRoutingTableBuilder) {}
 
-    private static IndexState buildIndex(String indexName, int numberOfPrimaries, Set<String> nodeIds) {
+    private static IndexState buildIndex(
+        String indexName,
+        int numberOfPrimaries,
+        Set<String> nodeIds,
+        ShardAllocationStrategy shardAllocationStrategy
+    ) {
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .build();
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+        final var shardAllocationFunction = shardAllocationStrategy.shardAllocationFunction(nodeIds);
         for (int i = 0; i < numberOfPrimaries; i++) {
             ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
             indexShardRoutingBuilder.addShard(
-                TestShardRouting.newShardRouting(shardId, randomFrom(nodeIds), true, ShardRoutingState.STARTED)
+                TestShardRouting.newShardRouting(shardId, shardAllocationFunction.apply(shardId), true, ShardRoutingState.STARTED)
             );
             indexRoutingTable.addIndexShard(indexShardRoutingBuilder);
         }

@@ -11,28 +11,20 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingChangesObserver;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -394,8 +386,13 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         final var indexName = randomIdentifier();
-        final var clusterState = balanceShardsByCount(
-            ClusterStateCreationUtils.buildServerlessRoleNodes(indexName, 200, 2, randomIntBetween(1, 2), randomIntBetween(1, 2))
+        final var clusterState = ClusterStateCreationUtils.buildServerlessRoleNodes(
+            indexName,
+            200,
+            2,
+            randomIntBetween(1, 2),
+            randomIntBetween(1, 2),
+            ClusterStateCreationUtils.ShardAllocationStrategy.RoundRobin
         );
         when(clusterService.state()).thenReturn(clusterState);
         final int numberOfSignificantDigits = randomIntBetween(2, 3);
@@ -440,29 +437,6 @@ public class ShardWriteLoadDistributionMetricsTests extends ESTestCase {
         double maxP90,
         double maxP100
     ) {}
-
-    private static ClusterState balanceShardsByCount(ClusterState state) {
-        final var routingAllocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                // We are simulating stateless here, but we don't have the StatelessAllocationDecider in scope
-                return node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) ? Decision.YES : Decision.NO;
-            }
-        })), state.getRoutingNodes().mutableCopy(), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
-        final var shardsAllocator = new BalancedShardsAllocator(
-            Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR).build()
-        );
-        shardsAllocator.allocate(routingAllocation);
-        final var initializingShards = routingAllocation.routingNodes()
-            .stream()
-            .flatMap(rn -> rn.shardsWithState(ShardRoutingState.INITIALIZING))
-            .toList();
-        initializingShards.forEach(shardRouting -> routingAllocation.routingNodes().startShard(shardRouting, new RoutingChangesObserver() {
-        }, randomNonNegativeLong()));
-        return ClusterState.builder(state)
-            .routingTable(state.globalRoutingTable().rebuild(routingAllocation.routingNodes(), routingAllocation.metadata()))
-            .build();
-    }
 
     /**
      * HDR histograms are accurate to a number of significant digits, so it's possible the values might be slightly off. This comparison

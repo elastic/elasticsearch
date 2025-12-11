@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.gpu;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
-// Tests
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class GPUIndexSingleNodeIT extends BaseGPUIndexTestCase {}

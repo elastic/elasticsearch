@@ -8,22 +8,18 @@ package org.elasticsearch.xpack.gpu;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 public class GPUClientMixedNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    @BeforeClass
-    public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
-    }
+    public static GPUSupportedRule gpuSupportedRule = new GPUSupportedRule();
 
-    @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
 
     private static ElasticsearchCluster createCluster() {
@@ -52,6 +48,9 @@ public class GPUClientMixedNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         }
         return builder.build();
     }
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(gpuSupportedRule).around(cluster);
 
     public GPUClientMixedNodeYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

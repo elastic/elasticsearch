@@ -31,6 +31,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.xpack.gpu.GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 
 @LuceneTestCase.SuppressCodecs("*") // use our custom codec
@@ -62,16 +63,19 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         return List.of(TestGPUPlugin.class);
     }
 
-    protected boolean alwaysUseGpu() {
+    protected boolean isGpuEnabledOnAllNodes() {
         return true;
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        var useGpu = nodeOrdinal == 0 || alwaysUseGpu()
+        var useGpu = nodeOrdinal == 0 || isGpuEnabledOnAllNodes()
             ? GPUPlugin.GpuMode.TRUE.name()
             : randomFrom(GPUPlugin.GpuMode.TRUE.name(), GPUPlugin.GpuMode.FALSE.name());
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("vectors.indexing.use_gpu", useGpu).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(VECTORS_INDEXING_USE_GPU_NODE_SETTING.getKey(), useGpu)
+            .build();
     }
 
     @BeforeClass
@@ -124,7 +128,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     public void testSortedIndexReturnsSameResultsAsUnsorted() {
-        assumeTrue("Sort not consistent if graph built in different ways", alwaysUseGpu());
+        assumeTrue("Sort not consistent if graph built in different ways", isGpuEnabledOnAllNodes());
 
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";
@@ -301,7 +305,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     public void testInt8HnswMaxInnerProductProductFails() {
-        assumeTrue("CPU indexing nodes will not fail", alwaysUseGpu());
+        assumeTrue("CPU indexing nodes will not fail", isGpuEnabledOnAllNodes());
 
         String indexName = "index_int8_max_inner_product_fails";
         final int dims = randomIntBetween(4, 128);

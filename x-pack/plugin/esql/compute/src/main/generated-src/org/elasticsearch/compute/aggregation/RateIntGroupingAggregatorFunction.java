@@ -577,17 +577,19 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
                 var state = flushAndCombineState(group);
-                // combine intervals for the final evaluation
-                Interval[] intervals = state.intervals;
-                ArrayUtil.timSort(intervals);
-                for (int i = 1; i < intervals.length; i++) {
-                    Interval next = intervals[i - 1]; // reversed
-                    Interval prev = intervals[i];
-                    if (prev.v1 > next.v2) {
-                        state.resets += prev.v1;
+                flushedStates.put(group, state);
+                if (state != null) {
+                    // combine intervals for the final evaluation
+                    Interval[] intervals = state.intervals;
+                    ArrayUtil.timSort(intervals);
+                    for (int i = 1; i < intervals.length; i++) {
+                        Interval next = intervals[i - 1]; // reversed
+                        Interval prev = intervals[i];
+                        if (prev.v1 > next.v2) {
+                            state.resets += prev.v1;
+                        }
                     }
                 }
-                flushedStates.put(group, state);
             }
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
@@ -731,13 +733,14 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
                 lastValue = extrapolateToBoundary(state, firstTsSec, lastTsSec, dateFactor, false);
             }
         } else {
-            lastValue = interpolateBetweenStates(state, nextState, firstTsSec, lastTsSec, dateFactor, false);
+            lastValue = interpolateBetweenStates(state, nextState, firstTsSec, lastTsSec, dateFactor, false) + state.resets;
         }
 
         if (lastTsSec == firstTsSec) {
             return Double.NaN;
         }
         final double increase = lastValue - firstValue;
+        assert increase >= 0 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
         return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
     }
 

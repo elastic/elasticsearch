@@ -18,11 +18,11 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completi
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.AmazonBedrockResponse;
 
-public class AmazonBedrockCompletionResponse extends AmazonBedrockResponse {
+public class AmazonBedrockChatCompletionResponse extends AmazonBedrockResponse {
 
     private final ConverseResponse result;
 
-    public AmazonBedrockCompletionResponse(ConverseResponse responseResult) {
+    public AmazonBedrockChatCompletionResponse(ConverseResponse responseResult) {
         this.result = responseResult;
     }
 

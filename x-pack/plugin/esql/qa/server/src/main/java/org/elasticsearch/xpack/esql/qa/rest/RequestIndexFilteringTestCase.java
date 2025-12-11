@@ -89,7 +89,15 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
         assertQueryResult(
             runEsql(builder),
-            matchesList().item(matchesMap().entry("name", "<no-fields>").entry("type", "null")),
+            anyOf(
+                // current response allowing no matching indices
+                matchesList().item(matchesMap().entry("name", "<no-fields>").entry("type", "null")),
+                // prior response seeing more fields as it run additional resolution with no filter
+                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
+                    .item(matchesMap().entry("name", "value").entry("type", "long"))
+            ),
             allOf(instanceOf(List.class), hasSize(0))
         );
     }

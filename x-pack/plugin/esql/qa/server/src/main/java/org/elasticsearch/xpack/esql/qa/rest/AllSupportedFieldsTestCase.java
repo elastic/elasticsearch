@@ -237,19 +237,28 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     /**
-     * Make sure the test doesn't run on snapshot builds. Release builds only.
+     * Make sure the test doesn't run on builds that have nodes in both snapshot and release builds at the same time, as snapshot builds
+     * will assume support for new data types on earlier versions than release builds.
      * <p>
-     *     {@link Build#isSnapshot()} checks if the version under test is a snapshot.
-     *     But! This test runs against many versions and if *any* are snapshots
-     *     then this will fail. So we check the versions of each node in the cluster too.
-     * </p>
+     * Our bwc tests in release mode may still use snapshot builds for older versions that just aren't released yet. E.g. if we run
+     * bwc tests against 9.x.1 and this patch version is not yet released because 9.x.1 is going to be the next patch release, its build
+     * will be in snapshot mode. But bwc tests with 9.x.0  will consistently use release builds for all nodes if 9.x.0 is already released.
      */
     @Before
-    public void skipSnapshots() throws IOException {
-        assumeFalse("Only supported on production builds", Build.current().isSnapshot());
+    public void skipPartialSnapshots() throws IOException {
+        boolean someNodesOnReleaseBuild = false;
+        boolean someNodesOnSnapshotBuild = false;
         for (NodeInfo n : allNodeToInfo().values()) {
-            assumeFalse("Only supported on production builds", n.snapshot());
+            if (n.snapshot) {
+                someNodesOnSnapshotBuild = true;
+            } else {
+                someNodesOnReleaseBuild = true;
+            }
         }
+        assumeFalse(
+            "Skipped due to having nodes from both snapshot and release builds",
+            someNodesOnReleaseBuild && someNodesOnSnapshotBuild
+        );
     }
 
     public final void testFetchAll() throws IOException {
@@ -942,7 +951,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 TDIGEST,
                 // TODO fix geo
                 CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
-            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false);
+            case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion()
+                .supportedOn(minimumVersion, Build.current().isSnapshot());
             default -> true;
         };
     }

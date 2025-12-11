@@ -47,7 +47,8 @@ import static java.util.stream.Collectors.toMap;
  * <h2>Process for adding a new data type</h2>
  * We assume that the data type is already supported in ES indices, but not in
  * ES|QL. Types that aren't yet enabled in ES will require some adjustments to
- * the process.
+ * the process, but should generally be a bit simpler as there are no existing
+ * queries using this type that could cause backwards compatibility issues.
  * <p>
  * Note: it is not expected that all the following steps be done in a single PR.
  * Use capabilities to gate tests as you go, and use as many PRs as you think
@@ -134,7 +135,7 @@ import static java.util.stream.Collectors.toMap;
  *         This will enable the type on non-SNAPSHOT builds as long as all nodes in the cluster
  *         (and remote clusters) support it.
  *         Use the under-construction transport version for the {@code createdVersion} here so that
- *         existing tests continue to run.
+ *         existing tests continue to pass.
  *         </li>
  *     <li>
  *         Fix new test failures related to declared function types.</li>

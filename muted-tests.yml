@@ -460,9 +460,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.saml.SamlRedirectTests
   method: testRedirectUrlWithRelayStateAndSigning
   issue: https://github.com/elastic/elasticsearch/issues/139389
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testOptionalColumnAtATimeReaderBinary
-  issue: https://github.com/elastic/elasticsearch/issues/139432
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012

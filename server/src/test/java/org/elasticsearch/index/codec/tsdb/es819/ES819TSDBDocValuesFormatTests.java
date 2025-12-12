@@ -1313,7 +1313,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         random().nextBoolean(),
                         null,
                         false,
-                        useCustomBinaryFormat
+                        true
                     );
                     for (int j = 0; j < block.size(); j++) {
                         var values = (List<?>) block.get(j);

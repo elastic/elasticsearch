@@ -17,7 +17,6 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -283,18 +282,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVector = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.queryVector = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.filterQueries.addAll(readQueries(in));
         this.vectorSimilarity = in.readOptionalFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
-        } else {
-            this.queryVectorBuilder = null;
-        }
+        this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
         if (in.getTransportVersion().supports(AUTO_PREFILTERING)) {
             this.isAutoPrefilteringEnabled = in.readBoolean();
@@ -376,25 +367,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(queryVector);
-        } else {
-            out.writeFloatArray(queryVector.asFloatVector());
-        }
+        out.writeOptionalWriteable(queryVector);
         writeQueries(out, filterQueries);
         out.writeOptionalFloat(vectorSimilarity);
-        if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
-            throw new IllegalArgumentException(
-                format(
-                    "cannot serialize [%s] to older node of version [%s]",
-                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                    out.getTransportVersion()
-                )
-            );
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalNamedWriteable(queryVectorBuilder);
-        }
+        out.writeOptionalNamedWriteable(queryVectorBuilder);
         out.writeOptionalWriteable(rescoreVectorBuilder);
         if (out.getTransportVersion().supports(AUTO_PREFILTERING)) {
             out.writeBoolean(isAutoPrefilteringEnabled);

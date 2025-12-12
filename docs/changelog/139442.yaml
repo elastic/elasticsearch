@@ -1,0 +1,6 @@
+pr: 139442
+summary: "ESQL: Fix multi-value constant propagation after `STATS`"
+area: ES|QL
+type: bug
+issues:
+  - 135926

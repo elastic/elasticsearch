@@ -847,14 +847,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
-
-                if (storedInBinaryDocValues()) {
-                    // TODO: Support the function-specific optimizations
-                    return new BytesRefsFromCustomBinaryBlockLoader(name());
-                }
-
                 if (cfg == null) {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    if (storedInBinaryDocValues()) {
+                        return new BytesRefsFromCustomBinaryBlockLoader(name());
+                    } else {
+                        return new BytesRefsFromOrdsBlockLoader(name());
+                    }
                 }
                 return switch (cfg.function()) {
                     case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(), name());
@@ -890,8 +888,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
-            if ((hasDocValues() && storedInBinaryDocValues() == false)
-                && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
+            if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 return switch (config.function()) {
                     case LENGTH, MV_MAX, MV_MIN -> true;
                     default -> false;
@@ -1544,8 +1541,8 @@ public final class KeywordFieldMapper extends FieldMapper {
      * A custom implementation of {@link org.apache.lucene.index.BinaryDocValues} that uses a {@link Set} to maintain a collection of unique
      * binary doc values for fields with multiple values per document.
      */
-    private static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
-        enum Ordering {
+    public static class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
+        public enum Ordering {
             INSERTION,
             NATURAL
         }
@@ -1553,7 +1550,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Set<BytesRef> uniqueValues;
         private int docValuesByteCount = 0;
 
-        MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
+        public MultiValuedBinaryDocValuesField(String name, Ordering ordering) {
             super(name);
 
             uniqueValues = switch (ordering) {

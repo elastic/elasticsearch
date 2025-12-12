@@ -1,0 +1,48 @@
+---
+setup:
+  - requires:
+      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values"]
+      reason: "testing binary doc values search"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              keyword:
+                type: keyword
+                index: false
+                doc_values:
+                  cardinality: high
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          keyword: "abc"
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          keyword: "abcdef"
+  - do:
+      indices.refresh: {}
+
+---
+"Test avg length":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS l = avg(length(keyword)) | LIMIT 10'
+
+  - length: {columns: 1}
+  - length: {values: 1}
+  - match: {columns.0.name: "l"}
+  - match: {columns.0.type: "double"}
+  - length: {values.0: 1}
+  - match: {values.0.0: 4.5}

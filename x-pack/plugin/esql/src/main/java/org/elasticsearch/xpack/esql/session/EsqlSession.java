@@ -223,6 +223,7 @@ public class EsqlSession {
 
         if (statement.plan() instanceof Explain explain) {
             explainMode = true;
+            statement = new EsqlStatement(explain.query(), statement.settings());
             parsedPlanString = explain.query().toString();
         }
 

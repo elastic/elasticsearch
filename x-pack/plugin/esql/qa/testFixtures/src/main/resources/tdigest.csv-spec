@@ -1,8 +1,110 @@
-Make sure we can even load tdigest data
-required_capability: tdigest_field_type_support_v1
+load
+required_capability: tdigest_field_type_support_v2
 
-FROM tdigest_standard_index ;
+FROM tdigest_standard_index 
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | SORT instance
+;
 
 @timestamp:date      | instance:keyword  | responseTime:tdigest
 2025-01-01T00:00:00Z | hand-rolled       | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+2025-01-01T00:00:00Z | hand-rolled-empty | "{""centroids"":[], ""counts"":[]}"
+;
+
+
+
+ungroupedPercentiles
+required_capability: tdigest_field_type_support_v2
+
+FROM tdigest_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p99 = PERCENTILE(responseTime, 99),  p100 = PERCENTILE(responseTime,100)
+ | EVAL p50 = ROUND(p50, 2), p99 = ROUND(p99, 2) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
+ | KEEP p0, p50, p99, p100
+;
+
+p0:double | p50:double | p99:double | p100:double
+2.17E-4   | 0.0        | 0.95       | 6.786232
+;
+
+
+
+groupedPercentiles
+required_capability: tdigest_field_type_support_v2
+
+FROM tdigest_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p99 = PERCENTILE(responseTime, 99),  p100 = PERCENTILE(responseTime,100) BY instance
+ | EVAL p50 = ROUND(p50, 2), p99 = ROUND(p99, 1) // rounding to avoid floating point precision issues, min and max are exact so no rounding needed
+ | KEEP instance, p0, p50, p99, p100
+ | SORT instance
+;
+
+instance:keyword | p0:double | p50:double | p99:double | p100:double
+instance-0       | 2.4E-4    | 0.02       | 1.0       | 6.786232
+instance-1       | 2.17E-4   | 0.0        | 0.1       | 3.190723
+instance-2       | 2.2E-4    | 0.0        | 0.1       | 2.744054
+;
+
+
+
+percentileOnEmptyTDigest
+required_capability: tdigest_field_type_support_v2
+
+FROM tdigest_standard_index 
+ | WHERE instance == "hand-rolled-empty"
+ | STATS  p50 = PERCENTILE(responseTime,50)
+ | KEEP p50
+;
+
+p50:double
+NULL
+;
+
+
+
+allAggsFiltered
+required_capability: tdigest_field_type_support_v2
+
+FROM tdigest_standard_index 
+ | STATS p75 = PERCENTILE(responseTime,75) WHERE instance == "instance-0"
+ | EVAL p75 = ROUND(p75, 2) // rounding to avoid floating point precision issues
+ | KEEP p75
+;
+
+p75:double
+0.26
+;
+
+
+
+allAggsGroupedFiltered
+required_capability: tdigest_field_type_support_v2
+
+FROM tdigest_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | STATS p75 = PERCENTILE(responseTime,75) WHERE instance == "instance-0" BY instance
+ | EVAL p75 = ROUND(p75, 2) // rounding to avoid floating point precision issues
+ | KEEP instance, p75
+ | SORT instance
+;
+
+instance:keyword | p75:double
+instance-0       | 0.26
+instance-1       | null
+instance-2       | null
+;
+
+
+
+allAggsGroupedEmptyGroups
+required_capability: tdigest_field_type_support_v2
+
+FROM tdigest_standard_index 
+ | STATS p75 = PERCENTILE(responseTime,75) WHERE instance == "idontexist"
+ | KEEP p75
+;
+
+p75:double
+null
 ;

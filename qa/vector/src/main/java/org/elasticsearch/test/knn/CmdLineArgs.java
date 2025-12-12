@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -365,11 +364,6 @@ record CmdLineArgs(
                 );
             }
 
-            boolean setVisitPercentageToZero = (indexType.equals(KnnIndexTester.IndexType.IVF) && numQueries > 0) == false;
-            if (setVisitPercentageToZero) {
-                Arrays.fill(visitPercentages, 0.0);
-            }
-
             var baseSearchParams = new SearchParameters(
                 numCandidates,
                 k,
@@ -398,9 +392,9 @@ record CmdLineArgs(
                 // single base case
                 searchRuns.add(baseSearchParams);
 
-                // Convert the list of visit percentages to the search params format.
-                // This is for backwards compatibility where multiple values of visit
-                // percentage would equate to multiple searches
+                // Convert any extra values in the list of visit percentages to the
+                // search params format. This is for backwards compatibility where multiple
+                // values of visit percentage would equate to multiple searches
                 for (int i = 1; i < visitPercentages.length; i++) {
                     searchRuns.add(SearchParameters.builder().setVisitPercentage(visitPercentages[i]).buildWithDefaults(baseSearchParams));
                 }

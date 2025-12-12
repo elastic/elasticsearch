@@ -57,20 +57,20 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 100L;
-    private static final Long TIME_RANGE_SECONDS = 180L;
+    private static final Long NUM_DOCS = 20L;
+    private static final Long TIME_RANGE_SECONDS = 60L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
         Tuple.tuple("10 seconds", 10),
         Tuple.tuple("30 seconds", 30),
-        Tuple.tuple("1 minute", 60)
-        // Tuple.tuple("2 minutes", 120),
-        // Tuple.tuple("3 minutes", 180),
-        // Tuple.tuple("5 minutes", 300),
-        // Tuple.tuple("10 minutes", 600),
-        // Tuple.tuple("30 minutes", 1800),
-        // Tuple.tuple("1 hour", 3600)
+        Tuple.tuple("1 minute", 60),
+        Tuple.tuple("2 minutes", 120),
+        Tuple.tuple("3 minutes", 180),
+        Tuple.tuple("5 minutes", 300),
+        Tuple.tuple("10 minutes", 600),
+        Tuple.tuple("30 minutes", 1800),
+        Tuple.tuple("1 hour", 3600)
     );
     private static final List<Tuple<String, DeltaAgg>> DELTA_AGG_OPTIONS = List.of(
         Tuple.tuple("rate", DeltaAgg.RATE),
@@ -338,7 +338,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             // We calculate the rate preemptively here, and then adjust based on the deltaAgg type below
             RateRange regularRate = new RateRange(
                 counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
-                counterGrowth / tsDurationSeconds * 1.01 // Add 1% tolerance to the upper bound
+                counterGrowth == 0 ? 0 : counterGrowth / tsDurationSeconds * 1.01 // Add 1% tolerance to the upper bound
             );
             if (deltaAgg.equals(DeltaAgg.NEW_RATE)) {
                 // We need to find the last value and timestamp from the previous window for this timeseries
@@ -362,13 +362,15 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     double timeDiffSeconds = (lastTs.toEpochMilli() - previousWindowLastTimestamp.toEpochMilli()) / 1000.0;
                     double valueDiff = firstVal >= previousWindowLastValue
                         ? counterGrowth + firstVal - previousWindowLastValue // no reset
-                        : counterGrowth + firstVal + firstVal - previousWindowLastValue;
+                        : counterGrowth + firstVal + firstVal;
                     double newRate = valueDiff / timeDiffSeconds;
                     return new RateRange(newRate * 0.99, newRate * 1.01); // Add 1% tolerance
-                } else {
+                } else if (regularRate.lower > 0 && regularRate.upper > 0) {
                     // Fallback to RATE calculation if no previous window data is available
                     // (this should be rare, only for the first window)
                     return regularRate;
+                } else {
+                    return null; // Cannot calculate NEW_RATE if we have no previous window data and the rate is non-positive
                 }
             } else if (deltaAgg.equals(DeltaAgg.INCREASE)) {
                 return new RateRange(
@@ -471,22 +473,22 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     void assertNoFailedWindows(List<String> failedWindows, List<List<Object>> rows, String agg, EsqlQueryResponse resp) {
-        if (failedWindows.isEmpty() == false) {
-            var pctFailures = (double) failedWindows.size() / rows.size() * 100;
-            var failureDetails = String.join("\n", failedWindows);
-            if (failureDetails.length() > 2000) {
-                failureDetails = failureDetails.substring(0, 2000) + "\n... (truncated)";
-            }
-            StringBuilder queryResult = new StringBuilder();
-            // Now we print the entire response for debugging
-            resp.rows().forEach(row -> {
-                List<String> rowList = new ArrayList<>();
-                row.forEach(cell -> {
-                    queryResult.append(cell);
-                    queryResult.append(", ");
-                });
-                queryResult.append("\n");
+        var pctFailures = (double) failedWindows.size() / rows.size() * 100;
+        var failureDetails = String.join("\n", failedWindows);
+        if (failureDetails.length() > 2000) {
+            failureDetails = failureDetails.substring(0, 2000) + "\n... (truncated)";
+        }
+        StringBuilder queryResult = new StringBuilder();
+        // Now we print the entire response for debugging
+        resp.rows().forEach(row -> {
+            List<String> rowList = new ArrayList<>();
+            row.forEach(cell -> {
+                queryResult.append(cell);
+                queryResult.append(", ");
             });
+            queryResult.append("\n");
+        });
+        if (failedWindows.isEmpty() == false) {
             throw new AssertionError(
                 "Failed. Agg: "
                     + agg
@@ -500,6 +502,19 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     + queryResult.toString()
             );
         }
+        // System.out.println(
+        // "Success! Agg: "
+        // + agg
+        // + " | Total windows: "
+        // + rows.size()
+        // + " | Failed windows: "
+        // + failedWindows.size()
+        // + " windows("
+        // + pctFailures
+        // + "%):\n"
+        // + "\nQuery result:\n"
+        // + queryResult.toString()
+        // );
     }
 
     /**

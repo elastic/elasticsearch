@@ -31,7 +31,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 // end generated imports
 
 public final class NewRateLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -566,16 +568,15 @@ public final class NewRateLongGroupingAggregatorFunction implements GroupingAggr
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selected.getPositionCount();
         // First we flush all rates
-        List<ReducedState> flushedStates = new ArrayList<>();
+        Map<Integer, ReducedState> flushedStates = new HashMap<Integer, ReducedState>();
         for (int p = 0; p < positionCount; p++) {
             int group = selected.getInt(p);
-            flushedStates.add(flushAndCombineState(group));
+            flushedStates.put(group, flushAndCombineState(group));
         }
         try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
-                // var state = flushAndCombineState(group);
-                var state = flushedStates.get(group); // should be already flushed
+                var state = flushedStates.get(group);
                 if (state == null) {
                     rates.appendNull();
                     continue;
@@ -594,7 +595,7 @@ public final class NewRateLongGroupingAggregatorFunction implements GroupingAggr
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                     int prevGroup = tsContext.previousGroupId(group);
                     ReducedState prevState = prevGroup >= 0 ? flushedStates.get(prevGroup) : null;
-                    if (prevGroup < 0 || prevState == null) {
+                    if (prevGroup < 0 || prevState == null || prevState.samples == 0) {
                         if (state.samples < 2) {
                             rates.appendNull();
                             continue;
@@ -605,9 +606,21 @@ public final class NewRateLongGroupingAggregatorFunction implements GroupingAggr
                             tsContext.rangeEndInMillis(group),
                             isNewRateOverTime
                         );
-                    } else if (prevState.samples == 0) {
-                        throw new RuntimeException("unexpected state with zero samples for group " + prevGroup);
                     } else {
+                        // We calculate the rate by calculating the difference between the last value of the previous group
+                        // and the first value of the current group, divided by the time difference.
+                        // This avoids extrapolation within a group, which can lead to inaccuracies.
+                        //
+                        // I see two key insights here:
+                        // - metrics are typically collected/reported at regular intervals.
+                        // - if we calculate rates between previousWindow.lastValue, currentWindow.lastValue, and nextWindow.lastValue,
+                        // we end up calculating the real rate of change without extrapolation, and without double-counting any intervals.
+                        //
+                        // From the insights above: When we use the boundary values of consecutive groups, we
+                        // take advantage of the regularity of metrics sampling.
+                        // Given an $interval, currentWindow.lastPoint and previousWindow.lastPoint are roughly
+                        // $interval milliseconds apart, making them good candidates for rate calculation.
+                        // (note that this example is not always the case, however it is a useful model for reasoning about the approach)
                         var lastTs = prevState.intervals[0].t1;
                         var lastVal = prevState.intervals[0].v1;
                         var firstIntervalInCurrent = state.intervals[state.intervals.length - 1];
@@ -615,6 +628,7 @@ public final class NewRateLongGroupingAggregatorFunction implements GroupingAggr
                         if (lastVal > firstIntervalInCurrent.v2) {
                             // a reset happened between the previous group and the current one
                             resets += firstIntervalInCurrent.v2;
+                            lastVal = 0;
                         }
                         var valDiff = (state.intervals[0].v1 + resets) - lastVal;
                         var timeDiff = state.intervals[0].t1 - lastTs;

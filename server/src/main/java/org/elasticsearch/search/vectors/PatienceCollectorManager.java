@@ -33,7 +33,7 @@ class PatienceCollectorManager implements KnnCollectorManager {
         this.knnCollectorManager = knnCollectorManager;
     }
 
-    static KnnCollectorManager wrap(KnnCollectorManager knnCollectorManager, int k) {
+    static KnnCollectorManager wrap(KnnCollectorManager knnCollectorManager) {
         return new PatienceCollectorManager(knnCollectorManager);
     }
 

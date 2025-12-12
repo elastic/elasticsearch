@@ -13,7 +13,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
@@ -51,9 +50,9 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorer
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.readNodeCorrectionConstant;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
 
 /**
  * Benchmark that compares bulk scoring of various scalar quantized vector similarity function
@@ -136,7 +135,7 @@ public class VectorScorerInt7uBulkBenchmark {
         @Override
         public float score(int ordinal) throws IOException {
             var vec2 = values.vectorValue(ordinal);
-            var vec2CorrectionConstant = readNodeCorrectionConstant(values, ordinal);
+            var vec2CorrectionConstant = values.getScoreCorrectionConstant(ordinal);
             int dotProduct = 0;
             for (int i = 0; i < queryVector.length; i++) {
                 dotProduct += queryVector[i] * vec2[i];
@@ -153,7 +152,7 @@ public class VectorScorerInt7uBulkBenchmark {
         @Override
         public void setScoringOrdinal(int targetOrd) throws IOException {
             queryVector = values.vectorValue(targetOrd).clone();
-            queryVectorCorrectionConstant = readNodeCorrectionConstant(values, targetOrd);
+            queryVectorCorrectionConstant = values.getScoreCorrectionConstant(targetOrd);
         }
     }
 
@@ -208,12 +207,7 @@ public class VectorScorerInt7uBulkBenchmark {
 
         path = Files.createTempDirectory("Int7uBulkScorerBenchmark");
         dir = new MMapDirectory(path);
-        try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
-            for (int v = 0; v < numVectors; v++) {
-                out.writeBytes(vectorData.vectorData[v], dims);
-                out.writeInt(Float.floatToIntBits(vectorData.offsets[v]));
-            }
-        }
+        writeInt7VectorData(dir, vectorData.vectorData, vectorData.offsets);
 
         numVectorsToScore = vectorData.numVectorsToScore;
         scores = new float[numVectorsToScore];

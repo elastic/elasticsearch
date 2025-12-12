@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,7 +56,30 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE)
+    public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
+        "unmapped_fields",
+        DataType.KEYWORD,
+        false,
+        true,
+        false,
+        "Defines how unmapped fields are treated. Possible values are: "
+            + "\"FAIL\" (default) - fails the query if unmapped fields are present; "
+            + "\"NULLIFY\" - treats unmapped fields as null values; "
+            + "\"LOAD\" - attempts to load the fields from the source.",
+        (value) -> {
+            String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
+            try {
+                return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
+            } catch (Exception exc) {
+                throw new IllegalArgumentException(
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
+                );
+            }
+        },
+        UnmappedResolution.FAIL
+    );
+
+    public static final Map<String, QuerySettingDef<?>> SETTINGS_BY_NAME = Stream.of(PROJECT_ROUTING, TIME_ZONE, UNMAPPED_FIELDS)
         .collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {
@@ -124,7 +150,7 @@ public class QuerySettings {
             Parser<T> parser,
             T defaultValue
         ) {
-            this(name, type, serverlessOnly, preview, snapshotOnly, description, (value, rcs) -> {
+            this(name, type, serverlessOnly, preview, snapshotOnly, description, (value, unused) -> {
                 try {
                     parser.parse(value);
                     return null;

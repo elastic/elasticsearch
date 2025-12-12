@@ -5724,7 +5724,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var anonymous_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like ?"),
+                "from test | where first_name like ?",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*")))
             );
@@ -5738,7 +5738,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var positional_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name like (?1, ?2)"),
+                "from test | where first_name like (?1, ?2)",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*"), paramAsConstant(null, "Chris*")))
             );
@@ -5753,7 +5753,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var named_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name rlike ?pattern"),
+                "from test | where first_name rlike ?pattern",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
             );
@@ -5767,7 +5767,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testRLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             var named_plan = analyze(
-                String.format(Locale.ROOT, "from test | where first_name rlike (?p1, ?p2)"),
+                "from test | where first_name rlike (?p1, ?p2)",
                 "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
             );

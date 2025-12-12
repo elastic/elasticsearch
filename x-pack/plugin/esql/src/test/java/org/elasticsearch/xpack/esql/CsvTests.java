@@ -134,6 +134,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -573,7 +574,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan analyzedPlan(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
         TransportVersion minimumVersion
@@ -588,11 +589,12 @@ public class CsvTests extends ESTestCase {
                 Map.of(),
                 enrichPolicies,
                 emptyInferenceResolution(),
-                minimumVersion
+                minimumVersion,
+                parsed.setting(UNMAPPED_FIELDS)
             ),
             TEST_VERIFIER
         );
-        LogicalPlan plan = analyzer.analyze(parsed);
+        LogicalPlan plan = analyzer.analyze(parsed.plan());
         plan.setAnalyzed();
         LOGGER.debug("Analyzed plan:\n{}", plan);
         return plan;
@@ -671,7 +673,7 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(statement.plan());
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(statement.plan(), configuration, testDatasets, minimumVersion);
+        LogicalPlan analyzed = analyzedPlan(statement, configuration, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(

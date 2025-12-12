@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -49,6 +51,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 public final class AnalyzerTestUtils {
 
@@ -100,6 +103,17 @@ public final class AnalyzerTestUtils {
         Verifier verifier,
         Configuration config
     ) {
+        return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, UNMAPPED_FIELDS.defaultValue());
+    }
+
+    public static Analyzer analyzer(
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        Verifier verifier,
+        Configuration config,
+        UnmappedResolution unmappedResolution
+    ) {
         return new Analyzer(
             testAnalyzerContext(
                 config,
@@ -107,7 +121,8 @@ public final class AnalyzerTestUtils {
                 mergeIndexResolutions(indexResolutions, defaultSubqueryResolution()),
                 lookupResolution,
                 enrichResolution,
-                defaultInferenceResolution()
+                defaultInferenceResolution(),
+                unmappedResolution
             ),
             verifier
         );
@@ -126,6 +141,22 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolutions, defaultLookupResolution(), defaultEnrichResolution(), verifier, config);
     }
 
+    public static Analyzer analyzer(
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Verifier verifier,
+        Configuration config,
+        EsqlStatement statement
+    ) {
+        return analyzer(
+            indexResolutions,
+            defaultLookupResolution(),
+            defaultEnrichResolution(),
+            verifier,
+            config,
+            statement.setting(UNMAPPED_FIELDS)
+        );
+    }
+
     public static Analyzer analyzer(Verifier verifier) {
         return analyzer(analyzerDefaultMapping(), defaultLookupResolution(), defaultEnrichResolution(), verifier, EsqlTestUtils.TEST_CFG);
     }
@@ -135,7 +166,18 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query) {
-        return analyze(query, "mapping-basic.json");
+        var indexName = indexFromQuery(query);
+        var indexResolutions = indexResolutions(indexName);
+        return analyze(query, analyzer(indexResolutions, TEST_VERIFIER, TEST_CFG));
+    }
+
+    public static LogicalPlan analyzeStatement(String query) {
+        var statement = EsqlParser.INSTANCE.createStatement(query);
+        var relations = statement.plan().collectFirstChildren(UnresolvedRelation.class::isInstance);
+        var indexName = relations.isEmpty() ? null : ((UnresolvedRelation) relations.getFirst()).indexPattern().indexPattern();
+        var indexResolutions = indexResolutions(indexName);
+        var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
+        return analyzer.analyze(statement.plan());
     }
 
     public static LogicalPlan analyze(String query, String mapping) {
@@ -168,11 +210,26 @@ public final class AnalyzerTestUtils {
         }
     }
 
-    private static final Pattern indexFromPattern = Pattern.compile("(?i)FROM\\s+([\\w-]+)");
+    private static final Map<String, EsField> MAPPING_BASIC_RESOLUTION = EsqlTestUtils.loadMapping("mapping-basic.json");
+
+    private static Map<IndexPattern, IndexResolution> indexResolutions(@Nullable String indexName) {
+        Map<IndexPattern, IndexResolution> indexResolutions;
+        if (indexName == null) {
+            indexResolutions = Map.of();
+        } else {
+            var indexResolution = IndexResolution.valid(
+                new EsIndex(indexName, MAPPING_BASIC_RESOLUTION, Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of(), Set.of())
+            );
+            indexResolutions = Map.of(new IndexPattern(Source.EMPTY, indexName), indexResolution);
+        }
+        return indexResolutions;
+    }
+
+    private static final Pattern INDEX_FROM_PATTERN = Pattern.compile("(?i)FROM\\s+([\\w-]+)");
 
     private static String indexFromQuery(String query) {
         // Extract the index name from the FROM clause of the query using regexp
-        Matcher matcher = indexFromPattern.matcher(query);
+        Matcher matcher = INDEX_FROM_PATTERN.matcher(query);
         if (matcher.find()) {
             return matcher.group(1);
         }

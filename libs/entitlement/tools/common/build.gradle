@@ -17,6 +17,13 @@ dependencies {
   implementation(project(':libs:core'))
   implementation 'org.ow2.asm:asm:9.9'
   implementation 'org.ow2.asm:asm-util:9.9'
+
+  testImplementation project(":test:framework")
+  testImplementation project(":libs:entitlement:bridge")
+}
+
+tasks.named('test').configure {
+  systemProperty "tests.security.manager", "false"
 }
 
 tasks.named("dependencyLicenses").configure {

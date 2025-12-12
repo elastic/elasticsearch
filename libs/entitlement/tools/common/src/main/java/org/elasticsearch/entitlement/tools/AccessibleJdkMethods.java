@@ -132,7 +132,7 @@ public class AccessibleJdkMethods {
                 visitOnce(superModuleClass);
                 currentInheritedAccess.addAll(inheritableAccessByClass.getOrDefault(superModuleClass, emptySet()));
             }
-            if (interfaces != null && interfaces.length > 0) {
+            if (interfaces != null) {
                 for (var interfaceName : interfaces) {
                     var interfaceModuleClass = getModuleClassFromName(interfaceName);
                     visitOnce(interfaceModuleClass);

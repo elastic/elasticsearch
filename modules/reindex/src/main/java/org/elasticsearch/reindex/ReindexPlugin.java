@@ -48,7 +48,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     /**
      * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
      */
-    static boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
+    public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
 
     @Override
     public List<ActionHandler> getActions() {

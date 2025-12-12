@@ -43,13 +43,16 @@ public class ReleaseVersions {
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");
 
     public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer, int current) {
+        return generateVersionsLookup(versionContainer.getName().replace('.', '/') + ".csv", current);
+    }
+
+    public static IntFunction<String> generateVersionsLookup(String versionsFileName, int current) {
         if (USES_VERSIONS == false) return Integer::toString;
 
         try {
-            String versionsFileName = versionContainer.getSimpleName() + ".csv";
-            InputStream versionsFile = versionContainer.getResourceAsStream(versionsFileName);
+            InputStream versionsFile = ReleaseVersions.class.getClassLoader().getResourceAsStream(versionsFileName);
             if (versionsFile == null) {
-                throw new FileNotFoundException(Strings.format("Could not find versions file for class [%s]", versionContainer));
+                throw new FileNotFoundException(Strings.format("Could not find versions file [%s]", versionsFileName));
             }
 
             NavigableMap<Integer, List<Version>> versions = new TreeMap<>();

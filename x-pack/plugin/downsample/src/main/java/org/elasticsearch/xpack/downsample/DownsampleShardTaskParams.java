@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,7 +73,7 @@ public record DownsampleShardTaskParams(
             new ShardId(in),
             in.readStringArray(),
             in.readStringArray(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readOptionalStringArray() : new String[] {},
+            in.readOptionalStringArray(),
             in.getTransportVersion().supports(DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES) ? in.readMap(StreamInput::readString) : Map.of()
         );
     }
@@ -118,9 +117,7 @@ public record DownsampleShardTaskParams(
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalStringArray(dimensions);
-        }
+        out.writeOptionalStringArray(dimensions);
         if (out.getTransportVersion().supports(DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES)) {
             out.writeMap(multiFieldSources, StreamOutput::writeString, StreamOutput::writeString);
         }

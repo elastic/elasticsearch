@@ -370,18 +370,19 @@ public enum DataType implements Writeable {
         builder().esType("exponential_histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION)
+            .supportedSince(
+                DataTypesTransportVersions.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION,
+                DataTypesTransportVersions.ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION
+            )
     ),
 
-    /*
     TDIGEST(
-        builder().esType("exponential_histogram")
+        builder().esType("tdigest")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction()
-    ),
+            .underConstruction(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST)
 
-     */
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of float values.
@@ -1049,5 +1050,12 @@ public enum DataType implements Writeable {
         public static final TransportVersion TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION = TransportVersion.fromName(
             "text_similarity_rank_docs_explain_chunks"
         );
+
+        public static final TransportVersion ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION = TransportVersion.fromName(
+            "esql_exponential_histogram_supported_version"
+        );
+
+        private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
+
     }
 }

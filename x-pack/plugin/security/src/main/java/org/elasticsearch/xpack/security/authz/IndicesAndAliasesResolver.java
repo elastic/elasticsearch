@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -714,11 +715,12 @@ class IndicesAndAliasesResolver {
 
         @Override
         public void updateLinkedProject(LinkedProjectConfig config) {
-            if (config.isConnectionEnabled()) {
-                clusters.add(config.linkedProjectAlias());
-            } else {
-                clusters.remove(config.linkedProjectAlias());
-            }
+            clusters.add(config.linkedProjectAlias());
+        }
+
+        @Override
+        public void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+            clusters.remove(linkedProjectAlias);
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {

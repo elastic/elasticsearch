@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -2394,8 +2393,8 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorCastingKnn("bit_vector");
         checkDenseVectorCastingHexKnn("bit_vector");
         checkDenseVectorEvalCastingKnn("bit_vector");
-        // checkDenseVectorEvalCastingKnn("bfloat16_vector");
-        // checkDenseVectorCastingHexKnn("bfloat16_vector");
+        checkDenseVectorEvalCastingKnn("bfloat16_vector");
+        checkDenseVectorCastingHexKnn("bfloat16_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
@@ -2438,28 +2437,16 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingKnnQueryParams() {
-        checkDenseVectorCastingKnnQueryParams(
-            "float_vector",
-            CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR.indexName()).mappingFileName()
-        );
-        checkDenseVectorCastingKnnQueryParams(
-            "byte_vector",
-            CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR.indexName()).mappingFileName()
-        );
-        checkDenseVectorCastingKnnQueryParams(
-            "bit_vector",
-            CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR.indexName()).mappingFileName()
-        );
-        checkDenseVectorCastingKnnQueryParams(
-            "bfloat16_vector",
-            CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-        );
+        checkDenseVectorCastingKnnQueryParams("float_vector");
+        checkDenseVectorCastingKnnQueryParams("byte_vector");
+        checkDenseVectorCastingKnnQueryParams("bit_vector");
+        checkDenseVectorCastingKnnQueryParams("bfloat16_vector");
     }
 
-    private void checkDenseVectorCastingKnnQueryParams(String fieldName, String mappingFile) {
+    private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, ?query_vector)
-            """, fieldName), mappingFile, new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2476,13 +2463,8 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction(
-                    "v_cosine(bfloat16_vector, [1, 2, 3])",
-                    List.of(1, 2, 3),
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
             }
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
@@ -2491,13 +2473,8 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction(
-                    "v_dot_product(bfloat16_vector, [1, 2, 3])",
-                    List.of(1, 2, 3),
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
             }
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
@@ -2506,13 +2483,8 @@ public class AnalyzerTests extends ESTestCase {
                 List.of(0.342, 0.164, 0.234)
             );
             checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction(
-                    "v_l1_norm(bfloat16_vector, [1, 2, 3])",
-                    List.of(1, 2, 3),
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
             }
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
@@ -2526,11 +2498,7 @@ public class AnalyzerTests extends ESTestCase {
                 checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
             }
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction(
-                    "v_l2_norm(bfloat16_vector, [1, 2, 3])",
-                    List.of(1, 2, 3),
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
             }
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
@@ -2546,22 +2514,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
-        checkDenseVectorImplicitCastingSimilarityFunction(
-            similarityFunction,
-            expectedElems,
-            CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR.indexName()).mappingFileName()
-        );
-
-    }
-
-    private void checkDenseVectorImplicitCastingSimilarityFunction(
-        String similarityFunction,
-        List<Number> expectedElems,
-        String mappingFile
-    ) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval similarity = %s
-            """, similarityFunction), mappingFile);
+            """, similarityFunction), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2569,7 +2524,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertThat(List.of("float_vector", "bfloat16_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
+        assertThat(List.of("float_vector", "byte_vector", "bit_vector", "bfloat16_vector"), hasItem(left.name()));
         var right = as(similarity.right(), ToDenseVector.class);
         var literal = as(right.field(), Literal.class);
         assertThat(literal.value(), equalTo(expectedElems));
@@ -2580,40 +2535,28 @@ public class AnalyzerTests extends ESTestCase {
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction(
-                    "v_cosine(bfloat16_vector, query)",
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorEvalCastingSimilarityFunction("v_cosine(bfloat16_vector, query)");
             }
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction(
-                    "v_dot_product(bfloat16_vector, query)",
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(bfloat16_vector, query)");
             }
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction(
-                    "v_l1_norm(bfloat16_vector, query)",
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(bfloat16_vector, query)");
             }
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
             checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(byte_vector, query)");
             if (EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.isEnabled()) {
-                checkDenseVectorEvalCastingSimilarityFunction(
-                    "v_l2_norm(bfloat16_vector, query)",
-                    CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR_BFLOAT16.indexName()).mappingFileName()
-                );
+                checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(bfloat16_vector, query)");
             }
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
@@ -2623,16 +2566,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
-        checkDenseVectorEvalCastingSimilarityFunction(
-            similarityFunction,
-            CsvTestsDataLoader.CSV_DATASET_MAP.get(CsvTestsDataLoader.DENSE_VECTOR.indexName()).mappingFileName()
-        );
-    }
-
-    private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction, String mappingFile) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
-            """, similarityFunction), mappingFile);
+            """, similarityFunction), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);

@@ -32,6 +32,17 @@
         "m": 16,
         "ef_construction": 100
       }
+    },
+    "bfloat16_vector": {
+      "type": "dense_vector",
+      "dims": 16,
+      "similarity": "l2_norm",
+      "element_type": "bfloat16",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
     }
   }
 }

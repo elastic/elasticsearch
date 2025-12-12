@@ -388,18 +388,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:inlinestats.MvMinMvExpand}
-  issue: https://github.com/elastic/elasticsearch/issues/137679
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/138669
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testAggregateMetricDoubleInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/138620
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testAggregateMetricDoubleInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/138620
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
@@ -466,6 +457,24 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleIT
   method: testAggregateMethod
   issue: https://github.com/elastic/elasticsearch/issues/139382
+- class: org.elasticsearch.xpack.security.authc.saml.SamlRedirectTests
+  method: testRedirectUrlWithRelayStateAndSigning
+  issue: https://github.com/elastic/elasticsearch/issues/139389
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testOptionalColumnAtATimeReaderBinary
+  issue: https://github.com/elastic/elasticsearch/issues/139432
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
+  issue: https://github.com/elastic/elasticsearch/issues/138012
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testReadNonExistingPath
+  issue: https://github.com/elastic/elasticsearch/issues/139436
+- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/139376
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  method: testDownsampleDatastream
+  issue: https://github.com/elastic/elasticsearch/issues/139438
 
 # Examples:
 #

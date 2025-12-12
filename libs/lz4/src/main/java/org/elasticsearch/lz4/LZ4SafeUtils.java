@@ -139,6 +139,10 @@ enum LZ4SafeUtils {
         }
     }
 
+    static void zero(byte[] dest, int dOff, int dEnd) {
+        Arrays.fill(dest, dOff, dEnd, (byte) 0);
+    }
+
     static int encodeSequence(byte[] src, int anchor, int matchOff, int matchRef, int matchLen, byte[] dest, int dOff, int destEnd) {
         final int runLen = matchOff - anchor;
         final int tokenOff = dOff++;

@@ -46,10 +46,16 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
             }
         } else {
             int destEnd = destOff + destLen;
+            int srcEnd = src.length;
             int sOff = srcOff;
             int dOff = destOff;
 
             while (true) {
+                // ensure we can read at least one byte for the token
+                if (sOff >= srcEnd) {
+                    throw new LZ4Exception("Malformed input at " + sOff);
+                }
+
                 int token = SafeUtils.readByte(src, sOff) & 255;
                 ++sOff;
                 int literalLen = token >>> 4;
@@ -61,9 +67,21 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
                     literalLen += len & 255;
                 }
 
-                int literalCopyEnd = dOff + literalLen;
+                // overflow check for literalLen
+                if (literalLen < 0) {
+                    throw new LZ4Exception("Too large literalLen");
+                }
+
+                final int literalCopyEnd = dOff + literalLen;
+                // overflow check for literalCopyEnd
+                if (literalCopyEnd < dOff) {
+                    throw new LZ4Exception("Too large literalLen");
+                }
+
                 if (literalCopyEnd > destEnd - 8) {
                     if (literalCopyEnd != destEnd) {
+                        throw new LZ4Exception("Malformed input at " + sOff);
+                    } else if (sOff > srcEnd - literalLen) {
                         throw new LZ4Exception("Malformed input at " + sOff);
                     } else {
                         LZ4SafeUtils.safeArraycopy(src, sOff, dest, dOff, literalLen);
@@ -74,9 +92,11 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
 
                 LZ4SafeUtils.wildArraycopy(src, sOff, dest, dOff, literalLen);
                 sOff += literalLen;
+                dOff = literalCopyEnd;
+
                 int matchDec = SafeUtils.readShortLE(src, sOff);
                 sOff += 2;
-                int matchOff = literalCopyEnd - matchDec;
+                int matchOff = dOff - matchDec;
                 if (matchOff < destOff) {
                     throw new LZ4Exception("Malformed input at " + sOff);
                 }
@@ -90,16 +110,33 @@ public class ESLZ4Decompressor extends LZ4FastDecompressor {
                     matchLen += len & 255;
                 }
 
+                // overflow check for matchLen
+                if (matchLen < 0) {
+                    throw new LZ4Exception("Too large matchLen");
+                }
+
                 matchLen += 4;
-                int matchCopyEnd = literalCopyEnd + matchLen;
-                if (matchCopyEnd > destEnd - 8) {
+                int matchCopyEnd = dOff + matchLen;
+
+                // overflow check for matchCopyEnd
+                if (matchCopyEnd < dOff) {
+                    throw new LZ4Exception("Too large matchLen");
+                }
+
+                if (matchDec == 0) {
                     if (matchCopyEnd > destEnd) {
                         throw new LZ4Exception("Malformed input at " + sOff);
                     }
-
-                    LZ4SafeUtils.safeIncrementalCopy(dest, matchOff, literalCopyEnd, matchLen);
+                    // with matchDec == 0, matchOff == dOff, we'd copy in place. Zero the data instead.
+                    assert matchOff == dOff;
+                    LZ4SafeUtils.zero(dest, dOff, matchCopyEnd);
+                } else if (matchCopyEnd > destEnd - 8) {
+                    if (matchCopyEnd > destEnd) {
+                        throw new LZ4Exception("Malformed input at " + sOff);
+                    }
+                    LZ4SafeUtils.safeIncrementalCopy(dest, matchOff, dOff, matchLen);
                 } else {
-                    LZ4SafeUtils.wildIncrementalCopy(dest, matchOff, literalCopyEnd, matchCopyEnd);
+                    LZ4SafeUtils.wildIncrementalCopy(dest, matchOff, dOff, matchCopyEnd);
                 }
 
                 dOff = matchCopyEnd;

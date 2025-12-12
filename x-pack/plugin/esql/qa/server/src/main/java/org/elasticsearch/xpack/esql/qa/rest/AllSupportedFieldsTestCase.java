@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -479,7 +480,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         for (Map.Entry<String, NodeInfo> e : expectedIndices(indexMode).entrySet()) {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
-            expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
+            if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
+                expectedValues = expectedValues.entry("f_dense_vector", matchesList().item(0.5).item(10.0).item(5.9999995));
+            } else {
+                // While dense_vector was under construction, we could've also encountered other values here, e.g. [0.04, 0.86, 0.51].
+                // We'll ignore the exact value here.
+                expectedValues = expectedValues.entry("f_dense_vector", instanceOf(List.class));
+            }
             expectedValues = expectedValues.entry("_index", indexName);
             expectedAllValues = expectedAllValues.entry(indexName, expectedValues);
         }
@@ -930,9 +937,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case NULL -> nullValue();
             case AGGREGATE_METRIC_DOUBLE -> {
                 // See expectedType for an explanation
-                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())
-                    && (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) || Build.current().isSnapshot())) {
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, false)
+                    && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
                     yield equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
+                }
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(nullValue(), equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}"));
                 }
                 yield nullValue();
             }
@@ -947,15 +957,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             case DENSE_VECTOR -> {
                 // See expectedType for an explanation
-                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())
-                    && (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) || Build.current().isSnapshot())) {
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
+                    && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
+                    yield equalTo(List.of(0.5, 10.0, 5.9999995));
+                }
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
                     // On previous versions where DENSE_VECTOR was still under construction, we could end up with
                     // [0.04283529, 0.85670584, 0.5140235] instead of [0.5, 10.0, 5.9999995]. We'll ignore the exact value for versions
                     // before the actual release of the type.
                     if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false) == false) {
-                        yield any(List.class);
+                        yield anyOf(nullValue(), instanceOf(List.class));
                     }
-                    yield equalTo(List.of(0.5, 10.0, 5.9999995));
                 }
                 yield nullValue();
             }
@@ -1069,17 +1081,27 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // started to be able to plan for this data type if the field caps response indicated
                 // a sufficiently high minimum transport version across all nodes.
                 // On SNAPSHOT builds, we considered the type supported since the moment it was added.
-                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())
-                    && (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) || Build.current().isSnapshot())) {
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, false)
+                    && (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV))) {
                     yield equalTo("aggregate_metric_double");
+                }
+                if (DataType.AGGREGATE_METRIC_DOUBLE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // In CCS, a new coordinating cluster with an old remote cluster may end up treating the type as unsupported
+                    // because the old remote may not tell us its minimum transport version in the field caps response.
+                    // In this case, the coordinator has to assume the minimum compatible transport version, which may not support
+                    // the type, yet.
+                    yield anyOf(equalTo("aggregate_metric_double"), equalTo("unsupported"));
                 }
                 yield equalTo("unsupported");
             }
             case DENSE_VECTOR -> {
                 // Same dance as for AGGREGATE_METRIC_DOUBLE
-                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())
-                    && (coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV) || Build.current().isSnapshot())) {
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
+                    && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
                     yield equalTo("dense_vector");
+                }
+                if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("dense_vector"), equalTo("unsupported"));
                 }
                 yield equalTo("unsupported");
             }

@@ -25,13 +25,16 @@ class TestSuiteApiCheck {
      * Returns true if the test suite should run the tests for the given API.
      * @param testSuite a concrete subclass of ESClientYamlSuiteTestCase
      * @param apiName The API name as described in the rest spec e.g. `search`
-     * @return True if the test
+     * @return True if the test should be run
      */
     public static boolean shouldExecuteTest(ESClientYamlSuiteTestCase testSuite, String apiName) {
         return switch (testSuite) {
             case CssSearchYamlTestSuiteIT cssSearch -> isSearchApi(apiName);
             case RcsCcsSearchYamlTestSuiteIT rssSearch -> isSearchApi(apiName);
-            default -> true;
+            // Search tests are not executed in the common suite.
+            case CcsCommonYamlTestSuiteIT cssCommon -> isSearchApi(apiName) == false;
+            case RcsCcsCommonYamlTestSuiteIT rssCommon -> isSearchApi(apiName) == false;
+            default -> throw new IllegalArgumentException("unexpected test suite [" + testSuite.getClass().getSimpleName() + "]");
         };
     }
 

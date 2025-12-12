@@ -24,11 +24,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,25 +77,98 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
-        Rule rule = new Rule(context, plan);
+        Rule rule = new Rule(context);
         return plan.transformDown(LogicalPlan.class, rule::doRule);
+    }
+
+    /**
+     * Lazily scans the plan for "primaries". A "primary" here is an {@link EsRelation}
+     * we can push a field load into.
+     * <p>
+     *     Every node in the plan in the plan can be traced "down" to a leaf - the source
+     *     of all of its data. This rule can only push expressions into {@link EsRelation},
+     *     but there are lots of other kinds of leaf nodes like {@link StubRelation} and
+     *     {@link Row}. If a node has any of those unsupported ancestors then {@link #primariesFor}
+     *     will return an empty {@link List}. This is the signal the rest of the code uses
+     *     for "can't push".
+     * </p>
+     */
+    private class Primaries {
+        /**
+         * A map from each node to all of its "primaries".  The empty list is special here - it means that the node's
+         * parent doesn't support pushing.
+         * <p>
+         *     Note: The primary itself will be in the map, pointing to itself.
+         * </p>
+         */
+        private Map<LogicalPlan, List<EsRelation>> primaries = new IdentityHashMap<>();
+
+        /**
+         * Find "primaries" for a node. Returning the empty list is special here - it
+         * means that the node's ancestors contain a node to which we cannot push.
+         */
+        List<EsRelation> primariesFor(LogicalPlan plan) {
+            scanSubtree(plan);
+            return primaries.get(plan);
+        }
+
+        /**
+         * Recursively scan the tree under {@code plan}, visiting ancestors
+         * before children, and ignoring any trees we've scanned before.
+         */
+        private void scanSubtree(LogicalPlan plan) {
+            if (primaries.containsKey(plan)) {
+                return;
+            }
+            if (plan.children().isEmpty()) {
+                onLeaf(plan);
+            } else {
+                for (LogicalPlan child : plan.children()) {
+                    scanSubtree(child);
+                }
+                onInner(plan);
+            }
+        }
+
+        private void onLeaf(LogicalPlan plan) {
+            if (plan instanceof EsRelation rel) {
+                if (rel.indexMode() == IndexMode.LOOKUP) {
+                    primaries.put(plan, List.of());
+                } else {
+                    primaries.put(rel, List.of(rel));
+                }
+            } else {
+                primaries.put(plan, List.of());
+            }
+        }
+
+        private void onInner(LogicalPlan plan) {
+            List<EsRelation> result = new ArrayList<>(plan.children().size());
+            for (LogicalPlan child : plan.children()) {
+                List<EsRelation> childPrimaries = primaries.get(child);
+                assert childPrimaries != null : "scanned depth first " + child;
+                if (childPrimaries.isEmpty()) {
+                    log.trace("{} unsupported primaries {}", plan, child);
+                    primaries.put(plan, List.of());
+                    return;
+                }
+                result.addAll(childPrimaries);
+            }
+            log.trace("{} primaries {}", plan, result);
+            primaries.put(plan, result);
+        }
     }
 
     private class Rule {
         private final Map<Attribute.IdIgnoringWrapper, Attribute> addedAttrs = new HashMap<>();
 
         private final LocalLogicalOptimizerContext context;
-        private final LogicalPlan plan;
+        private final Primaries primaries = new Primaries();
 
-        /**
-         * The primary indices, lazily initialized.
-         */
-        private List<EsRelation> primaries;
         private boolean addedNewAttribute = false;
 
-        private Rule(LocalLogicalOptimizerContext context, LogicalPlan plan) {
+        private Rule(LocalLogicalOptimizerContext context) {
             this.context = context;
-            this.plan = plan;
         }
 
         private LogicalPlan doRule(LogicalPlan plan) {
@@ -115,7 +191,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
         private LogicalPlan transformPotentialInvocation(LogicalPlan plan) {
             LogicalPlan transformedPlan = plan.transformExpressionsOnly(Expression.class, e -> {
                 if (e instanceof BlockLoaderExpression ble) {
-                    return transformExpression(e, ble);
+                    return transformExpression(plan, e, ble);
                 }
                 return e;
             });
@@ -130,12 +206,16 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
             return new EsqlProject(Source.EMPTY, transformedPlan, transformedPlan.output());
         }
 
-        private Expression transformExpression(Expression e, BlockLoaderExpression ble) {
+        private Expression transformExpression(LogicalPlan nodeWithExpression, Expression e, BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression fuse = ble.tryPushToFieldLoading(context.searchStats());
             if (fuse == null) {
                 return e;
             }
-            if (anyPrimaryContains(fuse.field()) == false) {
+            List<EsRelation> planPrimaries = primaries.primariesFor(nodeWithExpression);
+            log.trace("found primaries {} {}", nodeWithExpression, planPrimaries);
+            if (planPrimaries.size() != 1) {
+                // Empty list means that we can't push.
+                // >1 primary is currently unsupported, though we expect to support it later.
                 return e;
             }
             var preference = context.configuration().pragmas().fieldExtractPreference();
@@ -183,27 +263,6 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
 
             addedAttrs.put(key, newFunctionAttr);
             return newFunctionAttr;
-        }
-
-        private List<EsRelation> primaries() {
-            if (primaries == null) {
-                primaries = new ArrayList<>(2);
-                plan.forEachUp(EsRelation.class, r -> {
-                    if (r.indexMode() != IndexMode.LOOKUP) {
-                        primaries.add(r);
-                    }
-                });
-            }
-            return primaries;
-        }
-
-        private boolean anyPrimaryContains(FieldAttribute attr) {
-            for (EsRelation primary : primaries()) {
-                if (primary.outputSet().contains(attr)) {
-                    return true;
-                }
-            }
-            return false;
         }
     }
 }

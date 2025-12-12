@@ -388,9 +388,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:inlinestats.MvMinMvExpand}
-  issue: https://github.com/elastic/elasticsearch/issues/137679
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/138669
@@ -400,9 +397,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testAggregateMetricDoubleInlineStats
   issue: https://github.com/elastic/elasticsearch/issues/138620
-- class: org.elasticsearch.index.mapper.HalfFloatSyntheticSourceNativeArrayIntegrationTests
-  method: testSynthesizeArrayRandom
-  issue: https://github.com/elastic/elasticsearch/issues/138730
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
@@ -427,24 +421,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testSupersedingTokenEncryption
   issue: https://github.com/elastic/elasticsearch/issues/139031
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search/370_profile/dfs knn vector profiling collector name}
-  issue: https://github.com/elastic/elasticsearch/issues/139065
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
-  issue: https://github.com/elastic/elasticsearch/issues/139066
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/139127
-- class: org.elasticsearch.upgrades.IndexSortUpgradeIT
-  method: testIndexSortForNumericTypes {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/139128
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/130_knn_query_nested_search/nested kNN search pre-filtered on alias with filter on top level fields}
-  issue: https://github.com/elastic/elasticsearch/issues/139131
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/139152
@@ -454,9 +433,6 @@ tests:
 - class: org.elasticsearch.xpack.core.security.authc.AuthenticationTests
   method: testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata
   issue: https://github.com/elastic/elasticsearch/issues/139167
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=eql/10_basic/Sequence checking correct join key ordering.}
-  issue: https://github.com/elastic/elasticsearch/issues/139173
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139195
@@ -466,18 +442,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/180_update_dense_vector_type/Test update flat --> bbq_flat --> bbq_hnsw}
-  issue: https://github.com/elastic/elasticsearch/issues/139253
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_half_byte_quantized_bfloat16/Knn search with mip}
-  issue: https://github.com/elastic/elasticsearch/issues/139254
-- class: org.elasticsearch.xpack.security.authc.saml.SamlServiceProviderMetadataIT
-  method: testAuthenticationWhenMetadataIsUnreliable
-  issue: https://github.com/elastic/elasticsearch/issues/139067
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/138764
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=index/100_field_name_length_limit/Test field name length limit array synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/139300
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139303
+- class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
+  method: testProfile {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/139304
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139335
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/140_pre_filter_search_shards/prefilter on non-indexed date fields}
+  issue: https://github.com/elastic/elasticsearch/issues/139381
+- class: org.elasticsearch.xpack.downsample.DownsampleIT
+  method: testAggregateMethod
+  issue: https://github.com/elastic/elasticsearch/issues/139382
+- class: org.elasticsearch.xpack.security.authc.saml.SamlRedirectTests
+  method: testRedirectUrlWithRelayStateAndSigning
+  issue: https://github.com/elastic/elasticsearch/issues/139389
 
 # Examples:
 #

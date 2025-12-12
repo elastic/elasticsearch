@@ -1788,21 +1788,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getStringKeySerializer(),
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                mappingsUpdatedVersion = IndexVersion.readVersion(in);
-            } else {
-                mappingsUpdatedVersion = IndexVersions.ZERO;
-            }
+            mappingsUpdatedVersion = IndexVersion.readVersion(in);
             isSystem = in.readBoolean();
             timestampRange = IndexLongFieldRange.readFrom(in);
             stats = in.readOptionalWriteable(IndexMetadataStats::new);
             indexWriteLoadForecast = in.readOptionalDouble();
             shardSizeInBytesForecast = in.readOptionalLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                eventIngestedRange = IndexLongFieldRange.readFrom(in);
-            } else {
-                eventIngestedRange = IndexLongFieldRange.UNKNOWN;
-            }
+            eventIngestedRange = IndexLongFieldRange.readFrom(in);
             if (in.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
                 reshardingMetadata = in.readOptionalWriteable(IndexReshardingMetadata::new);
             } else {
@@ -1834,9 +1826,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                IndexVersion.writeVersion(mappingsUpdatedVersion, out);
-            }
+            IndexVersion.writeVersion(mappingsUpdatedVersion, out);
             out.writeBoolean(isSystem);
             timestampRange.writeTo(out);
             out.writeOptionalWriteable(stats);
@@ -1944,9 +1934,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
-        }
+        builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
         builder.system(in.readBoolean());
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
 
@@ -1998,9 +1986,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
         );
         out.writeCollection(rolloverInfos.values());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            IndexVersion.writeVersion(mappingsUpdatedVersion, out);
-        }
+        IndexVersion.writeVersion(mappingsUpdatedVersion, out);
         out.writeBoolean(isSystem);
         timestampRange.writeTo(out);
         out.writeOptionalWriteable(stats);

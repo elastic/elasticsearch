@@ -1621,7 +1621,7 @@ emp_no:integer | hire_date:date             | monthName:keyword
 
 dateRange
 required_capability: date_range_field_type
-FROM date_ranges
+FROM decades
 | SORT decade;
 
 date_range:date_range  | decade:integer | description:keyword
@@ -1643,7 +1643,7 @@ date_range:date_range  | decade:integer | description:keyword
 dateRangeIdentity
 required_capability: date_range_field_type
 
-FROM date_ranges
+FROM decades
 | WHERE decade == 1900
 | EVAL range = TO_DATE_RANGE(date_range)
 ;
@@ -1655,7 +1655,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 dateRangeToString
 required_capability: date_range_field_type
 
-FROM date_ranges
+FROM decades
 | WHERE decade == 1900
 | EVAL range = TO_STRING(date_range)
 ;

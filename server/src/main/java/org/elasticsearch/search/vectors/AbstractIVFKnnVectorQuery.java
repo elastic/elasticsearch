@@ -37,7 +37,6 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -147,7 +146,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 } else {
                     ScorerSupplier supplier = filterWeight.scorerSupplier(leafReaderContext);
                     if (supplier != null) {
-                        // candidate - decide approach based on filter selectivity
                         var filterCost = Math.toIntExact(supplier.cost());
                         float selectivity = (float) filterCost / floatVectorValues.size();
                         if (selectivity >= postFilteringThreshold) {
@@ -214,41 +212,33 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         throws IOException {
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
-        List<ScoreDoc> deduplicatedScoreDocs = new ArrayList<>(results.scoreDocs.length);
+        int deduplicateCount = 0;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             if (dedup.add(scoreDoc.doc)) {
-                scoreDoc.doc += context.docBase;
-                deduplicatedScoreDocs.add(scoreDoc);
+                deduplicateCount++;
             }
         }
-        // apply post-filtering if needed
-        if (filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs && false == deduplicatedScoreDocs.isEmpty()) {
-            deduplicatedScoreDocs = applyPostFilter(deduplicatedScoreDocs, (ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs);
+        var iterator = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs ? filterDocs.iterator() : null;
+        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[deduplicateCount];
+        dedup.clear();
+        int index = 0;
+        for (ScoreDoc scoreDoc : results.scoreDocs) {
+            if (dedup.add(scoreDoc.doc) && accepted(iterator, scoreDoc.doc)) {
+                scoreDoc.doc += context.docBase;
+                deduplicatedScoreDocs[index++] = scoreDoc;
+            }
         }
-        return new TopDocs(results.totalHits, deduplicatedScoreDocs.toArray(new ScoreDoc[0]));
+        return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    private List<ScoreDoc> applyPostFilter(List<ScoreDoc> results, ESAcceptDocs.PostFilterEsAcceptDocs filterDocs) throws IOException {
-        DocIdSetIterator filterIterator = filterDocs.iterator();
-
-        results.sort(Comparator.comparingInt(sd -> sd.doc));
-        ArrayList<ScoreDoc> filteredDocs = new ArrayList<>(results.size());
-        assert filterIterator.docID() == -1;
-        int collected = 0;
-        for (ScoreDoc scoreDoc : results) {
-            if (filterIterator.docID() == NO_MORE_DOCS || collected++ == k) {
-                break;
-            }
-            if (filterIterator.docID() > scoreDoc.doc) {
-                continue;
-            }
-            if (filterIterator.advance(scoreDoc.doc) == scoreDoc.doc) {
-                filteredDocs.add(scoreDoc);
-            }
+    private boolean accepted(DocIdSetIterator iterator, int doc) throws IOException {
+        if (iterator == null) {
+            return true;
         }
-
-        filteredDocs.sort(Comparator.comparingDouble((ScoreDoc sd) -> sd.score).reversed());
-        return filteredDocs;
+        if (iterator.docID() == NO_MORE_DOCS || iterator.docID() > doc) {
+            return false;
+        }
+        return iterator.advance(doc) == doc;
     }
 
     abstract TopDocs approximateSearch(

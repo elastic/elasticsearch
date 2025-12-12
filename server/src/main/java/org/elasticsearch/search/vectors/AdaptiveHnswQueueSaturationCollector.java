@@ -35,7 +35,6 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
     private final float thresholdLooseness;
     private final float patienceScaling;
 
-    private final KnnCollector delegate;
     private boolean patienceFinished = false;
 
     private int previousQueueSize = 0;
@@ -56,7 +55,6 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
         float patienceScaling
     ) {
         super(delegate, 0, 0);
-        this.delegate = delegate;
         this.discoveryRateSmoothing = discoveryRateSmoothing;
         this.thresholdLooseness = thresholdLooseness;
         this.patienceScaling = patienceScaling;
@@ -68,12 +66,12 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
 
     @Override
     public boolean earlyTerminated() {
-        return patienceFinished || delegate.earlyTerminated();
+        return patienceFinished || super.earlyTerminated();
     }
 
     @Override
     public boolean collect(int docId, float similarity) {
-        boolean collected = delegate.collect(docId, similarity);
+        boolean collected = super.collect(docId, similarity);
         if (collected) {
             currentQueueSize++;
         }

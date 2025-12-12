@@ -2713,10 +2713,10 @@ public class VerifierTests extends ESTestCase {
         checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
         checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
         checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
-        checkVectorFunctionsNullArgs("v_magnitude(null)");
+        checkVectorFunctionsNullArgs("v_hamming(null, vector)");
+        checkVectorFunctionsNullArgs("v_hamming(vector, null)");
         if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
-            checkVectorFunctionsNullArgs("v_hamming(null, vector)");
-            checkVectorFunctionsNullArgs("v_hamming(vector, null)");
+            checkVectorFunctionsNullArgs("v_magnitude(null)");
         }
     }
 

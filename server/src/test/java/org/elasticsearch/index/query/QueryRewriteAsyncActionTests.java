@@ -89,6 +89,7 @@ public class QueryRewriteAsyncActionTests extends ESTestCase {
         TestRewritable rewritten = Rewriteable.rewrite(testRewritable, ctx);
         assertEquals(0, testRewritable.execCounter().intValue());
         assertEquals(testRewritable, rewritten);
+        assertTrue(ctx.hasAsyncActions());
 
         CountDownLatch latch = new CountDownLatch(1);
         ctx.executeAsyncActions(ActionListener.wrap(r -> {

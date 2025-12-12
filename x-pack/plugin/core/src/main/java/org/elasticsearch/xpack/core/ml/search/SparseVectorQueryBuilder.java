@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -275,14 +274,15 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
 
-        queryRewriteContext.registerUniqueAsyncAction(new SparseInferenceRewriteAction(inferenceId, query), inferenceResponse -> {
-            textExpansionResultsSupplier.set((TextExpansionResults) inferenceResponse.getInferenceResults().getFirst());
-        });
+        queryRewriteContext.registerUniqueAsyncAction(
+            new SparseInferenceRewriteAction(inferenceId, query),
+            textExpansionResultsSupplier::set
+        );
 
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
     }
 
-    private static class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<InferModelAction.Response> {
+    private static class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<TextExpansionResults> {
 
         private final String inferenceId;
         private final String query;
@@ -293,7 +293,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         @Override
-        protected void execute(Client client, ActionListener<InferModelAction.Response> responseListener) {
+        protected void execute(Client client, ActionListener<TextExpansionResults> responseListener) {
             // TODO: Move this class to `server` and update to use InferenceAction.Request
             CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
                 inferenceId,
@@ -322,8 +322,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                         return;
                     }
 
-                    if (inferenceResults.getFirst() instanceof TextExpansionResults) {
-                        listener.onResponse(inferenceResponse);
+                    if (inferenceResults.getFirst() instanceof TextExpansionResults textExpansionResults) {
+                        listener.onResponse(textExpansionResults);
                     } else if (inferenceResults.getFirst() instanceof WarningInferenceResults warning) {
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {

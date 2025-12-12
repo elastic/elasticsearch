@@ -89,6 +89,8 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
         this.threadPool = threadPool;
     }
 
+    // TODO create a helper that wraps the runnable in a try catch and calls onError appropriately
+
     void runOnUtilityThreadPool(Runnable runnable) {
         try {
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(runnable);

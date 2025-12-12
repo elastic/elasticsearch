@@ -96,9 +96,14 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     @Override
-    public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(ConverseStreamRequest request)
-        throws ElasticsearchException {
-        return getAmazonBedrockStreamingProcessor(request, new AmazonBedrockChatCompletionStreamingProcessor(threadPool));
+    public Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(
+        ConverseStreamRequest request,
+        AmazonBedrockModel bedrockModel
+    ) throws ElasticsearchException {
+        return getAmazonBedrockStreamingProcessor(
+            request,
+            new AmazonBedrockChatCompletionStreamingProcessor(threadPool, bedrockModel.model())
+        );
     }
 
     private <T, R extends Flow.Processor<ConverseStreamOutput, T>> R getAmazonBedrockStreamingProcessor(

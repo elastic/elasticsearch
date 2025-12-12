@@ -92,7 +92,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
-        return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
+        return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build(), amazonBedrockModel);
     }
 
     private static ToolChoice.Builder convertToolChoice(

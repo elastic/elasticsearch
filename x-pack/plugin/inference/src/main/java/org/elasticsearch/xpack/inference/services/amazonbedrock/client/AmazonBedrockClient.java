@@ -17,6 +17,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 
 import java.time.Instant;
 import java.util.concurrent.Flow;
@@ -27,8 +28,10 @@ public interface AmazonBedrockClient {
     Flow.Publisher<? extends InferenceServiceResults.Result> converseStream(ConverseStreamRequest converseStreamRequest)
         throws ElasticsearchException;
 
-    Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(ConverseStreamRequest request)
-        throws ElasticsearchException;
+    Flow.Publisher<StreamingUnifiedChatCompletionResults.Results> converseUnifiedStream(
+        ConverseStreamRequest request,
+        AmazonBedrockModel model
+    ) throws ElasticsearchException;
 
     void invokeModel(InvokeModelRequest invokeModelRequest, ActionListener<InvokeModelResponse> responseListener)
         throws ElasticsearchException;

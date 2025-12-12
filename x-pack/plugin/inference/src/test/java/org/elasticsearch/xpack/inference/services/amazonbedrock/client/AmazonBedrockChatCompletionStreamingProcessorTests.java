@@ -55,7 +55,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         super.setUp();
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool);
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
     }
 
     /**
@@ -114,7 +114,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         ExecutorService executorService = mock();
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
-        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool);
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
         doAnswer(ans -> {
             Runnable command = ans.getArgument(0);
             command.run();

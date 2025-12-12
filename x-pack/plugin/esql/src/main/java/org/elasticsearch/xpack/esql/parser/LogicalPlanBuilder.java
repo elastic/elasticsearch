@@ -971,7 +971,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2.isEnabled() == false) {
                 checkForRemoteClusters(input, source(ctx), "FORK");
             }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
@@ -1124,13 +1124,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().rerankRowLimit());
 
-        return p -> {
-            checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(
-                new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
-                ctx.commandNamedParameters()
-            );
-        };
+        return p -> applyRerankOptions(
+            new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
+            ctx.commandNamedParameters()
+        );
     }
 
     private Rerank applyRerankOptions(Rerank rerank, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1175,10 +1172,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
 
-        return p -> {
-            checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
-        };
+        return p -> applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {

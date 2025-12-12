@@ -185,7 +185,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     private record TestIndexMappingConfig(String indexName, int shardIdx, Map<String, TestFieldType<?>> fieldTypes) {}
 
-    private record TestFieldType<T>(String name, String dataType, Function<Integer, T> valueGenerator, CheckResults checkResults) {}
+    private record TestFieldType<T>(String name, String typeName, Function<Integer, T> valueGenerator, CheckResults checkResults) {}
 
     private final Map<String, Directory> directories = new HashMap<>();
     private final Map<String, MapperService> mapperServices = new HashMap<>();
@@ -307,7 +307,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             for (Map.Entry<String, TestFieldType<?>> entry : indexMappingConfig.fieldTypes.entrySet()) {
                 String fieldName = entry.getKey();
                 TestFieldType<?> fieldType = entry.getValue();
-                simpleField(b, fieldName, fieldType.dataType);
+                simpleField(b, fieldName, fieldType.typeName);
             }
         })));
     }
@@ -962,7 +962,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             TestFieldType<?> fieldType = mappingConfig.fieldTypes.get("ip");
             String expected = fieldType.valueGenerator.apply(key).toString();
             // Conversion should already be done in FieldInfo!
-            // BytesRef found = (fieldType.dataType.typeName().equals("ip")) ? new BytesRef(DocValueFormat.IP.format(bytesRef)) : bytesRef;
+            // BytesRef found = (fieldType.typeName.equals("ip")) ? new BytesRef(DocValueFormat.IP.format(bytesRef)) : bytesRef;
             assertThat(bytesRef.utf8ToString(), equalTo(expected));
         }
 
@@ -1636,7 +1636,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             TestIndexMappingConfig mappingConfig = INDICES.get("index" + (shardIdx + 1));
             TestFieldType<?> testFieldType = mappingConfig.fieldTypes.get(ft.name());
             if (testFieldType != null) {
-                blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.dataType, "keyword");
+                blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.typeName, "keyword");
             }
         }
         return blockLoader;
@@ -1658,7 +1658,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MapperService mapper = mapperService(indexKey);
         MappedFieldType ft = mapper.fieldType(fieldName);
         BlockLoader blockLoader = ft.blockLoader(blContext());
-        blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.dataType, toType);
+        blockLoader = new TestTypeConvertingBlockLoader(blockLoader, testFieldType.typeName, toType);
         return blockLoader;
     }
 

@@ -112,7 +112,12 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     ) {
         SemanticChunkScorer scorer = new SemanticChunkScorer(searchContext);
         try {
-            return scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
+            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
+            // TODO - Do not remove feature flag without removing this backfill
+            if (RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG.isEnabled() && scoredChunks.isEmpty()) {
+                scoredChunks = chunkAndScoreBm25(hit.field(field).getValue().toString(), size);
+            }
+            return scoredChunks;
         } catch (IOException e) {
             throw new IllegalStateException("Could not score semantic text chunks", e);
         }

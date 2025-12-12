@@ -13,6 +13,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.search.SearchHit;
@@ -32,12 +33,15 @@ import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkU
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractOffsetAndScores;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getContentFromLegacyNestedSources;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.queries;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRerankingRankFeaturePhaseRankShardContext.RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG;
 
 /**
  * Scores chunks from a {@link SemanticTextField}
  */
 public class SemanticChunkScorer {
 
+    // TODO: Make sure TODOs in this file are addressed before removing feature flag
+    private static final FeatureFlag FEATURE_FLAG_REFERENCE = RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG;
     private final SearchContext searchContext;
 
     public SemanticChunkScorer(SearchContext searchContext) {
@@ -69,6 +73,11 @@ public class SemanticChunkScorer {
             return new ArrayList<>();
         }
 
+        // TODO: The query attached to searchContext.query() when performing reranking via the text_similarity_reranker,
+        // is the retriever query, NOT a query on the semantic_text field. This works as expected if the queries match,
+        // but if they don't then queries() will return 0 results. The workaround for this using a highlighter would be
+        // to set the highlightQuery. We'll need to do something similar and get a rewritten inference chunk query in order
+        // to use it. We need to fix this before removing the feature flag RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG.
         List<Query> queries = queries(fieldType.getEmbeddingsField(), modelSettings.taskType(), searchContext.query());
         if (queries.isEmpty()) {
             return new ArrayList<>();

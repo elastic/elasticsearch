@@ -1,0 +1,5 @@
+pr: 139347
+summary: "Feat: re-enable bfloat16 in semantic text"
+area: Relevance
+type: enhancement
+issues: []

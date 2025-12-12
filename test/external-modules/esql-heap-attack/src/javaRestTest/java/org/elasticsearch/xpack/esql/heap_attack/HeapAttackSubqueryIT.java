@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.ListMatcher;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -31,126 +32,146 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     // Reuse HeapAttackIT methods to prepare the indices
     private static final HeapAttackIT heapAttackIT = new HeapAttackIT();
 
+    // the default number of subqueries used by this test
+    private static final int DEFAULT_SUBQUERIES = 2;
+
     // the upper limit is defined in {@code Fork.MAX_BRANCHES}
     private static final int MAX_SUBQUERIES = 8;
 
-    public void testManyKeywordFieldsInSubqueryIntermediateResults() throws IOException {
+    /*
+     * only 10 unique keyword values do not trigger CBE
+     */
+    public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResults() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        heapAttackIT.initManyBigFieldsIndex(500, "keyword");
-        Map<?, ?> response = buildSubqueries(2, "manybigfields");
+        heapAttackIT.initManyBigFieldsIndex(500, "keyword", false);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
             columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
         }
-        assertMap(response, matchesMap().entry("columns", columns));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueries(subquery, "manybigfields");
+            assertMap(response, matchesMap().entry("columns", columns));
+        }
     }
 
-    public void testManyKeywordFieldsInSubqueryIntermediateResultsWithAgg() throws IOException {
+    /*
+     * Make sure large intermediate results from subqueries trigger CBE and do not cause OOM
+     */
+    public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        int docs = 500;
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword");
-        Map<?, ?> response = buildSubqueriesWithAgg(1, "manybigfields");
+        // 500MB random/unique keyword values trigger CBE, should not OOM
+        heapAttackIT.initManyBigFieldsIndex(500, "keyword", true);
+        // 2 subqueries are enough to trigger CBE
+        assertCircuitBreaks(attempt -> buildSubqueries(DEFAULT_SUBQUERIES, "manybigfields"));
+    }
+
+    public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
+        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
+        int docs = 500; // 10 unique keyword values do not trigger CBE
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", false);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
-        assertMap(response, matchesMap().entry("columns", columns).entry("values", matchesList().item(matchesList().item(1024 * docs))));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "manybigfields", "sum = SUM(LENGTH(f999))", null);
+            ListMatcher values = matchesList();
+            for (int i = 0; i < subquery; i++) {
+                values = values.item(matchesList().item(1024 * docs));
+            }
+            assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
+        }
+    }
+
+    public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
+        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
+        int docs = 500; // 500MB random/unique keyword values
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "manybigfields", "sum = SUM(LENGTH(f999))", null);
+            ListMatcher values = matchesList();
+            for (int i = 0; i < subquery; i++) {
+                values = values.item(matchesList().item(1024 * docs));
+            }
+            assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
+        }
+    }
+
+    public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithGrouping500Buckets() throws IOException {
+        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
+        int docs = 500; // 500MB random/unique keyword values
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        // grouping by f000 which has about 500 unique buckets/values
+        var columns = List.of(Map.of("name", "sum", "type", "long"), Map.of("name", "f000", "type", "keyword"));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "manybigfields", "sum = SUM(LENGTH(f999))", "f000");
+            var values = response.get("values");
+            assertEquals(columns, response.get("columns"));
+            assertTrue(values instanceof List<?> l && l.size() <= docs * subquery);
+        }
+    }
+
+    public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithLargeGrouping() throws IOException {
+        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
+        int docs = 500; // 500MB random/unique keyword values
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        // grouping by 500 * 999 unique buckets/values
+        StringBuilder grouping = new StringBuilder();
+        grouping.append("f000");
+        for (int f = 1; f < 999; f++) {
+            grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
+        }
+        assertCircuitBreaks(
+            attempt -> buildSubqueriesWithAgg(DEFAULT_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
+        );
+    }
+
+    // TODO more subqueries trigger OOM, needs investigation
+    public void testManySubqueriesWithManyRandomKeywordFieldsInSubqueryIntermediateResultsWithAggWithLargeGrouping() throws IOException {
+        assumeTrue("skip this test for now, it triggers OOM, needs investigation", false);
+        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
+        int docs = 500; // 500MB random/unique keyword values
+        heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
+        // grouping by 500 * 999 unique buckets/values
+        StringBuilder grouping = new StringBuilder();
+        grouping.append("f000");
+        for (int f = 1; f < 999; f++) {
+            grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
+        }
+        assertCircuitBreaks(
+            attempt -> buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f999)", grouping.toString())
+        );
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
-        assumeTrue("skip this test for now", false);
+        assumeTrue("skip this test for now, it OOM around SourceFilter", false);
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        // TODO 25 docs + 2 subqueries without "limit 40" in the main query causes OOM, should we CBE instead?
+        // TODO this query causes OOM even with LIMIT 5 in the main query, should we CBE instead
         heapAttackIT.initGiantTextField(100);
-        Map<?, ?> response = buildSubqueries(2, "bigtext");
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "f").entry("type", "text"));
-        assertMap(response, matchesMap().entry("columns", columns));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueries(subquery, "bigtext");
+            ListMatcher columns = matchesList().item(matchesMap().entry("name", "f").entry("type", "text"));
+            assertMap(response, matchesMap().entry("columns", columns));
+        }
     }
 
-    public void testGiantTextFieldInSubqueryIntermediateResultsWithAgg() throws IOException {
+    public void testGiantTextFieldInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
         int docs = 100;
         heapAttackIT.initGiantTextField(docs);
-        Map<?, ?> response = buildSubqueriesWithAgg(2, "bigtext");
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
-        assertMap(
-            response,
-            matchesMap().entry("columns", columns)
-                .entry(
-                    "values",
-                    matchesList().item(matchesList().item(1024 * 1024 * 5 * docs)).item(matchesList().item(1024 * 1024 * 5 * docs))
-                )
-        );
-    }
-
-    public void testManySubqueriesWithManyKeywordFields() throws IOException {
-        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        heapAttackIT.initManyBigFieldsIndex(500, "keyword");
-        Map<?, ?> response = buildSubqueries(MAX_SUBQUERIES, "manybigfields");
-        ListMatcher columns = matchesList();
-        for (int f = 0; f < 1000; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
+            Map<?, ?> response = buildSubqueriesWithAgg(subquery, "bigtext", "sum = SUM(LENGTH(f))", null);
+            ListMatcher values = matchesList();
+            for (int i = 0; i < subquery; i++) {
+                values = values.item(matchesList().item(1024 * 1024 * 5 * docs));
+            }
+            assertMap(response, matchesMap().entry("columns", columns).entry("values", values));
         }
-        assertMap(response, matchesMap().entry("columns", columns));
-    }
-
-    public void testManySubqueriesWithManyKeywordFieldsWithAgg() throws IOException {
-        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        int docs = 500;
-        heapAttackIT.initManyBigFieldsIndex(docs, "keyword");
-        Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields");
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
-        assertMap(
-            response,
-            matchesMap().entry("columns", columns)
-                .entry(
-                    "values",
-                    matchesList().item(matchesList().item(1024 * docs))
-                        .item(matchesList().item(1024 * docs))
-                        .item(matchesList().item(1024 * docs))
-                        .item(matchesList().item(1024 * docs))
-                        .item(matchesList().item(1024 * docs))
-                        .item(matchesList().item(1024 * docs))
-                        .item(matchesList().item(1024 * docs))
-                        .item(matchesList().item(1024 * docs))
-                )
-        );
-    }
-
-    public void testManySubqueriesWithGiantTextField() throws IOException {
-        assumeTrue("skip this test for now", false);
-        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        // TODO 8 docs * 8 subqueries with "limit 40" in the main query causes OOM, should we CBE instead?
-        heapAttackIT.initGiantTextField(5);
-        Map<?, ?> response = buildSubqueries(MAX_SUBQUERIES, "bigtext");
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "f").entry("type", "text"));
-        assertMap(response, matchesMap().entry("columns", columns));
-    }
-
-    public void testManySubqueriesWithGiantTextFieldWithAgg() throws IOException {
-        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
-        int docs = 100; // 500 docs didn't OOM or CB
-        heapAttackIT.initGiantTextField(docs);
-        Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "bigtext");
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
-        assertMap(
-            response,
-            matchesMap().entry("columns", columns)
-                .entry(
-                    "values",
-                    matchesList().item(matchesList().item(1024 * 1024 * 5 * docs))
-                        .item(matchesList().item(1024 * 1024 * 5 * docs))
-                        .item(matchesList().item(1024 * 1024 * 5 * docs))
-                        .item(matchesList().item(1024 * 1024 * 5 * docs))
-                        .item(matchesList().item(1024 * 1024 * 5 * docs))
-                        .item(matchesList().item(1024 * 1024 * 5 * docs))
-                        .item(matchesList().item(1024 * 1024 * 5 * docs))
-                        .item(matchesList().item(1024 * 1024 * 5 * docs))
-                )
-        );
     }
 
     private Map<String, Object> buildSubqueries(int subqueries, String indexName) throws IOException {
         StringBuilder query = startQuery();
-        // TODO remove the limit after fixing the OOM(limit 50 OOM locally) on bigtext, should we CBE instead?
-        String limit = indexName.equalsIgnoreCase("bigtext") ? " | LIMIT 10 " : "";
+        // TODO LIMIT 5 triggers OOM on "bigtext" index, we should CBE instead
+        String limit = indexName.equalsIgnoreCase("bigtext") ? " | LIMIT 5 " : "";
         String subquery = "(FROM " + indexName + " )";
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
@@ -160,10 +181,15 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         return responseAsMap(query(query.toString(), "columns"));
     }
 
-    private Map<String, Object> buildSubqueriesWithAgg(int subqueries, String indexName) throws IOException {
+    private Map<String, Object> buildSubqueriesWithAgg(int subqueries, String indexName, String aggregation, String grouping)
+        throws IOException {
         StringBuilder query = startQuery();
-        String agg = indexName.equalsIgnoreCase("bigtext") ? "SUM(LENGTH(f))" : "SUM(LENGTH(f999))";
-        String subquery = "(FROM " + indexName + " | STATS sum = " + agg + " )";
+        StringBuilder subquery = new StringBuilder();
+        subquery.append("(FROM ").append(indexName).append(" | STATS ").append(aggregation);
+        if (grouping != null && grouping.isEmpty() == false) {
+            subquery.append(" BY ").append(grouping);
+        }
+        subquery.append(" )");
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
             query.append(", ").append(subquery);

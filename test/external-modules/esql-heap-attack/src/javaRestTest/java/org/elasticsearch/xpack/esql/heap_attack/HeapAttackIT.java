@@ -494,7 +494,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchManyBigFields() throws IOException {
-        initManyBigFieldsIndex(100, "keyword");
+        initManyBigFieldsIndex(100, "keyword", false);
         Map<?, ?> response = fetchManyBigFields(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -504,7 +504,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword");
+        initManyBigFieldsIndex(500, "keyword", false);
         // 500 docs is plenty to circuit break on most nodes
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
@@ -521,7 +521,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testAggManyBigTextFields() throws IOException {
         int docs = 100;
         int fields = 100;
-        initManyBigFieldsIndex(docs, "text");
+        initManyBigFieldsIndex(docs, "text", false);
         Map<?, ?> response = aggManyBigFields(fields);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -658,7 +658,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
             """);
     }
 
-    void initManyBigFieldsIndex(int docs, String type) throws IOException {
+    void initManyBigFieldsIndex(int docs, String type, boolean random) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
         int fields = 1000;
@@ -689,7 +689,8 @@ public class HeapAttackIT extends HeapAttackTestCase {
                     bulk.append(", ");
                 }
                 bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": \"");
-                bulk.append(Integer.toString(f % 10).repeat(fieldSize));
+                // generate random string to hit CBE faster
+                bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
                 bulk.append('"');
             }
             bulk.append("}\n");

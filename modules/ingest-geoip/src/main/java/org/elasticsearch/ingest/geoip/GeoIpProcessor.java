@@ -33,6 +33,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
@@ -182,8 +183,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param data the GeoIP data to write
      */
     private void writeGeoIpData(IngestDocument document, String targetField, Map<String, Object> data) {
-        if (document.getCurrentAccessPattern().isPresent()
-            && document.getCurrentAccessPattern().get() == org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE) {
+        if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
             // In flexible mode, write each property as a separate dotted field
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 String key = entry.getKey();

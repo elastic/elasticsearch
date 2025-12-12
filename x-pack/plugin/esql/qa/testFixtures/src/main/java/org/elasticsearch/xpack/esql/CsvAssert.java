@@ -459,7 +459,7 @@ public final class CsvAssert {
             );
             case HISTOGRAM -> rebuildExpected(expectedValue, BytesRef.class, x -> histogramToString((BytesRef) x));
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, INTEGER_RANGE,
-                 DOUBLE_RANGE, DATE_RANGE, NULL, BOOLEAN, DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+                DOUBLE_RANGE, DATE_RANGE, NULL, BOOLEAN, DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
         };
     }
 

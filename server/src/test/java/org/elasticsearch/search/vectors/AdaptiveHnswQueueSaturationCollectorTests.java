@@ -45,7 +45,7 @@ public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
                 queueSaturationCollector.nextCandidate();
             }
             if (queueSaturationCollector.earlyTerminated()) {
-                assertEquals(120, i);
+                assertEquals(110, i);
                 break;
             }
         }

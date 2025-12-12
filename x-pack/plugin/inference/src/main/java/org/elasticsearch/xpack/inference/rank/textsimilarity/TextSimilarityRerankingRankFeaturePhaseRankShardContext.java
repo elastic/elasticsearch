@@ -69,7 +69,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                         SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
                         SemanticTextFieldMapper.SemanticTextFieldType fieldType = semanticTextFieldMapper.fieldType();
 
-                        // We can't guarantee that the size of all semantic_text embeddings will match requested chunking settings,
+                        // We can't guarantee that the size of all semantic_text chunks will match requested chunking settings,
                         // since chunking settings attached to the semantic text field may be updated dynamically.
                         // Therefore, we take a hard line, scoring using BM25 if we're specifying chunking settings while reranking on
                         // snippets.

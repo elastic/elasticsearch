@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -31,10 +30,9 @@ public class PreAnalyzer {
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
         boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported,
-        boolean useDateRangeWhenNotSupported
+        boolean useDenseVectorWhenNotSupported
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, false);
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false);
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -79,7 +77,6 @@ public class PreAnalyzer {
          */
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
-        Holder<Boolean> useDateRangeWhenNotSupported = new Holder<>(false);
         indexes.forEach((ip, mode) -> {
             if (mode == IndexMode.TIME_SERIES) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
@@ -99,15 +96,7 @@ public class PreAnalyzer {
             if (fn.name().equalsIgnoreCase("to_aggregate_metric_double")) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
-            if (List.of("to_date_range", "to_string").contains(fn.name().toLowerCase(Locale.ROOT))) {
-                useDateRangeWhenNotSupported.set(true);
-            }
         }));
-
-        // ATM we don't support any functions for DATE_RANGE.
-        if (plan.expressions().isEmpty()) {
-            useDateRangeWhenNotSupported.set(true);
-        }
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
@@ -117,8 +106,7 @@ public class PreAnalyzer {
             unresolvedEnriches,
             lookupIndices,
             useAggregateMetricDoubleWhenNotSupported.get(),
-            useDenseVectorWhenNotSupported.get(),
-            useDateRangeWhenNotSupported.get()
+            useDenseVectorWhenNotSupported.get()
         );
     }
 }

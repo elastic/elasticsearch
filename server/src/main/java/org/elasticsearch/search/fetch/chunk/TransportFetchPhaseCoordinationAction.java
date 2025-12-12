@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
@@ -163,11 +164,11 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         // Create and register response stream
         assert fetchReq.getShardSearchRequest() != null;
-        int shardId = fetchReq.getShardSearchRequest().shardId().id();
+        ShardId shardId = fetchReq.getShardSearchRequest().shardId();
         int expectedDocs = fetchReq.docIds().length;
 
         CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId, expectedDocs, circuitBreaker);
+        FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedDocs, circuitBreaker);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
         // Listener that builds final result from accumulated chunks

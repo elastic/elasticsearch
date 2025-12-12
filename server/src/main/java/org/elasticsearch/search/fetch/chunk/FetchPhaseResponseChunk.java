@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
 
 import java.io.IOException;
@@ -23,7 +24,7 @@ import java.io.IOException;
 public record FetchPhaseResponseChunk(
     long timestampMillis,
     Type type,
-    int shardIndex,
+    ShardId shardId,
     SearchHits hits,
     int from,
     int size,
@@ -47,7 +48,7 @@ public record FetchPhaseResponseChunk(
      * @throws IllegalArgumentException if shardIndex is invalid
      */
     public FetchPhaseResponseChunk {
-        if (shardIndex < -1) {
+        if (shardId.getId() < -1) {
             throw new IllegalArgumentException("invalid: " + this);
         }
     }
@@ -59,7 +60,7 @@ public record FetchPhaseResponseChunk(
      * @throws IOException if deserialization fails
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readEnum(Type.class), in.readVInt(), readOptionalHits(in), in.readVInt(), in.readVInt(), in.readVInt());
+        this(in.readVLong(), in.readEnum(Type.class), new ShardId(in), readOptionalHits(in), in.readVInt(), in.readVInt(), in.readVInt());
     }
 
     private static SearchHits readOptionalHits(StreamInput in) throws IOException {
@@ -73,7 +74,7 @@ public record FetchPhaseResponseChunk(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestampMillis);
         out.writeEnum(type);
-        out.writeVInt(shardIndex);
+        shardId.writeTo(out);
 
         if (hits == null) {
             out.writeBoolean(false);

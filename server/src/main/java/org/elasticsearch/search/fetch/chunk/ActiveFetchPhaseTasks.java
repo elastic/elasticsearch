@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.concurrent.ConcurrentMap;
 
@@ -37,7 +38,7 @@ public final class ActiveFetchPhaseTasks {
      * @return a releasable that removes the registration when closed
      * @throws IllegalStateException if a stream for this task+shard combination is already registered
      */
-    Releasable registerResponseBuilder(long coordinatingTaskId, int shardId, FetchPhaseResponseStream responseStream) {
+    Releasable registerResponseBuilder(long coordinatingTaskId, ShardId shardId, FetchPhaseResponseStream responseStream) {
         assert responseStream.hasReferences();
 
         ResponseStreamKey key = new ResponseStreamKey(coordinatingTaskId, shardId);
@@ -70,7 +71,7 @@ public final class ActiveFetchPhaseTasks {
      * @return the response stream with an incremented reference count
      * @throws ResourceNotFoundException if the task is not registered or has already completed
      */
-    public FetchPhaseResponseStream acquireResponseStream(long coordinatingTaskId, int shardId) {
+    public FetchPhaseResponseStream acquireResponseStream(long coordinatingTaskId, ShardId shardId) {
         final var outerRequest = tasks.get(new ResponseStreamKey(coordinatingTaskId, shardId));
         if (outerRequest == null || outerRequest.tryIncRef() == false) {
             throw new ResourceNotFoundException("fetch task [" + coordinatingTaskId + "] not found");

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -130,7 +131,7 @@ public class TransportFetchPhaseResponseChunkAction extends HandledTransportActi
     @Override
     protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
         ActionListener.run(listener, l -> {
-            int shardId = request.chunkContents().shardIndex();
+            ShardId shardId = request.chunkContents().shardId();
             long coordTaskId = request.coordinatingTaskId;
 
             final var responseStream = activeFetchPhaseTasks.acquireResponseStream(coordTaskId, shardId);

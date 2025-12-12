@@ -78,12 +78,13 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             }
         };
 
-        SearchHit[] hits = it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult());
+        FetchPhaseDocsIterator.IterateResult result = it.iterate(null, reader, docs, randomBoolean(),
+            new QuerySearchResult(), null, 0,null);
 
-        assertThat(hits.length, equalTo(docs.length));
-        for (int i = 0; i < hits.length; i++) {
-            assertThat(hits[i].docId(), equalTo(docs[i]));
-            hits[i].decRef();
+        assertThat(result.hits.length, equalTo(docs.length));
+        for (int i = 0; i < result.hits.length; i++) {
+            assertThat(result.hits[i].docId(), equalTo(docs[i]));
+            result.hits[i].decRef();
         }
 
         reader.close();
@@ -128,7 +129,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         Exception e = expectThrows(
             FetchPhaseExecutionException.class,
-            () -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult())
+            () -> it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult(), null, 0,null)
         );
         assertThat(e.getMessage(), containsString("Error running fetch phase for doc [" + badDoc + "]"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));

@@ -15,6 +15,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -119,7 +120,7 @@ abstract class FetchPhaseDocsIterator {
 
         final boolean streamingEnabled = chunkWriter != null && chunkSize > 0;
         List<SearchHit> chunkBuffer = streamingEnabled ? new ArrayList<>(chunkSize) : null;
-        int shardIndex = streamingEnabled ? shardTarget.getShardId().id() : -1;
+        ShardId shardId = streamingEnabled ? shardTarget.getShardId() : null;
         SearchHits lastChunk = null;
 
         for (int index = 0; index < docIds.length; index++) {
@@ -164,7 +165,7 @@ abstract class FetchPhaseDocsIterator {
                                 sendChunk(
                                     chunkWriter,
                                     chunkBuffer,
-                                    shardIndex,
+                                    shardId,
                                     i - chunkBuffer.size() + 1,
                                     docIds.length,
                                     Float.NaN  // maxScore not meaningful for individual chunks
@@ -226,7 +227,7 @@ abstract class FetchPhaseDocsIterator {
     private static CompletableFuture<Void> sendChunk(
         FetchPhaseResponseChunk.Writer writer,
         List<SearchHit> buffer,
-        int shardIndex,
+        ShardId shardId,
         int fromIndex,
         int totalDocs,
         float maxScore
@@ -254,7 +255,7 @@ abstract class FetchPhaseDocsIterator {
             FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(
                 counter.get(),
                 FetchPhaseResponseChunk.Type.HITS,
-                shardIndex,
+                shardId,
                 chunkHits,
                 fromIndex,
                 hitsArray.length,

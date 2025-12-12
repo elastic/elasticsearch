@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
+import org.elasticsearch.index.shard.ShardId;
+
 import java.util.Objects;
 
 /**
@@ -17,9 +19,9 @@ import java.util.Objects;
  */
 public final class ResponseStreamKey {
     private final long coordinatingTaskId;
-    private final int shardId;
+    private final ShardId shardId;
 
-    public ResponseStreamKey(long coordinatingTaskId, int shardId) {
+    public ResponseStreamKey(long coordinatingTaskId, ShardId shardId) {
         this.coordinatingTaskId = coordinatingTaskId;
         this.shardId = shardId;
     }
@@ -29,7 +31,8 @@ public final class ResponseStreamKey {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ResponseStreamKey that = (ResponseStreamKey) o;
-        return coordinatingTaskId == that.coordinatingTaskId && shardId == that.shardId;
+        return coordinatingTaskId == that.coordinatingTaskId
+            && shardId.equals(that.shardId);
     }
 
     @Override

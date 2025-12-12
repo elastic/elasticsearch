@@ -30,7 +30,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 // end generated imports
 
 public final class RateDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -85,6 +87,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
     private final double dateFactor;
+private final boolean prometheusExtrapolation = false;
 
     public RateDoubleGroupingAggregatorFunction(
         List<Integer> channels,
@@ -570,11 +573,16 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selected.getPositionCount();
+        Map<Integer, ReducedState> flushedStates = new HashMap<Integer, ReducedState>();
+        for (int p = 0; p < positionCount; p++) {
+            int group = selected.getInt(p);
+            flushedStates.put(group, flushAndCombineState(group));
+        }
         try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
-                var state = flushAndCombineState(group);
-                if (state == null || state.samples < 2) {
+                var state = flushedStates.get(group);
+                if (state == null) {
                     rates.appendNull();
                     continue;
                 }
@@ -590,13 +598,50 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(
-                        state,
-                        tsContext.rangeStartInMillis(group) / 1000.0,
-                        tsContext.rangeEndInMillis(group) / 1000.0,
-                        isRateOverTime,
-                        dateFactor
-                    );
+                    int prevGroup = tsContext.previousGroupId(group);
+                    ReducedState prevState = prevGroup >= 0 ? flushedStates.get(prevGroup) : null;
+                    if (prometheusExtrapolation || prevGroup < 0 || prevState == null || prevState.samples == 0) {
+                        if (state.samples < 2) {
+                            rates.appendNull();
+                            continue;
+                        }
+                        rate = extrapolateRate(
+                            state,
+                            tsContext.rangeStartInMillis(group) / 1000.0,
+                            tsContext.rangeEndInMillis(group) / 1000.0,
+                            isRateOverTime,
+                            dateFactor
+                        );
+                    } else {
+                        // We calculate the rate by calculating the difference between the last value of the previous group
+                        // and the first value of the current group, divided by the time difference.
+                        // This avoids extrapolation within a group, which can lead to inaccuracies.
+                        //
+                        // I see two key insights here:
+                        // - metrics are typically collected/reported at regular intervals.
+                        // - if we calculate rates between previousWindow.lastValue, currentWindow.lastValue, and nextWindow.lastValue,
+                        // we end up calculating the real rate of change without extrapolation, and without double-counting any intervals.
+                        //
+                        // From the insights above: When we use the boundary values of consecutive groups, we
+                        // take advantage of the regularity of metrics sampling.
+                        // Given an {interval}, currentWindow.lastPoint and previousWindow.lastPoint are roughly
+                        // {interval} milliseconds apart, making them good candidates for rate calculation.
+                        // (note that this example is not always the case, however it is a useful model for reasoning about the approach)
+
+                        var lastTs = prevState.intervals[0].t1;
+                        var lastVal = prevState.intervals[0].v1;
+                        var firstIntervalInCurrent = state.intervals[state.intervals.length - 1];
+                        var resets = state.resets;
+                        if (lastVal > firstIntervalInCurrent.v2) {
+                            // a reset happened between the previous group and the current one
+                            resets += firstIntervalInCurrent.v2;
+                            lastVal = 0;
+
+                        }
+                        var valDiff = (state.intervals[0].v1 + resets) - lastVal;
+                        var timeDiff = state.intervals[0].t1 - lastTs;
+                        rate = valDiff * 1000.0 / timeDiff;
+                    }
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime);
                 }

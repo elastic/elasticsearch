@@ -2383,7 +2383,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
             if (part.indices == updatedIndices
-                && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
+                && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)
+                && builder.viewMetadata() == part.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY)) {
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);

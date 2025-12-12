@@ -20,11 +20,14 @@ import java.util.function.Consumer;
 
 public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
+    private static final String VARIABLE_INFERENCE_ID_FIELD = "variable-inference-id-field";
     private static final String MIXED_TYPE_FIELD_1 = "mixed-type-field-1";
     private static final String MIXED_TYPE_FIELD_2 = "mixed-type-field-2";
     private static final String SPARSE_VECTOR_FIELD = "sparse-vector-field";
 
     private static final String COMMON_INFERENCE_ID = "common-inference-id";
+    private static final String LOCAL_INFERENCE_ID = "local-inference-id";
+    private static final String REMOTE_INFERENCE_ID = "remote-inference-id";
 
     boolean clustersConfigured = false;
 
@@ -106,6 +109,17 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             );
 
             assertSearchResponse(
+                new SparseVectorQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, null, "   "),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            assertSearchResponse(
                 new SparseVectorQueryBuilder(MIXED_TYPE_FIELD_1, COMMON_INFERENCE_ID, "   "),
                 QUERY_INDICES,
                 List.of(
@@ -151,6 +165,18 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             List.of(
                 new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD)),
                 new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))
+            ),
+            null,
+            searchRequestModifier
+        );
+
+        // Query a field that has different inference ID values across clusters
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(VARIABLE_INFERENCE_ID_FIELD, null, "b"),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD)),
+                new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))
             ),
             null,
             searchRequestModifier
@@ -239,10 +265,12 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
     private void configureClusters() throws Exception {
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
             LOCAL_INDEX_NAME,
-            Map.of(COMMON_INFERENCE_ID, sparseEmbeddingServiceSettings()),
+            Map.of(COMMON_INFERENCE_ID, sparseEmbeddingServiceSettings(), LOCAL_INFERENCE_ID, sparseEmbeddingServiceSettings()),
             Map.of(
                 COMMON_INFERENCE_ID_FIELD,
                 semanticTextMapping(COMMON_INFERENCE_ID),
+                VARIABLE_INFERENCE_ID_FIELD,
+                semanticTextMapping(LOCAL_INFERENCE_ID),
                 MIXED_TYPE_FIELD_1,
                 sparseVectorMapping(),
                 MIXED_TYPE_FIELD_2,
@@ -253,6 +281,8 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             Map.of(
                 getDocId(COMMON_INFERENCE_ID_FIELD),
                 Map.of(COMMON_INFERENCE_ID_FIELD, "a"),
+                getDocId(VARIABLE_INFERENCE_ID_FIELD),
+                Map.of(VARIABLE_INFERENCE_ID_FIELD, "b"),
                 getDocId(MIXED_TYPE_FIELD_1),
                 Map.of(MIXED_TYPE_FIELD_1, generateSparseVectorFieldValue(1.0f)),
                 getDocId(MIXED_TYPE_FIELD_2),
@@ -263,10 +293,12 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
         );
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
             REMOTE_INDEX_NAME,
-            Map.of(COMMON_INFERENCE_ID, sparseEmbeddingServiceSettings()),
+            Map.of(COMMON_INFERENCE_ID, sparseEmbeddingServiceSettings(), REMOTE_INFERENCE_ID, sparseEmbeddingServiceSettings()),
             Map.of(
                 COMMON_INFERENCE_ID_FIELD,
                 semanticTextMapping(COMMON_INFERENCE_ID),
+                VARIABLE_INFERENCE_ID_FIELD,
+                semanticTextMapping(REMOTE_INFERENCE_ID),
                 MIXED_TYPE_FIELD_1,
                 semanticTextMapping(COMMON_INFERENCE_ID),
                 MIXED_TYPE_FIELD_2,
@@ -277,8 +309,10 @@ public class SparseVectorQueryBuilderCrossClusterSearchIT extends AbstractSemant
             Map.of(
                 getDocId(COMMON_INFERENCE_ID_FIELD),
                 Map.of(COMMON_INFERENCE_ID_FIELD, "x"),
+                getDocId(VARIABLE_INFERENCE_ID_FIELD),
+                Map.of(VARIABLE_INFERENCE_ID_FIELD, "y"),
                 getDocId(MIXED_TYPE_FIELD_1),
-                Map.of(MIXED_TYPE_FIELD_1, "y"),
+                Map.of(MIXED_TYPE_FIELD_1, "z"),
                 getDocId(MIXED_TYPE_FIELD_2),
                 Map.of(MIXED_TYPE_FIELD_2, generateSparseVectorFieldValue(1.0f)),
                 getDocId(SPARSE_VECTOR_FIELD),

@@ -17,6 +17,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
@@ -822,6 +823,9 @@ public class EsqlDataTypeConverter {
     }
 
     public static String histogramToString(BytesRef histogram) {
+        if (histogram.length > ByteSizeUnit.MB.toBytes(2)) {
+            throw new IllegalArgumentException("Histogram length is greater than 2MB");
+        }
         // TODO: reuse the nearly identical code from HistogramFieldMapper
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();

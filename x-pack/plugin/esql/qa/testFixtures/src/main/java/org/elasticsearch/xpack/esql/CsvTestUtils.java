@@ -775,7 +775,7 @@ public final class CsvTestUtils {
                 throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
             }
             parser.nextToken();
-            // TODO: This is striaght up copied from HistgramParser. There are even fewer good places to put that for resue than
+            // TODO: This is striaght up copied from HistogramParser. There are even fewer good places to put that for resue than
             // for TDigest, but maybe we can do some sensible refactoring down the road
             ArrayList<Double> values = null;
             ArrayList<Long> counts = null;

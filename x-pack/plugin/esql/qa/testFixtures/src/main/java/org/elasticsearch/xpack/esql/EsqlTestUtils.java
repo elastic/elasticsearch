@@ -1160,17 +1160,15 @@ public final class EsqlTestUtils {
         List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
         values.sort(Double::compareTo);
         // Note - we need the three parameter version of random list here to ensure it's always the same length as values
-        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), ESTestCase::randomNonNegativeLong);
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), x -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         try {
             for (int i = 0; i < values.size(); i++) {
                 long count = counts.get(i);
-                assert count >= 0;
-                // we do not add elements with count == 0
-                if (count > 0) {
-                    streamOutput.writeVLong(count);
-                    streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
-                }
+                // Presuming I didn't mess up the data generation, we should never generate a zero here, so no need to account for it.
+                assert count > 0;
+                streamOutput.writeVLong(count);
+                streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
             return docValue;

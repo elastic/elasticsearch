@@ -23,6 +23,7 @@ import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
@@ -81,6 +82,15 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                             .collect(Collectors.toSet());
                         return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));
                     });
+                }
+            }, new DefaultMappingParametersHandler() {
+                @Override
+                protected Object extendedDocValuesParams() {
+                    if (oldClusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values")) {
+                        return super.extendedDocValuesParams();
+                    }
+
+                    return ESTestCase.randomBoolean();
                 }
             }))
             .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER))

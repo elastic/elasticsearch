@@ -314,7 +314,7 @@ public abstract class AbstractCrossClusterQueryAllCombinationsIT extends Abstrac
                     pattern.append(patterns.get(j));
                 }
             }
-            try (EsqlQueryResponse resp = runQuery("from " + pattern + " | stats sum (v)", requestIncludeMeta)) {
+            try (EsqlQueryResponse resp = runQuery("from " + pattern, requestIncludeMeta)) {
                 assertThat(
                     "Unexpected result for pattern " + pattern,
                     expected.get(pattern.toString())[skipUnavailable() ? 0 : 1],

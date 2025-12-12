@@ -51,6 +51,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     record VectorLeafSearchFilterMeta(LeafReaderContext context, AcceptDocs filter) {}
 
+    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 0.85f;
+
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     protected final String field;

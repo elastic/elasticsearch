@@ -75,7 +75,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -692,11 +691,13 @@ public class NodeTests extends ESTestCase {
         };
         Settings baseSettings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType()).build();
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            .build();
         Settings masterSettings = Settings.builder()
             .put(baseSettings)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("node.name", "master_node").build();
+            .put("node.name", "master_node")
+            .build();
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockTransportService.TestPlugin.class);
 
@@ -706,25 +707,23 @@ public class NodeTests extends ESTestCase {
             CountDownLatch reachedBlock = new CountDownLatch(1);
             CountDownLatch testDone = new CountDownLatch(1);
 
-            var transportService = asInstanceOf(
-                MockTransportService.class,
-                masterNode.injector().getInstance(TransportService.class)
-            );
-            transportService.addRequestHandlingBehavior("internal:discovery/request_peers",
-                (handler, request, channel, task) -> {
-                    logger.info("blocking peer discovery");
-                    reachedBlock.countDown();
-                    testDone.await();
-                });
+            var transportService = asInstanceOf(MockTransportService.class, masterNode.injector().getInstance(TransportService.class));
+            transportService.addRequestHandlingBehavior("internal:discovery/request_peers", (handler, request, channel, task) -> {
+                logger.info("blocking peer discovery");
+                reachedBlock.countDown();
+                testDone.await();
+            });
             String masterAddress = masterNode.injector().getInstance(TransportService.class).getLocalNode().getAddress().toString();
 
-            Settings nodeSettings = NodeRoles.dataOnlyNode(Settings.builder()
+            Settings nodeSettings = NodeRoles.dataOnlyNode(
+                Settings.builder()
                     .put(baseSettings)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                     .putList("cluster.initial_master_nodes", "master_node")
-                .put("node.name", "joining_node")
-                .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), masterAddress)
-                .build());
+                    .put("node.name", "joining_node")
+                    .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), masterAddress)
+                    .build()
+            );
             try (MockNode joiningNode = new MockNode(nodeSettings, plugins)) {
 
                 Thread startupThread = new Thread(() -> startNode.accept(joiningNode));

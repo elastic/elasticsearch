@@ -64,7 +64,12 @@ public class ShutdownPrepareService {
     private volatile boolean isShuttingDown = false;
 
     @SuppressWarnings(value = "this-escape")
-    public ShutdownPrepareService(Settings settings, HttpServerTransport httpServerTransport, TaskManager taskManager, TerminationHandler terminationHandler) {
+    public ShutdownPrepareService(
+        Settings settings,
+        HttpServerTransport httpServerTransport,
+        TaskManager taskManager,
+        TerminationHandler terminationHandler
+    ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);

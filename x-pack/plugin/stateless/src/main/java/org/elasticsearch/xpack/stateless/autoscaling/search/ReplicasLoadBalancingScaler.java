@@ -21,14 +21,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.index.search.stats.SearchStats;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -124,12 +123,14 @@ public class ReplicasLoadBalancingScaler {
         double totalSearchLoad = 0.0;
         for (String index : rankingContext.indices()) {
             IndexStats stats = indexStatsSupplier.apply(index);
-            double indexSearchLoad = Arrays.stream(stats.getShards())
+            double indexSearchLoad = 0.0;
+            for (ShardStats shardStats : stats.getShards()) {
                 // only take search shards into account
-                .filter(shardStats -> shardStats.getShardRouting().isPromotableToPrimary() == false)
-                .map(shardStats -> shardStats.getStats().search.getTotal())
-                .map(SearchStats.Stats::getSearchLoadRate)
-                .reduce(0.0, Double::sum);
+                if (shardStats.getShardRouting().isPromotableToPrimary() == false) {
+                    assert shardStats.getStats().search != null : "search stats must be requested";
+                    indexSearchLoad += shardStats.getStats().search.getTotal().getSearchLoadRate();
+                }
+            }
             indicesSearchLoads.put(index, indexSearchLoad);
             totalSearchLoad += indexSearchLoad;
         }

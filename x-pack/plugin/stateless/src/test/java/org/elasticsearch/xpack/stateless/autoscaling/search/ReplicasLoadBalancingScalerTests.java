@@ -34,7 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.is;
 
 public class ReplicasLoadBalancingScalerTests extends ESTestCase {
 
-    public void testGetIndicesRelativeSearchLoadsWithSearchLoad() throws Exception {
+    public void testGetIndicesRelativeSearchLoadsWithSearchLoad() {
         Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
         Map<ShardId, SearchMetricsService.ShardMetrics> shardMetrics = new HashMap<>();
         SearchMetricsService.ShardMetrics sizeRelatedShardMetrics = new SearchMetricsService.ShardMetrics();
@@ -89,7 +88,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         assertThat(result.get("index2"), closeTo(200.0 / 300.0, 0.01));
     }
 
-    public void testGetIndicesRelativeSearchLoadsWhenNoLoad() throws Exception {
+    public void testGetIndicesRelativeSearchLoadsWhenNoLoad() {
         Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
         Map<ShardId, SearchMetricsService.ShardMetrics> shardMetrics = new HashMap<>();
         SearchMetricsService.ShardMetrics sizeRelatedShardMetrics = new SearchMetricsService.ShardMetrics();
@@ -130,7 +129,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         assertThat(result.get("index2"), closeTo(1.0, 0.01));
     }
 
-    public void testGetIndicesRelativeSearchLoadsFiltersPrimaryShardsOut() throws Exception {
+    public void testGetIndicesRelativeSearchLoadsFiltersPrimaryShardsOut() {
         Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
         Map<ShardId, SearchMetricsService.ShardMetrics> shardMetrics = new HashMap<>();
         SearchMetricsService.ShardMetrics sizeRelatedShardMetrics = new SearchMetricsService.ShardMetrics();
@@ -172,8 +171,39 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         assertThat(result.get("index2"), closeTo(200.0 / 300.0, 0.01));
     }
 
-    private static ShardStats createShardStats(String nodeId, ShardId shardId, boolean primary, double recentSearchLoad)
-        throws IOException {
+    public void testRelativeSearchLoadsSumToOne() {
+        Map<Index, SearchMetricsService.IndexProperties> indicesMap = new HashMap<>();
+        Map<ShardId, SearchMetricsService.ShardMetrics> shardMetrics = new HashMap<>();
+        SearchMetricsService.ShardMetrics sizeRelatedShardMetrics = new SearchMetricsService.ShardMetrics();
+        sizeRelatedShardMetrics.shardSize = new ShardSizeStatsReader.ShardSize(100, 150, 0, 0);
+
+        int numIndices = randomIntBetween(10, 100);
+        Map<String, IndexStats> indicesStatsMap = new HashMap<>();
+        for (int i = 0; i < numIndices; i++) {
+            Index index = new Index("index" + i, "uuid" + i);
+            indicesMap.put(index, new SearchMetricsService.IndexProperties(index.getName(), 1, 1, false, false, 0));
+            shardMetrics.put(new ShardId(index, 0), sizeRelatedShardMetrics);
+
+            double searchLoad = randomDoubleBetween(0.0, 1000.0, true);
+            ShardStats primaryShard = createShardStats("index-node", new ShardId(index, 0), true, 0.01);
+            ShardStats searchShard = createShardStats("search-node", new ShardId(index, 0), false, searchLoad);
+            IndexStats indexStats = new IndexStats(
+                index.getName(),
+                index.getUUID(),
+                null,
+                IndexMetadata.State.OPEN,
+                new ShardStats[] { searchShard, primaryShard }
+            );
+            indicesStatsMap.put(index.getName(), indexStats);
+        }
+
+        ReplicaRankingContext context = new ReplicaRankingContext(indicesMap, shardMetrics, 100);
+        Map<String, Double> result = getIndicesRelativeSearchLoads(context, indicesStatsMap::get);
+        double total = result.values().stream().mapToDouble(Double::doubleValue).sum();
+        assertThat(total, closeTo(1.0, 0.0001));
+    }
+
+    private static ShardStats createShardStats(String nodeId, ShardId shardId, boolean primary, double recentSearchLoad) {
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,
             primary,

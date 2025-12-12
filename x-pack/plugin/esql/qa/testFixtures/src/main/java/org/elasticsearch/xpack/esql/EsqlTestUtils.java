@@ -1174,7 +1174,7 @@ public final class EsqlTestUtils {
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
             return docValue;
-        }  catch (IOException e) {
+        } catch (IOException e) {
             // This is a test util, so we're just going to fail the test here
             fail(e);
         }

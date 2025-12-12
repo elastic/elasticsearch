@@ -775,8 +775,8 @@ public final class CsvTestUtils {
                 throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
             }
             parser.nextToken();
-            // TODO: This is striaght up copied from HistgramParser.  There are even fewer good places to put that for resue than
-            //       for TDigest, but maybe we can do some sensible refactoring down the road
+            // TODO: This is striaght up copied from HistgramParser. There are even fewer good places to put that for resue than
+            // for TDigest, but maybe we can do some sensible refactoring down the road
             ArrayList<Double> values = null;
             ArrayList<Long> counts = null;
             XContentParser.Token token = parser.currentToken();
@@ -831,12 +831,7 @@ public final class CsvTestUtils {
                 ESTestCase.fail("Error parsing CSV histogram data, no counts field");
             }
             if (values.size() != counts.size()) {
-                ESTestCase.fail("expected counts and values to be same length but got ["
-                        + values.size()
-                        + " != "
-                        + counts.size()
-                        + "]"
-                );
+                ESTestCase.fail("expected counts and values to be same length but got [" + values.size() + " != " + counts.size() + "]");
             }
             BytesStreamOutput streamOutput = new BytesStreamOutput();
             for (int i = 0; i < values.size(); i++) {

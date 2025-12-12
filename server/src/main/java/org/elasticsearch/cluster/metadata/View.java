@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -19,12 +20,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a single view definition, which is simply a name and a query string.
  */
-public final class View implements Writeable, ToXContentObject {
+public final class View implements Writeable, ToXContentObject, IndexAbstraction {
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
 
@@ -53,15 +55,20 @@ public final class View implements Writeable, ToXContentObject {
 
     private final String name;
     private final String query;
+    private final Index viewIndex;
 
     public View(String name, String query) {
         this.name = Objects.requireNonNull(name, "view name must not be null");
         this.query = Objects.requireNonNull(query, "view query must not be null");
+        // The view generates an index only because the IndexAbstraction interface requires one.
+        // It won't be resolved, though, because we disallow using views outside of ESQL.
+        this.viewIndex = new Index(name, "_na-" + name + "_");
     }
 
     public View(StreamInput in) throws IOException {
         this.name = in.readString();
         this.query = in.readString();
+        this.viewIndex = new Index(name, "_na-" + name + "_");
     }
 
     public static View fromXContent(XContentParser parser) throws IOException {
@@ -106,5 +113,40 @@ public final class View implements Writeable, ToXContentObject {
 
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public Type getType() {
+        return Type.VIEW;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public List<Index> getIndices() {
+        return List.of(viewIndex);
+    }
+
+    @Override
+    public Index getWriteIndex() {
+        return viewIndex;
+    }
+
+    @Override
+    public DataStream getParentDataStream() {
+        return null;
+    }
+
+    @Override
+    public boolean isHidden() {
+        return false;
+    }
+
+    @Override
+    public boolean isSystem() {
+        return false;
     }
 }

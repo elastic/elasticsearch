@@ -21,13 +21,13 @@ public class PatienceCollectorManagerTests extends ESTestCase {
     public void testEarlyTermination() throws IOException {
         int k = randomIntBetween(1, 10);
         PatienceCollectorManager patienceCollectorManager = new PatienceCollectorManager(new TopKnnCollectorManager(k, null));
-        HnswQueueSaturationCollector knnCollector = (HnswQueueSaturationCollector) patienceCollectorManager.newCollector(
+        AdaptiveHnswQueueSaturationCollector knnCollector = (AdaptiveHnswQueueSaturationCollector) patienceCollectorManager.newCollector(
             randomIntBetween(100, 1000),
             new KnnSearchStrategy.Hnsw(10),
             null
         );
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 1000; i++) {
             knnCollector.collect(i, 1 - i);
             if (i % 10 == 0) {
                 knnCollector.nextCandidate();

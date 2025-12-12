@@ -229,6 +229,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             .build();
     }
 
+    /**
+     * For a given mapping and input value, compute the value that will be in the block.  Values are generated from the
+     * {@link DocumentGenerator}, and the behavior can be controled by writing a custom {@link DataSourceHandler}.
+     *
+     * @param fieldMapping Generated parameters for this field mapping
+     * @param value Generated input value to convert
+     * @param testContext Context information for the current test run
+     * @return The value that will be added to the block
+     */
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext);
 
     protected static Object maybeFoldList(List<?> list) {
@@ -275,6 +284,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     public static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
-        return (boolean) fieldMapping.getOrDefault("doc_values", defaultValue);
+        Object value = fieldMapping.getOrDefault("doc_values", defaultValue);
+        if (value instanceof Boolean b) {
+            return b;
+        } else if (value instanceof Map) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("Unexpected value [" + value + "] for mapping parameter [doc_values]");
+        }
     }
 }

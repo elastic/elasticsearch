@@ -45,8 +45,11 @@ public class S3HttpHandlerTests extends ESTestCase {
     public void testRejectsBadUri() {
         assertEquals(
             RestStatus.INTERNAL_SERVER_ERROR,
-            handleRequest(new S3HttpHandler("bucket", "path"), randomFrom("GET", "PUT", "POST", "DELETE", "HEAD"), "/not-in-bucket")
-                .status()
+            handleRequest(
+                new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel()),
+                randomFrom("GET", "PUT", "POST", "DELETE", "HEAD"),
+                "/not-in-bucket"
+            ).status()
         );
     }
 
@@ -74,7 +77,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testSimpleObjectOperations() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
 
         assertEquals(RestStatus.NOT_FOUND, handleRequest(handler, "GET", "/bucket/path/blob").status());
 
@@ -131,7 +134,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testGetWithBytesRange() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
         final var blobName = "blob_name_" + randomIdentifier();
         final var blobPath = "/bucket/path/" + blobName;
         final var blobBytes = randomBytesReference(256);
@@ -202,7 +205,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testSingleMultipartUpload() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
 
         final var createUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploads");
         final var uploadId = getUploadId(createUploadResponse.body());
@@ -280,7 +283,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testListAndAbortMultipartUpload() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
 
         assertEquals(new TestHttpResponse(RestStatus.OK, """
             <?xml version='1.0' encoding='UTF-8'?>\
@@ -412,11 +415,11 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testPreventObjectOverwrite() {
-        ensureExactlyOneSuccess(new S3HttpHandler("bucket", "path"), null);
+        ensureExactlyOneSuccess(new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT), null);
     }
 
     public void testConditionalOverwrite() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT);
 
         final var originalBody = new BytesArray(randomAlphaOfLength(50).getBytes(StandardCharsets.UTF_8));
         final var originalETag = S3HttpHandler.getEtagFromContents(originalBody);
@@ -462,7 +465,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testPutObjectIfMatchWithBlobNotFound() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT);
         while (true) {
             final var task = createPutObjectTask(handler, randomIdentifier());
             task.consumer.run();
@@ -474,7 +477,7 @@ public class S3HttpHandlerTests extends ESTestCase {
     }
 
     public void testCompleteMultipartUploadIfMatchWithBlobNotFound() {
-        final var handler = new S3HttpHandler("bucket", "path");
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.AWS_DEFAULT);
         while (true) {
             final var task = createMultipartUploadTask(handler, randomIdentifier());
             task.consumer.run();

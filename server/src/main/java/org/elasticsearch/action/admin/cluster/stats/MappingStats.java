@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -257,15 +256,9 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     }
 
     MappingStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            totalFieldCount = in.readOptionalVLong();
-            totalDeduplicatedFieldCount = in.readOptionalVLong();
-            totalMappingSizeBytes = in.readOptionalVLong();
-        } else {
-            totalFieldCount = null;
-            totalDeduplicatedFieldCount = null;
-            totalMappingSizeBytes = null;
-        }
+        totalFieldCount = in.readOptionalVLong();
+        totalDeduplicatedFieldCount = in.readOptionalVLong();
+        totalMappingSizeBytes = in.readOptionalVLong();
         fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
         runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
         var transportVersion = in.getTransportVersion();
@@ -274,11 +267,9 @@ public final class MappingStats implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalVLong(totalFieldCount);
-            out.writeOptionalVLong(totalDeduplicatedFieldCount);
-            out.writeOptionalVLong(totalMappingSizeBytes);
-        }
+        out.writeOptionalVLong(totalFieldCount);
+        out.writeOptionalVLong(totalDeduplicatedFieldCount);
+        out.writeOptionalVLong(totalMappingSizeBytes);
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
         out.writeMap(sourceModeUsageCount, StreamOutput::writeVInt);

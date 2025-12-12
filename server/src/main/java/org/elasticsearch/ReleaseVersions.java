@@ -43,14 +43,14 @@ public class ReleaseVersions {
     private static final Pattern VERSION_LINE = Pattern.compile("(\\d+\\.\\d+\\.\\d+),(\\d+)");
 
     public static IntFunction<String> generateVersionsLookup(Class<?> versionContainer, int current) {
-        return generateVersionsLookup(versionContainer.getName().replace('.', '/') + ".csv", current);
+        return generateVersionsLookup("/" + versionContainer.getName().replace('.', '/') + ".csv", current);
     }
 
     public static IntFunction<String> generateVersionsLookup(String versionsFileName, int current) {
         if (USES_VERSIONS == false) return Integer::toString;
 
         try {
-            InputStream versionsFile = ReleaseVersions.class.getClassLoader().getResourceAsStream(versionsFileName);
+            InputStream versionsFile = ReleaseVersions.class.getResourceAsStream(versionsFileName);
             if (versionsFile == null) {
                 throw new FileNotFoundException(Strings.format("Could not find versions file [%s]", versionsFileName));
             }

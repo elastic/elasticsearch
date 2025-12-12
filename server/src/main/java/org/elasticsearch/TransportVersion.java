@@ -461,7 +461,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             // set version lookup by release before adding serverless versions
             // serverless versions should not affect release version
             VERSION_LOOKUP_BY_RELEASE = ReleaseVersions.generateVersionsLookup(
-                "org/elasticsearch/TransportVersions.csv",
+                "/org/elasticsearch/TransportVersions.csv",
                 allVersions.get(allVersions.size() - 1).id()
             );
 

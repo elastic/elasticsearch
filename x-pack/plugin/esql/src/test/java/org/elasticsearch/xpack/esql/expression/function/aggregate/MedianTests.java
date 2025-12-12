@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Types;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +26,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests.getExpectedPercentileForExponentialHistograms;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MedianTests extends AbstractAggregationTestCase {
@@ -88,9 +90,12 @@ public class MedianTests extends AbstractAggregationTestCase {
 
             Double expected;
             if (fieldTypedData.type() == DataType.EXPONENTIAL_HISTOGRAM) {
-                // The tests don't actually execute the surrogate, so the expected value is not used here
-                // the correctness is verified by the HistogramMergeTests and HistogramPercentileTests
-                expected = 42.0;
+
+                // Note that the merging used underneath can be dependent on the order if zero-buckets are involved
+                // therefore the percentile in theory could vary slightly
+                // however, it seems that the order is the same in the tests vs the reference computation
+                // if we ever encounter flakes here, we should replace the equalTo() assertion with an assertion on the relative error
+                expected = getExpectedPercentileForExponentialHistograms(Types.forciblyCast(fieldTypedData.multiRowData()), 50);
             } else {
                 try (var digest = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), 1000)) {
                     for (var value : fieldTypedData.multiRowData()) {

@@ -323,7 +323,9 @@ public final class AnalyzerTestUtils {
             new IndexPattern(Source.EMPTY, "test_mixed_types"),
             loadMapping("mapping-default-incompatible.json", "test_mixed_types"),
             new IndexPattern(Source.EMPTY, "k8s"),
-            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES)
+            loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES),
+            new IndexPattern(Source.EMPTY, "remote:missingIndex"),
+            IndexResolution.EMPTY_SUBQUERY
         );
     }
 

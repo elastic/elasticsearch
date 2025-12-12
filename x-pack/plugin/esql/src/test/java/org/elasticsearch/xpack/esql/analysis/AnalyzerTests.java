@@ -2067,7 +2067,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
-            line 2:96: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
+            line 2:96: first argument of [percentile(x, 10)] must be [exponential_histogram, tdigest or numeric except unsigned_long],\
              found value [x] type [unsigned_long]
             line 2:115: argument of [sum(x)] must be [aggregate_metric_double,\
              exponential_histogram or numeric except unsigned_long or counter types],\
@@ -2085,7 +2085,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram or numeric except unsigned_long],\
+            line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram, tdigest or numeric except unsigned_long],\
              found value [x] type [version]
             line 2:78: argument of [sum(x)] must be [aggregate_metric_double,\
              exponential_histogram or numeric except unsigned_long or counter types],\
@@ -5651,6 +5651,36 @@ public class AnalyzerTests extends ESTestCase {
         literal = as(matchOperator.query(), Literal.class);
         assertEquals(new BytesRef("error"), literal.value());
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
+        assertEquals("sample_data", subqueryIndex.indexPattern());
+    }
+
+    public void testPruneEmptySubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("""
+            FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
+            | WHERE match(client_ip,"127.0.0.1")
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match matchFunction = as(filter.condition(), Match.class);
+        ReferenceAttribute clientIP = as(matchFunction.field(), ReferenceAttribute.class);
+        assertEquals("client_ip", clientIP.name());
+        UnionAll unionAll = as(filter.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(15, output.size());
+        // the subquery with remote:missingIndex is pruned, validate PruneEmptyUnionAllBranch
+        assertEquals(2, unionAll.children().size());
+        Limit subqueryLimit = as(unionAll.children().get(0), Limit.class);
+        EsqlProject subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        Eval subqueryEval = as(subqueryProject.child(), Eval.class);
+        EsRelation subqueryIndex = as(subqueryEval.child(), EsRelation.class);
+        assertEquals("test", subqueryIndex.indexPattern());
+        subqueryLimit = as(unionAll.children().get(1), Limit.class);
+        subqueryProject = as(subqueryLimit.child(), EsqlProject.class);
+        subqueryEval = as(subqueryProject.child(), Eval.class);
+        Subquery subquery = as(subqueryEval.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
     }
 

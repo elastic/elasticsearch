@@ -35,10 +35,6 @@ import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
 
-    private static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK = TransportVersion.fromName(
-        "esql_aggregate_metric_double_block"
-    );
-
     public void testConstantIntBlock() throws IOException {
         assertConstantBlockImpl(blockFactory.newConstantIntBlockWith(randomInt(), randomIntBetween(1, 8192)));
     }
@@ -428,7 +424,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(random(), ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                    TransportVersionUtils.randomVersionBetween(random(), Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
                 )
             ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
@@ -492,9 +488,7 @@ public class BlockSerializationTests extends SerializationTestCase {
                     origBlock,
                     TransportVersionUtils.randomVersionBetween(
                         random(),
-                        // Same as DataType.DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
-                        // copied here to avoid a circular dependency
-                        TransportVersion.fromName("esql_aggregate_metric_double_created_version"),
+                        Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK,
                         TransportVersion.current()
                     )
                 )

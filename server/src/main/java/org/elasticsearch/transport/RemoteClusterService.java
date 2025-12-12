@@ -298,6 +298,27 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     @Override
+    public synchronized void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+        final var connectionMap = getConnectionsMapForProject(originProjectId);
+        // Remove the entry so no new incoming requests attempt to use the connection while we are closing it.
+        final var remote = connectionMap.remove(linkedProjectAlias);
+        try {
+            IOUtils.close(remote);
+        } catch (IOException e) {
+            logger.warn(
+                "project [" + originProjectId + "] failed to close remote cluster connections for cluster: " + linkedProjectAlias,
+                e
+            );
+        }
+        logger.info(
+            "project [{}] remote cluster connection [{}] removed: {}",
+            originProjectId,
+            linkedProjectAlias,
+            RemoteClusterConnectionStatus.DISCONNECTED
+        );
+    }
+
+    @Override
     public void updateLinkedProject(LinkedProjectConfig config) {
         final var projectId = config.originProjectId();
         final var clusterAlias = config.linkedProjectAlias();
@@ -347,16 +368,6 @@ public final class RemoteClusterService extends RemoteClusterAware
         final var clusterAlias = config.linkedProjectAlias();
         final var connectionMap = getConnectionsMapForProject(projectId);
         RemoteClusterConnection remote = connectionMap.get(clusterAlias);
-        if (config.isConnectionEnabled() == false) {
-            try {
-                IOUtils.close(remote);
-            } catch (IOException e) {
-                logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
-            }
-            connectionMap.remove(clusterAlias);
-            listener.onResponse(RemoteClusterConnectionStatus.DISCONNECTED);
-            return;
-        }
 
         if (remote == null) {
             // this is a new cluster we have to add a new representation

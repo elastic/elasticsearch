@@ -30,8 +30,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasLength;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class LogsdbRestIT extends ESRestTestCase {
 
@@ -89,7 +93,7 @@ public class LogsdbRestIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<?, ?>> features = (List<Map<?, ?>>) response.get("features");
             logger.info("response's features: {}", features);
-            assertThat(features, Matchers.not(Matchers.empty()));
+            assertThat(features, not(Matchers.empty()));
             boolean found = false;
             for (var feature : features) {
                 if (feature.get("family") != null) {
@@ -238,7 +242,7 @@ public class LogsdbRestIT extends ESRestTestCase {
         Map<String, Object> esqlResponseBody = responseAsMap(esqlResponse);
 
         List<?> values = (List<?>) esqlResponseBody.get("values");
-        assertThat(values, Matchers.not(Matchers.empty()));
+        assertThat(values, not(Matchers.empty()));
         var count = ((List<?>) values.getFirst()).get(0);
         assertThat(count, equalTo(numDocs));
         logger.warn("VALUES: {}", values);
@@ -254,6 +258,79 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertThat(maxLength, equalTo(20));
         var sumLength = ((List<?>) values.getFirst()).get(5);
         assertThat(sumLength, equalTo(20 * numDocs));
+    }
+
+    public void testEsqlScanWildcardField() throws IOException {
+        String mappings = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "message": {
+                        "type": "wildcard"
+                    },
+                    "log" : {
+                        "properties": {
+                            "level": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        String indexName = "test-foo";
+        createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
+
+        int messageSize = 256;
+        int numBulks = 40;
+        int numDocs = 256;
+        for (int i = 0; i < numBulks; i++) {
+            var sb = new StringBuilder();
+            var now = Instant.now();
+
+            for (int k = 0; k < numDocs; k++) {
+                String level = randomBoolean() ? "info" : randomBoolean() ? "warning" : randomBoolean() ? "error" : "fatal";
+                String msg = randomAlphaOfLength(messageSize);
+                sb.append("{ \"create\": {} }").append('\n');
+                sb.append("""
+                    {"@timestamp":"$now","message":"$msg","log":{"level":"$level"}}
+                    """.replace("$now", formatInstant(now)).replace("$level", level).replace("$msg", msg));
+                sb.append('\n');
+                if (k != numDocs - 1) {
+                    now = now.plusSeconds(1);
+                }
+            }
+
+            var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+            bulkRequest.setJsonEntity(sb.toString());
+            bulkRequest.addParameter("refresh", "true");
+            var bulkResponse = client().performRequest(bulkRequest);
+            var bulkResponseBody = responseAsMap(bulkResponse);
+            assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
+        }
+
+        int documentsFound = 0;
+        for (String level : new String[] { "info", "warning", "error", "fatal" }) {
+            String query = "FROM test-foo | WHERE log.level == \\\"" + level + "\\\" | KEEP message | LIMIT " + numDocs * numBulks;
+            final Request esqlRequest = new Request("POST", "/_query");
+            esqlRequest.setJsonEntity("{\"query\": \"$query\"}".replace("$query", query));
+            var esqlResponse = client().performRequest(esqlRequest);
+            assertOK(esqlResponse);
+            Map<String, Object> esqlResponseBody = responseAsMap(esqlResponse);
+            documentsFound += (Integer) esqlResponseBody.get("documents_found");
+            assertThat(esqlResponseBody.get("is_partial"), equalTo(false));
+
+            List<?> values = (List<?>) esqlResponseBody.get("values");
+            assertThat(values, not(empty()));
+            for (Object value : values) {
+                List<?> column = (List<?>) value;
+                assertThat(column.get(0), notNullValue());
+                assertThat((String) column.get(0), hasLength(messageSize));
+            }
+        }
+        assertThat(documentsFound, equalTo(numBulks * numDocs));
     }
 
     static String formatInstant(Instant instant) {

@@ -564,6 +564,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case DATE_RANGE -> "LongRange";
             case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
+            case TDIGEST -> "TDigest";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

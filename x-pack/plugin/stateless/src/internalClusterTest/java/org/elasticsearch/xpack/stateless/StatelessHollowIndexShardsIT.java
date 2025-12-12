@@ -2951,7 +2951,7 @@ public class StatelessHollowIndexShardsIT extends AbstractServerlessStatelessPlu
 
         // Create a segment with 0 new docs by deleting some docs and flushing.
         final var validIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
-        final List<String> someInsertedDocs = randomSubsetOf(validIds);
+        final List<String> someInsertedDocs = randomNonEmptySubsetOf(validIds);
         var bulkDeleteRequest = client().prepareBulk();
         someInsertedDocs.forEach(n -> bulkDeleteRequest.add(client().prepareDelete(indexName, String.valueOf(n))));
         bulkDeleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

@@ -15,7 +15,7 @@ We don't recommend this legacy query type for _new_ projects. Use the match quer
 
 The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field. This query accepts natural-language text and uses the field’s configured inference endpoint to generate a query embedding and match documents.
 
-For an overview of all query options available for `semantic_text` fields, see [Querying `semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md#querying-semantic-text-fields).
+For an overview of all query options available for `semantic_text` fields, see [Querying `semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text-search-retrieval.md#querying-semantic-text-fields).
 
 ## Inference endpoint selection
 

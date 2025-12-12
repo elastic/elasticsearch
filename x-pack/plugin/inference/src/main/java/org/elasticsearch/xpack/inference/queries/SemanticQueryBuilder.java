@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -258,7 +257,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {

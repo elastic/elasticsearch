@@ -1160,7 +1160,7 @@ public final class EsqlTestUtils {
         List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
         values.sort(Double::compareTo);
         // Note - we need the three parameter version of random list here to ensure it's always the same length as values
-        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), x -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         try {
             for (int i = 0; i < values.size(); i++) {

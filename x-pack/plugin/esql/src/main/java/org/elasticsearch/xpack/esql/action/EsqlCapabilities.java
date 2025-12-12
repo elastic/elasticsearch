@@ -1469,7 +1469,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+        ENABLE_FORK_FOR_REMOTE_INDICES_V2(Build.current().isSnapshot()),
 
         /**
          * Support for the Present function

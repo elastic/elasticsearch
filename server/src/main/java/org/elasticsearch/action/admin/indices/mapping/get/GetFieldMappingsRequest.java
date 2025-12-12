@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * Request the mappings of specific fields
@@ -42,18 +40,7 @@ public class GetFieldMappingsRequest extends LegacyActionRequest implements Indi
     public GetFieldMappingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            String[] types = in.readStringArray();
-            if (types != Strings.EMPTY_ARRAY) {
-                throw new IllegalArgumentException("Expected empty type array but received [" + Arrays.toString(types) + "]");
-            }
-
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        // Consume the deprecated local parameter
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readBoolean();
-        }
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
     }
@@ -117,13 +104,7 @@ public class GetFieldMappingsRequest extends LegacyActionRequest implements Indi
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeStringArray(Strings.EMPTY_ARRAY);
-        }
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(true);
-        }
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
     }

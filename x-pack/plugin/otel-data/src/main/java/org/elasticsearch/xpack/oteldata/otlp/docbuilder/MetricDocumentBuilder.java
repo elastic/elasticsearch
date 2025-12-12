@@ -21,6 +21,7 @@ import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -37,15 +38,19 @@ public class MetricDocumentBuilder {
 
     private final BufferedByteStringAccessor byteStringAccessor;
     private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
+    private final MappingHints defaultMappingHints;
+    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
 
-    public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
+    public MetricDocumentBuilder(BufferedByteStringAccessor byteStringAccessor, MappingHints defaultMappingHints) {
         this.byteStringAccessor = byteStringAccessor;
+        this.defaultMappingHints = defaultMappingHints;
     }
 
     public BytesRef buildMetricDocument(
         XContentBuilder builder,
+        DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
-        DataPointGroupingContext.DataPointGroup dataPointGroup
+        Map<String, Map<String, String>> dynamicTemplateParams
     ) throws IOException {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
@@ -65,11 +70,16 @@ public class MetricDocumentBuilder {
         for (int i = 0, dataPointsSize = dataPoints.size(); i < dataPointsSize; i++) {
             DataPoint dataPoint = dataPoints.get(i);
             builder.field(dataPoint.getMetricName());
-            MappingHints mappingHints = MappingHints.fromAttributes(dataPoint.getAttributes());
-            dataPoint.buildMetricValue(mappingHints, builder);
+            MappingHints mappingHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
+            dataPoint.buildMetricValue(mappingHints, builder, scratch);
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
-                dynamicTemplates.put("metrics." + dataPoint.getMetricName(), dynamicTemplate);
+                String metricFieldPath = "metrics." + dataPoint.getMetricName();
+                dynamicTemplates.put(metricFieldPath, dynamicTemplate);
+                if (dataPointGroup.unit() != null && dataPointGroup.unit().isEmpty() == false) {
+                    // Store the unit of the metric in the dynamic template parameters
+                    dynamicTemplateParams.put(metricFieldPath, Map.of("unit", dataPointGroup.unit()));
+                }
             }
             if (mappingHints.docCount()) {
                 docCount = dataPoint.getDocCount();

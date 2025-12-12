@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -17,10 +18,14 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -36,32 +41,45 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractStatementParserTests extends ESTestCase {
 
-    EsqlParser parser = new EsqlParser();
+    protected final EsqlParser parser = EsqlParser.INSTANCE;
 
-    void assertStatement(String statement, LogicalPlan expected) {
+    void assertQuery(String query, LogicalPlan expected) {
         final LogicalPlan actual;
         try {
-            actual = statement(statement);
+            actual = query(query);
         } catch (Exception e) {
-            throw new AssertionError("parsing error for [" + statement + "]", e);
+            throw new AssertionError("parsing error for [" + query + "]", e);
         }
-        assertThat(statement, actual, equalToIgnoringIds(expected));
+        assertThat(query, actual, equalToIgnoringIds(expected));
     }
 
-    LogicalPlan statement(String query, String arg) {
-        return statement(LoggerMessageFormat.format(null, query, arg), new QueryParams());
+    LogicalPlan query(String query, String arg) {
+        return query(LoggerMessageFormat.format(null, query, arg), new QueryParams());
     }
 
-    protected LogicalPlan statement(String e) {
-        return statement(e, new QueryParams());
+    protected LogicalPlan query(String e) {
+        return query(e, new QueryParams());
     }
 
-    LogicalPlan statement(String e, QueryParams params) {
+    LogicalPlan query(String e, QueryParams params) {
+        return parser.parseQuery(e, params);
+    }
+
+    EsqlStatement statement(String e, QueryParams params) {
         return parser.createStatement(e, params);
     }
 
     LogicalPlan processingCommand(String e) {
-        return parser.createStatement("row a = 1 | " + e);
+        return parser.parseQuery("row a = 1 | " + e);
+    }
+
+    LogicalPlan processingCommand(String e, QueryParams params, Settings settings) {
+        return parser.parseQuery(
+            "row a = 1 | " + e,
+            params,
+            new PlanTelemetry(new EsqlFunctionRegistry()),
+            new InferenceSettings(settings)
+        );
     }
 
     static UnresolvedAttribute attribute(String name) {
@@ -161,7 +179,7 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
             "Query [" + query + "] is expected to throw " + ParsingException.class + " with message [" + errorMessage + "]",
             ParsingException.class,
             containsString(errorMessage),
-            () -> statement(query, new QueryParams(params))
+            () -> query(query, new QueryParams(params))
         );
     }
 
@@ -170,7 +188,7 @@ public abstract class AbstractStatementParserTests extends ESTestCase {
             "Query [" + query + "] is expected to throw " + VerificationException.class + " with message [" + errorMessage + "]",
             VerificationException.class,
             containsString(errorMessage),
-            () -> parser.createStatement(query)
+            () -> parser.parseQuery(query)
         );
     }
 

@@ -152,14 +152,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param queryRewriteContext The query rewrite context
      * @return The query builder rewritten to a backwards-compatible form
      */
-    protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext);
+    protected abstract QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) throws IOException;
 
     /**
      * Generate a copy of {@code this}.
      *
-     * @param inferenceResultsMap The inference results map
+     * @param inferenceResultsMap         The inference results map
      * @param inferenceResultsMapSupplier The inference results map supplier
-     * @param ccsRequest Flag indicating if this is a CCS request
+     * @param ccsRequest                  Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
     protected abstract QueryBuilder copy(
@@ -208,6 +208,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param resolvedIndices The resolved indices
      */
     protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {}
+
+    /**
+     * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
+     * An example usage is {@link InterceptedInferenceKnnVectorQueryBuilder} which needs to rewrite the knn queries filters.
+     */
+    protected InterceptedInferenceQueryBuilder<T> customDoRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext)
+        throws IOException {
+        return this;
+    }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
@@ -304,7 +313,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         return queryFields(inferenceFieldsToQuery, nonInferenceFieldsToQuery, indexMetadataContext);
     }
 
-    private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
+    private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrittenBwC = doRewriteBwC(queryRewriteContext);
         if (rewrittenBwC != this) {
             return rewrittenBwC;
@@ -344,6 +353,15 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             );
         }
 
+        InterceptedInferenceQueryBuilder<T> rewritten = customDoRewriteGetInferenceResults(queryRewriteContext);
+        return rewritten.doRewriteWaitForInferenceResults(queryRewriteContext, inferenceIds, ccsRequest);
+    }
+
+    private QueryBuilder doRewriteWaitForInferenceResults(
+        QueryRewriteContext queryRewriteContext,
+        Set<FullyQualifiedInferenceId> inferenceIds,
+        boolean ccsRequest
+    ) {
         if (inferenceResultsMapSupplier != null) {
             // Additional inference results have already been requested, and we are waiting for them to continue the rewrite process
             return getNewInferenceResultsFromSupplier(inferenceResultsMapSupplier, this, m -> copy(m, null, ccsRequest));
@@ -376,7 +394,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         } else {
             rewritten = copy(inferenceResultsMap, newInferenceResultsMapSupplier, ccsRequest);
         }
-
         return rewritten;
     }
 

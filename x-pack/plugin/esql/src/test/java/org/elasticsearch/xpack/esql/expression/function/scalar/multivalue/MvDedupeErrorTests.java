@@ -37,7 +37,7 @@ public class MvDedupeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector, or aggregate_metric_double"
+                (v, p) -> "any type except counter types, dense_vector, aggregate_metric_double or exponential_histogram"
             )
         );
     }
@@ -48,7 +48,11 @@ public class MvDedupeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
          * In general MvDedupe should support all signatures. While building a
          * new type you may we to temporarily relax this.
          */
-        assertThat("all signatures except dense_vector and aggregate_metric_double should be supported", checked, equalTo(2));
+        assertThat(
+            "all signatures except dense_vector, aggregate_metric_double and exponential_histogram should be supported",
+            checked,
+            equalTo(3)
+        );
     }
 
 }

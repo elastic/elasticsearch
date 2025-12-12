@@ -148,11 +148,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
      * In those cases, it is safe to ignore the plan sent and return null
      */
     private static PhysicalPlan localLookupNodePlanning(PhysicalPlan physicalPlan) {
-        if (physicalPlan instanceof FragmentExec fragmentExec) {
-            LocalMapper localMapper = new LocalMapper();
-            return localMapper.map(fragmentExec.fragment());
-        }
-        return null;
+        return physicalPlan instanceof FragmentExec fragmentExec ? LocalMapper.INSTANCE.map(fragmentExec.fragment()) : null;
     }
 
     @Override

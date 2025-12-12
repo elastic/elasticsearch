@@ -33,7 +33,8 @@ public interface ConfigurationAware {
         0,
         false,
         0,
-        0
+        0,
+        null
     );
 
     Configuration configuration();

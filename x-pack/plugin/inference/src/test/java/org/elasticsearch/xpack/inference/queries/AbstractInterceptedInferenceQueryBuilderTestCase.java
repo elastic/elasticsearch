@@ -65,9 +65,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.V_8_15_0;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
@@ -223,7 +224,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         for (int i = 0; i < 100; i++) {
             TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
-                V_8_15_0,
+                TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(TransportVersion.current())
             );
 
@@ -335,7 +336,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     );
 
-    protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
+    protected abstract List<QueryRewriteInterceptor> createQueryRewriteInterceptors();
 
     protected abstract TransportVersion getMinimalSupportedVersion();
 
@@ -427,8 +428,9 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             indexMetadata
         );
 
-        QueryRewriteInterceptor interceptor = createQueryRewriteInterceptor();
-        Map<String, QueryRewriteInterceptor> interceptorMap = Map.of(interceptor.getQueryName(), interceptor);
+        QueryRewriteInterceptor interceptor = QueryRewriteInterceptor.multi(
+            createQueryRewriteInterceptors().stream().collect(Collectors.toMap(QueryRewriteInterceptor::getQueryName, Function.identity()))
+        );
 
         return new QueryRewriteContext(
             null,
@@ -438,7 +440,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             null,
-            QueryRewriteInterceptor.multi(interceptorMap),
+            interceptor,
             ccsMinimizeRoundTrips
         );
     }

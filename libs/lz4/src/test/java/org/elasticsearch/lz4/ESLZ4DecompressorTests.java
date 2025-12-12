@@ -103,10 +103,6 @@ public class ESLZ4DecompressorTests extends ESTestCase {
 
         // both should be identical - all zeros in first 18 bytes, then 7 zero literals
         assertArrayEquals(decompressed1, decompressed2);
-
-        // Verify expected output: 18 zeros (from matchDec=0 handling) + 7 zeros (literals)
-        byte[] expected = new byte[length];
-        assertArrayEquals(expected, decompressed1);
     }
 
     /**

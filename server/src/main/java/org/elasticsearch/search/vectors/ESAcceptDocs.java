@@ -244,81 +244,15 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
     }
 
     /**
-     * An {@code ESAcceptDocs} implementation that uses lazy evaluation with iterator advance()
-     */
-    public static final class LazyFilterEsAcceptDocs extends ESAcceptDocs {
-        private final Weight weight;
-        private final LeafReaderContext ctx;
-        private final Bits liveDocs;
-
-        LazyFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
-            this.weight = weight;
-            this.ctx = ctx;
-            this.liveDocs = liveDocs;
-        }
-
-        @Override
-        public Bits bits() throws IOException {
-            throw new UnsupportedOperationException("[LazyFilterEsAcceptDocs] does not support bits creation");
-        }
-
-        @Override
-        public DocIdSetIterator iterator() throws IOException {
-            // Create a fresh scorer each time to ensure a new, unpositioned iterator
-            // Using scorer() instead of scorerSupplier().get() to avoid caching issues
-            var scorer = weight.scorer(ctx);
-            if (scorer == null) {
-                return null;
-            }
-            DocIdSetIterator baseIterator = scorer.iterator();
-
-            return liveDocs == null ? baseIterator : new FilteredDocIdSetIterator(baseIterator) {
-                @Override
-                protected boolean match(int doc) {
-                    return liveDocs.get(doc);
-                }
-            };
-        }
-
-        @Override
-        public int cost() throws IOException {
-            throw new UnsupportedOperationException("[LazyFilterEsAcceptDocs] does not support computing exact cost");
-        }
-
-        @Override
-        public int approximateCost() throws IOException {
-            return Math.toIntExact(weight.scorerSupplier(ctx).cost());
-        }
-
-        @Override
-        public Optional<BitSet> getBitSet() throws IOException {
-            throw new UnsupportedOperationException("[LazyFilterEsAcceptDocs] does not support BitSet creation");
-        }
-
-        public Weight weight() {
-            return weight;
-        }
-
-        public LeafReaderContext context() {
-            return ctx;
-        }
-
-        public Bits liveDocs() {
-            return liveDocs;
-        }
-    }
-
-    /**
      * An {code ESAcceptDocs} implementation that defers all filtering until after the search.
      */
     public static final class PostFilterEsAcceptDocs extends ESAcceptDocs {
-        private final Weight weight;
-        private final LeafReaderContext ctx;
+
+        private final ScorerSupplier scorerSupplier;
         private final Bits liveDocs;
 
         PostFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
-            this.weight = weight;
-            this.ctx = ctx;
+            this.scorerSupplier = weight.scorerSupplier(ctx);
             this.liveDocs = liveDocs;
         }
 
@@ -330,8 +264,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public DocIdSetIterator iterator() throws IOException {
-            // return null to indicate all docs accepted (except deletions handled by bits())
-            return null;
+            return scorerSupplier.get(NO_MORE_DOCS).iterator();
         }
 
         @Override
@@ -342,24 +275,12 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public int approximateCost() throws IOException {
-            return Math.toIntExact(weight.scorerSupplier(ctx).cost());
+            return Math.toIntExact(scorerSupplier.cost());
         }
 
         @Override
         public Optional<BitSet> getBitSet() throws IOException {
             throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support BitSet creation");
-        }
-
-        public Weight weight() {
-            return weight;
-        }
-
-        public LeafReaderContext context() {
-            return ctx;
-        }
-
-        public Bits liveDocs() {
-            return liveDocs;
         }
     }
 }

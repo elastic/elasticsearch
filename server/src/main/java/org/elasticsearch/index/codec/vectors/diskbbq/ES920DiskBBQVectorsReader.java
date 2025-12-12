@@ -385,12 +385,12 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
     }
 
     @Override
-    public PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, AcceptDocs acceptDocs)
+    public PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput indexInput, float[] target, Bits acceptDocs)
         throws IOException {
         FieldEntry entry = fields.get(fieldInfo.number);
         // max postings list size, no longer utilized
         indexInput.readVInt();
-        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, acceptDocs.bits());
+        return new MemorySegmentPostingsVisitor(target, indexInput, entry, fieldInfo, acceptDocs);
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {

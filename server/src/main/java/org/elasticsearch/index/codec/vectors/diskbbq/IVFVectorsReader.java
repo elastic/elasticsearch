@@ -28,6 +28,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -265,10 +266,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     @Override
-    public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs filterDocs) throws IOException {
+    public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
-            getReaderForField(field).search(field, target, knnCollector, filterDocs);
+            getReaderForField(field).search(field, target, knnCollector, acceptDocs);
             return;
         }
         if (fieldInfo.getVectorDimension() != target.length) {
@@ -276,13 +277,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
-        assert filterDocs instanceof ESAcceptDocs;
+        final ESAcceptDocs esAcceptDocs;
+        if (acceptDocs instanceof ESAcceptDocs) {
+            esAcceptDocs = (ESAcceptDocs) acceptDocs;
+        } else {
+            esAcceptDocs = null;
+        }
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
         // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
-        float approximateCost = filterDocs instanceof ESAcceptDocs.ESAcceptDocsAll
-            ? numVectors
-            : ((ESAcceptDocs) filterDocs).approximateCost();
+        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost()
+            : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
+            : esAcceptDocs.approximateCost());
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
@@ -310,12 +316,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             entry.centroidSlice(ivfCentroids),
             target,
             postListSlice,
-            filterDocs,
+            acceptDocs,
             approximateCost,
             values,
             visitRatio
         );
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, filterDocs);
+        Bits acceptDocsBits = acceptDocs.bits();
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
@@ -334,7 +341,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
         }
-        if (false == filterDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
+        if (acceptDocsBits != null) {
             // TODO Adjust the value here when using centroid filtering
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
@@ -457,7 +464,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, AcceptDocs acceptDocs)
+    public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
         throws IOException;
 
     public record CentroidOffsetAndLength(long offset, long length) {}

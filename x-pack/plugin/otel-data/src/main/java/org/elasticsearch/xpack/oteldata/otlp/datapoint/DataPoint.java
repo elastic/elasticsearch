@@ -275,7 +275,6 @@ public interface DataPoint {
         public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
             throws IOException {
             switch (mappingHints.histogramMapping()) {
-                // TODO: reuse scratch
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, scratch);
                 case TDIGEST -> buildTDigest(builder);
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());

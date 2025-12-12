@@ -817,6 +817,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(relation.indexPattern(), is("test"));
     }
 
+    // TODO
     // enrich
     // lookup
     // sort

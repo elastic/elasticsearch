@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.support.local;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
@@ -55,9 +54,7 @@ public abstract class LocalClusterStateRequest extends LegacyActionRequest {
     protected LocalClusterStateRequest(StreamInput in, boolean readLocal) throws IOException {
         super(in);
         masterTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            in.readVLong();
-        }
+        in.readVLong();
         if (readLocal) {
             in.readBoolean();
         }

@@ -205,8 +205,7 @@ public final class EvalMapper {
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
         public ExpressionEvaluator.Factory map(
-            Configuration configuration,
-            FoldContext foldCtx,
+            ExpressionContext ctx,
             Attribute attr,
             Layout layout,
             IndexedByShardId<? extends ShardContext> shardContexts
@@ -253,8 +252,7 @@ public final class EvalMapper {
 
         @Override
         public ExpressionEvaluator.Factory map(
-            Configuration configuration,
-            FoldContext foldCtx,
+            ExpressionContext ctx,
             Literal lit,
             Layout layout,
             IndexedByShardId<? extends ShardContext> shardContexts

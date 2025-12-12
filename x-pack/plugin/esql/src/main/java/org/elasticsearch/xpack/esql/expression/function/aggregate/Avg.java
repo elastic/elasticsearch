@@ -130,8 +130,8 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
             return new Div(
                 s,
-                new Sum(s, field, filter(), window(), summationMode).surrogate(configuration),
-                new Count(s, field, filter(), window()).surrogate(configuration)
+                new Sum(s, field, filter(), window(), summationMode).surrogate(ctx),
+                new Count(s, field, filter(), window()).surrogate(ctx)
             );
         }
         if (field.dataType() == EXPONENTIAL_HISTOGRAM) {

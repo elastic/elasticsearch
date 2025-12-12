@@ -30,6 +30,6 @@ public final class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionR
 
     @Override
     protected Expression rule(Case c, LogicalOptimizerContext ctx) {
-        return c.partiallyFold(ctx.foldCtx());
+        return c.partiallyFold(ctx);
     }
 }

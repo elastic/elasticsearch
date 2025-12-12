@@ -182,7 +182,7 @@ public class RoundTo extends EsqlScalarFunction {
 
         ExpressionEvaluator.Factory field = toEvaluator.apply(field());
         field = Cast.cast(source(), field().dataType(), dataType, field);
-        List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator.foldCtx(), p)));
+        List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator, p)));
         List<Object> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
         return build.build(source(), field, sortedPoints);
     }

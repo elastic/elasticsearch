@@ -12,8 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -105,7 +105,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
         } else if (child instanceof Join join) {
-            return pushDownPastJoin(filter, join, ctx.foldCtx());
+            return pushDownPastJoin(filter, join, ctx);
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;
@@ -160,7 +160,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         return new ScopedFilter(leftFilters, bothSides, rightFilters);
     }
 
-    private static LogicalPlan pushDownPastJoin(Filter filter, Join join, FoldContext foldCtx) {
+    private static LogicalPlan pushDownPastJoin(Filter filter, Join join, ExpressionContext ctx) {
         LogicalPlan plan = filter;
         // pushdown only through LEFT joins
         // TODO: generalize this for other join types
@@ -193,7 +193,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // In the future, this optimization can apply to other types of joins as well such as InlineJoin
             // but for now we limit it to LEFT joins only, till filters are supported for other join types
             if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false) {
-                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
+                List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, ctx);
                 if (rightPushableFilters.isEmpty() == false) {
                     if (join.right() instanceof Filter existingRightFilter) {
                         // merge the unique AND filter components from rightPushableFilters and existingRightFilter.condition()
@@ -250,8 +250,8 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
     /**
      * Builds the right pushable filters for the given expressions.
      */
-    private static List<Expression> buildRightPushableFilters(List<Expression> expressions, FoldContext foldCtx) {
-        return expressions.stream().filter(x -> isRightPushableFilter(x, foldCtx)).toList();
+    private static List<Expression> buildRightPushableFilters(List<Expression> expressions, ExpressionContext ctx) {
+        return expressions.stream().filter(x -> isRightPushableFilter(x, ctx)).toList();
     }
 
     /**
@@ -264,7 +264,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
      * In this context pushable means that we can push the filter down to the right side of a LEFT join
      * We do not check if the filter is pushable to Lucene or not here
      */
-    private static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
+    private static boolean isRightPushableFilter(Expression filter, ExpressionContext ctx) {
         // traverse the filter tree
         // replace any reference to an attribute with a null literal
         Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, r.dataType()));
@@ -273,7 +273,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         // pushable WHERE field > 1 (evaluates to null), WHERE field is NOT NULL (evaluates to false)
         // not pushable WHERE field is NULL (evaluates to true), WHERE coalesce(field, 10) == 10 (evaluates to true)
         if (nullifiedFilter.foldable()) {
-            Object folded = nullifiedFilter.fold(foldCtx);
+            Object folded = nullifiedFilter.fold(ctx);
             return folded == null || Boolean.FALSE.equals(folded);
         }
         return false;

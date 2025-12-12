@@ -51,7 +51,7 @@ public final class SubstituteSurrogateAggregations extends OptimizerRules.Parame
         // first pass to check existing aggregates (to avoid duplication and alias waste)
         for (NamedExpression agg : aggs) {
             if (Alias.unwrap(agg) instanceof AggregateFunction af) {
-                if ((af instanceof SurrogateExpression se && se.surrogate(context.configuration()) != null) == false) {
+                if ((af instanceof SurrogateExpression se && se.surrogate(context) != null) == false) {
                     aggFuncToAttr.put(af, agg.toAttribute());
                 }
             }
@@ -61,9 +61,9 @@ public final class SubstituteSurrogateAggregations extends OptimizerRules.Parame
         // 0. check list of surrogate expressions
         for (NamedExpression agg : aggs) {
             Expression e = Alias.unwrap(agg);
-            if (e instanceof SurrogateExpression sf && sf.surrogate(context.configuration()) != null) {
+            if (e instanceof SurrogateExpression sf && sf.surrogate(context) != null) {
                 changed = true;
-                Expression s = sf.surrogate(context.configuration());
+                Expression s = sf.surrogate(context);
 
                 // if the expression is NOT a 1:1 replacement need to add an eval
                 if (s instanceof AggregateFunction == false) {

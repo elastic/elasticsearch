@@ -24,7 +24,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -33,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunct
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
@@ -55,10 +53,10 @@ public class InferenceFunctionEvaluator {
      * Creates a new inference function evaluator with a custom operator provider.
      * This constructor is primarily used for testing to inject mock operator providers.
      *
-     * @param foldContext               the fold context containing circuit breakers and evaluation settings
+     * @param ctx               the expression context containing circuit breakers and evaluation settings
      * @param inferenceOperatorProvider custom provider for creating inference operators
      */
-    InferenceFunctionEvaluator(FoldContext foldContext, InferenceOperatorProvider inferenceOperatorProvider) {
+    InferenceFunctionEvaluator(ExpressionContext ctx, InferenceOperatorProvider inferenceOperatorProvider) {
         this.inferenceOperatorProvider = inferenceOperatorProvider;
     }
 
@@ -196,7 +194,7 @@ public class InferenceFunctionEvaluator {
         /**
          * Creates a new inference function evaluator.
          *
-         * @param foldContext      the fold context
+         * @param ctx              the expression context
          * @param inferenceService the inference service
          * @return a new instance of {@link InferenceFunctionEvaluator}
          */
@@ -207,11 +205,7 @@ public class InferenceFunctionEvaluator {
         /**
          * Creates an {@link InferenceOperatorProvider} that can produce operators for all supported inference functions.
          */
-        private InferenceOperatorProvider createInferenceOperatorProvider(
-            Configuration configuration,
-            ExpressionContext ctx,
-            InferenceService inferenceService
-        ) {
+        private InferenceOperatorProvider createInferenceOperatorProvider(ExpressionContext ctx, InferenceService inferenceService) {
             return (inferenceFunction, driverContext) -> {
                 Operator.OperatorFactory operatorFactory = switch (inferenceFunction) {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
@@ -252,7 +246,7 @@ public class InferenceFunctionEvaluator {
          */
         private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, ExpressionContext ctx) {
             assert e.foldable() : "Input expression must be foldable";
-            return EvalMapper.toEvaluator(ctx.configuration(), ctx.foldContext(), Literal.of(ctx, e), null);
+            return EvalMapper.toEvaluator(ctx, Literal.of(ctx, e), null);
         }
     }
 }

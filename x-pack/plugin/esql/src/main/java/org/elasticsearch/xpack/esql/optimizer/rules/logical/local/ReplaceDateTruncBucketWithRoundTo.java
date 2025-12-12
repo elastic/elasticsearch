@@ -13,8 +13,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -68,6 +68,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         Expression roundTo = null;
         if (e instanceof DateTrunc dateTrunc) {
             roundTo = maybeSubstituteWithRoundTo(
+                context,
                 dateTrunc.source(),
                 dateTrunc.field(),
                 dateTrunc.interval(),
@@ -82,18 +83,20 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
             );
         } else if (e instanceof Bucket bucket) {
             roundTo = maybeSubstituteWithRoundTo(
+                context,
                 bucket.source(),
                 bucket.field(),
                 bucket.buckets(),
                 context.searchStats(),
                 eval,
-                (interval, minValue, maxValue) -> bucket.getDateRounding(context.configuration(), FoldContext.small(), minValue, maxValue)
+                (interval, minValue, maxValue) -> bucket.getDateRounding(context, minValue, maxValue)
             );
         }
         return roundTo != null ? roundTo : e;
     }
 
     private RoundTo maybeSubstituteWithRoundTo(
+        ExpressionContext ctx,
         Source source,
         Expression field,
         Expression foldableTimeExpression,
@@ -122,7 +125,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
             }
             // If min/max is available create rounding with them
             if (min != null && max != null && foldableTimeExpression.foldable() && min <= max) {
-                Object foldedInterval = foldableTimeExpression.fold(FoldContext.small() /* TODO remove me */);
+                Object foldedInterval = foldableTimeExpression.fold(ctx);
                 Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, min, max);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
                 if (roundingPoints == null) {

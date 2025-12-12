@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -77,10 +77,10 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewrite(ctx.foldCtx(), filterExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags()));
+            plan = rewrite(ctx, filterExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags()));
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec esQueryExec) {
             plan = rewriteBySplittingFilter(
-                ctx.foldCtx(),
+                ctx,
                 filterExec,
                 evalExec,
                 esQueryExec,
@@ -92,7 +92,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     }
 
     private FilterExec rewrite(
-        FoldContext ctx,
+        ExpressionContext ctx,
         FilterExec filterExec,
         EsQueryExec esQueryExec,
         LucenePushdownPredicates lucenePushdownPredicates
@@ -133,7 +133,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
      * </pre>
      */
     private PhysicalPlan rewriteBySplittingFilter(
-        FoldContext ctx,
+        ExpressionContext ctx,
         FilterExec filterExec,
         EvalExec evalExec,
         EsQueryExec esQueryExec,
@@ -197,7 +197,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         return distances;
     }
 
-    private Expression rewriteDistanceFilters(FoldContext ctx, Expression expr, Map<NameId, StDistance> distances) {
+    private Expression rewriteDistanceFilters(ExpressionContext ctx, Expression expr, Map<NameId, StDistance> distances) {
         return expr.transformDown(EsqlBinaryComparison.class, comparison -> {
             ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
             if (comparison.left() instanceof ReferenceAttribute r && distances.containsKey(r.id()) && comparison.right().foldable()) {
@@ -214,7 +214,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     }
 
     private Expression rewriteComparison(
-        FoldContext ctx,
+        ExpressionContext ctx,
         EsqlBinaryComparison comparison,
         StDistance dist,
         Expression literal,
@@ -232,7 +232,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     }
 
     private Expression rewriteDistanceFilter(
-        FoldContext ctx,
+        ExpressionContext ctx,
         EsqlBinaryComparison comparison,
         Expression spatialExp,
         Expression literalExp,

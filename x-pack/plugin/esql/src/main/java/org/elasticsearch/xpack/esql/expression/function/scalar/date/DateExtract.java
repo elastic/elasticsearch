@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -124,7 +124,7 @@ public class DateExtract extends EsqlScalarFunction implements ConfigurationFunc
 
         // Constant chrono field
         if (children().get(0).foldable()) {
-            ChronoField chrono = chronoField(toEvaluator.foldCtx());
+            ChronoField chrono = chronoField(toEvaluator);
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(0).fold(toEvaluator);
                 throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
@@ -147,7 +147,7 @@ public class DateExtract extends EsqlScalarFunction implements ConfigurationFunc
 
     }
 
-    private ChronoField chronoField(FoldContext ctx) {
+    private ChronoField chronoField(ExpressionContext ctx) {
         // chronoField’s never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
         // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {

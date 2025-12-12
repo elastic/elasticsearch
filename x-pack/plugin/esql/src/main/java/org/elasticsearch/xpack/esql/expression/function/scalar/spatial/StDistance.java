@@ -291,9 +291,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (right().foldable()) {
-            return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(toEvaluator.foldCtx(), right()), leftDocValues);
+            return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(toEvaluator, right()), leftDocValues);
         } else if (left().foldable()) {
-            return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(toEvaluator.foldCtx(), left()), rightDocValues);
+            return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(toEvaluator, left()), rightDocValues);
         } else {
             EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
             EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());

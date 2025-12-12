@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -295,20 +294,13 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tbucket");
                     }
-                    Bucket bucket = (Bucket) tbucket.surrogate(context.configuration());
+                    Bucket bucket = (Bucket) tbucket.surrogate(context);
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                 } else if (child instanceof DateTrunc dateTrunc && dateTrunc.field().equals(timestamp.get())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
-                    Bucket bucket = new Bucket(
-                        dateTrunc.source(),
-                        dateTrunc.field(),
-                        dateTrunc.interval(),
-                        null,
-                        null,
-                        dateTrunc.configuration()
-                    );
+                    Bucket bucket = new Bucket(dateTrunc.source(), dateTrunc.field(), dateTrunc.interval(), null, null);
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                 }
             }
@@ -365,7 +357,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             mergeExpressions(firstPassAggs, firstPassGroupings),
             (Bucket) Alias.unwrap(timeBucket)
         );
-        checkWindow(firstPhase);
+        checkWindow(context, firstPhase);
         if (packDimensions.isEmpty()) {
             return new Aggregate(
                 firstPhase.source(),
@@ -444,7 +436,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
     }
 
-    void checkWindow(TimeSeriesAggregate agg) {
+    void checkWindow(LogicalOptimizerContext context, TimeSeriesAggregate agg) {
         boolean hasWindow = false;
         for (NamedExpression aggregate : agg.aggregates()) {
             if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
@@ -455,7 +447,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         if (hasWindow == false) {
             return;
         }
-        final long bucketInMillis = getTimeBucketInMillis(agg);
+        final long bucketInMillis = getTimeBucketInMillis(context, agg);
         if (bucketInMillis <= 0) {
             throw new EsqlIllegalArgumentException(
                 "Using a window in aggregation [{}] requires a time bucket in groupings",
@@ -465,7 +457,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         for (NamedExpression aggregate : agg.aggregates()) {
             if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
                 Expression window = af.window();
-                if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
+                if (window.foldable() && window.fold(context) instanceof Duration d) {
                     final long windowInMills = d.toMillis();
                     if (windowInMills >= bucketInMillis && windowInMills % bucketInMillis == 0) {
                         continue;
@@ -482,9 +474,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
     }
 
-    private long getTimeBucketInMillis(TimeSeriesAggregate agg) {
+    private long getTimeBucketInMillis(LogicalOptimizerContext context, TimeSeriesAggregate agg) {
         final Bucket bucket = agg.timeBucket();
-        if (bucket != null && bucket.buckets().foldable() && bucket.buckets().fold(FoldContext.small()) instanceof Duration d) {
+        if (bucket != null && bucket.buckets().foldable() && bucket.buckets().fold(context) instanceof Duration d) {
             return d.toMillis();
         }
         return -1L;

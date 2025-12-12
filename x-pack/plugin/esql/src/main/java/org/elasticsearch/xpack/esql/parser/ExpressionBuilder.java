@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -891,7 +890,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         EsqlBaseParser.StringContext sctx = ctx.string();
         if (sctx != null) {
             Literal lit = visitString(sctx);
-            return BytesRefs.toString(lit.fold(FoldContext.small()));
+            return BytesRefs.toString(lit.value());
         }
         EsqlBaseParser.ParameterContext pctx = ctx.parameter();
         if (pctx != null) {
@@ -972,7 +971,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 //
                 DataType type = lit.dataType();
                 if (type == KEYWORD) {
-                    return BytesRefs.toString(lit.fold(FoldContext.small()));
+                    return BytesRefs.toString(lit.value());
                 }
                 context.params()
                     .addParsingError(

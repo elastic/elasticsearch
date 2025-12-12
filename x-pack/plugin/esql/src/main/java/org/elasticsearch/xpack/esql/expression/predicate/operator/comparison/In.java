@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -481,7 +480,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         return translate(ctx, pushdownPredicates, handler);
     }
 
-    private Query translate(Configuration configuration, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+    private Query translate(ExpressionContext ctx, LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         logger.trace("Attempting to generate lucene query for IN expression");
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
 
@@ -494,7 +493,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:
                     // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = handler.asQuery(configuration, pushdownPredicates, new Equals(source(), value(), rhs));
+                    Query query = handler.asQuery(ctx, pushdownPredicates, new Equals(source(), value(), rhs));
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());

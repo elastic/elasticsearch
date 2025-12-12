@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -20,6 +21,6 @@ public record LogicalPreOptimizerContext(
     FoldContext foldCtx,
     InferenceService inferenceService,
     TransportVersion minimumVersion
-) {
+) implements ExpressionContext {
 
 }

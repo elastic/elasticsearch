@@ -230,10 +230,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
         return p -> {
             Source source = source(ctx);
-            FoldContext patternFoldContext = FoldContext.small(); /* TODO remove me */
             List<String> patterns = ctx.string()
                 .stream()
-                .map(stringContext -> BytesRefs.toString(visitString(stringContext).fold(patternFoldContext)))
+                .map(stringContext -> BytesRefs.toString(visitString(stringContext).value()))
                 .toList();
 
             for (int i = 0; i < patterns.size(); i++) {
@@ -288,7 +287,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
-            String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
+            String pattern = BytesRefs.toString(visitString(ctx.string()).value());
             Map<String, Object> options = visitDissectCommandOptions(ctx.dissectCommandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {

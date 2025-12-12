@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -48,7 +48,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.child() instanceof Limit childLimit) {
-            return combineLimits(limit, childLimit, ctx.foldCtx());
+            return combineLimits(limit, childLimit, ctx);
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof InferencePlan<?>) {
                 if (false == local && unary instanceof Eval && evalAliasNeedsData((Eval) unary)) {
@@ -76,8 +76,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             else {
                 Limit descendantLimit = descendantLimit(unary);
                 if (descendantLimit != null) {
-                    var l1 = (int) limit.limit().fold(ctx.foldCtx());
-                    var l2 = (int) descendantLimit.limit().fold(ctx.foldCtx());
+                    var l1 = (int) limit.limit().fold(ctx);
+                    var l2 = (int) descendantLimit.limit().fold(ctx);
                     if (l2 <= l1) {
                         return limit.withLimit(descendantLimit.limit());
                     }
@@ -97,7 +97,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         return limit;
     }
 
-    private static Limit combineLimits(Limit upper, Limit lower, FoldContext ctx) {
+    private static Limit combineLimits(Limit upper, Limit lower, ExpressionContext ctx) {
         // Keep the smallest limit
         var upperLimitValue = (int) upper.limit().fold(ctx);
         var lowerLimitValue = (int) lower.limit().fold(ctx);

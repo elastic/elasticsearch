@@ -15,7 +15,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -143,11 +143,11 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return timeBucket;
     }
 
-    public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
+    public Rounding.Prepared timeBucketRounding(ExpressionContext ctx) {
         if (timeBucket == null) {
             return null;
         }
-        Rounding.Prepared rounding = timeBucket.getDateRoundingOrNull(foldContext);
+        Rounding.Prepared rounding = timeBucket.getDateRoundingOrNull(ctx);
         if (rounding == null) {
             throw new EsqlIllegalArgumentException("expected TBUCKET; got ", timeBucket);
         }

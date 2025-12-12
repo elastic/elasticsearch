@@ -15,13 +15,12 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
@@ -32,8 +31,7 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
 
     @Override
     public final ExpressionEvaluator.Factory map(
-        Configuration configuration,
-        FoldContext foldCtx,
+        ExpressionContext ctx,
         InsensitiveEquals bc,
         Layout layout,
         IndexedByShardId<? extends ShardContext> shardContexts
@@ -41,11 +39,11 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         DataType leftType = bc.left().dataType();
         DataType rightType = bc.right().dataType();
 
-        var leftEval = toEvaluator(configuration, foldCtx, bc.left(), layout, shardContexts);
-        var rightEval = toEvaluator(configuration, foldCtx, bc.right(), layout, shardContexts);
+        var leftEval = toEvaluator(ctx, bc.left(), layout, shardContexts);
+        var rightEval = toEvaluator(ctx, bc.right(), layout, shardContexts);
         if (DataType.isString(leftType)) {
             if (bc.right().foldable() && DataType.isString(rightType)) {
-                BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(foldCtx));
+                BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(ctx));
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
                 return dvrCtx -> new InsensitiveEqualsConstantEvaluator(
                     bc.source(),

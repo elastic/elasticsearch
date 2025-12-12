@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
 public class SpatialRelatesUtils {
 
     /** Converts a {@link Expression} into a {@link Long}. */
-    static Long asLong(FoldContext ctx, Expression expression) {
+    static Long asLong(ExpressionContext ctx, Expression expression) {
         Object value = valueOf(ctx, expression);
         if (value instanceof Long longValue) {
             return longValue;

@@ -19,7 +19,7 @@ public final class SkipQueryOnLimitZero extends OptimizerRules.ParameterizedOpti
     @Override
     protected LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.limit().foldable()) {
-            if (Integer.valueOf(0).equals((limit.limit().fold(ctx.foldCtx())))) {
+            if (Integer.valueOf(0).equals((limit.limit().fold(ctx)))) {
                 return PruneEmptyPlans.skipPlan(limit);
             }
         }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 /**
  * Replace {@link SurrogateExpression}s with their {@link SurrogateExpression#surrogate surrogates}.
@@ -23,15 +22,8 @@ public final class SubstituteSurrogateExpressions extends OptimizerRules.Optimiz
 
     @Override
     protected Expression rule(Expression e, LogicalOptimizerContext ctx) {
-        return rule(e, ctx.configuration());
-    }
-
-    /**
-     * Perform the actual substitution.
-     */
-    public static Expression rule(Expression e, Configuration configuration) {
         if (e instanceof SurrogateExpression s) {
-            Expression surrogate = s.surrogate(configuration);
+            Expression surrogate = s.surrogate(ctx);
             if (surrogate != null) {
                 return surrogate;
             }

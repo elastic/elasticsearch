@@ -28,7 +28,7 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
     protected LogicalPlan rule(Row row, LogicalOptimizerContext context) {
         var fields = row.fields();
         List<Object> values = new ArrayList<>(fields.size());
-        fields.forEach(f -> values.add(f.child().fold(context.foldCtx())));
+        fields.forEach(f -> values.add(f.child().fold(context)));
         var blocks = BlockUtils.fromListRow(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
         return new LocalRelation(row.source(), row.output(), LocalSupplier.of(blocks.length == 0 ? new Page(0) : new Page(blocks)));
     }

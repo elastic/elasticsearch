@@ -77,8 +77,8 @@ public class PushDownAndCombineSample extends OptimizerRules.ParameterizedOptimi
     }
 
     private static Expression combinedProbability(LogicalOptimizerContext context, Sample parent, Sample child) {
-        var parentProbability = (double) Foldables.valueOf(context.foldCtx(), parent.probability());
-        var childProbability = (double) Foldables.valueOf(context.foldCtx(), child.probability());
+        var parentProbability = (double) Foldables.valueOf(context, parent.probability());
+        var childProbability = (double) Foldables.valueOf(context, child.probability());
         return Literal.of(parent.probability(), parentProbability * childProbability);
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -59,19 +60,21 @@ final class ResponseXContentUtils {
         List<ColumnInfoImpl> columns,
         List<Page> pages,
         boolean columnar,
-        boolean[] nullColumns
+        boolean[] nullColumns,
+        ZoneId queryZoneId
     ) {
         if (pages.isEmpty()) {
             return Collections.emptyIterator();
         } else if (columnar) {
-            return columnarValues(columns, pages, nullColumns);
+            return columnarValues(columns, pages, nullColumns, queryZoneId);
         } else {
-            return rowValues(columns, pages, nullColumns);
+            return rowValues(columns, pages, nullColumns, queryZoneId);
         }
     }
 
     /** Returns a columnar based representation of the values in the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> columnarValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns) {
+    static Iterator<? extends ToXContent> columnarValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns,
+                                                         ZoneId queryZoneId) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(Iterators.forRange(0, columns.size(), column -> {
             if (nullColumns != null && nullColumns[column]) {
@@ -83,6 +86,7 @@ final class ResponseXContentUtils {
                     PositionToXContent toXContent = PositionToXContent.positionToXContent(
                         columns.get(column),
                         page.getBlock(column),
+                        queryZoneId,
                         scratch
                     );
                     return Iterators.forRange(
@@ -97,7 +101,8 @@ final class ResponseXContentUtils {
     }
 
     /** Returns a row based representation of the values in the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns) {
+    static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns,
+                                                    ZoneId queryZoneId) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(pages.iterator(), page -> {
             final int columnCount = columns.size();
@@ -105,7 +110,7 @@ final class ResponseXContentUtils {
             final PositionToXContent[] toXContents = new PositionToXContent[columnCount];
             for (int column = 0; column < columnCount; column++) {
                 Block block = page.getBlock(column);
-                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, scratch);
+                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, queryZoneId, scratch);
             }
             return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                 builder.startArray();

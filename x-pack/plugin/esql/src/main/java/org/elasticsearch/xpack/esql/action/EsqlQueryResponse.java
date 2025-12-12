@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -51,6 +53,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     );
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
     private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
+    private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -69,6 +72,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final long startTimeMillis;
     private final long expirationTimeMillis;
 
+    private final ZoneId queryZoneId;
+
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -81,6 +86,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean isAsync,
         long startTimeMillis,
         long expirationTimeMillis,
+        ZoneId queryZoneId,
         EsqlExecutionInfo executionInfo
     ) {
         this.columns = columns;
@@ -94,6 +100,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.isAsync = isAsync;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
+        this.queryZoneId = queryZoneId;
         this.executionInfo = executionInfo;
     }
 
@@ -107,6 +114,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean isAsync,
         long startTimeMillis,
         long expirationTimeMillis,
+        ZoneId queryZoneId,
         EsqlExecutionInfo executionInfo
     ) {
         this(
@@ -121,6 +129,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isAsync,
             startTimeMillis,
             expirationTimeMillis,
+            queryZoneId,
             executionInfo
         );
     }
@@ -154,6 +163,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             expirationTimeMillis = in.readLong();
         }
 
+        ZoneId queryZoneId = ZoneOffset.UTC;
+        if (in.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
+            queryZoneId = in.readZoneId();
+        }
+
         EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         return new EsqlQueryResponse(
             columns,
@@ -167,6 +181,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isAsync,
             startTimeMillis,
             expirationTimeMillis,
+            queryZoneId,
             executionInfo
         );
     }
@@ -188,6 +203,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (out.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
             out.writeLong(startTimeMillis);
             out.writeLong(expirationTimeMillis);
+        }
+
+        if (out.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
+            out.writeZoneId(queryZoneId);
         }
 
         out.writeOptionalWriteable(executionInfo);
@@ -315,7 +334,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ResponseXContentUtils.allColumns(columns, "columns"));
         }
         content.add(
-            ChunkedToXContentHelper.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns))
+            ChunkedToXContentHelper.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns, queryZoneId))
         );
         if (executionInfo != null && executionInfo.hasMetadataToReport()) {
             content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));

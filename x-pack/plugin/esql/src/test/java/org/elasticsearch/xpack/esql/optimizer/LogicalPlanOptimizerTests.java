@@ -8058,7 +8058,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS sum(rate(network.total_bytes_in, 1m)) BY TBUCKET(5m)
                 | LIMIT 10
                 """;
-            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
             });
             assertThat(
@@ -8077,7 +8077,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
             });
             assertThat(
@@ -8093,7 +8093,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute))
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
             });
             assertThat(

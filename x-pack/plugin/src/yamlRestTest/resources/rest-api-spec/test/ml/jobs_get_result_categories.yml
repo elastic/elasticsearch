@@ -128,7 +128,7 @@ setup:
   - do:
       ml.get_categories:
         job_id: "jobs-get-result-categories"
-        category_id: "1"
+        category_id: 1
 
   - length: { categories: 1 }
   - match: { categories.0.job_id: jobs-get-result-categories }

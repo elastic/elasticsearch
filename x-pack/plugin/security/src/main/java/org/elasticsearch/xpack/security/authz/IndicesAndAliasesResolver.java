@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -569,9 +570,15 @@ class IndicesAndAliasesResolver {
                 + replaceable.getClass().getName()
                 + "]";
             logger.debug(message);
-            // we are excepting `*,-*` below since we've observed this already -- keeping this assertion to catch other cases
-            // If more exceptions are found, we can add a comment to above linked issue and relax this check further
-            // assert replaceable.indices() == null || isNoneExpression(replaceable.indices()) : message;
+            // Double authorization and hence index resolution can happen first in ServerTransportFilter and then in SecurityActionFilter.
+            // This cannot happen on the coordinating node since it does not involve ServerTransportFilter. Therefore, there should be no
+            // remote indices.
+            assert replaceable.getResolvedIndexExpressions().getRemoteIndicesList().isEmpty() && resolved.getRemoteIndicesList().isEmpty()
+                : message;
+            // Since the first resolution expands all wildcards, the second resolution is performed against concrete names.
+            // As a result, the resolved indices from the second resolution must be identical (most likely) or a subset of the
+            // resolved indices from the first resolution if the user's role changes in between the two authorizations.
+            assert replaceable.getResolvedIndexExpressions().getLocalIndicesList().containsAll(resolved.getLocalIndicesList()) : message;
         }
     }
 
@@ -708,11 +715,12 @@ class IndicesAndAliasesResolver {
 
         @Override
         public void updateLinkedProject(LinkedProjectConfig config) {
-            if (config.isConnectionEnabled()) {
-                clusters.add(config.linkedProjectAlias());
-            } else {
-                clusters.remove(config.linkedProjectAlias());
-            }
+            clusters.add(config.linkedProjectAlias());
+        }
+
+        @Override
+        public void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+            clusters.remove(linkedProjectAlias);
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {

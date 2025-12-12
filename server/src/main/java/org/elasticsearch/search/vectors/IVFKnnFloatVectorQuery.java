@@ -29,12 +29,13 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
-     * @param field the field to search
-     * @param query the query vector
-     * @param k the number of nearest neighbors to return
-     * @param numCands the number of nearest neighbors to gather per shard
-     * @param filter the filter to apply to the results
-     * @param visitRatio the ratio of vectors to score for the IVF search strategy
+     *
+     * @param field                  the field to search
+     * @param query                  the query vector
+     * @param k                      the number of nearest neighbors to return
+     * @param numCands               the number of nearest neighbors to gather per shard
+     * @param filter                 the filter to apply to the results
+     * @param visitRatio             the ratio of vectors to score for the IVF search strategy
      * @param postFilteringThreshold the dynamic post filter transform value
      */
     public IVFKnnFloatVectorQuery(
@@ -114,7 +115,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         final AbstractMaxScoreKnnCollector knnCollector;
         if (applyPostFilter) {
             float selectivity = (float) ((ESAcceptDocs.PostFilterEsAcceptDocs) filterDocs).approximateCost() / floatVectorValues.size();
-            int postFilterOverSampling = Math.round(1 + (3 * (1 - selectivity) * k));
+            // Oversample by (1 + (3 * (1 - selectivity))) * k to account for filtering
+            int postFilterOverSampling = Math.round((1 + 3 * (1 - selectivity)) * k);
             knnCollector = knnCollectorManager.newOptimisticCollector(visitedLimit, strategy, context, postFilterOverSampling);
         } else {
             knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);

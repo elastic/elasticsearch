@@ -37,6 +37,8 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -212,22 +214,30 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         throws IOException {
         TopDocs results = approximateSearch(context, filterDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
-        int deduplicateCount = 0;
-        for (ScoreDoc scoreDoc : results.scoreDocs) {
-            if (dedup.add(scoreDoc.doc)) {
-                deduplicateCount++;
-            }
+        ScoreDoc[] scoreDocs = results.scoreDocs;
+
+        boolean postFilter = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs;
+        var iterator = postFilter ? filterDocs.iterator() : null;
+        if (postFilter) {
+            Arrays.sort(scoreDocs, Comparator.comparingInt(x -> x.doc));
         }
-        var iterator = filterDocs instanceof ESAcceptDocs.PostFilterEsAcceptDocs ? filterDocs.iterator() : null;
-        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[deduplicateCount];
-        dedup.clear();
-        int index = 0;
-        for (ScoreDoc scoreDoc : results.scoreDocs) {
-            if (dedup.add(scoreDoc.doc) && accepted(iterator, scoreDoc.doc)) {
+
+        int writeIndex = 0;
+        for (ScoreDoc scoreDoc : scoreDocs) {
+            if (dedup.add(scoreDoc.doc) && (false == postFilter || accepted(iterator, scoreDoc.doc))) {
                 scoreDoc.doc += context.docBase;
-                deduplicatedScoreDocs[index++] = scoreDoc;
+                scoreDocs[writeIndex++] = scoreDoc;
             }
         }
+
+        if (postFilter) {
+            Arrays.sort(scoreDocs, 0, writeIndex, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
+            writeIndex = Math.min(k, writeIndex);
+        }
+
+        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[writeIndex];
+        System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, writeIndex);
+
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 

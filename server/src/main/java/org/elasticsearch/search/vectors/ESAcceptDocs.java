@@ -269,8 +269,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public int cost() throws IOException {
-            // TODO: should we return 0 or maxDoc ?
-            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support computing exact cost");
+            return 0;
         }
 
         @Override
@@ -280,7 +279,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
         @Override
         public Optional<BitSet> getBitSet() throws IOException {
-            throw new UnsupportedOperationException("[PostFilterEsAcceptDocs] does not support BitSet creation");
+            return null;
         }
     }
 }

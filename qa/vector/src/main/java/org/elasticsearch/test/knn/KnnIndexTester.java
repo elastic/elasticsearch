@@ -386,15 +386,11 @@ public class KnnIndexTester {
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
-                String method = "eager";
-                if (queryResult.postFilteringThreshold > 0.5f) {
-                    if (queryResult.filterSelectivity > 0.85f) {
-                        method = "post-filtering (>=85%)";
-                    } else if (queryResult.filterSelectivity > 0.3f) {
-                        method = "lazy-evaluation (>=30%)";
-                    } else {
-                        method = "eager";
-                    }
+                final String method;
+                if (queryResult.postFilteringThreshold < queryResult.filterSelectivity) {
+                    method = "post-filtering";
+                } else {
+                    method = "eager";
                 }
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
@@ -410,7 +406,7 @@ public class KnnIndexTester {
                     method,
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
-                    String.format(queryResult.postFilteringThreshold >= .5f ? "candidate" : "baseline") };
+                    String.format(queryResult.postFilteringThreshold < .5f ? "candidate" : "baseline") };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);

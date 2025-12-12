@@ -43,6 +43,8 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
         };
     }
 
+    // This behaviour is user facing and also implemented by the ES exporter in the EDOT collector
+    // Therefore be extra cautious and make sure to only add non-breaking changes here and keep the EDOT collector in sync
     public MappingHints withConfigFromAttributes(List<KeyValue> attributes) {
         for (int i = 0, attributesSize = attributes.size(); i < attributesSize; i++) {
             KeyValue attribute = attributes.get(i);

@@ -29,48 +29,48 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
     private final HashSet<String> validationErrors = new HashSet<>();
 
     public void testExponentialHistogramAsTDigest() {
-        DataPoint.ExponentialHistogram doubleGauge = new DataPoint.ExponentialHistogram(
+        DataPoint.ExponentialHistogram histogram = new DataPoint.ExponentialHistogram(
             ExponentialHistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
                 .setExponentialHistogram(ExponentialHistogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(doubleGauge.isValid(validationErrors), equalTo(true));
+        assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
+        assertThat(histogram.isValid(validationErrors), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
     public void testExponentialHistogramAsExponentialHistogram() {
-        DataPoint.ExponentialHistogram doubleGauge = new DataPoint.ExponentialHistogram(
+        DataPoint.ExponentialHistogram histogram = new DataPoint.ExponentialHistogram(
             ExponentialHistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
                 .setExponentialHistogram(ExponentialHistogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo("exponential_histogram"));
-        assertThat(doubleGauge.isValid(validationErrors), equalTo(true));
+        assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo("exponential_histogram"));
+        assertThat(histogram.isValid(validationErrors), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
     public void testExponentialHistogramMappingHint() {
-        DataPoint.ExponentialHistogram doubleGauge = new DataPoint.ExponentialHistogram(
+        DataPoint.ExponentialHistogram histogram = new DataPoint.ExponentialHistogram(
             ExponentialHistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
                 .setExponentialHistogram(ExponentialHistogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
         assertThat(
-            doubleGauge.getDynamicTemplate(
+            histogram.getDynamicTemplate(
                 MappingHints.DEFAULT_TDIGEST.withConfigFromAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
             ),
             equalTo("summary")
         );
-        assertThat(doubleGauge.isValid(validationErrors), equalTo(true));
+        assertThat(histogram.isValid(validationErrors), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
     public void testExponentialHistogramUnsupportedTemporality() {
-        DataPoint.ExponentialHistogram doubleGauge = new DataPoint.ExponentialHistogram(
+        DataPoint.ExponentialHistogram histogram = new DataPoint.ExponentialHistogram(
             ExponentialHistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
                 .setExponentialHistogram(
@@ -78,8 +78,8 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
                 )
                 .build()
         );
-        assertThat(doubleGauge.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(doubleGauge.isValid(validationErrors), equalTo(false));
+        assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
+        assertThat(histogram.isValid(validationErrors), equalTo(false));
         assertThat(validationErrors, contains(containsString("cumulative exponential histogram metrics are not supported")));
     }
 }

@@ -255,7 +255,9 @@ IP dimensions:
   - match: { .$idx0name.mappings.properties.metrics.properties.summary.type: 'aggregate_metric_double' }
   - match: { .$idx0name.mappings.properties.metrics.properties.summary_minmax.type: 'aggregate_metric_double' }
   - match: { .$idx0name.mappings.properties.metrics.properties.histogram.type: 'histogram' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.histogram.time_series_metric: 'histogram' }
   - match: { .$idx0name.mappings.properties.metrics.properties.exponential_histogram.type: 'exponential_histogram' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.exponential_histogram.time_series_metric: 'histogram' }
 ---
 Empty IP field:
   - do:

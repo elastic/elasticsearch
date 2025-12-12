@@ -26,6 +26,7 @@ template:
       - histogram:
           mapping:
             type: histogram
+            time_series_metric: histogram
             meta:
               unit: "{{unit}}"
       - exponential_histogram:

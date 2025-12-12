@@ -35,37 +35,28 @@ import java.util.stream.Collectors;
 
 public final class AmazonBedrockConverseUtils {
 
-    private static final String SYSTEM_ROLE = "system";
-    private static final String TOOL_ROLE = "tool";
-    private static final String ASSISTANT_ROLE = "assistant";
-    private static final String USER_ROLE = "user";
-    private static final String TEXT_CONTENT_TYPE = "text";
+    static final String SYSTEM_ROLE = "system";
+    static final String TOOL_ROLE = "tool";
+    static final String ASSISTANT_ROLE = "assistant";
+    static final String USER_ROLE = "user";
+    static final String TEXT_CONTENT_TYPE = "text";
+    static final String HI_TEXT = "Hi";
+    static final String PLEASE_CONTINUE_TEXT = "Please continue.";
 
-    private static final Message DEFAULT_ASSISTANT_MESSAGE = Message.builder()
+    static final Message DEFAULT_USER_MESSAGE = Message.builder()
         .role(ConversationRole.USER)
-        .content(ContentBlock.builder().text("Hi").build())
+        .content(ContentBlock.builder().text(HI_TEXT).build())
         .build();
 
-    private static final Message CONTINUE_ASSISTANT_MESSAGE = Message.builder()
+    static final Message CONTINUE_ASSISTANT_MESSAGE = Message.builder()
         .role(ConversationRole.ASSISTANT)
-        .content(ContentBlock.builder().text("Please continue.").build())
+        .content(ContentBlock.builder().text(PLEASE_CONTINUE_TEXT).build())
         .build();
 
     public static List<Message> getConverseMessageList(List<String> texts) {
         return texts.stream()
             .map(text -> ContentBlock.builder().text(text).build())
             .map(content -> Message.builder().role(USER_ROLE).content(content).build())
-            .toList();
-    }
-
-    public static List<Message> getUnifiedConverseMessageList(List<UnifiedCompletionRequest.Message> messages) {
-        return messages.stream()
-            .map(
-                message -> Message.builder()
-                    .role(message.role())
-                    .content(ContentBlock.builder().text(message.content().toString()).build())
-                    .build()
-            )
             .toList();
     }
 
@@ -123,7 +114,7 @@ public final class AmazonBedrockConverseUtils {
         // If this is the first message and it's an assistant, prepend a default user message
         // System messages are not of concern here and tool message are also just user messages
         if (messages.isEmpty() && message.role().equals(ConversationRole.ASSISTANT)) {
-            messages.add(DEFAULT_ASSISTANT_MESSAGE);
+            messages.add(DEFAULT_USER_MESSAGE);
         }
 
         // Check if we should consider merging (not first message and same role)

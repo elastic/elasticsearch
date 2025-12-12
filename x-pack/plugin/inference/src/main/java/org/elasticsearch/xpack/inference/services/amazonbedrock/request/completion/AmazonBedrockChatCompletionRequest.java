@@ -41,13 +41,13 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.c
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.toDocument;
 
 public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
-    private static final String AUTO_TOOL_CHOICE = "auto";
-    private static final String REQUIRED_TOOL_CHOICE = "required";
-    private static final String NONE_TOOL_CHOICE = "none";
-    private static final Set<String> VALID_TOOL_CHOICES = Set.of(AUTO_TOOL_CHOICE, REQUIRED_TOOL_CHOICE, NONE_TOOL_CHOICE);
-    private static final String FUNCTION_TYPE = "function";
+    static final String AUTO_TOOL_CHOICE = "auto";
+    static final String REQUIRED_TOOL_CHOICE = "required";
+    static final String NONE_TOOL_CHOICE = "none";
+    static final String FUNCTION_TYPE = "function";
 
-    public static final String USER_ROLE = "user";
+    private static final Set<String> VALID_TOOL_CHOICES = Set.of(AUTO_TOOL_CHOICE, REQUIRED_TOOL_CHOICE, NONE_TOOL_CHOICE);
+
     private final AmazonBedrockChatCompletionRequestEntity requestEntity;
     private final boolean stream;
 
@@ -106,7 +106,8 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         return determineToolChoice(toolChoice);
     }
 
-    private static ToolChoice.Builder determineToolChoice(@Nullable UnifiedCompletionRequest.ToolChoice toolChoice) {
+    // default for testing
+    static ToolChoice.Builder determineToolChoice(@Nullable UnifiedCompletionRequest.ToolChoice toolChoice) {
         // If a specific tool choice isn't provided, the chat completion schema (openai) defaults to "auto"
         if (toolChoice == null) {
             return ToolChoice.builder().auto(AutoToolChoice.builder().build());
@@ -126,7 +127,8 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         };
     }
 
-    private static List<Tool> convertTools(@Nullable List<UnifiedCompletionRequest.Tool> tools) {
+    // default for testing
+    static List<Tool> convertTools(@Nullable List<UnifiedCompletionRequest.Tool> tools) {
         if (tools == null || tools.isEmpty()) {
             return List.of();
         }
@@ -143,6 +145,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
             builtTools.add(
                 Tool.builder()
                     .toolSpec(
+                        // Bedrock does not use the strict field
                         ToolSpecification.builder()
                             .name(requestTool.function().name())
                             .description(requestTool.function().description())
@@ -156,7 +159,8 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         return builtTools;
     }
 
-    private static Map<String, Document> paramToDocumentMap(UnifiedCompletionRequest.Tool tool) {
+    // default for testing
+    static Map<String, Document> paramToDocumentMap(UnifiedCompletionRequest.Tool tool) {
         if (tool.function().parameters() == null) {
             return Map.of();
         }

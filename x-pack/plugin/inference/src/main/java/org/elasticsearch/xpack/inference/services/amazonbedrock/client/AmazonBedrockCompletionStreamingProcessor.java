@@ -15,11 +15,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 
 import java.util.ArrayDeque;
-import java.util.concurrent.Flow;
 
-class AmazonBedrockCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingChatCompletionResults.Results>
-    implements
-        Flow.Processor<ConverseStreamOutput, StreamingChatCompletionResults.Results> {
+class AmazonBedrockCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingChatCompletionResults.Results> {
     protected AmazonBedrockCompletionStreamingProcessor(ThreadPool threadPool) {
         super(threadPool);
     }

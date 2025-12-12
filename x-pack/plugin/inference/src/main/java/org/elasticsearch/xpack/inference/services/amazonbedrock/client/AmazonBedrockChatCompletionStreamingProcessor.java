@@ -26,13 +26,9 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 
 import java.util.ArrayDeque;
 import java.util.List;
-import java.util.concurrent.Flow;
 import java.util.stream.Stream;
 
-@SuppressWarnings("checkstyle:LineLength")
-class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingUnifiedChatCompletionResults.Results>
-    implements
-        Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
+class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreamingProcessor<StreamingUnifiedChatCompletionResults.Results> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockChatCompletionStreamingProcessor.class);
 
     protected AmazonBedrockChatCompletionStreamingProcessor(ThreadPool threadPool) {

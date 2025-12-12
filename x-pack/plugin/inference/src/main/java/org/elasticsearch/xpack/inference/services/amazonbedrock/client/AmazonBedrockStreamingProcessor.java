@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
@@ -22,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class AmazonBedrockStreamingProcessor<T> {
+abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<ConverseStreamOutput, T> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingProcessor.class);
 
     final AtomicReference<Throwable> error = new AtomicReference<>(null);
@@ -35,6 +37,7 @@ class AmazonBedrockStreamingProcessor<T> {
 
     volatile Flow.Subscriber<? super T> downstream;
 
+    @Override
     public void onSubscribe(Flow.Subscription subscription) {
         if (upstream == null) {
             upstream = subscription;
@@ -47,6 +50,7 @@ class AmazonBedrockStreamingProcessor<T> {
         }
     }
 
+    @Override
     public void subscribe(Flow.Subscriber<? super T> subscriber) {
         if (downstream == null) {
             downstream = subscriber;
@@ -56,6 +60,7 @@ class AmazonBedrockStreamingProcessor<T> {
         }
     }
 
+    @Override
     public void onError(Throwable amazonBedrockRuntimeException) {
         ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
         error.set(
@@ -73,6 +78,7 @@ class AmazonBedrockStreamingProcessor<T> {
         return demand.getAndUpdate(i -> 0L) > 0L;
     }
 
+    @Override
     public void onComplete() {
         if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onCompleteCalled.compareAndSet(false, true)) {
             downstream.onComplete();

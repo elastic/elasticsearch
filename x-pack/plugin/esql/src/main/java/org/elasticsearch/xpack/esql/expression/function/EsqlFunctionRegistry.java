@@ -639,14 +639,7 @@ public class EsqlFunctionRegistry {
             this.hint = hint;
         }
 
-        public ArgSignature(
-            String name,
-            String[] type,
-            String description,
-            boolean optional,
-            Hint hint,
-            boolean variadic
-        ) {
+        public ArgSignature(String name, String[] type, String description, boolean optional, Hint hint, boolean variadic) {
             this(name, type, description, optional, variadic, hint, UNSUPPORTED);
         }
 
@@ -842,20 +835,10 @@ public class EsqlFunctionRegistry {
         if (param.hint() != null && param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE) {
             Map<String, String> constraints = Arrays.stream(param.hint().constraints())
                 .collect(Collectors.toMap(Param.Hint.Constraint::name, Param.Hint.Constraint::value));
-            hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT),
-                constraints
-            );
+            hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
         }
 
-        return new EsqlFunctionRegistry.ArgSignature(
-            param.name(),
-            type,
-            desc,
-            param.optional(),
-            variadic,
-            hint,
-            targetDataType
-        );
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, hint, targetDataType);
     }
 
     public static ArgSignature mapParam(MapParam mapParam) {

@@ -140,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -209,11 +210,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveTable(),
+            new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
             new ResolveFunctions(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(),
+            new TimeSeriesGroupByAll()
         ),
         new Batch<>(
             "Resolution",
@@ -302,6 +305,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.source(),
                 esIndex.name(),
                 plan.indexMode(),
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
@@ -517,6 +522,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Insist i -> resolveInsist(i, childrenOutput, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput);
+                case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
         }
@@ -600,7 +606,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            return new Completion(p.source(), p.child(), p.inferenceId(), prompt, targetField);
+            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField);
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -1105,6 +1111,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
+        private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            LogicalPlan promqlPlan = promql.promqlPlan();
+            Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
+            // resolve the nested plan
+            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
+                // but also any unresolved expressions
+                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
+        }
+
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             return maybeResolveAttribute(ua, childrenOutput, log);
         }
@@ -1242,7 +1257,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
-            for (var ne : drop.removals()) {
+            for (NamedExpression ne : drop.removals()) {
                 List<? extends NamedExpression> resolved;
 
                 if (ne instanceof UnresolvedNamePattern np) {
@@ -2769,7 +2784,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Update the attributes referencing the updated UnionAll output
+         * Update the attributes referencing the updated UnionAll output.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -2780,6 +2795,45 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
             });
+        }
+    }
+
+    /**
+     * Prune branches of a UnionAll that resolve to empty subqueries.
+     * For example, given the following plan, the index resolution of 'remote:missingIndex' is EMPTY_SUBQUERY:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[remote:missingIndex]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     * The branch with EMPTY_SUBQUERY index resolution is pruned in the plan after the rule is applied:
+     * UnionAll[[]]
+     * |_EsRelation[test][...]
+     * \_Subquery[]
+     *   \_EsRelation[sample_data][...]
+     */
+    private static class PruneEmptyUnionAllBranch extends ParameterizedAnalyzerRule<UnionAll, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
+            Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
+            // check if any child is an UnresolvedRelation that resolves to an empty subquery
+            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+            for (LogicalPlan child : unionAll.children()) {
+                // check for UnresolvedRelation in the child plan tree
+                Holder<Boolean> isEmptySubquery = new Holder<>(Boolean.FALSE);
+                child.forEachUp(UnresolvedRelation.class, ur -> {
+                    IndexResolution resolution = indexResolutions.get(ur.indexPattern());
+                    if (resolution == IndexResolution.EMPTY_SUBQUERY) {
+                        isEmptySubquery.set(Boolean.TRUE);
+                    }
+                });
+                if (isEmptySubquery.get() == false) {
+                    newChildren.add(child);
+                }
+            }
+            return newChildren.size() == unionAll.children().size() ? unionAll : unionAll.replaceChildren(newChildren);
         }
     }
 }

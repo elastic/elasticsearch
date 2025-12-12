@@ -1,0 +1,5 @@
+pr: 138305
+summary: Fixing _rollup/data performance for a large number of indices
+area: Rollup
+type: bug
+issues: []

@@ -148,7 +148,7 @@ public final class Arithmetics {
         return l.intValue() % r.intValue();
     }
 
-    static Number negate(Number n) {
+    public static Number negate(Number n) {
         if (n == null) {
             return null;
         }

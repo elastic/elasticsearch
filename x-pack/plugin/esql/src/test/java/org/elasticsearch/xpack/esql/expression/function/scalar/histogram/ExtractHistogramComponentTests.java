@@ -13,12 +13,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,14 +25,6 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCase {
-
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when esql_exponential_histogram feature flag is enabled",
-            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
-        );
-    }
 
     public ExtractHistogramComponentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -61,7 +51,7 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                             return new TestCaseSupplier.TestCase(
                                 List.of(histogram, componentOrdinalSupplier.get()),
                                 "ExtractHistogramComponentEvaluator[field=Attribute[channel=0],component=" + component + "]",
-                                getExpectedDataTypeForComponent(component),
+                                DataType.DOUBLE,
                                 equalTo(getExpectedValue(histogram, component))
                             );
                         }
@@ -91,15 +81,8 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                 double max = value.max();
                 yield Double.isNaN(max) ? null : max;
             }
-            case SUM -> value.sum();
-            case COUNT -> value.valueCount();
-        };
-    }
-
-    private static DataType getExpectedDataTypeForComponent(ExponentialHistogramBlock.Component component) {
-        return switch (component) {
-            case MIN, MAX, SUM -> DataType.DOUBLE;
-            case COUNT -> DataType.LONG;
+            case SUM -> value.valueCount() > 0 ? value.sum() : null;
+            case COUNT -> (double) value.valueCount();
         };
     }
 

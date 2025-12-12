@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| field | options | result |
+| field | chunking_settings | result |
 | --- | --- | --- |
 | keyword | | keyword |
 | text | | keyword |

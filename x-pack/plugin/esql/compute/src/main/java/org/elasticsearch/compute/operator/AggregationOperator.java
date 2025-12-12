@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -227,9 +226,10 @@ public class AggregationOperator implements Operator {
 
         /**
          * Build.
-         * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
+         *
+         * @param aggregationNanos       Nanoseconds this operator has spent running the aggregations.
          * @param aggregationFinishNanos Nanoseconds this operator has spent running the aggregations.
-         * @param pagesProcessed Count of pages this operator has processed.
+         * @param pagesProcessed         Count of pages this operator has processed.
          */
         public Status(long aggregationNanos, long aggregationFinishNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
             this.aggregationNanos = aggregationNanos;
@@ -341,7 +341,7 @@ public class AggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

@@ -406,7 +406,7 @@ public class KnnIndexTester {
                     method,
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
-                    String.format(queryResult.postFilteringThreshold < .5f ? "candidate" : "baseline") };
+                    String.format(queryResult.postFilteringThreshold < 1f ? "candidate" : "baseline") };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);

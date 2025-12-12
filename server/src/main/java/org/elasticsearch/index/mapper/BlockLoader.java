@@ -201,10 +201,11 @@ public interface BlockLoader {
          * Attempts to read the values of all documents in {@code docs}
          * Returns {@code null} if unable to load the values.
          *
-         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field.
-         *                      see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
-         * @param toDouble      a function to convert long values to double, or null if no conversion is needed/supported
-         * @param toInt         whether to convert to int in case int block / vector is needed
+         * @param nullsFiltered  if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         * @param toDouble       a function to convert long values to double, or null if no conversion is needed/supported
+         * @param toInt          whether to convert to int in case int block / vector is needed
+         * @param binaryMultiValuedFormat whether the multi-valued binary format is used (CustomBinaryDocValuesField).
          */
         @Nullable
         BlockLoader.Block tryRead(
@@ -213,7 +214,8 @@ public interface BlockLoader {
             int offset,
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt
+            boolean toInt,
+            boolean binaryMultiValuedFormat
         ) throws IOException;
     }
 

@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -70,11 +69,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         this.scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
         this.fieldName = in.readOptionalString();
         if (in.readBoolean()) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                this.queryVector = in.readOptionalWriteable(VectorData::new);
-            } else {
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-            }
+            this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
             this.queryVector = null;
         }
@@ -113,11 +108,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         out.writeOptionalString(fieldName);
         if (queryVector != null) {
             out.writeBoolean(true);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(queryVector);
-            } else {
-                out.writeFloatArray(queryVector.asFloatVector());
-            }
+            out.writeOptionalWriteable(queryVector);
         } else {
             out.writeBoolean(false);
         }

@@ -87,7 +87,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
     private final double dateFactor;
-private final boolean prometheusExtrapolation = false;
+    private final boolean prometheusExtrapolation = false;
 
     public RateIntGroupingAggregatorFunction(
         List<Integer> channels,

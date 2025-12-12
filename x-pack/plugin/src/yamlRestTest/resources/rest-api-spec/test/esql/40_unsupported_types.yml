@@ -145,8 +145,8 @@ unsupported:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [dense_vector_agg_metric_double_if_version]
-      reason: "fetches dense_vector"
+          capabilities: [dense_vector_agg_metric_double_if_version, histogram_field_support_v0]
+      reason: "fetches dense_vector, histogram field support"
 
   - do:
       allowed_warnings_regex:
@@ -342,8 +342,8 @@ unsupported with sort:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ dense_vector_agg_metric_double_if_version ]
-      reason: "support for sorting when dense_vector_field_type present"
+          capabilities: [ dense_vector_agg_metric_double_if_version, histogram_field_support_v0]
+      reason: "support for sorting when dense_vector_field_type present, histogram field support"
 
   - do:
       allowed_warnings_regex:

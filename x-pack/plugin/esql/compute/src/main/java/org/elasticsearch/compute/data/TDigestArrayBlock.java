@@ -246,7 +246,6 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
         valueCountsBuilder.copyFrom(valueCounts, beginInclusive, endExclusive);
     }
 
-
     @Override
     public DoubleBlock buildHistogramComponentBlock(Component component) {
         // as soon as we support multi-values, we need to implement this differently,
@@ -267,7 +266,7 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
                 yield sums;
             }
             case COUNT -> {
-                try(var doubleBuilder = blockFactory().newDoubleBlockBuilder(valueCounts.getPositionCount())) {
+                try (var doubleBuilder = blockFactory().newDoubleBlockBuilder(valueCounts.getPositionCount())) {
                     for (int i = 0; i < valueCounts.getPositionCount(); i++) {
                         if (isNull(i)) {
                             doubleBuilder.appendNull();

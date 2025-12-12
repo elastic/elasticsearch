@@ -33,8 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
-import javax.xml.crypto.Data;
-
 import java.io.IOException;
 import java.util.List;
 
@@ -70,7 +68,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     )
     public Sum(
         Source source,
-        @Param(name = "number", type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" }) Expression field
+        @Param(
+            name = "number",
+            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" }
+        ) Expression field
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, SummationMode.COMPENSATED_LITERAL);
     }

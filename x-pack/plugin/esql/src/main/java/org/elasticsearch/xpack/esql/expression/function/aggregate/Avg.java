@@ -75,7 +75,10 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG) || dt == AGGREGATE_METRIC_DOUBLE || dt == EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
+            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == AGGREGATE_METRIC_DOUBLE
+                || dt == EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"

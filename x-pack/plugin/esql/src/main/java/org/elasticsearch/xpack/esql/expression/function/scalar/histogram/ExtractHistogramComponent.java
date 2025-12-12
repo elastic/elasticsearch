@@ -140,7 +140,8 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
             dt -> dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
-            "exponential_histogram", "tdigest"
+            "exponential_histogram",
+            "tdigest"
         );
         TypeResolution componentOrdinalCheck = isType(componentOrdinal, dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer").and(
             isFoldable(componentOrdinal, sourceText(), SECOND)

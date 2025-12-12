@@ -92,7 +92,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 "unsigned_long",
                 "version",
                 "exponential_histogram",
-                "tdigest"}
+                "tdigest" }
         ) Expression field
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW);
@@ -130,7 +130,10 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE || dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
+            dt -> SUPPLIERS.containsKey(dt)
+                || dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -147,7 +150,9 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE
+            || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM
+            || field().dataType() == DataType.TDIGEST) {
             return DataType.DOUBLE;
         }
         return field().dataType().noText();
@@ -174,12 +179,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             );
         }
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            return new Max(
-                source(),
-                ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX),
-                filter(),
-                window()
-            );
+            return new Max(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX), filter(), window());
         }
         return field().foldable() ? new MvMax(source(), field()) : null;
     }

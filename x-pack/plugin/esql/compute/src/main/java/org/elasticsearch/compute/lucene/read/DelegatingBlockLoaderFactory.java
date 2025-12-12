@@ -212,4 +212,9 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (LongBlock) valueCounts
         );
     }
+
+    @Override
+    public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+        return factory.newTDigestBlockBuilder(count);
+    }
 }

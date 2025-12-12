@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link HistogramPercentile}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class HistogramPercentileEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HistogramPercentileEvaluator.class);
+public final class HistogramPercentileExponentialHistogramEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(HistogramPercentileExponentialHistogramEvaluator.class);
 
   private final Source source;
 
@@ -38,8 +38,9 @@ public final class HistogramPercentileEvaluator implements EvalOperator.Expressi
 
   private Warnings warnings;
 
-  public HistogramPercentileEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator percentile, DriverContext driverContext) {
+  public HistogramPercentileExponentialHistogramEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator value, EvalOperator.ExpressionEvaluator percentile,
+      DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.percentile = percentile;
@@ -105,7 +106,7 @@ public final class HistogramPercentileEvaluator implements EvalOperator.Expressi
 
   @Override
   public String toString() {
-    return "HistogramPercentileEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
+    return "HistogramPercentileExponentialHistogramEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
   }
 
   @Override
@@ -140,13 +141,13 @@ public final class HistogramPercentileEvaluator implements EvalOperator.Expressi
     }
 
     @Override
-    public HistogramPercentileEvaluator get(DriverContext context) {
-      return new HistogramPercentileEvaluator(source, value.get(context), percentile.get(context), context);
+    public HistogramPercentileExponentialHistogramEvaluator get(DriverContext context) {
+      return new HistogramPercentileExponentialHistogramEvaluator(source, value.get(context), percentile.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "HistogramPercentileEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
+      return "HistogramPercentileExponentialHistogramEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
     }
   }
 }

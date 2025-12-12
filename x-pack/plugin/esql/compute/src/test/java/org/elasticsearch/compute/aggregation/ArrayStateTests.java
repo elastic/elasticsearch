@@ -52,13 +52,11 @@ public class ArrayStateTests extends ESTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
 
-        for (boolean inOrder : new boolean[] { true, false }) {
-            for (IntSupplier count : new IntSupplier[] { new Fixed(100), new Fixed(1000), new Random(100, 5000) }) {
-                params.add(new Object[] { ValueType.INTEGER, count, inOrder });
-                params.add(new Object[] { ValueType.LONG, count, inOrder });
-                params.add(new Object[] { ValueType.FLOAT, count, inOrder });
-                params.add(new Object[] { ValueType.DOUBLE, count, inOrder });
-                params.add(new Object[] { ValueType.IP, count, inOrder });
+        for (ValueType type : ValueType.values()) {
+            for (boolean inOrder : new boolean[] { true, false }) {
+                for (IntSupplier count : new IntSupplier[] { new Fixed(100), new Fixed(1000), new Random(100, 5000) }) {
+                    params.add(new Object[] { type, count, inOrder });
+                }
             }
         }
         return params;

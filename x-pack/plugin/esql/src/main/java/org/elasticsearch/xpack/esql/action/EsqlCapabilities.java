@@ -1741,6 +1741,15 @@ public class EsqlCapabilities {
          */
         TOP_SNIPPETS_FUNCTION,
 
+        /**
+         * Fix for multi-value constant propagation after GROUP BY.
+         * When a multi-value constant (e.g., [1, 2]) is used as GROUP BY key, the aggregation explodes
+         * it into single values. Propagating the original multi-value literal after the Aggregate would
+         * incorrectly treat the field as still being multi-valued.
+         * https://github.com/elastic/elasticsearch/issues/135926
+         */
+        FIX_STATS_MV_CONSTANT_FOLD,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

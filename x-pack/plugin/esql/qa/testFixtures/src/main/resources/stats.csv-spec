@@ -3599,3 +3599,92 @@ from airports
 a:double | b:double | c:long
 6.0      | 6.0      | 8
 ;
+
+
+statsMvConstantGroupByWhere
+required_capability: fix_stats_mv_constant_fold
+ROW a = [1, 2] 
+| STATS c = SUM(a) BY a 
+| WHERE a > 1
+;
+
+c:long | a:integer
+3      | 2
+;
+
+
+statsMvConstantGroupByAggExpr
+required_capability: fix_stats_mv_constant_fold
+ROW a = [1, 2] 
+| STATS a + SUM(a) BY a
+;
+
+a + SUM(a):long | a:integer
+4               | 1
+5               | 2
+;
+
+
+statsMvConstantGroupByEval
+required_capability: fix_stats_mv_constant_fold
+ROW a = [1, 2] 
+| STATS SUM(a) BY a 
+| EVAL b = a
+;
+
+SUM(a):long | a:integer | b:integer
+3           | 1         | 1
+3           | 2         | 2
+;
+
+
+statsByMvFieldAggExpr
+FROM employees 
+| STATS SUM(salary_change) + salary_change BY salary_change 
+| SORT salary_change 
+| LIMIT 5
+;
+
+SUM(salary_change) + salary_change:double   | salary_change:double
+-6.650000000000002                          | -9.81          
+-9.139999999999999                          | -9.28          
+0.0799999999999983                          | -9.23          
+5.75                                        | -8.94          
+3.4300000000000015                          | -8.78          
+
+;
+
+
+statsByMvFieldEval
+FROM employees 
+| STATS SUM(salary_change) BY salary_change 
+| EVAL x = salary_change 
+| SORT salary_change 
+| LIMIT 5
+;
+
+SUM(salary_change):double   | salary_change:double  | x:double
+3.1599999999999984          | -9.81                 | -9.81          
+0.14000000000000057         | -9.28                 | -9.28          
+9.309999999999999           | -9.23                 | -9.23          
+14.69                       | -8.94                 | -8.94          
+12.21                       | -8.78                 | -8.78          
+
+;
+
+
+statsByMvFieldWhere
+FROM employees 
+| STATS SUM(salary_change) BY salary_change 
+| WHERE salary_change > 1 
+| SORT salary_change 
+| LIMIT 5
+;
+
+SUM(salary_change):double   | salary_change:double
+-13.4                       | 1.03           
+17.91                       | 1.13           
+-1.0100000000000002         | 1.19           
+14.69                       | 1.92           
+6.000000000000001           | 1.98           
+;

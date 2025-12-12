@@ -112,6 +112,11 @@ class S3BlobStore implements BlobStore {
 
     private final boolean addPurposeCustomQueryParameter;
 
+    /**
+     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
+     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
+     * {@link S3Repository#UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
+     */
     public boolean supportsConditionalWrites() {
         return supportsConditionalWrites;
     }

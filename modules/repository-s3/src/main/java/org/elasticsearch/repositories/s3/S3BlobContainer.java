@@ -1207,7 +1207,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     // if register was deleted, return ABSENT(BytesArray.EMPTY)
                     return OptionalBytesReference.of(regEtag.registerContents());
                 } else {
-                    final var condtionalOperaiton = regEtag == RegisterAndEtag.ABSENT
+                    final var conditionalOperation = regEtag == RegisterAndEtag.ABSENT
                         ? ConditionalOperation.IF_NONE_MATCH
                         : ConditionalOperation.ifMatch(regEtag.eTag());
                     try {
@@ -1217,7 +1217,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             buildKey(key),
                             updated.length(),
                             () -> RequestBody.fromBytes(BytesReference.toBytes(updated)),
-                            condtionalOperaiton
+                            conditionalOperation
                         );
                         return OptionalBytesReference.of(expected);
                     } catch (SdkServiceException e) {

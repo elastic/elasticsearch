@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -73,8 +74,6 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
     public void setup() throws Exception {
         setupIndex();
     }
-
-    private int shardCount;
 
     protected void setupIndex() {
         String mapping = """
@@ -113,7 +112,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
               }
             }
             """;
-        shardCount = randomIntBetween(1, 5);
+        int shardCount = randomIntBetween(1, 5);
         createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term");
@@ -969,6 +968,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
         // when partial search results are allowed we should instead get a result and for now ignore partial failures
         SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(true).setSource(source);
+
+        long shardCount = Objects.requireNonNull(client().admin().indices().prepareStats(INDEX).get().getPrimaries().getShards())
+            .getTotalCount();
+
         if (shardCount == 1) {
             Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
             assertTrue(ex.getSuppressed()[0].toString().contains("simulated failure"));

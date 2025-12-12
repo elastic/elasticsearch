@@ -22,7 +22,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -57,26 +57,12 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
 
                 final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
 
-                    final ByteArrayStreamInput in = new ByteArrayStreamInput();
-                    final BytesRef scratch = new BytesRef();
+                    final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
 
                     @Override
                     public boolean matches() throws IOException {
                         BytesRef binaryValue = values.binaryValue();
-                        in.reset(binaryValue.bytes, binaryValue.offset, binaryValue.length);
-
-                        int count = in.readVInt();
-                        scratch.bytes = binaryValue.bytes;
-                        for (int i = 0; i < count; i++) {
-                            scratch.length = in.readVInt();
-                            scratch.offset = in.getPosition();
-                            in.setPosition(scratch.offset + scratch.length);
-                            if (term.equals(scratch)) {
-                                return true;
-                            }
-                        }
-
-                        return false;
+                        return reader.match(binaryValue, term::equals);
                     }
 
                     @Override

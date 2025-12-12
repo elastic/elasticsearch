@@ -18,10 +18,10 @@ import java.util.List;
 
 public final class PatternTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
-    private final SortedSetDocValues argsDocValues;
+    private final BinaryDocValues argsDocValues;
     private final SortedSetDocValues argsInfoDocValues;
 
-    PatternTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues, SortedSetDocValues argsInfoDocValues) {
+    PatternTextDocValues(SortedSetDocValues templateDocValues, BinaryDocValues argsDocValues, SortedSetDocValues argsInfoDocValues) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
         this.argsInfoDocValues = argsInfoDocValues;
@@ -30,7 +30,7 @@ public final class PatternTextDocValues extends BinaryDocValues {
     static PatternTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName)
         throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
-        SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
+        BinaryDocValues argsDocValues = DocValues.getBinary(leafReader, argsFieldName);
         SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, argsInfoFieldName);
         return new PatternTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
     }
@@ -42,8 +42,7 @@ public final class PatternTextDocValues extends BinaryDocValues {
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
         List<Arg.Info> argsInfo = Arg.decodeInfo(argsInfoDocValues.lookupOrd(argsInfoDocValues.nextOrd()).utf8ToString());
         if (argsInfo.isEmpty() == false) {
-            assert argsDocValues.docValueCount() == 1;
-            var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
+            var mergedArgs = argsDocValues.binaryValue();
             var args = Arg.decodeRemainingArgs(mergedArgs.utf8ToString());
             assert args.length == argsInfo.size();
             return PatternTextValueProcessor.merge(template, args, argsInfo);

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -287,7 +288,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             // Add args doc_values
             if (parts.args().isEmpty() == false) {
                 String remainingArgs = Arg.encodeRemainingArgs(parts);
-                context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+                context.doc().add(new BinaryDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
             }
         }
     }

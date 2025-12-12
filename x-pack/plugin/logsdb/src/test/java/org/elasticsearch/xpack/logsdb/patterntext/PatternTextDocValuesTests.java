@@ -76,9 +76,9 @@ public class PatternTextDocValuesTests extends ESTestCase {
         return messages;
     }
 
-    private static BinaryDocValues makeDocValues(List<Message> messages) throws IOException {
+    private static BinaryDocValues makeDocValues(List<Message> messages) {
         var template = new SimpleSortedSetDocValues(messages.stream().map(Message::template).toList().toArray(new String[0]));
-        var args = new SimpleSortedSetDocValues(messages.stream().map(Message::arg).toList().toArray(new String[0]));
+        var args = new SimpleBinaryDocValues(messages.stream().map(Message::arg).toList().toArray(new String[0]));
         var info = new SimpleSortedSetDocValues(messages.stream().map(m -> m.hasArg() ? info(0) : info()).toList().toArray(new String[0]));
         return new PatternTextDocValues(template, args, info);
     }
@@ -235,6 +235,52 @@ public class PatternTextDocValuesTests extends ESTestCase {
         @Override
         public int docID() {
             return currDoc >= docToOrds.size() ? NO_MORE_DOCS : currDoc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long cost() {
+            return 1;
+        }
+    }
+
+    static class SimpleBinaryDocValues extends BinaryDocValues {
+
+        private final List<String> values;
+        private int currDoc = -1;
+
+        // Single value for each docId, null if no value for a docId
+        SimpleBinaryDocValues(String... docIdToValue) {
+            values = Arrays.stream(docIdToValue).collect(Collectors.toList());
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return new BytesRef(values.get(currDoc));
+        }
+
+        @Override
+        public boolean advanceExact(int target) {
+            for (currDoc = target; currDoc < values.size(); currDoc++) {
+                if (values.get(currDoc) != null) {
+                    return currDoc == target;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public int docID() {
+            return currDoc >= values.size() ? NO_MORE_DOCS : currDoc;
         }
 
         @Override

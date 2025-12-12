@@ -152,7 +152,6 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         builder.profile(searchTemplateRequest.isProfile());
         checkRestTotalHitsAsInt(searchRequest, builder);
         searchRequest.source(builder);
-        searchRequest.setProjectRouting(searchTemplateRequest.getProjectRouting());
         return searchRequest;
     }
 

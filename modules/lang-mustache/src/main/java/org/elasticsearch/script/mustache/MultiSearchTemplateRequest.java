@@ -11,6 +11,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -31,7 +32,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class MultiSearchTemplateRequest extends LegacyActionRequest implements CompositeIndicesRequest {
+public class MultiSearchTemplateRequest extends LegacyActionRequest
+    implements
+        CompositeIndicesRequest,
+        IndicesRequest.CrossProjectCandidate {
 
     private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
@@ -168,5 +172,10 @@ public class MultiSearchTemplateRequest extends LegacyActionRequest implements C
     @Nullable
     public String getProjectRouting() {
         return projectRouting;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
     }
 }

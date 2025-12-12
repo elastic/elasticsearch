@@ -9,6 +9,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -72,8 +73,13 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
 
-        if (crossProjectEnabled) {
+        if (crossProjectEnabled && multiRequest.allowsCrossProject()) {
             multiRequest.setProjectRouting(restRequest.param("project_routing"));
+            multiRequest.indicesOptions(
+                IndicesOptions.builder(multiRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
         }
 
         if (restRequest.hasParam("max_concurrent_searches")) {
@@ -86,17 +92,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             allowExplicitIndex,
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
-                if (crossProjectEnabled) {
-                    /*
-                     * If project_routing is set in the request body, it gets overwritten when parsing the body.
-                     * See SearchTemplateRequest#fromXContent() and SearchTemplateRequest#PROJECT_ROUTING_FIELD.
-                     */
-                    searchTemplateRequest.setProjectRouting(multiRequest.getProjectRouting());
-                } else {
-                    // project_routing is specified in the body and we're not in a CPS environment.
-                    if (searchTemplateRequest.getProjectRouting() != null) {
-                        throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
-                    }
+                // Do not allow project_routing if we're not in a CPS environment.
+                if (crossProjectEnabled == false && searchTemplateRequest.getProjectRouting() != null) {
+                    throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
                 }
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
@@ -106,7 +104,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 }
                 RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             },
-            Optional.of(crossProjectEnabled)
+            (k, v, r) -> false,
+            Optional.of(crossProjectEnabled),
+            multiRequest.getProjectRouting()
         );
         return multiRequest;
     }

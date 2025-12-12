@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.profile.query;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,7 +69,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
 
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
-        vectorOperationsCount = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) ? in.readOptionalLong() : null;
+        vectorOperationsCount = in.readOptionalLong();
     }
 
     @Override
@@ -81,9 +80,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContentObjec
         }
         profileCollector.writeTo(out);
         out.writeLong(rewriteTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalLong(vectorOperationsCount);
-        }
+        out.writeOptionalLong(vectorOperationsCount);
     }
 
     public List<ProfileResult> getQueryResults() {

@@ -766,7 +766,7 @@ public final class CsvTestUtils {
         }
     }
 
-    private static BytesRef parseHistogram(@Nullable String json) {
+    public static BytesRef parseHistogram(@Nullable String json) {
         if (json == null) {
             return null;
         }

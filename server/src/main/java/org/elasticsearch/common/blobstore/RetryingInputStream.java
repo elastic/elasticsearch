@@ -322,7 +322,17 @@ public abstract class RetryingInputStream<V> extends InputStream {
     @Override
     public long skip(long n) throws IOException {
         ensureOpen();
-        return currentStream.skip(n);
+        final int initialAttempt = attempt;
+        while (true) {
+            // noinspection TryWithIdenticalCatches
+            try {
+                return currentStream.skip(n);
+            } catch (IOException e) {
+                retryOrAbortOnRead(initialAttempt, e);
+            } catch (RuntimeException e) {
+                retryOrAbortOnRead(initialAttempt, e);
+            }
+        }
     }
 
     @Override

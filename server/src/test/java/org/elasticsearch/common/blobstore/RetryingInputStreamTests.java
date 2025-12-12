@@ -203,6 +203,25 @@ public class RetryingInputStreamTests extends ESTestCase {
         copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()));
     }
 
+    public void testSkipWillRetry() throws IOException {
+        final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final int numberOfFailures = randomIntBetween(1, 10);
+        final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
+        final var eTag = randomUUID();
+
+        final var services = new BlobStoreServicesAdapter(numberOfFailures) {
+            @Override
+            public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                return createSingleAttemptInputStream(resourceBytes, eTag, (int) start, failureCounter.getAndDecrement() > 0);
+            }
+        };
+
+        try (var inputStream = new ShortDelayRetryingInputStream(services, randomRetryingPurpose())) {
+            assertEquals(resourceBytes.length() - 1, inputStream.skip(resourceBytes.length() - 1));
+        }
+    }
+
     /**
      * RetryingInputStream with a short fixed delay so these tests run quickly
      */

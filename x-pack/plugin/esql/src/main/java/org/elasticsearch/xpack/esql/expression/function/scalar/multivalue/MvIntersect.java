@@ -43,6 +43,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
@@ -149,46 +150,49 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
-    static void appendEmptySet(Block.Builder builder) {
-        builder.appendNull();
-    }
-
     @Override
     public boolean foldable() {
         return field1.foldable() && field2.foldable();
     }
 
-    @Evaluator(extraName = "Boolean")
-    static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field1, BooleanBlock field2) {
+    static <T> Set<T> getIntersectSet(int position, Block field1, Block field2, BiFunction<Integer, Block, T> getValueFunction) {
+        Set<T> values = new LinkedHashSet<>();
+
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
         if (firstValueCount == 0 || secondValueCount == 0) {
-            appendEmptySet(builder);
-            return;
+            // if either block has no values, there will be no intersection
+            return values;
         }
 
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
-        Set<Boolean> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
-            values.add(field1.getBoolean(firstValueIndex + i));
+            values.add(getValueFunction.apply(firstValueIndex + i, field1));
         }
 
-        Set<Boolean> secondValues = new HashSet<>();
+        Set<T> secondValues = new HashSet<>();
         for (int i = 0; i < secondValueCount; i++) {
-            secondValues.add(field2.getBoolean(secondValueIndex + i));
+            secondValues.add(getValueFunction.apply(secondValueIndex + i, field2));
         }
 
         values.retainAll(secondValues);
-        if (values.isEmpty()) {
+        return values;
+    }
+
+    @Evaluator(extraName = "Boolean")
+    static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field1, BooleanBlock field2) {
+        Set<Boolean> result = getIntersectSet(position, field1, field2, (p, block) -> ((BooleanBlock) block).getBoolean(p));
+
+        if (result.isEmpty()) {
             // nothing intersected
-            appendEmptySet(builder);
+            builder.appendNull();
             return;
         }
 
         builder.beginPositionEntry();
-        for (Boolean value : values) {
+        for (Boolean value : result) {
             builder.appendBoolean(value);
         }
         builder.endPositionEntry();
@@ -196,37 +200,19 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field1, BytesRefBlock field2) {
-        int firstValueCount = field1.getValueCount(position);
-        int secondValueCount = field2.getValueCount(position);
-        if (firstValueCount == 0 || secondValueCount == 0) {
-            appendEmptySet(builder);
-            return;
-        }
-
-        int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        Set<BytesRef> values = new LinkedHashSet<>();
-        for (int i = 0; i < firstValueCount; i++) {
+        Set<BytesRef> result = getIntersectSet(position, field1, field2, (p, block) -> {
             BytesRef value = new BytesRef();
-            values.add(field1.getBytesRef(firstValueIndex + i, value));
-        }
+            return ((BytesRefBlock) block).getBytesRef(p, value);
+        });
 
-        Set<BytesRef> secondValues = new HashSet<>();
-        for (int i = 0; i < secondValueCount; i++) {
-            BytesRef value = new BytesRef();
-            secondValues.add(field2.getBytesRef(secondValueIndex + i, value));
-        }
-
-        values.retainAll(secondValues);
-        if (values.isEmpty()) {
+        if (result.isEmpty()) {
             // nothing intersected
-            appendEmptySet(builder);
+            builder.appendNull();
             return;
         }
 
         builder.beginPositionEntry();
-        for (BytesRef value : values) {
+        for (BytesRef value : result) {
             builder.appendBytesRef(value);
         }
         builder.endPositionEntry();
@@ -234,35 +220,16 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
-        int firstValueCount = field1.getValueCount(position);
-        int secondValueCount = field2.getValueCount(position);
-        if (firstValueCount == 0 || secondValueCount == 0) {
-            appendEmptySet(builder);
-            return;
-        }
+        Set<Integer> result = getIntersectSet(position, field1, field2, (p, block) -> ((IntBlock) block).getInt(p));
 
-        int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        Set<Integer> values = new LinkedHashSet<>();
-        for (int i = 0; i < firstValueCount; i++) {
-            values.add(field1.getInt(firstValueIndex + i));
-        }
-
-        Set<Integer> secondValues = new HashSet<>();
-        for (int i = 0; i < secondValueCount; i++) {
-            secondValues.add(field2.getInt(secondValueIndex + i));
-        }
-
-        values.retainAll(secondValues);
-        if (values.isEmpty()) {
+        if (result.isEmpty()) {
             // nothing intersected
-            appendEmptySet(builder);
+            builder.appendNull();
             return;
         }
 
         builder.beginPositionEntry();
-        for (Integer value : values) {
+        for (Integer value : result) {
             builder.appendInt(value);
         }
         builder.endPositionEntry();
@@ -270,35 +237,16 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
-        int firstValueCount = field1.getValueCount(position);
-        int secondValueCount = field2.getValueCount(position);
-        if (firstValueCount == 0 || secondValueCount == 0) {
-            appendEmptySet(builder);
-            return;
-        }
+        Set<Long> result = getIntersectSet(position, field1, field2, (p, block) -> ((LongBlock) block).getLong(p));
 
-        int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        Set<Long> values = new LinkedHashSet<>();
-        for (int i = 0; i < firstValueCount; i++) {
-            values.add(field1.getLong(firstValueIndex + i));
-        }
-
-        Set<Long> secondValues = new HashSet<>();
-        for (int i = 0; i < secondValueCount; i++) {
-            secondValues.add(field2.getLong(secondValueIndex + i));
-        }
-
-        values.retainAll(secondValues);
-        if (values.isEmpty()) {
+        if (result.isEmpty()) {
             // nothing intersected
-            appendEmptySet(builder);
+            builder.appendNull();
             return;
         }
 
         builder.beginPositionEntry();
-        for (Long value : values) {
+        for (Long value : result) {
             builder.appendLong(value);
         }
         builder.endPositionEntry();
@@ -306,35 +254,16 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "Double")
     static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field1, DoubleBlock field2) {
-        int firstValueCount = field1.getValueCount(position);
-        int secondValueCount = field2.getValueCount(position);
-        if (firstValueCount == 0 || secondValueCount == 0) {
-            appendEmptySet(builder);
-            return;
-        }
+        Set<Double> result = getIntersectSet(position, field1, field2, (p, block) -> ((DoubleBlock) block).getDouble(p));
 
-        int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        Set<Double> values = new LinkedHashSet<>();
-        for (int i = 0; i < firstValueCount; i++) {
-            values.add(field1.getDouble(firstValueIndex + i));
-        }
-
-        Set<Double> secondValues = new HashSet<>();
-        for (int i = 0; i < secondValueCount; i++) {
-            secondValues.add(field2.getDouble(secondValueIndex + i));
-        }
-
-        values.retainAll(secondValues);
-        if (values.isEmpty()) {
+        if (result.isEmpty()) {
             // nothing intersected
-            appendEmptySet(builder);
+            builder.appendNull();
             return;
         }
 
         builder.beginPositionEntry();
-        for (Double value : values) {
+        for (Double value : result) {
             builder.appendDouble(value);
         }
         builder.endPositionEntry();
@@ -380,13 +309,11 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        // TODO - validation
         return new MvIntersect(source(), newChildren.getFirst(), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        // TODO - validation
         return NodeInfo.create(this, MvIntersect::new, field1, field2);
     }
 
@@ -398,9 +325,8 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(children().getFirst());
-        // TODO - validation
-        out.writeNamedWriteable(children().get(1));
+        out.writeNamedWriteable(field1);
+        out.writeNamedWriteable(field2);
     }
 
     @Override

@@ -1,63 +1,79 @@
 testMvIntersectWithIntValues
 required_capability: fn_mv_intersect
 
-// tag:testMvIntersectWithIntValues[]
+// tag::testMvIntersectWithIntValues[]
 ROW a = [1, 2, 3, 4, 5], b = [2, 3, 4, 5, 6]
 | EVAL finalValue = MV_INTERSECT(a, b) 
-| KEEP finalValue;
+| KEEP finalValue
+// end::testMvIntersectWithIntValues[]
+;
 
+// tag::testMvIntersectWithIntValues-result[]
 finalValue:integer 
 [2, 3, 4, 5]
-// end:testMvIntersectWithIntValues[]
+// end::testMvIntersectWithIntValues-result[]
 ;
 
 testMvIntersectWithLongValues
 required_capability: fn_mv_intersect
 
-// tag:testMvIntersectWithLongValues[]
+// tag::testMvIntersectWithLongValues[]
 ROW a = [1, 2, 3, 4, 5]::long, b = [2, 3, 4, 5, 6]::long
 | EVAL finalValue = MV_INTERSECT(a, b) 
-| KEEP finalValue;
+| KEEP finalValue
+// end::testMvIntersectWithLongValues[]
+;
 
+// tag::testMvIntersectWithLongValues-result[]
 finalValue:long 
 [2, 3, 4, 5]
-// end:testMvIntersectWithLongValues[]
+// end::testMvIntersectWithLongValues-result[]
 ;
 
 testMvIntersectWithBooleanValues
 required_capability: fn_mv_intersect
-// tag:testMvIntersectWithBooleanValues[]
+
+// tag::testMvIntersectWithBooleanValues[]
 ROW a = [true, false, false, false], b = [false]
 | EVAL finalValue = MV_INTERSECT(a, b) 
-| KEEP finalValue;
+| KEEP finalValue
+// end::testMvIntersectWithBooleanValues[]
+;
 
+// tag::testMvIntersectWithBooleanValues-result[]
 finalValue:boolean 
 [false]
-// end:testMvIntersectWithBooleanValues[]
+// end::testMvIntersectWithBooleanValues-result[]
 ;
 
 testMvIntersectWithDoubleValues
 required_capability: fn_mv_intersect
 
-// tag:testMvIntersectWithDoubleValues[]
+// tag::testMvIntersectWithDoubleValues[]
 ROW a = [5.2, 10.5, 1.12345, 2.6928], b = [10.5, 2.6928]
 | EVAL finalValue = MV_INTERSECT(a, b) 
-| KEEP finalValue;
+| KEEP finalValue
+// end::testMvIntersectWithDoubleValues[]
+;
 
+// tag::testMvIntersectWithDoubleValues-result[]
 finalValue:double 
 [10.5, 2.6928]
-// end:testMvIntersectWithDoubleValues[]
+// end::testMvIntersectWithDoubleValues-result[]
 ;
 
 testMvIntersectWithBytesRefValues
 required_capability: fn_mv_intersect
 
-// tag:testMvIntersectWithBytesRefValues[]
+// tag::testMvIntersectWithBytesRefValues[]
 ROW a = ["one", "two", "three", "four", "five"], b = ["one", "four"]
 | EVAL finalValue = MV_INTERSECT(a, b) 
-| KEEP finalValue;
+| KEEP finalValue
+// end::testMvIntersectWithBytesRefValues[]
+;
 
+// tag::testMvIntersectWithBytesRefValues-result[]
 finalValue:keyword
 ["one", "four"]
-// end:testMvIntersectWithBytesRefValues[]
+// end::testMvIntersectWithBytesRefValues-result[]
 ;

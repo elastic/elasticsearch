@@ -4,5 +4,7 @@
 Returns a subset of the inputs sets that contains the intersection of values in provided mv arguments.
 
 ```esql
-null
+ROW a = [1, 2, 3, 4, 5], b = [2, 3, 4, 5, 6]
+| EVAL finalValue = MV_INTERSECT(a, b)
+| KEEP finalValue
 ```

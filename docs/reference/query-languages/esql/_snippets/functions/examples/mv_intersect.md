@@ -3,23 +3,53 @@
 **Examples**
 
 ```esql
-null
+ROW a = [1, 2, 3, 4, 5], b = [2, 3, 4, 5, 6]
+| EVAL finalValue = MV_INTERSECT(a, b)
+| KEEP finalValue
 ```
 
-```esql
-null
-```
+| finalValue:integer |
+| --- |
+| [2, 3, 4, 5] |
 
 ```esql
-null
+ROW a = [1, 2, 3, 4, 5]::long, b = [2, 3, 4, 5, 6]::long
+| EVAL finalValue = MV_INTERSECT(a, b)
+| KEEP finalValue
 ```
 
-```esql
-null
-```
+| finalValue:long |
+| --- |
+| [2, 3, 4, 5] |
 
 ```esql
-null
+ROW a = [true, false, false, false], b = [false]
+| EVAL finalValue = MV_INTERSECT(a, b)
+| KEEP finalValue
 ```
+
+| finalValue:boolean |
+| --- |
+| [false] |
+
+```esql
+ROW a = [5.2, 10.5, 1.12345, 2.6928], b = [10.5, 2.6928]
+| EVAL finalValue = MV_INTERSECT(a, b)
+| KEEP finalValue
+```
+
+| finalValue:double |
+| --- |
+| [10.5, 2.6928] |
+
+```esql
+ROW a = ["one", "two", "three", "four", "five"], b = ["one", "four"]
+| EVAL finalValue = MV_INTERSECT(a, b)
+| KEEP finalValue
+```
+
+| finalValue:keyword |
+| --- |
+| ["one", "four"] |
 
 

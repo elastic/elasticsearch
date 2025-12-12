@@ -171,8 +171,8 @@ public class CsvTestsDataLoader {
     private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
     private static final TestDataset LOGS = new TestDataset("logs");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
-    public static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
-    public static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
+    private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
     private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(

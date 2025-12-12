@@ -578,7 +578,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             throws IOException {
             // Lookup the first blockId using binary search and subsequent blocks can be scanned because query and values are dense
             // Also lookup the last blockId using binary search so that the buffer for values to be collected can be sized accordingly.
-            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBlockId + 1);
+            final long firstBlockId = findBlock(firstDocId, numBlocks, lastBlockId == -1 ? 0 : lastBlockId);
             final long endBlockId = findBlock(lastDocId, numBlocks, firstBlockId);
             final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endBlockId);
 
@@ -616,8 +616,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             offsetBuffer[offsetBufferIndex] = valuesBufferIndex;
 
             lastBlockId = endBlockId;
+
+            // TODO: This sets state for the decode(...), we should look into removing this.
+            // Either we will disallow invoking both bulkDecode and decode on the same BinaryDecoder instance
+            // or decode should reuse decodeBulk.
             startDocNumForBlock = docOffsets.get(endBlockId);
             limitDocNumForBlock = docOffsets.get(endBlockId + 1);
+
             assert count == offsetBufferIndex;
             builder.appendBytesRefs(valuesBuffer, offsetBuffer);
         }

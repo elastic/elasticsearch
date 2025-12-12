@@ -142,7 +142,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     dataList.add(data);
                 }
                 if (match) {
-                    document.setFieldValue(targetField, dataList);
+                    writeGeoIpDataList(document, targetField, dataList);
                 }
             } else {
                 throw new IllegalArgumentException("field [" + field + "] should contain only string or array of strings");
@@ -187,25 +187,93 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // In flexible mode, write each property as a separate dotted field
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 String key = entry.getKey();
-                Object value = entry.getValue();
-
-                // Convert location from map {lat, lon} to array [lon, lat] in flexible mode
-                if ("location".equals(key) && value instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> locationMap = (Map<String, Object>) value;
-                    Double lat = (Double) locationMap.get("lat");
-                    Double lon = (Double) locationMap.get("lon");
-                    if (lat != null && lon != null) {
-                        value = List.of(lon, lat); // GeoJSON order: [lon, lat]
-                    }
-                }
-
+                Object value = transformValueForFlexibleMode(key, entry.getValue());
                 document.setFieldValue(targetField + "." + key, value);
             }
         } else {
             // In classic mode, write as a single nested object
             document.setFieldValue(targetField, data);
         }
+    }
+
+    /**
+     * Writes a list of GeoIP data to the document. In flexible field access mode, writes each property
+     * as a separate list (e.g., "my.field.city" contains a list of cities, one per IP).
+     * In classic mode, writes as a single list of maps.
+     *
+     * @param document the ingest document
+     * @param targetField the base target field path
+     * @param dataList the list of GeoIP data to write
+     */
+    private void writeGeoIpDataList(IngestDocument document, String targetField, List<Map<String, Object>> dataList) {
+        if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
+            // In flexible mode, transpose the list of maps into separate lists per property
+            // Collect all unique keys across all maps
+            Set<String> allKeys = new java.util.HashSet<>();
+            for (Map<String, Object> data : dataList) {
+                if (data != null) {
+                    allKeys.addAll(data.keySet());
+                }
+            }
+
+            // For each key, build a list of values
+            for (String key : allKeys) {
+                List<Object> valuesList = new ArrayList<>(dataList.size());
+                for (Map<String, Object> data : dataList) {
+                    if (data == null) {
+                        valuesList.add(null);
+                    } else {
+                        Object value = transformValueForFlexibleMode(key, data.get(key));
+                        valuesList.add(value);
+                    }
+                }
+                document.setFieldValue(targetField + "." + key, valuesList);
+            }
+        } else {
+            // In classic mode, write as a single list of maps
+            document.setFieldValue(targetField, dataList);
+        }
+    }
+
+    /**
+     * Transforms a GeoIP value for flexible field access mode.
+     * Converts location maps to [lon, lat] arrays and validates that only location fields contain Maps.
+     *
+     * @param key the property key
+     * @param value the property value
+     * @return the transformed value suitable for flexible mode
+     */
+    private static Object transformValueForFlexibleMode(String key, Object value) {
+        // Convert location from map {lat, lon} to array [lon, lat] in flexible mode
+        if ("location".equals(key) && value instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> locationMap = (Map<String, Object>) value;
+            Double lat = (Double) locationMap.get("lat");
+            Double lon = (Double) locationMap.get("lon");
+            if (lat != null && lon != null) {
+                return newMutableLocationList(lon, lat); // GeoJSON order: [lon, lat]
+            }
+        } else {
+            // Assert that we don't have any unexpected Map values (only location should be a Map)
+            assert value instanceof Map == false : "unexpected Map value for key [" + key + "]";
+        }
+        return value;
+    }
+
+    /**
+     * Creates a mutable list containing [lon, lat] coordinates.
+     * Using ArrayList instead of List.of() to allow users to modify the location field later
+     * with other processors (e.g., script processor).
+     *
+     * @param lon the longitude
+     * @param lat the latitude
+     * @return a mutable ArrayList containing [lon, lat]
+     */
+    private static List<Double> newMutableLocationList(double lon, double lat) {
+        List<Double> location = new ArrayList<>(2);
+        location.add(lon);
+        location.add(lat);
+        return location;
     }
 
     /**

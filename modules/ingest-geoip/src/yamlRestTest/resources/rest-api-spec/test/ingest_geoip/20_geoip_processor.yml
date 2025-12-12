@@ -540,3 +540,92 @@
   - match: { _source.geo\.info\.city_name: "Linköping" }
   - match: { _source.geo\.info\.location.0: 15.6167 }
   - is_false: _source.geo
+---
+"Test geoip processor flexible mode with array of IPs":
+  - skip:
+
+      features: [ "flexible_field_access_pattern" ]
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_flexible_array"
+        body:  >
+          {
+            "description": "Test flexible mode with array of IPs",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ips",
+                  "target_field" : "geo.data",
+                  "first_only" : false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_flexible_array"
+        body: {ips: ["8.8.8.8", "82.171.64.0"]}
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.ips.0: "8.8.8.8" }
+  - match: { _source.ips.1: "82.171.64.0" }
+  # In flexible mode with arrays, each property becomes a list
+  - match: { _source.geo\.data\.ip.0: "8.8.8.8" }
+  - match: { _source.geo\.data\.ip.1: "82.171.64.0" }
+  - match: { _source.geo\.data\.city_name.1: "Hoensbroek" }
+  # Location should be a list of arrays [[lon1, lat1], [lon2, lat2]]
+  - match: { _source.geo\.data\.location.0.0: -97.822 }
+  - match: { _source.geo\.data\.location.0.1: 37.751 }
+  - match: { _source.geo\.data\.location.1.0: 5.9345 }
+  - match: { _source.geo\.data\.location.1.1: 50.9118 }
+  # Verify that nested object was NOT created
+  - is_false: _source.geo
+---
+"Test geoip processor flexible mode with partially valid array":
+  - skip:
+
+      features: [ "flexible_field_access_pattern" ]
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_flexible_partial"
+        body:  >
+          {
+            "description": "Test flexible mode with partially valid array",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ips",
+                  "target_field" : "geo.data",
+                  "first_only" : false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_flexible_partial"
+        body: {ips: ["8.8.8.8", "127.0.0.1"]}
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.ips.0: "8.8.8.8" }
+  - match: { _source.ips.1: "127.0.0.1" }
+  # In flexible mode with arrays, each property becomes a list with nulls for failed lookups
+  - match: { _source.geo\.data\.ip.0: "8.8.8.8" }
+  - match: { _source.geo\.data\.ip.1: null }
+  - match: { _source.geo\.data\.location.1: null }
+  # Verify that nested object was NOT created
+  - is_false: _source.geo

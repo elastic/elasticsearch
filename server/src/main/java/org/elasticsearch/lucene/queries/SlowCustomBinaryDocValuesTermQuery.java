@@ -27,12 +27,19 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public final class CustomBinaryDocValuesTermQuery extends Query {
+/**
+ * A query for matching an exact BytesRef value for a specific field.
+ * The equavalent of {@link org.apache.lucene.document.SortedDocValuesField#newSlowExactQuery(String, BytesRef)},
+ * but then for binary doc values.
+ * <p>
+ * This implementation is slow, because it potentially scans binary doc values for each document.
+ */
+public final class SlowCustomBinaryDocValuesTermQuery extends Query {
 
     private final String fieldName;
     private final BytesRef term;
 
-    public CustomBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
+    public SlowCustomBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
         this.fieldName = fieldName;
         this.term = term;
     }
@@ -63,6 +70,7 @@ public final class CustomBinaryDocValuesTermQuery extends Query {
                         for (int i = 0; i < count; i++) {
                             scratch.length = in.readVInt();
                             scratch.offset = in.getPosition();
+                            in.setPosition(scratch.offset + scratch.length);
                             if (term.equals(scratch)) {
                                 return true;
                             }
@@ -73,7 +81,7 @@ public final class CustomBinaryDocValuesTermQuery extends Query {
 
                     @Override
                     public float matchCost() {
-                        return 1; // because 1 comparisons
+                        return 1; // because one comparison
                     }
                 };
 
@@ -89,7 +97,7 @@ public final class CustomBinaryDocValuesTermQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "CustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.utf8ToString() + ")";
+        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.utf8ToString() + ")";
     }
 
     @Override
@@ -107,7 +115,7 @@ public final class CustomBinaryDocValuesTermQuery extends Query {
         if (sameClassAs(o) == false) {
             return false;
         }
-        CustomBinaryDocValuesTermQuery that = (CustomBinaryDocValuesTermQuery) o;
+        SlowCustomBinaryDocValuesTermQuery that = (SlowCustomBinaryDocValuesTermQuery) o;
         return Objects.equals(fieldName, that.fieldName) && Objects.equals(term, that.term);
     }
 

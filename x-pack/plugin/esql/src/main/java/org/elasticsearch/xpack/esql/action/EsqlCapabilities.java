@@ -1741,11 +1741,6 @@ public class EsqlCapabilities {
          */
         TOP_SNIPPETS_FUNCTION,
 
-        /**
-         * Support for {@link org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression} pushdown
-         */
-        BLOCK_LOADER_EXPRESSIONS_PUSHDOWN(Build.current().isSnapshot()),
-
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

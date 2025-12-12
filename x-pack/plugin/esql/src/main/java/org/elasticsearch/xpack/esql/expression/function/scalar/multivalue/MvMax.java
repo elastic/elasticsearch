@@ -137,10 +137,6 @@ public class MvMax extends AbstractMultivalueFunction implements BlockLoaderExpr
 
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        if (EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled() == false) {
-            return null;
-        }
-
         if (field instanceof FieldAttribute f) {
             return new PushedBlockLoaderExpression(f, BlockLoaderFunctionConfig.Function.MV_MAX);
         }

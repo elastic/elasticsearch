@@ -22,11 +22,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -61,19 +59,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
-
-    @Before
-    public void checkPushCapability() throws IOException {
-        assumeTrue(
-            "requires " + EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.capabilityName(),
-            clusterHasCapability(
-                "POST",
-                "_query",
-                List.of(),
-                List.of(EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.capabilityName())
-            ).orElseGet(() -> false)
-        );
-    }
 
     public void testLengthToKeyword() throws IOException {
         String value = "v".repeat(between(0, 256));
@@ -334,6 +319,36 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
             matchesMap().entry("test:column_at_a_time:MvMaxDoublesFromDocValues.Sorted", 1)
+        );
+    }
+
+    public void testVCosine() throws IOException {
+        test(
+            justType("dense_vector"),
+            b -> b.startArray("test").value(128).value(128).value(0).endArray(),
+            "| EVAL test = V_COSINE(test, [0, 255, 255])",
+            matchesList().item(0.5),
+            matchesMap().entry("test:column_at_a_time:FloatDenseVectorFromDocValues.Normalized.V_COSINE", 1)
+        );
+    }
+
+    public void testVHammingToByte() throws IOException {
+        test(
+            b -> b.startObject("test").field("type", "dense_vector").field("element_type", "byte").endObject(),
+            b -> b.startArray("test").value(100).value(100).value(0).endArray(),
+            "| EVAL test = V_HAMMING(test, [0, 100, 100])",
+            matchesList().item(6.0),
+            matchesMap().entry("test:column_at_a_time:ByteDenseVectorFromDocValues.V_HAMMING", 1)
+        );
+    }
+
+    public void testVHammingToBit() throws IOException {
+        test(
+            b -> b.startObject("test").field("type", "dense_vector").field("element_type", "bit").endObject(),
+            b -> b.startArray("test").value(100).value(100).value(0).endArray(),
+            "| EVAL test = V_HAMMING(test, [0, 100, 100])",
+            matchesList().item(6.0),
+            matchesMap().entry("test:column_at_a_time:BitDenseVectorFromDocValues.V_HAMMING", 1)
         );
     }
 

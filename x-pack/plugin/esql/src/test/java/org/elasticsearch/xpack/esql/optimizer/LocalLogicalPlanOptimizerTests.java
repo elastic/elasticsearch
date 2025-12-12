@@ -1284,7 +1284,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDouble() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = "FROM k8s-downsampled | STATS m = min(network.eth0.tx)";
 
         LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats());
@@ -1311,7 +1310,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             from k8s-downsampled
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
@@ -1365,7 +1363,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testAggregateMetricDoubleTSCommand() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             TS k8s-downsampled |
             STATS m = max(max_over_time(network.eth0.tx)),
@@ -1437,7 +1434,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     public void testAggregateMetricDoubleInlineStats() {
         // TODO: modify below when we handle fusing and StubRelations properly
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM k8s-downsampled
             | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod
@@ -1793,7 +1789,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInEval() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL l = LENGTH(last_name)
@@ -1811,7 +1806,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInWhere() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | WHERE LENGTH(last_name) > 1
@@ -1827,7 +1821,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInStats() {
-        assumeTrue("requires 137382", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS l = SUM(LENGTH(last_name))
@@ -1845,7 +1838,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInEvalAfterManyRenames() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL l1 = last_name
@@ -1866,7 +1858,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInWhereAndEval() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | WHERE LENGTH(last_name) > 1
@@ -1904,7 +1895,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
      * }</pre>
      */
     public void testLengthPushdownZoo() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
@@ -1990,7 +1980,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthInStatsTwice() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
@@ -2016,7 +2005,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLengthTwoFields() {
-        assumeTrue("requires push", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         String query = """
             FROM test
             | STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))
@@ -2176,7 +2164,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
-        assumeTrue("Pushed down expressions are allowed", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL fieldLength = LENGTH(text)
@@ -2207,7 +2194,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushableFunctionsInFork() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         var query = """
             from test_all
             | eval u = v_cosine(dense_vector, [4, 5, 6])
@@ -2357,8 +2343,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushDownFunctionsLookupJoin() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
-
         var query = """
             from test
             | eval s = length(first_name)

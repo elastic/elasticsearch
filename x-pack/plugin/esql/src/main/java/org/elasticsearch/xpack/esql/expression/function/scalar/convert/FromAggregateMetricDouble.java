@@ -200,9 +200,6 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
 
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        if (EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled() == false) {
-            return null;
-        }
         if (field() instanceof FieldAttribute f && f.dataType() == AGGREGATE_METRIC_DOUBLE) {
             var folded = subfieldIndex.fold(FoldContext.small());
             if (folded == null) {

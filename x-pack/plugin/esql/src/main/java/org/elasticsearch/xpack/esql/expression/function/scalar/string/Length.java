@@ -100,10 +100,6 @@ public class Length extends UnaryScalarFunction implements BlockLoaderExpression
 
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        if (EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled() == false) {
-            return null;
-        }
-
         if (field instanceof FieldAttribute f) {
             BlockLoaderWarnings warnings = new BlockLoaderWarnings(DriverContext.WarningsMode.COLLECT, source());
             return new PushedBlockLoaderExpression(

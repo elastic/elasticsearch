@@ -26,6 +26,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -40,7 +41,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 
-public class ReindexPlugin extends Plugin implements ActionPlugin {
+public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
 
     public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");

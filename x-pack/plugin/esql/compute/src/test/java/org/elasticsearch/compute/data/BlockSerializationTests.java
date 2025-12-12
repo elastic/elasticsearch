@@ -424,7 +424,11 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionBetween(random(), Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK, TransportVersion.current())
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK,
+                        TransportVersion.current()
+                    )
                 )
             ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));

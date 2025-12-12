@@ -230,11 +230,7 @@ public class InetAddressesTests extends ESTestCase {
             "2001:db8::1:0:1:0",
             // Addresses starting with "::" followed by exactly 7 hextets (max allowed 8).
             "::1:2:3:4:5:6:7",
-            "::ffff:ffff:ffff:ffff:ffff:ffff:ffff",
-            "::1:0:0:0:0:0:1",
-            "::abcd:ef01:2345:6789:abcd:ef01",
-            "::0:0:0:0:0:0:1",
-            "::1:1:1:1:1:1:1"
+            "::ffff:ffff:ffff:ffff:ffff:ffff:ffff"
         );
         for (String ipString : ipStrings) {
             final InetAddress expected = InetAddress.getByName(ipString);

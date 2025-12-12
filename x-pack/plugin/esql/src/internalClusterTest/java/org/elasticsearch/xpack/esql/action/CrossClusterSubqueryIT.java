@@ -177,13 +177,8 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                REMOTE_CLUSTER_1,
-                "no valid indices found in any subquery in remote cluster [cluster-a]"
-            );
         }
 
         // Multiple subqueries on remote cluster 1 do not have any index matching the index pattern,
@@ -207,13 +202,8 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                REMOTE_CLUSTER_1,
-                "no valid indices found in any subquery in remote cluster [cluster-a]"
-            );
         }
 
         // Some subqueries on remote cluster 1 have indexes matching the index pattern, some don't
@@ -316,7 +306,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
         try (EsqlQueryResponse resp = runQuery("""
-            FROM  missing, (FROM *:remote* metadata _index) metadata _index
+            FROM missing*, (FROM *:remote* metadata _index) metadata _index
              | STATS c = count(*) by _index
              | SORT _index
             """, randomBoolean())) {
@@ -332,14 +322,9 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                LOCAL_CLUSTER,
-                "no valid indices found in any subquery in local cluster"
-            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -359,14 +344,9 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                LOCAL_CLUSTER,
-                "no valid indices found in any subquery in local cluster"
-            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""

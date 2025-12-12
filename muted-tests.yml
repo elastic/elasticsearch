@@ -487,6 +487,9 @@ tests:
 - class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
   method: testIndexTypes
   issue: https://github.com/elastic/elasticsearch/issues/139455
+- class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
+  method: testSortShortcuts
+  issue: https://github.com/elastic/elasticsearch/issues/139456
 
 # Examples:
 #

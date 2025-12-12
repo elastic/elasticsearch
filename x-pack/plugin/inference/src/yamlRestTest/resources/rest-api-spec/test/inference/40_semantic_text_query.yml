@@ -418,8 +418,8 @@ setup:
 ---
 "Query using a dense embedding model that uses bfloat16 embeddings":
   - requires:
-      cluster_features: [ "mapper.vectors.generic_vector_format" ]
-      reason: Needs generic vector support
+      cluster_features: [ "semantic_text.bfloat16_support" ]
+      reason: bfloat16 support for semantic text
   - skip:
       features: [ "headers", "close_to" ]
 

@@ -490,6 +490,9 @@ tests:
 - class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
   method: testSortShortcuts
   issue: https://github.com/elastic/elasticsearch/issues/139456
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:tdigest.UngroupedPercentiles}
+  issue: https://github.com/elastic/elasticsearch/issues/139458
 
 # Examples:
 #

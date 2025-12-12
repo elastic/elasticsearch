@@ -475,6 +475,9 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleDatastream
   issue: https://github.com/elastic/elasticsearch/issues/139438
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testPushDownFunctionsLookupJoin
+  issue: https://github.com/elastic/elasticsearch/issues/139448
 
 # Examples:
 #

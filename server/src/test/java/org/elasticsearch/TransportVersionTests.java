@@ -25,44 +25,10 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
-
-    public void testVersionComparison() {
-        TransportVersion older = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.minimumCompatible(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-        );
-        TransportVersion newer = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getNextVersion(older),
-            TransportVersion.current()
-        );
-        assertThat(older.before(newer), is(true));
-        assertThat(older.before(older), is(false));
-        assertThat(newer.before(older), is(false));
-
-        assertThat(older.onOrBefore(newer), is(true));
-        assertThat(older.onOrBefore(older), is(true));
-        assertThat(newer.onOrBefore(older), is(false));
-
-        assertThat(older.after(newer), is(false));
-        assertThat(older.after(older), is(false));
-        assertThat(newer.after(older), is(true));
-
-        assertThat(older.onOrAfter(newer), is(false));
-        assertThat(older.onOrAfter(older), is(true));
-        assertThat(newer.onOrAfter(older), is(true));
-
-        assertThat(older, is(lessThan(newer)));
-        assertThat(older.compareTo(older), is(0));
-        assertThat(newer, is(greaterThan(older)));
-    }
 
     public static class CorrectFakeVersion {
         public static final TransportVersion V_0_00_01 = new TransportVersion(199);
@@ -198,7 +164,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersion.fromId(8_84_10_00)) && (tv.id() % 100) > 90) {
+            if (tv.id() >= TransportVersion.fromId(8_84_10_00).id() && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv

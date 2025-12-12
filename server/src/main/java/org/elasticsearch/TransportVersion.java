@@ -76,10 +76,12 @@ import java.util.stream.Collectors;
  */
 public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
 
+    @Deprecated(forRemoval = true)
     public boolean onOrAfter(TransportVersion version) {
         throw new UnsupportedOperationException("use TransportVersion.supports(...) instead");
     }
 
+    @Deprecated(forRemoval = true)
     public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
         throw new UnsupportedOperationException("use TransportVersion.supports(...) && TransportVersion.supports(...) == false instead");
     }

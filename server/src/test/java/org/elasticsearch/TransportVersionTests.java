@@ -164,7 +164,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.id() >= TransportVersion.fromId(8_84_10_00).id() && (tv.id() % 100) > 90) {
+            if (tv.id() >= 8_84_10_00 && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv

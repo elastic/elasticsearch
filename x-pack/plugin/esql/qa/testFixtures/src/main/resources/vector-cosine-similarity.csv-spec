@@ -202,7 +202,7 @@ silver          | 0.9258201122283936
 ;
 
 similarityWithFork
-required_capability: cosine_vector_similarity_function
+required_capability: vector_similarity_functions_pushdown
 required_capability: fork_v9
 
 from colors
@@ -228,7 +228,7 @@ gray        | 0.8164966106414795
 ;
 
 similarityWithSubqueries
-required_capability: cosine_vector_similarity_function
+required_capability: vector_similarity_functions_pushdown
 required_capability: subquery_in_from_command
 
 from (from colors | where color != "black" and primary == true), (from colors | where color != "black" and primary == false)

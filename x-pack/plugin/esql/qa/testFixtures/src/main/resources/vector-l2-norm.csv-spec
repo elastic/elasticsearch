@@ -219,7 +219,7 @@ linen           | 412.5215148925781
 ;
 
 similarityWithFork
-required_capability: l2_norm_vector_similarity_function
+required_capability: vector_similarity_functions_pushdown
 required_capability: fork_v9
 
 from colors
@@ -244,7 +244,7 @@ tomato     | 351.0227966308594
 ;
 
 similarityWithSubqueries
-required_capability: l2_norm_vector_similarity_function
+required_capability: vector_similarity_functions_pushdown
 required_capability: subquery_in_from_command
 
 from (from colors | where primary == true), (from colors | where primary == false)

@@ -219,7 +219,7 @@ gainsboro       | 16.0
 ;
 
 similarityWithFork
-required_capability: hamming_vector_similarity_function
+required_capability: vector_similarity_functions_pushdown
 required_capability: fork_v9
 
 from colors
@@ -245,7 +245,7 @@ navy       | 16.0
 
 
 similarityWithSubqueries
-required_capability: hamming_vector_similarity_function
+required_capability: vector_similarity_functions_pushdown
 required_capability: subquery_in_from_command
 
 from (from colors | where primary == true), (from colors | where primary == false)

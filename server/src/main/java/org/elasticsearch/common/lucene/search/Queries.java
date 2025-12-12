@@ -34,7 +34,11 @@ import java.util.regex.Pattern;
 public final class Queries {
 
     @SuppressForbidden(reason = "Providing instance")
-    public static final MatchNoDocsQuery NO_DOCS_INSTANCE = new MatchNoDocsQuery();
+    private static MatchNoDocsQuery createInstance() {
+        return new MatchNoDocsQuery();
+    }
+
+    public static final MatchNoDocsQuery NO_DOCS_INSTANCE = createInstance();
     public static final MatchNoDocsQuery NO_MAPPINGS = new MatchNoDocsQuery("No mappings yet");
 
     private Queries() {}

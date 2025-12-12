@@ -142,12 +142,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
     @Override
     public void testFailIfAlreadyExists() {
-        assumeTrue("S3 repository does not support conditional writes and existence check", supportsConditionalWrites());
+        assumeTrue("S3 repository is not configured with conditional writes and existence check", supportsConditionalWrites());
         super.testFailIfAlreadyExists();
     }
 
     public void testMPUCompareAndExchangeCleanup() throws IOException {
-        assumeFalse("S3 repository supports condtional-writes and does not use MPU for CAS", supportsConditionalWrites());
+        assumeFalse("S3 repository is configured condtional-writes and does not use MPU for CAS", supportsConditionalWrites());
 
         final var timeOffsetMillis = new AtomicLong();
         final var threadpool = new TestThreadPool(getTestName()) {

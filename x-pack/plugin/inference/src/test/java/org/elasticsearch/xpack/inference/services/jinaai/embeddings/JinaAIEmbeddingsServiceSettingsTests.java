@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
@@ -320,9 +321,17 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is("""
-            {"url":"url","model_id":"model","rate_limit":{"requests_per_minute":3},"embedding_type":"float","dimensions":5,\
-            "similarity":"cosine","max_input_tokens":10,"dimensions_set_by_user":false}"""));
+        assertThat(xContentResult, is(stripWhitespace("""
+            {
+                "url":"url",
+                "model_id":"model",
+                "rate_limit":{"requests_per_minute":3},
+                "dimensions":5,
+                "embedding_type":"float",
+                "max_input_tokens":10,
+                "similarity":"cosine",
+                "dimensions_set_by_user":false
+            }""")));
     }
 
     public void testToXContentFragmentOfExposedFields_WritesAllValues() throws IOException {
@@ -340,8 +349,16 @@ public class JinaAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         serviceSettings.toXContentFragmentOfExposedFields(builder, null);
         builder.endObject();
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is("""
-            {"url":"url","model_id":"model","rate_limit":{"requests_per_minute":3},"embedding_type":"float","dimensions":5}"""));
+        assertThat(xContentResult, is(stripWhitespace("""
+            {
+                "url":"url",
+                "model_id":"model",
+                "rate_limit":{"requests_per_minute":3},
+                "dimensions":5,
+                "embedding_type":"float",
+                "max_input_tokens":10,
+                "similarity":"cosine"
+            }""")));
     }
 
     @Override

@@ -183,12 +183,6 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
 
         toXContentFragmentOfExposedFields(builder, params);
 
-        if (similarity != null) {
-            builder.field(SIMILARITY, similarity);
-        }
-        if (maxInputTokens != null) {
-            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
-        }
         if (dimensionsSetByUser != null) {
             builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
@@ -200,11 +194,17 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         commonSettings.toXContentFragmentOfExposedFields(builder, params);
+        if (dimensions != null) {
+            builder.field(DIMENSIONS, dimensions);
+        }
         if (embeddingType != null) {
             builder.field(EMBEDDING_TYPE, embeddingType);
         }
-        if (dimensions != null) {
-            builder.field(DIMENSIONS, dimensions);
+        if (maxInputTokens != null) {
+            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (similarity != null) {
+            builder.field(SIMILARITY, similarity);
         }
         return builder;
     }

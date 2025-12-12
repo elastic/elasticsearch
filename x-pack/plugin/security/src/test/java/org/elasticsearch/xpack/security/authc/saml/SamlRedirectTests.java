@@ -26,11 +26,17 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.zip.DataFormatException;
+import java.util.zip.Inflater;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 
 public class SamlRedirectTests extends SamlTestCase {
 
@@ -45,15 +51,17 @@ public class SamlRedirectTests extends SamlTestCase {
     public void testRedirectUrlWithoutRelayStateOrSigning() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL), NO_SIGNING);
         final String url = redirect.getRedirectUrl();
-        assertThat(
+        assertRedirectUrl(
             url,
-            equalTo(
-                LOGOUT_URL
-                    + "?SAMLRequest=nZFBa4QwFIT%2FSnh3Naa2ax%2FqsiAFYdtDu91DLyVo2AY0cX2x9Oc36gpLCz30mAwz3"
-                    + "wwv2351LftUA2lrcohDDkyZ2jbanHJ4PTwEKWyLjGTXih739mRH96zOoyLHvNMQLlIO42DQStKERnaK0NX4snvcowg59oN1trYtsNIbtZFupn04"
-                    + "1xNGkW760HkhmrKidoYAq8oc3nUTi5vk9m6T3vsfolFVhpw0LgfB4zTgcRAnByEw2SDnIef8DdhxnePZcCmPs3m4Lv13Z0mkhqknFL96ZtF15kp"
-                    + "48hlV%2BS%2FCJAbL0sBP5StgiSwuzx8HKL4B"
-            )
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
+                + "Destination=\"https://idp.test/saml/logout\" "
+                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
+                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
+                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
+                + "</saml2p:LogoutRequest>",
+            emptyMap(),
+            false
         );
     }
 
@@ -64,51 +72,97 @@ public class SamlRedirectTests extends SamlTestCase {
         );
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL), signing);
         final String url = redirect.getRedirectUrl("hello");
-        assertThat(
+        assertRedirectUrl(
             url,
-            startsWith(
-                LOGOUT_URL
-                    + "?SAMLRequest=nZFBa4QwFIT%2FSnh3Naa2ax%2FqsiAFYdtDu91DLyVo2AY0cX2x9Oc36gpLC"
-                    + "z30mAwz3wwv2351LftUA2lrcohDDkyZ2jbanHJ4PTwEKWyLjGTXih739mRH96zOoyLHvNMQLlIO42DQStKERnaK0NX4snvcowg59oN1trY"
-                    + "tsNIbtZFupn041xNGkW760HkhmrKidoYAq8oc3nUTi5vk9m6T3vsfolFVhpw0LgfB4zTgcRAnByEw2SDnIef8DdhxnePZcCmPs3m4Lv13Z"
-                    + "0mkhqknFL96ZtF15kp48hlV%2BS%2FCJAbL0sBP5StgiSwuzx8HKL4B"
-                    + "&RelayState=hello"
-                    + "&SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256"
-                    + "&Signature="
-            )
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
+                + "Destination=\"https://idp.test/saml/logout\" "
+                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
+                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
+                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
+                + "</saml2p:LogoutRequest>",
+            Map.of("RelayState", "hello", "SigAlg", "http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256"),
+            true
         );
     }
 
     public void testRedirectUrlWithExistingParameters() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?a=xyz"), NO_SIGNING);
         final String url = redirect.getRedirectUrl("foo");
-        assertThat(
+        assertRedirectUrl(
             url,
-            equalTo(
-                LOGOUT_URL
-                    + "?a=xyz"
-                    + "&SAMLRequest=nZFBS8QwFIT%2FSnn3tmmsbn00LUIRCqsHXT14kdCGNdAmtS%2BV1V9v2u7CouDBYzLMzDe8vDz0XfChRtLWCE"
-                    + "giBoEyjW212Qt42t2GGZRFTrLv%2BIBbu7eTe1DvkyIXeKchXCUB02jQStKERvaK0DX4eHO3RR4xHEbrbGM7CCpv1Ea6pe3NuYE"
-                    + "wjnU7RM4L8ZwVd0tJKcXh8wuCuhLwqtuEX6SXV5vs2v8QTao25KRxAjhLspAlYZLuOMd0g4xFjLEXCJ5PozwBHCfgYh7P0f8ml0"
-                    + "RqnGmh%2BEWbx%2BeZp4Z7n1FX%2F2qYxXBdGvqp7FSwRhbH548zFN8%3D"
-                    + "&RelayState=foo"
-            )
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
+                + "Destination=\"https://idp.test/saml/logout?a=xyz\" "
+                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
+                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
+                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
+                + "</saml2p:LogoutRequest>",
+            Map.of("RelayState", "foo", "a", "xyz"),
+            false
         );
     }
 
     public void testRedirectUrlWithTrailingQuestionMark() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?"), NO_SIGNING);
         final String url = redirect.getRedirectUrl();
-        assertThat(
+        assertRedirectUrl(
             url,
-            equalTo(
-                LOGOUT_URL
-                    + "?SAMLRequest=nZFPS8QwFMS%2FSnj3tmmsbn30D0IRCqsHXffgRUIb1kCb1L5U%2FPim7R"
-                    + "YWBQ8ek2HmN8PLyq%2B%2BY59qJG1NDnHIgSnT2FabUw4vh%2FsghbLISPadGHBvT3ZyT%2BpjUuSYdxrCVcphGg1aSZrQyF4Rug"
-                    + "af7x72KEKOw2idbWwHrPJGbaRbaO%2FODYRRpNshdF6I5qyoWyAlsLrK4U23sbhKrm926a3%2FIZpUbchJ43IQPE4DHgdxchACkx"
-                    + "1yHnLOX4Edtz0eDuf2uJjHy9Z%2Fl5ZEapyLQvGraBZdZm6ER59RV%2F8izGKwLg38VL4B1sji%2FPxxgeIb"
-            )
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<saml2p:LogoutRequest xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" "
+                + "Destination=\"https://idp.test/saml/logout?\" "
+                + "ID=\"_id123456789\" IssueInstant=\"2018-01-14T22:47:00.000Z\" Version=\"2.0\">"
+                + "<saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">https://idp.test/</saml2:Issuer>"
+                + "<saml2:NameID xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">name-123456-7890</saml2:NameID>"
+                + "</saml2p:LogoutRequest>",
+            emptyMap(),
+            false
         );
+    }
+
+    private void assertRedirectUrl(
+        String actualRequestUrl,
+        String expectedUncompressedSamlRequestContent,
+        Map<String, String> expectedParams,
+        boolean allowExtraParams
+    ) {
+        Set<String> requiredParams = new HashSet<>(expectedParams.keySet());
+        String[] parts = actualRequestUrl.split("\\?");
+        assertThat(parts[0], equalTo(LOGOUT_URL));
+        final String[] params = parts[1].split("&");
+        for (String param : params) {
+            final String[] keyValue = param.split("=", 2);
+            assertThat(keyValue.length, equalTo(2));
+            final String actualKey = keyValue[0];
+            final String actualValue = keyValue[1];
+            if (actualKey.equals("SAMLRequest")) {
+                final String samlRequest = URLDecoder.decode(actualValue, StandardCharsets.UTF_8);
+                final String decompressed = decompressAndBase64Decode(samlRequest);
+                assertThat(decompressed, equalTo(expectedUncompressedSamlRequestContent));
+            } else {
+                if (expectedParams.containsKey(actualKey)) {
+                    assertThat("invalid value for key " + actualKey, actualValue, equalTo(expectedParams.get(actualKey)));
+                    requiredParams.remove(actualKey);
+                } else if (allowExtraParams == false) {
+                    fail("unexpected parameter: " + actualKey);
+                }
+            }
+        }
+        assertThat(requiredParams, empty());
+    }
+
+    private String decompressAndBase64Decode(String compressedBase64) {
+        byte[] decodedBytes = Base64.getDecoder().decode(compressedBase64);
+        Inflater inflater = new Inflater(true);
+        inflater.setInput(decodedBytes);
+        byte[] result = new byte[decodedBytes.length * 10];
+        try {
+            int resultLength = inflater.inflate(result);
+            inflater.end();
+            return new String(result, 0, resultLength, StandardCharsets.UTF_8);
+        } catch (DataFormatException e) {
+            throw new RuntimeException("Failed to decompress SAML request", e);
+        }
     }
 
     public void testLogoutRequestSigning() throws Exception {

@@ -186,18 +186,34 @@ class HardcodedEntitlements {
 
         // conditionally add FIPS entitlements if FIPS only functionality is enforced
         if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
-            // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
+            // From the JSSE reference guide:
+            // - If the javax.net.ssl.trustStore property is defined, then the TrustManagerFactory attempts to find a file using
+            //   the file name specified by that system property, and uses that file for the KeyStore parameter
+            // - If the javax.net.ssl.trustStore property is defined but the specified file does not exist, then a default TrustManager
+            //   using an empty keystore is created.
+            // - If the javax.net.ssl.trustStore system property was not specified, then:
+            //   - if the file java-home/lib/security/jssecacerts exists, that file is used;
+            //   - if the file java-home/lib/security/cacerts exists, that file is used;
+            //   - if neither of these files exists, then the TLS cipher suite is anonymous, does not perform any authentication,
+            //     and thus does not need a truststore.
             String trustStore = System.getProperty("javax.net.ssl.trustStore");
-            Path trustStorePath = trustStore != null
-                ? Path.of(trustStore)
-                : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+            final List<FilesEntitlement.FileData> trustStoreFiles;
+            if (trustStore != null) {
+                trustStoreFiles = List.of(FilesEntitlement.FileData.ofPath(Path.of(trustStore), READ));
+            } else {
+                Path javaHome = Path.of(System.getProperty("java.home"));
+                trustStoreFiles = List.of(
+                    FilesEntitlement.FileData.ofPath(javaHome.resolve("lib/security/jssecacerts"), READ),
+                    FilesEntitlement.FileData.ofPath(javaHome.resolve("lib/security/cacerts"), READ)
+                );
+            }
 
             Collections.addAll(
                 serverScopes,
                 new Scope(
                     "org.bouncycastle.fips.tls",
                     List.of(
-                        new FilesEntitlement(List.of(FilesEntitlement.FileData.ofPath(trustStorePath, READ))),
+                        new FilesEntitlement(trustStoreFiles),
                         new ManageThreadsEntitlement(),
                         new OutboundNetworkEntitlement()
                     )

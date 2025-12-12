@@ -793,7 +793,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     private void setUpTextEmbeddingInferenceEndpoint() throws IOException {
         setupEmbeddings = true;
-        Request request = new Request("PUT", "_inference/text_embedding/test");
+        Request request = new Request("PUT", "/_inference/text_embedding/test");
         request.setJsonEntity("""
                   {
                    "service": "text_embedding_test_service",

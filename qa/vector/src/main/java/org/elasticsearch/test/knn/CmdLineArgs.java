@@ -56,7 +56,7 @@ record CmdLineArgs(
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
     List<SearchParameters> searchParams
-) implements ToXContentObject {
+) {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
     static final ParseField QUERY_VECTORS_FIELD = new ParseField("query_vectors");
@@ -144,49 +144,21 @@ record CmdLineArgs(
         return searchParams.size();
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (docVectors != null) {
-            List<String> docVectorsStrings = docVectors.stream().map(Path::toString).toList();
-            builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectorsStrings);
-        }
-        if (queryVectors != null) {
-            builder.field(QUERY_VECTORS_FIELD.getPreferredName(), queryVectors.toString());
-        }
-        builder.field(NUM_DOCS_FIELD.getPreferredName(), numDocs);
-        builder.field(NUM_QUERIES_FIELD.getPreferredName(), numQueries);
-        builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
-        // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
-        builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
-        builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
-        builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
-        builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
-        builder.field(REINDEX_FIELD.getPreferredName(), reindex);
-        builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
-        builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
-        builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
-        builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
-        builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
-        builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
-        builder.field(SEED_FIELD.getPreferredName(), seed);
-        builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
-        builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
-        builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
-        builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
-        if (mergePolicy != null) {
-            builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
-        }
-        builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
-        return builder.endObject();
+    public static String exampleFormatForHelp() {
+        var b = new CmdLineArgs.Builder().setDimensions(64)
+            .setDocVectors(List.of("/doc/vectors/path"))
+            .setQueryVectors("/query/vectors/path")
+            .setSearchParams(
+                List.of(
+                    SearchParameters.builder().setEarlyTermination(true).setTopK(100),
+                    SearchParameters.builder().setEarlyTermination(false).setTopK(10)
+                )
+            );
+
+        return Strings.toString(b, true, false);
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this, false, false);
-    }
-
-    static class Builder {
+    static class Builder implements ToXContentObject {
         private List<Path> docVectors;
         private Path queryVectors;
         private int numDocs = 1000;
@@ -464,5 +436,45 @@ record CmdLineArgs(
                 searchRuns
             );
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (docVectors != null) {
+                List<String> docVectorsStrings = docVectors.stream().map(Path::toString).toList();
+                builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectorsStrings);
+            }
+            if (queryVectors != null) {
+                builder.field(QUERY_VECTORS_FIELD.getPreferredName(), queryVectors.toString());
+            }
+            builder.field(NUM_DOCS_FIELD.getPreferredName(), numDocs);
+            builder.field(NUM_QUERIES_FIELD.getPreferredName(), numQueries);
+            builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
+            // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
+            builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
+            builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
+            builder.field(HNSW_EF_CONSTRUCTION_FIELD.getPreferredName(), hnswEfConstruction);
+            builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
+            builder.field(REINDEX_FIELD.getPreferredName(), reindex);
+            builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
+            builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
+            builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
+            builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
+            builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
+            builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
+            builder.field(SEED_FIELD.getPreferredName(), seed);
+            builder.field(WRITER_BUFFER_MB_FIELD.getPreferredName(), writerBufferSizeInMb);
+            builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
+            builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
+            builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
+            if (mergePolicy != null) {
+                builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));
+            }
+            if (searchParams != null) {
+                builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
+            }
+            return builder.endObject();
+        }
+
     }
 }

@@ -201,16 +201,7 @@ public class KnnIndexTester {
             System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file>");
             System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
             System.out.println("An example configuration object: ");
-            System.out.println(
-                Strings.toString(
-                    new CmdLineArgs.Builder().setDimensions(64)
-                        .setDocVectors(List.of("/doc/vectors/path"))
-                        .setQueryVectors("/query/vectors/path")
-                        .build(),
-                    true,
-                    true
-                )
-            );
+            System.out.println(CmdLineArgs.exampleFormatForHelp());
             return;
         }
         String jsonConfig = args[0];

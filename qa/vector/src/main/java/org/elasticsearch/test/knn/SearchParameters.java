@@ -27,7 +27,7 @@ public record SearchParameters(
     float filterSelectivity,
     boolean filterCached,
     boolean earlyTermination
-) implements ToXContentObject {
+) {
 
     static final ObjectParser<SearchParameters.Builder, Void> PARSER = new ObjectParser<>(
         "search_params",
@@ -51,26 +51,11 @@ public record SearchParameters(
         return PARSER.apply(parser, null);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(CmdLineArgs.NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
-        builder.field(CmdLineArgs.K_FIELD.getPreferredName(), topK);
-        builder.field(CmdLineArgs.VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
-        builder.field(CmdLineArgs.OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
-        builder.field(CmdLineArgs.SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
-        builder.field(CmdLineArgs.NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
-        builder.field(CmdLineArgs.FILTER_CACHED.getPreferredName(), filterCached);
-        builder.field(CmdLineArgs.FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
-        builder.field(CmdLineArgs.EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
-        return builder.endObject();
-    }
-
     static Builder builder() {
         return new Builder();
     }
 
-    static class Builder {
+    static class Builder implements ToXContentObject {
         private Integer numCandidates;
         private Integer topK;
         private Double visitPercentage;
@@ -165,6 +150,39 @@ public record SearchParameters(
                 filterCached,
                 earlyTermination
             );
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (numCandidates != null) {
+                builder.field(CmdLineArgs.NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
+            }
+            if (topK != null) {
+                builder.field(CmdLineArgs.K_FIELD.getPreferredName(), topK);
+            }
+            if (visitPercentage != null) {
+                builder.field(CmdLineArgs.VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
+            }
+            if (overSamplingFactor != null) {
+                builder.field(CmdLineArgs.OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
+            }
+            if (searchThreads != null) {
+                builder.field(CmdLineArgs.SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
+            }
+            if (numSearchers != null) {
+                builder.field(CmdLineArgs.NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
+            }
+            if (filterCached != null) {
+                builder.field(CmdLineArgs.FILTER_CACHED.getPreferredName(), filterCached);
+            }
+            if (filterSelectivity != null) {
+                builder.field(CmdLineArgs.FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
+            }
+            if (earlyTermination != null) {
+                builder.field(CmdLineArgs.EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
+            }
+            return builder.endObject();
         }
     }
 }

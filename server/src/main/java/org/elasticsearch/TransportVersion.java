@@ -159,7 +159,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         }
     }
 
-    private static List<TransportVersion> collectFromResources(
+    public static List<TransportVersion> collectFromResources(
         String component,
         String resourceRoot,
         Function<String, InputStream> resourceLoader,

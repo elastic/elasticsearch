@@ -2176,6 +2176,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
+        assumeTrue("Pushed down expressions are allowed", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         var query = String.format(Locale.ROOT, """
                 FROM test_all
                 | EVAL fieldLength = LENGTH(text)
@@ -2206,7 +2207,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushableFunctionsInFork() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
         var query = """
             from test_all
             | eval u = v_cosine(dense_vector, [4, 5, 6])
@@ -2295,7 +2296,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushableFunctionsInSubqueries() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             from test_all, (from test_all | eval s = length(text) | keep s)
             | eval t = v_dot_product(dense_vector, [1, 2, 3])
@@ -2356,7 +2357,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPushDownFunctionsLookupJoin() {
-        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
+        assumeTrue("requires functions pushdown", EsqlCapabilities.Cap.BLOCK_LOADER_EXPRESSIONS_PUSHDOWN.isEnabled());
 
         var query = """
             from test

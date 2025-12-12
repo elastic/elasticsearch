@@ -103,7 +103,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
 
     @Override
     public DataType dataType() {
-        return DataType.DENSE_VECTOR;
+        return inputText.dataType() == DataType.NULL ? DataType.NULL : DataType.DENSE_VECTOR;
     }
 
     @Override

@@ -167,7 +167,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private boolean assertConsistent() {
         final var lookup = indicesLookup;
         final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
-        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, indices));
+        final var viewMetadata = custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, viewMetadata, indices));
         try {
             Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata);
         } catch (Exception e) {
@@ -530,7 +531,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         if (i != null) {
             return i;
         }
-        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        i = Builder.buildIndicesLookup(
+            custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY),
+            custom(ViewMetadata.TYPE, ViewMetadata.EMPTY),
+            indices
+        );
         indicesLookup = i;
         return i;
     }
@@ -1440,6 +1445,18 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return this;
         }
 
+        public View view(String viewName) {
+            return viewMetadata().views().get(viewName);
+        }
+
+        public Builder views(Map<String, View> views) {
+            // Indices lookup must be rebuilt when modifying views
+            previousIndicesLookup = null;
+
+            this.customs.put(ViewMetadata.TYPE, new ViewMetadata(views));
+            return this;
+        }
+
         public Builder put(DataStream dataStream) {
             Objects.requireNonNull(dataStream, "it is invalid to add a null data stream");
             previousIndicesLookup = null;
@@ -1456,6 +1473,10 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         public DataStreamMetadata dataStreamMetadata() {
             return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
+        }
+
+        public ViewMetadata viewMetadata() {
+            return (ViewMetadata) this.customs.getOrDefault(ViewMetadata.TYPE, ViewMetadata.EMPTY);
         }
 
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
@@ -1633,7 +1654,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
                 // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), viewMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
                 // we have changes to the entity names so we ensure we have no naming collisions
@@ -1769,6 +1790,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         static SortedMap<String, IndexAbstraction> buildIndicesLookup(
             DataStreamMetadata dataStreamMetadata,
+            ViewMetadata viewMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
             if (indices.isEmpty()) {
@@ -1777,6 +1799,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             Map<String, IndexAbstraction> indicesLookup = new HashMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             collectDataStreams(dataStreamMetadata, indicesLookup, indexToDataStreamLookup);
+            System.out.println("--> views: " + viewMetadata.views());
+            indicesLookup.putAll(viewMetadata.views());
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
             collectIndices(indices, indexToDataStreamLookup, indicesLookup, aliasToIndices);

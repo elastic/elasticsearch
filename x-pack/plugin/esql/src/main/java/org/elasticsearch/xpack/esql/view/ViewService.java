@@ -152,7 +152,7 @@ public class ViewService {
                 validatePutView(metadata, view);
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
                 updatedViews.put(view.name(), view);
-                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };
@@ -188,7 +188,7 @@ public class ViewService {
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
                 final View existingView = updatedViews.remove(name);
                 assert existingView != null : "we should have short-circuited if removing a view that already didn't exist";
-                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };

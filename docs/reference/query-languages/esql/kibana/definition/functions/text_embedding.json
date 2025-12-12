@@ -17,7 +17,7 @@
           "type" : "keyword",
           "optional" : false,
           "description" : "Identifier of an existing inference endpoint the that will generate the embeddings. The inference endpoint must have the `text_embedding` task type and should use the same model that was used to embed your indexed data.",
-          "autocompleteHint" : {
+          "hint" : {
             "entityType" : "inference_endpoint",
             "constraints" : {
               "task_type" : "text_embedding"

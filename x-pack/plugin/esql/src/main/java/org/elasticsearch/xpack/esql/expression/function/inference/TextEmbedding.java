@@ -66,9 +66,9 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
             description = "Identifier of an existing inference endpoint the that will generate the embeddings. "
                 + "The inference endpoint must have the `text_embedding` task type and should use the same model "
                 + "that was used to embed your indexed data.",
-            autocompleteHint = @Param.AutocompleteHint(
-                entityType = Param.AutocompleteHint.ENTITY_TYPE.INFERENCE_ENDPOINT,
-                constraints = { @Param.AutocompleteHint.Constraint(name = "task_type", value = "text_embedding") }
+            hint = @Param.Hint(
+                entityType = Param.Hint.ENTITY_TYPE.INFERENCE_ENDPOINT,
+                constraints = { @Param.Hint.Constraint(name = "task_type", value = "text_embedding") }
             )
         ) Expression inferenceId
     ) {

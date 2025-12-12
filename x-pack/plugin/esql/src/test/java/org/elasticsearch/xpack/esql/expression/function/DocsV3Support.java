@@ -1383,12 +1383,12 @@ public abstract class DocsV3Support {
                         builder.field("optional", arg.optional());
                         String cleanedParamDesc = removeAppliesToBlocks(arg.description());
                         builder.field("description", cleanedParamDesc);
-                        if (arg.autocompleteHint != null) {
-                            builder.startObject("autocompleteHint");
-                            builder.field("entityType", arg.autocompleteHint.entityType());
-                            if (arg.autocompleteHint.constraints() != null && arg.autocompleteHint.constraints().size() > 0) {
+                        if (arg.hint != null) {
+                            builder.startObject("hint");
+                            builder.field("entityType", arg.hint.entityType());
+                            if (arg.hint.constraints() != null && arg.hint.constraints().size() > 0) {
                                 builder.startObject("constraints");
-                                for (Map.Entry<String, String> constraint : arg.autocompleteHint.constraints().entrySet()) {
+                                for (Map.Entry<String, String> constraint : arg.hint.constraints().entrySet()) {
                                     builder.field(constraint.getKey(), constraint.getValue());
                                 }
                                 builder.endObject();

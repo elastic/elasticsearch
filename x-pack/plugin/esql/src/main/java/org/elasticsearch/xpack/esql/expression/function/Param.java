@@ -29,11 +29,11 @@ public @interface Param {
     boolean optional() default false;
 
     @Nullable
-    AutocompleteHint autocompleteHint() default @AutocompleteHint(entityType = AutocompleteHint.ENTITY_TYPE.NONE);
+    Hint hint() default @Hint(entityType = Hint.ENTITY_TYPE.NONE);
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)
-    @interface AutocompleteHint {
+    @interface Hint {
         enum ENTITY_TYPE {
             NONE,
             INFERENCE_ENDPOINT,

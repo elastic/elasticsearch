@@ -611,7 +611,7 @@ public class EsqlFunctionRegistry {
 
     public static class ArgSignature {
 
-        public record AutocompleteHint(String entityType, Map<String, String> constraints) {}
+        public record Hint(String entityType, Map<String, String> constraints) {}
 
         protected final String name;
         protected final String[] type;
@@ -619,7 +619,7 @@ public class EsqlFunctionRegistry {
         protected final boolean optional;
         protected final boolean variadic;
         protected final DataType targetDataType;
-        protected final AutocompleteHint autocompleteHint;
+        protected final Hint hint;
 
         public ArgSignature(
             String name,
@@ -627,7 +627,7 @@ public class EsqlFunctionRegistry {
             String description,
             boolean optional,
             boolean variadic,
-            AutocompleteHint autocompleteHint,
+            Hint hint,
             DataType targetDataType
         ) {
             this.name = name;
@@ -636,7 +636,7 @@ public class EsqlFunctionRegistry {
             this.optional = optional;
             this.variadic = variadic;
             this.targetDataType = targetDataType;
-            this.autocompleteHint = autocompleteHint;
+            this.hint = hint;
         }
 
         public ArgSignature(
@@ -644,10 +644,10 @@ public class EsqlFunctionRegistry {
             String[] type,
             String description,
             boolean optional,
-            AutocompleteHint autocompleteHint,
+            Hint hint,
             boolean variadic
         ) {
-            this(name, type, description, optional, variadic, autocompleteHint, UNSUPPORTED);
+            this(name, type, description, optional, variadic, hint, UNSUPPORTED);
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
@@ -838,12 +838,11 @@ public class EsqlFunctionRegistry {
         String[] type = removeUnderConstruction(param.type());
         String desc = param.description().replace('\n', ' ');
         DataType targetDataType = getTargetType(type);
-        ArgSignature.AutocompleteHint autocompleteHint = null;
-        if (param.autocompleteHint() != null && param.autocompleteHint().entityType() != Param.AutocompleteHint.ENTITY_TYPE.NONE) {
-            Map<String, String> constraints = Arrays.stream(param.autocompleteHint().constraints())
-                .collect(Collectors.toMap(Param.AutocompleteHint.Constraint::name, Param.AutocompleteHint.Constraint::value));
-            autocompleteHint = new ArgSignature.AutocompleteHint(
-                param.autocompleteHint().entityType().name().toLowerCase(Locale.ROOT),
+        ArgSignature.Hint hint = null;
+        if (param.hint() != null && param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE) {
+            Map<String, String> constraints = Arrays.stream(param.hint().constraints())
+                .collect(Collectors.toMap(Param.Hint.Constraint::name, Param.Hint.Constraint::value));
+            hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT),
                 constraints
             );
         }
@@ -854,7 +853,7 @@ public class EsqlFunctionRegistry {
             desc,
             param.optional(),
             variadic,
-            autocompleteHint,
+            hint,
             targetDataType
         );
     }

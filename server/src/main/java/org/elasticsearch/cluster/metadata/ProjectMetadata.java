@@ -1829,26 +1829,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             }
         }
 
-        /**
-         * Collect all duplicate names across indices and aliases that were detected into a list of helpful duplicate failure messages.
-         */
-        private static void collectViewDuplicates(
-            ImmutableOpenMap<String, IndexMetadata> indicesMap,
-            DataStreamMetadata dataStreamMetadata,
-            ViewMetadata viewMetadata,
-            Set<String> aliasDuplicatesWithViews,
-            List<String> duplicates
-        ) {
-            Set<String> viewNames = viewMetadata.views().keySet();
-            for (IndexMetadata cursor : indicesMap.values()) {
-                for (String view : aliasDuplicatesWithViews) {
-                    if (cursor.getAliases().containsKey(view)) {
-                        duplicates.add(view + " (alias of " + cursor.getIndex() + ") conflicts with index");
-                    }
-                }
-            }
-        }
-
         static SortedMap<String, IndexAbstraction> buildIndicesLookup(
             DataStreamMetadata dataStreamMetadata,
             ViewMetadata viewMetadata,

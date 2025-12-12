@@ -358,7 +358,7 @@ public class RangeFieldMapper extends FieldMapper {
 
             @Override
             public Builder builder(BlockFactory factory, int expectedCount) {
-                return factory.dateRangeBuilder(expectedCount);
+                return factory.longRangeBuilder(expectedCount);
             }
 
             @Override
@@ -402,7 +402,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
             throws IOException {
-            try (BlockLoader.LongRangeBuilder builder = factory.dateRangeBuilder(docs.count() - offset)) {
+            try (BlockLoader.LongRangeBuilder builder = factory.longRangeBuilder(docs.count() - offset)) {
                 int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);

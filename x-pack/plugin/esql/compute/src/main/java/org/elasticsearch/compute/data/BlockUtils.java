@@ -26,7 +26,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.compute.data.ElementType.NULL;
-import static org.elasticsearch.compute.data.ElementType.TDIGEST;
 import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
@@ -229,7 +228,7 @@ public final class BlockUtils {
             case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
             case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
             case TDIGEST -> ((TDigestBlockBuilder) builder).append((TDigestHolder) val);
-            case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendDateRange((LongRangeBlockBuilder.LongRange) val);
+            case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
             case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }

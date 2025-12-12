@@ -672,7 +672,7 @@ public interface BlockLoader {
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
-        LongRangeBuilder dateRangeBuilder(int count);
+        LongRangeBuilder longRangeBuilder(int count);
 
         Block buildAggregateMetricDoubleDirect(Block minBlock, Block maxBlock, Block sumBlock, Block countBlock);
 

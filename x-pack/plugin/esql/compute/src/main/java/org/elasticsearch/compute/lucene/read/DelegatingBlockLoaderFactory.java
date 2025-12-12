@@ -158,7 +158,7 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
-    public BlockLoader.LongRangeBuilder dateRangeBuilder(int expectedCount) {
+    public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedCount) {
         return factory.newLongRangeBlockBuilder(expectedCount);
     }
 

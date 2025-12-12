@@ -40,17 +40,17 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
 
     @Override
     protected int valuesLength() {
-        throw new UnsupportedOperationException("Not available on date_range");
+        throw new UnsupportedOperationException("Not available on long_range");
     }
 
     @Override
     protected void growValuesArray(int newSize) {
-        throw new UnsupportedOperationException("Not available on date_range");
+        throw new UnsupportedOperationException("Not available on long_range");
     }
 
     @Override
     protected int elementSize() {
-        throw new UnsupportedOperationException("Not available on date_range");
+        throw new UnsupportedOperationException("Not available on long_range");
     }
 
     @Override
@@ -102,7 +102,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return this;
     }
 
-    public LongRangeBlockBuilder appendDateRange(LongRange lit) {
+    public LongRangeBlockBuilder appendLongRange(LongRange lit) {
         if (lit.from == null) {
             fromBuilder.appendNull();
         } else {

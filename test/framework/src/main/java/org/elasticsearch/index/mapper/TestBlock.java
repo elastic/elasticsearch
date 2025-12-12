@@ -480,7 +480,7 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.LongRangeBuilder dateRangeBuilder(int expectedSize) {
+            public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedSize) {
                 return new LongRangeBuilder(expectedSize);
             }
 

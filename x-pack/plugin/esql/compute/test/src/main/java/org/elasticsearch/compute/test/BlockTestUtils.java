@@ -235,13 +235,13 @@ public class BlockTestUtils {
         }
         if (builder instanceof LongRangeBlockBuilder b) {
             if (value instanceof LongRangeBlockBuilder.LongRange v) {
-                b.appendDateRange(v);
+                b.appendLongRange(v);
                 return;
             }
             if (value instanceof List<?> l) {
                 switch (l.size()) {
                     case 0 -> b.appendNull();
-                    case 1 -> b.appendDateRange((LongRangeBlockBuilder.LongRange) l.get(0));
+                    case 1 -> b.appendLongRange((LongRangeBlockBuilder.LongRange) l.get(0));
                     default -> throw new IllegalArgumentException("LONG_RANGE does not support multi-valued positions");
                 }
                 return;

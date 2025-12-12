@@ -200,3 +200,53 @@ gainsboro       | 0.9258201122283936
 gray            | 0.9258201122283936
 silver          | 0.9258201122283936
 ;
+
+similarityWithFork
+required_capability: cosine_vector_similarity_function
+required_capability: fork_v9
+
+from colors
+| where color != "black"
+| fork (where primary == true) (where primary == false) 
+| eval similarity = v_cosine(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+ 
+color:text  | similarity:double
+cyan        | 1.0
+teal        | 1.0
+turquoise   | 0.9781067967414856
+aqua marine | 0.929924726486206
+azure       | 0.8324936032295227
+lavender    | 0.827340304851532
+mint cream  | 0.8245516419410706
+honeydew    | 0.8244848847389221
+gainsboro   | 0.8164966106414795
+gray        | 0.8164966106414795
+;
+
+similarityWithSubqueries
+required_capability: cosine_vector_similarity_function
+required_capability: subquery_in_from_command
+
+from (from colors | where color != "black" and primary == true), (from colors | where color != "black" and primary == false)
+| eval similarity = v_cosine(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text  | similarity:double
+cyan        | 1.0
+teal        | 1.0
+turquoise   | 0.9781067967414856
+aqua marine | 0.929924726486206
+azure       | 0.8324936032295227
+lavender    | 0.827340304851532
+mint cream  | 0.8245516419410706
+honeydew    | 0.8244848847389221
+gainsboro   | 0.8164966106414795
+gray        | 0.8164966106414795
+;

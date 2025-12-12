@@ -217,3 +217,52 @@ lavender        | 1440.0
 old lace        | 1433.0
 linen           | 1420.0
 ;
+
+similarityWithFork
+required_capability: dot_product_vector_similarity_function
+required_capability: fork_v9
+
+from colors
+| fork (where primary == true) (where primary == false)
+| eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+azure      | 130050.0
+cyan       | 130050.0
+white      | 130050.0
+mint cream | 128775.0
+snow       | 127500.0
+honeydew   | 126225.0
+ivory      | 126225.0
+sea shell  | 123165.0
+lavender   | 122400.0
+old lace   | 121125.0
+;
+
+similarityWithSubqueries
+required_capability: dot_product_vector_similarity_function
+required_capability: subquery_in_from_command
+
+from (from colors | where primary == true), (from colors | where primary == false)
+| eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+azure      | 130050.0
+cyan       | 130050.0
+white      | 130050.0
+mint cream | 128775.0
+snow       | 127500.0
+honeydew   | 126225.0
+ivory      | 126225.0
+sea shell  | 123165.0
+lavender   | 122400.0
+old lace   | 121125.0
+;

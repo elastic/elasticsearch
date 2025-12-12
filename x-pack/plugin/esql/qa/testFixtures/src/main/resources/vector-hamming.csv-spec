@@ -217,3 +217,53 @@ chartreuse      | 16.0
 crimson         | 16.0
 gainsboro       | 16.0
 ;
+
+similarityWithFork
+required_capability: hamming_vector_similarity_function
+required_capability: fork_v9
+
+from colors
+| fork (where primary == true) (where primary == false)
+| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+red        | 23.0
+indigo     | 19.0
+orange     | 19.0
+black      | 17.0
+gold       | 17.0
+bisque     | 16.0
+chartreuse | 16.0
+green      | 16.0
+maroon     | 16.0
+navy       | 16.0
+;
+
+
+similarityWithSubqueries
+required_capability: hamming_vector_similarity_function
+required_capability: subquery_in_from_command
+
+from (from colors | where primary == true), (from colors | where primary == false)
+| eval similarity = v_hamming(rgb_byte_vector, [0, 127, 127]) 
+| sort similarity desc, color asc 
+| limit 10
+| keep color, similarity
+;
+
+color:text | similarity:double
+red        | 23.0
+indigo     | 19.0
+orange     | 19.0
+black      | 17.0
+gold       | 17.0
+bisque     | 16.0
+chartreuse | 16.0
+green      | 16.0
+maroon     | 16.0
+navy       | 16.0
+;

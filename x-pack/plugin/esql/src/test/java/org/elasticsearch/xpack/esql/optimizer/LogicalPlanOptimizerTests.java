@@ -10337,7 +10337,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(agg2.name(), is("b"));
         var count2 = as(agg2.child(), Count.class);
         var field2 = as(count2.field(), ReferenceAttribute.class);
-        assertThat(field2.name(), is("$$language_name$temp_name$23"));
+        assertThat(field2.name(), startsWith("$$language_name$temp_name$"));
 
         // Eval[[TOLOWER($$language_name$temp_name$23{r}#24) AS $$to_lower(langua>$COUNT$0#22]]
         var eval = as(aggregate.child(), Eval.class);

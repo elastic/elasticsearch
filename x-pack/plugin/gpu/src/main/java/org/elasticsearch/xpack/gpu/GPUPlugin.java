@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
+import java.util.Collection;
 import java.util.List;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
@@ -44,9 +45,11 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     );
 
     private final GpuMode gpuMode;
+    private final boolean enableMemoryPooling;
 
     public GPUPlugin(Settings settings) {
         this.gpuMode = VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
+        this.enableMemoryPooling = VECTORS_INDEXING_USE_GPU_MEMORY_POOLINGNODE_SETTING.get(settings);
     }
 
     /**
@@ -74,10 +77,16 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> VECTORS_INDEXING_USE_GPU_MEMORY_POOLINGNODE_SETTING = Setting.boolSetting(
+        "vectors.indexing.use_gpu_memory_pooling",
+        true,
+        Setting.Property.NodeScope
+    );
+
     @Override
     public List<Setting<?>> getSettings() {
         if (GPU_FORMAT.isEnabled()) {
-            return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING);
+            return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING, VECTORS_INDEXING_USE_GPU_MEMORY_POOLINGNODE_SETTING);
         } else {
             return List.of();
         }
@@ -96,6 +105,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         } else {
             return List.of();
         }
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        if ((gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) && enableMemoryPooling) {
+            GPUSupport.enableMemoryPooling();
+        }
+        return super.createComponents(services);
     }
 
     /**

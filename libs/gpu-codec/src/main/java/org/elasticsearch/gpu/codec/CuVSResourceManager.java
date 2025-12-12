@@ -12,7 +12,6 @@ package org.elasticsearch.gpu.codec;
 import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
-import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.gpu.GPUSupport;
@@ -23,6 +22,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static org.elasticsearch.gpu.GPUSupport.MAX_DEVICE_POOL_PERCENT;
 
 /**
  * A manager of {@link com.nvidia.cuvs.CuVSResources}. There is one manager per GPU.
@@ -93,10 +94,13 @@ public interface CuVSResourceManager {
         static final Logger logger = LogManager.getLogger(CuVSResourceManager.class);
         static final int MAX_RESOURCES = 4;
 
+        static final double AVAILABLE_MEMORY_RATIO = MAX_DEVICE_POOL_PERCENT / 100.0;
+
         static class Holder {
             static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
                 MAX_RESOURCES,
-                new RealGPUMemoryService(CuVSProvider.provider().gpuInfoProvider())
+                new TrackingGPUMemoryService((long)(GPUSupport.getTotalGpuMemory() * AVAILABLE_MEMORY_RATIO))
+                //new RealGPUMemoryService(CuVSProvider.provider().gpuInfoProvider())
             );
         }
 

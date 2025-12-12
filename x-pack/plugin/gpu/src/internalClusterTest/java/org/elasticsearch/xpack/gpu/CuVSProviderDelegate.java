@@ -9,17 +9,20 @@ package org.elasticsearch.xpack.gpu;
 
 import com.nvidia.cuvs.BruteForceIndex;
 import com.nvidia.cuvs.CagraIndex;
+import com.nvidia.cuvs.CagraIndexParams;
 import com.nvidia.cuvs.CuVSDeviceMatrix;
 import com.nvidia.cuvs.CuVSHostMatrix;
 import com.nvidia.cuvs.CuVSMatrix;
 import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.GPUInfoProvider;
 import com.nvidia.cuvs.HnswIndex;
+import com.nvidia.cuvs.HnswIndexParams;
 import com.nvidia.cuvs.TieredIndex;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
+import java.util.logging.Level;
 
 class CuVSProviderDelegate implements CuVSProvider {
     private final CuVSProvider delegate;
@@ -112,6 +115,11 @@ class CuVSProviderDelegate implements CuVSProvider {
     }
 
     @Override
+    public HnswIndex hnswIndexFromCagra(HnswIndexParams hnswIndexParams, CagraIndex cagraIndex) throws Throwable {
+        return delegate.hnswIndexFromCagra(hnswIndexParams, cagraIndex);
+    }
+
+    @Override
     public TieredIndex.Builder newTieredIndexBuilder(CuVSResources cuVSResources) throws UnsupportedOperationException {
         return delegate.newTieredIndexBuilder(cuVSResources);
     }
@@ -124,5 +132,42 @@ class CuVSProviderDelegate implements CuVSProvider {
     @Override
     public GPUInfoProvider gpuInfoProvider() {
         return delegate.gpuInfoProvider();
+    }
+
+    @Override
+    public void setLogLevel(Level level) {
+        delegate.setLogLevel(level);
+    }
+
+    @Override
+    public Level getLogLevel() {
+        return delegate.getLogLevel();
+    }
+
+    @Override
+    public void enableRMMPooledMemory(int initialPoolSizePercent, int maxPoolSizePercent) {
+        delegate.enableRMMPooledMemory(initialPoolSizePercent, maxPoolSizePercent);
+    }
+
+    @Override
+    public void enableRMMManagedPooledMemory(int initialPoolSizePercent, int maxPoolSizePercent) {
+        delegate.enableRMMManagedPooledMemory(initialPoolSizePercent, maxPoolSizePercent);
+    }
+
+    @Override
+    public void resetRMMPooledMemory() {
+        delegate.resetRMMPooledMemory();
+    }
+
+    @Override
+    public CagraIndexParams cagraIndexParamsFromHnswParams(
+        long rows,
+        long dim,
+        int m,
+        int efConstruction,
+        CagraIndexParams.HnswHeuristicType heuristic,
+        CagraIndexParams.CuvsDistanceType metric
+    ) {
+        return delegate.cagraIndexParamsFromHnswParams(rows, dim, m, efConstruction, heuristic, metric);
     }
 }

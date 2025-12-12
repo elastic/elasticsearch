@@ -17,12 +17,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class GPUSupport {
 
     private static final Logger LOG = LogManager.getLogger(GPUSupport.class);
 
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
     private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
+
+    public static final int MAX_DEVICE_POOL_PERCENT = 75;
+    private static final int INITIAL_DEVICE_POOL_PERCENT = 50;
 
     private static class Holder {
         static final long TOTAL_GPU_MEMORY;
@@ -33,6 +38,8 @@ public class GPUSupport {
             IS_SUPPORTED = TOTAL_GPU_MEMORY != -1L;
         }
     }
+
+    private static final AtomicBoolean POOLING_ENABLED = new AtomicBoolean(false);
 
     /**
      * Initializes GPU support information by finding the first compatible GPU.
@@ -71,7 +78,7 @@ public class GPUSupport {
                         gpu.totalDeviceMemoryInBytes()
                     );
                 } else {
-                    LOG.info("Found compatible GPU [{}] (id: [{}])", gpu.name(), gpu.gpuId());
+                    LOG.info("Found compatible GPU [{}] (id: [{}], memory: [{}])", gpu.name(), gpu.gpuId(), gpu.totalDeviceMemoryInBytes());
                     return gpu.totalDeviceMemoryInBytes();
                 }
             }
@@ -103,6 +110,14 @@ public class GPUSupport {
     /** Tells whether the platform supports cuvs. */
     public static boolean isSupported() {
         return Holder.IS_SUPPORTED;
+    }
+
+    public static void enableMemoryPooling() {
+        assert Holder.IS_SUPPORTED;
+        if (POOLING_ENABLED.getAndSet(true) == false) {
+            LOG.info("Enabling GPU memory pooling (initial: [{}%], max: [{}%])", INITIAL_DEVICE_POOL_PERCENT, MAX_DEVICE_POOL_PERCENT);
+            CuVSProvider.provider().enableRMMPooledMemory(INITIAL_DEVICE_POOL_PERCENT, MAX_DEVICE_POOL_PERCENT);
+        }
     }
 
     /** Returns a resources if supported, otherwise null. */

@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,10 +43,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
-    private static boolean includeSha256(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_15_0);
-    }
-
     private static final ParseField DATABASES = new ParseField("databases");
 
     static final GeoIpTaskState EMPTY = new GeoIpTaskState(Map.of());
@@ -78,14 +73,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
 
     GeoIpTaskState(StreamInput input) throws IOException {
         databases = input.readImmutableMap(
-            in -> new Metadata(
-                in.readLong(),
-                in.readVInt(),
-                in.readVInt(),
-                in.readString(),
-                in.readLong(),
-                includeSha256(in.getTransportVersion()) ? input.readOptionalString() : null
-            )
+            in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readLong(), input.readOptionalString())
         );
     }
 
@@ -144,9 +132,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
             o.writeVInt(v.lastChunk);
             o.writeString(v.md5);
             o.writeLong(v.lastCheck);
-            if (includeSha256(o.getTransportVersion())) {
-                o.writeOptionalString(v.sha256);
-            }
+            o.writeOptionalString(v.sha256);
         });
     }
 

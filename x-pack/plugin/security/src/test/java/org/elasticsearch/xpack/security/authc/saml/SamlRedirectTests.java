@@ -13,6 +13,9 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.security.x509.X509Credential;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -29,8 +32,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -151,17 +154,13 @@ public class SamlRedirectTests extends SamlTestCase {
         assertThat(requiredParams, empty());
     }
 
-    private String decompressAndBase64Decode(String compressedBase64) {
-        byte[] decodedBytes = Base64.getDecoder().decode(compressedBase64);
+    private static String decompressAndBase64Decode(String compressedBase64) {
+        byte[] compressed = Base64.getDecoder().decode(compressedBase64);
         Inflater inflater = new Inflater(true);
-        inflater.setInput(decodedBytes);
-        byte[] result = new byte[decodedBytes.length * 10];
-        try {
-            int resultLength = inflater.inflate(result);
-            inflater.end();
-            return new String(result, 0, resultLength, StandardCharsets.UTF_8);
-        } catch (DataFormatException e) {
-            throw new RuntimeException("Failed to decompress SAML request", e);
+        try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(compressed), inflater)) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to decompress input: " + compressedBase64, e);
         }
     }
 

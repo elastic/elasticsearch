@@ -90,11 +90,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         dryRun = in.readBoolean();
         conditions = new RolloverConditions(in);
         createIndexRequest = new CreateIndexRequest(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            lazy = in.readBoolean();
-        } else {
-            lazy = false;
-        }
+        lazy = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
@@ -145,9 +141,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         conditions.writeTo(out);
         createIndexRequest.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(lazy);
-        }
+        out.writeBoolean(lazy);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions.writeIndicesOptions(out);
         }

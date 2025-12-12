@@ -527,7 +527,7 @@ public class EsqlFunctionRegistry {
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
-            // fulltext functions
+            // search functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
                 def(Kql.class, bic(Kql::new), "kql"),
@@ -536,7 +536,8 @@ public class EsqlFunctionRegistry {
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bic(QueryString::new), "qstr"),
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
-                def(Score.class, uni(Score::new), "score") },
+                def(Score.class, uni(Score::new), "score"),
+                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") },
             // time-series functions
             new FunctionDefinition[] {
                 defTS3(Rate.class, Rate::new, "rate"),
@@ -578,8 +579,7 @@ public class EsqlFunctionRegistry {
                 def(L1Norm.class, L1Norm::new, "v_l1_norm"),
                 def(L2Norm.class, L2Norm::new, "v_l2_norm"),
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming"),
-                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") } };
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

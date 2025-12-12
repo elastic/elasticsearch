@@ -91,7 +91,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
-    public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final String FAILURE_STORE_PREFIX = ".fs-";
@@ -303,29 +302,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
         var failureIndices = readIndices(in);
         var failureIndicesBuilder = DataStreamIndices.failureIndicesBuilder(failureIndices);
-        backingIndicesBuilder.setRolloverOnWrite(in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false);
+        backingIndicesBuilder.setRolloverOnWrite(in.readBoolean());
         if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
-            boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
-            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
-                .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
-        } else {
-            // If we are reading from an older version that does not have these fields, just default
-            // to a reasonable value for rollover on write for the failure store
-            boolean failureStoreRolloverOnWrite = replicated == false && failureIndices.isEmpty();
-            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite);
-        }
-        DataStreamOptions dataStreamOptions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
-        } else {
-            // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
-            // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
-            dataStreamOptions = null;
-        }
+        // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
+        boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
+        failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
+            .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
+        DataStreamOptions dataStreamOptions = in.readOptionalWriteable(DataStreamOptions::read);
         final Settings settings;
         if (in.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings = Settings.readSettingsFromStream(in);
@@ -1477,19 +1462,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeOptionalEnum(indexMode);
         out.writeOptionalWriteable(lifecycle);
         out.writeCollection(failureIndices.indices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(backingIndices.rolloverOnWrite);
-        }
+        out.writeBoolean(backingIndices.rolloverOnWrite);
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             out.writeOptionalWriteable(backingIndices.autoShardingEvent);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(failureIndices.rolloverOnWrite);
-            out.writeOptionalWriteable(failureIndices.autoShardingEvent);
-        }
-        if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
-            out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
-        }
+        out.writeBoolean(failureIndices.rolloverOnWrite);
+        out.writeOptionalWriteable(failureIndices.autoShardingEvent);
+        out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         if (out.getTransportVersion().supports(SETTINGS_IN_DATA_STREAMS)) {
             settings.writeTo(out);
         }

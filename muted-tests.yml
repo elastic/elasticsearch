@@ -391,12 +391,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/138669
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testAggregateMetricDoubleInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/138620
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testAggregateMetricDoubleInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/138620
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
@@ -475,6 +469,21 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testReadNonExistingPath
   issue: https://github.com/elastic/elasticsearch/issues/139436
+- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/139376
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  method: testDownsampleDatastream
+  issue: https://github.com/elastic/elasticsearch/issues/139438
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testPushDownFunctionsLookupJoin
+  issue: https://github.com/elastic/elasticsearch/issues/139448
+- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+  method: testPushDownFunctionsLookupJoin
+  issue: https://github.com/elastic/elasticsearch/issues/139449
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testIntegerDocValuesConflict {null}
+  issue: https://github.com/elastic/elasticsearch/issues/139450
 
 # Examples:
 #

@@ -211,7 +211,7 @@ public class ParsedHistogramConverterTests extends ESTestCase {
 
     private HistogramParser.ParsedHistogram toParsed(DataPoint.ExponentialHistogram point) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            point.buildMetricValue(MappingHints.empty(), builder);
+            point.buildMetricValue(MappingHints.DEFAULT_TDIGEST, builder, null);
             String json = Strings.toString(builder);
             try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
                 parser.nextToken();

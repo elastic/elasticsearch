@@ -38,11 +38,8 @@ public class ArrayStateTests extends ESTestCase {
      *     Different from ElementType as one ElementType may have multiple formats
      *     (E.g. BYTES_REF represents both IP or an unconstrainted KEYWORD).
      * </p>
-     * <p>
-     *     Different from DataType to avoid circular dependencies.
-     * </p>
      */
-    private enum DataType {
+    public enum ValueType {
         INTEGER,
         LONG,
         FLOAT,
@@ -57,11 +54,11 @@ public class ArrayStateTests extends ESTestCase {
 
         for (boolean inOrder : new boolean[] { true, false }) {
             for (IntSupplier count : new IntSupplier[] { new Fixed(100), new Fixed(1000), new Random(100, 5000) }) {
-                params.add(new Object[] { DataType.INTEGER, count, inOrder });
-                params.add(new Object[] { DataType.LONG, count, inOrder });
-                params.add(new Object[] { DataType.FLOAT, count, inOrder });
-                params.add(new Object[] { DataType.DOUBLE, count, inOrder });
-                params.add(new Object[] { DataType.IP, count, inOrder });
+                params.add(new Object[] { ValueType.INTEGER, count, inOrder });
+                params.add(new Object[] { ValueType.LONG, count, inOrder });
+                params.add(new Object[] { ValueType.FLOAT, count, inOrder });
+                params.add(new Object[] { ValueType.DOUBLE, count, inOrder });
+                params.add(new Object[] { ValueType.IP, count, inOrder });
             }
         }
         return params;
@@ -81,12 +78,12 @@ public class ArrayStateTests extends ESTestCase {
         }
     }
 
-    private final DataType type;
+    private final ValueType type;
     private final ElementType elementType;
     private final int valueCount;
     private final boolean inOrder;
 
-    public ArrayStateTests(@Name("type") DataType type, @Name("valueCount") IntSupplier valueCount, @Name("inOrder") boolean inOrder) {
+    public ArrayStateTests(@Name("type") ValueType type, @Name("valueCount") IntSupplier valueCount, @Name("inOrder") boolean inOrder) {
         this.type = type;
         this.elementType = switch (type) {
             case INTEGER -> ElementType.INT;
@@ -95,7 +92,6 @@ public class ArrayStateTests extends ESTestCase {
             case DOUBLE -> ElementType.DOUBLE;
             case BOOLEAN -> ElementType.BOOLEAN;
             case IP -> ElementType.BYTES_REF;
-            default -> throw new IllegalArgumentException();
         };
         this.valueCount = valueCount.getAsInt();
         this.inOrder = inOrder;
@@ -283,7 +279,6 @@ public class ArrayStateTests extends ESTestCase {
             case DOUBLE -> new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
             case BOOLEAN -> new BooleanArrayState(BigArrays.NON_RECYCLING_INSTANCE, false);
             case IP -> new IpArrayState(BigArrays.NON_RECYCLING_INSTANCE, new BytesRef(new byte[16]));
-            default -> throw new IllegalArgumentException();
         };
     }
 
@@ -295,7 +290,6 @@ public class ArrayStateTests extends ESTestCase {
             case DOUBLE -> 1d;
             case BOOLEAN -> false;
             case IP -> new BytesRef(new byte[16]);
-            default -> throw new IllegalArgumentException();
         };
     }
 
@@ -319,7 +313,6 @@ public class ArrayStateTests extends ESTestCase {
             case DOUBLE -> ((DoubleArrayState) state).get(index);
             case BOOLEAN -> ((BooleanArrayState) state).get(index);
             case IP -> ((IpArrayState) state).get(index, new BytesRef());
-            default -> throw new IllegalArgumentException();
         };
     }
 
@@ -327,7 +320,6 @@ public class ArrayStateTests extends ESTestCase {
         return switch (type) {
             case INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN -> BlockTestUtils.randomValue(elementType);
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            default -> throw new IllegalArgumentException();
         };
     }
 

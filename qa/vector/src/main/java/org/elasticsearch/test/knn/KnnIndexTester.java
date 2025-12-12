@@ -188,6 +188,36 @@ public class KnnIndexTester {
         };
     }
 
+    private record ParsedArgs(boolean help, String configPath, int warmUpIterations) {
+
+    }
+
+    private static ParsedArgs parseArgs(String[] args) {
+        boolean help = false;
+        String configFile = null;
+        int warmUpIterations = 1;
+
+        if (args.length > 2) {
+            return null; // invalid options
+        }
+
+        for (var arg : args) {
+            if (arg.equals("-h") || arg.equals("--help")) {
+                help = true;
+            } else if (arg.startsWith("--warmUp=")) {
+                warmUpIterations = Integer.parseInt(arg.substring("--warmUp=".length()));
+            } else {
+                configFile = arg;
+            }
+        }
+
+        if (configFile == null) {
+            return null; // config file required
+        }
+
+        return new ParsedArgs(help, configFile, warmUpIterations);
+    }
+
     /**
      * Main method to run the KNN index tester.
      * It parses command line arguments, creates the index, and runs searches if specified.
@@ -196,20 +226,23 @@ public class KnnIndexTester {
      * @throws Exception If an error occurs during index creation or search
      */
     public static void main(String[] args) throws Exception {
-        if (args.length != 1 || args[0].equals("--help") || args[0].equals("-h")) {
+        var parsedArgs = parseArgs(args);
+        if (parsedArgs == null || parsedArgs.help()) {
             // printout an example configuration formatted file and indicate that it is required
-            System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file>");
+            System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file> [--warmUp]");
             System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
+            System.out.println("--warnUp is the number of warm iterations ");
             System.out.println("An example configuration object: ");
             System.out.println(CmdLineArgs.exampleFormatForHelp());
             return;
         }
-        String jsonConfig = args[0];
-        // Parse command line arguments
-        Path jsonConfigPath = PathUtils.get(jsonConfig);
+
+        Path jsonConfigPath = PathUtils.get(parsedArgs.configPath());
         if (Files.exists(jsonConfigPath) == false) {
             throw new IllegalArgumentException("JSON config file does not exist: " + jsonConfigPath);
         }
+
+        logger.info("Using configuration file: " + jsonConfigPath);
         // Parse the JSON config file to get command line arguments
         // This assumes that CmdLineArgs.fromXContent is implemented to parse the JSON file
         List<CmdLineArgs> cmdLineArgsList = new ArrayList<>();
@@ -269,8 +302,24 @@ public class KnnIndexTester {
             }
             numSegments(indexPath, indexResults);
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
-                KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
+                if (parsedArgs.warmUpIterations() > 0) {
+                    logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+                }
+                // Warm up
+                for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+                    for (int i = 0; i < results.length; i++) {
+                        var ignoreResults = new Results(
+                            cmdLineArgs.docVectors().get(0).getFileName().toString(),
+                            indexType,
+                            cmdLineArgs.numDocs()
+                        );
+                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
+                        knnSearcher.runSearch(ignoreResults, cmdLineArgs.searchParams().get(i));
+                    }
+                }
+
                 for (int i = 0; i < results.length; i++) {
+                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
                     knnSearcher.runSearch(results[i], cmdLineArgs.searchParams().get(i));
                 }
             }

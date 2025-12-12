@@ -10,7 +10,6 @@
 package org.elasticsearch.index.stats;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -83,11 +82,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentPrimaryOps = 0;
         this.currentReplicaOps = 0;
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            primaryDocumentRejections = in.readVLong();
-        } else {
-            primaryDocumentRejections = -1L;
-        }
+        primaryDocumentRejections = in.readVLong();
 
         totalCoordinatingRequests = in.readVLong();
 
@@ -176,9 +171,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         out.writeVLong(memoryLimit);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeVLong(primaryDocumentRejections);
-        }
+        out.writeVLong(primaryDocumentRejections);
 
         out.writeVLong(totalCoordinatingRequests);
 

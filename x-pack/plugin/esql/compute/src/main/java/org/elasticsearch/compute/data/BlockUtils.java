@@ -320,7 +320,15 @@ public final class BlockUtils {
             }
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
-                yield tDigestBlock.getTDigestHolder(offset);
+                // return a copy so that the returned value is not bound to the lifetime of the block
+                TDigestHolder blockBacked = tDigestBlock.getTDigestHolder(offset);
+                yield new TDigestHolder(
+                    BytesRef.deepCopyOf(blockBacked.getEncodedDigest()),
+                    blockBacked.getMin(),
+                    blockBacked.getMax(),
+                    blockBacked.getSum(),
+                    blockBacked.getValueCount()
+                );
 
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

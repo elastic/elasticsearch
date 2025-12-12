@@ -475,6 +475,9 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
   method: testReadNonExistingPath
   issue: https://github.com/elastic/elasticsearch/issues/139436
+- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/139376
 
 # Examples:
 #

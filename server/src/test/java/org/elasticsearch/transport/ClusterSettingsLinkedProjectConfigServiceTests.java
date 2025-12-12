@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -24,16 +25,25 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ClusterSettingsLinkedProjectConfigServiceTests extends ESTestCase {
 
+    private record RemovedConfig(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {}
+
     private static class StubLinkedProjectConfigListener implements LinkedProjectConfigListener {
         LinkedProjectConfig updatedConfig;
+        RemovedConfig removedConfig;
 
         @Override
         public void updateLinkedProject(LinkedProjectConfig config) {
             updatedConfig = config;
         }
 
+        @Override
+        public void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+            removedConfig = new RemovedConfig(originProjectId, linkedProjectId, linkedProjectAlias);
+        }
+
         void reset() {
             updatedConfig = null;
+            removedConfig = null;
         }
     }
 
@@ -93,6 +103,25 @@ public class ClusterSettingsLinkedProjectConfigServiceTests extends ESTestCase {
             assertNotNull("expected non-null updatedConfig for listener " + i, listeners.get(i).updatedConfig);
             assertThat(listeners.get(i).updatedConfig.proxyAddress(), equalTo(newProxyAddress));
             assertThat(listeners.get(i).updatedConfig.skipUnavailable(), equalTo(newSkipUnavailable));
+            assertNull("removedConfig callback should not be invoked", listeners.get(i).removedConfig);
+            listeners.get(i).reset();
+        }
+
+        // Unset the proxy address, should invoke the remove callback.
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(initialSettings)
+                .put("cluster.remote." + alias + ".proxy_address", "")
+                .put("cluster.remote." + alias + ".skip_unavailable", newSkipUnavailable)
+                .build()
+        );
+        for (int i = 0; i < numListeners; ++i) {
+            assertNotNull("expected non-null removed config for listener " + i, listeners.get(i).removedConfig);
+            assertThat(
+                listeners.get(i).removedConfig,
+                equalTo(new RemovedConfig(DefaultProjectResolver.INSTANCE.getProjectId(), ProjectId.DEFAULT, alias))
+            );
+            assertNull("updateConfig callback should not be invoked", listeners.get(i).updatedConfig);
         }
     }
 }

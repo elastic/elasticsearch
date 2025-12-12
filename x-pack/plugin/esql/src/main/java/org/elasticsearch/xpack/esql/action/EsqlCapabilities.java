@@ -1742,6 +1742,11 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_FUNCTION,
 
         /**
+         * https://github.com/elastic/elasticsearch/issues/138283
+         */
+        FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
+
+        /**
          * Support for the MV_INTERSECT function which returns the set intersection of two multivalued fields
          */
         FN_MV_INTERSECT,

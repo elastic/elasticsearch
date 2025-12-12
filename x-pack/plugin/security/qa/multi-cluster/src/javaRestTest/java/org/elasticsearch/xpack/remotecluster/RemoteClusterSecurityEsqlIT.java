@@ -1188,7 +1188,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // an error is thrown if there are no matching indices at all
         {
             String localExpr = randomFrom("nomatch", "nomatch*");
-            String remoteExpr = randomFrom("nomatch", "nomatch*");
+            String remoteExpr = localExpr.endsWith("*") ? "nomatch" : randomFrom("nomatch", "nomatch*");
             String q = Strings.format("FROM %s,%s:%s", localExpr, REMOTE_CLUSTER_ALIAS, remoteExpr);
 
             Request limit1 = esqlRequest(q + " | LIMIT 1");

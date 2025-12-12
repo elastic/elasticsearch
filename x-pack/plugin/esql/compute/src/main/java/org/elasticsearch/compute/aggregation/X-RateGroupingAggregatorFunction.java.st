@@ -707,10 +707,12 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         double dateFactor
     ) {
         var state = states.get(group);
-        double firstTsSec = tsContext.rangeStartInMillis(group) / 1000.0;
-        double lastTsSec = tsContext.rangeEndInMillis(group) / 1000.0;
+        final double tbucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
+        final double tbucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
         final double firstValue;
         final double lastValue;
+        double firstTsSec = tbucketStart;
+        double lastTsSec = tbucketEnd;
 
         var previousState = states.get(tsContext.previousGroupId(group));
         if (previousState == null || previousState.samples == 0) {
@@ -718,10 +720,10 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 firstTsSec = state.intervals[0].t1 / dateFactor;
                 firstValue = state.intervals[0].v1;
             } else {
-                firstValue = extrapolateToBoundary(state, firstTsSec, lastTsSec, dateFactor, true);
+                firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
         } else {
-            firstValue = interpolateBetweenStates(previousState, state, firstTsSec, lastTsSec, dateFactor, true);
+            firstValue = interpolateBetweenStates(previousState, state, tbucketStart, tbucketEnd, dateFactor, true);
         }
 
         var nextState = states.get(tsContext.nextGroupId(group));
@@ -730,10 +732,10 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
                 lastTsSec = state.intervals[0].t1 / dateFactor;
                 lastValue = state.intervals[0].v1;
             } else {
-                lastValue = extrapolateToBoundary(state, firstTsSec, lastTsSec, dateFactor, false);
+                lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }
         } else {
-            lastValue = interpolateBetweenStates(state, nextState, firstTsSec, lastTsSec, dateFactor, false) + state.resets;
+            lastValue = interpolateBetweenStates(state, nextState, tbucketStart, tbucketEnd, dateFactor, false) + state.resets;
         }
 
         if (lastTsSec == firstTsSec) {
@@ -794,21 +796,17 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
 
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
-        final double slope = (endValue - startValue) / (endTs - startTs);
+        final double delta = (endValue >= startValue) ? endValue - startValue : endValue;
+        final double slope = delta / (endTs - startTs);
         if (isLowerBoundary) {
-            assert startTs <= tbucketStart : "expected startTs <= firstTsSec, got " + startTs + " <= " + tbucketStart;
-            if (endValue >= startValue) {
-                return startValue + slope * (tbucketStart - startTs);
-            } else {
-                return 0;
-            }
+            assert tbucketStart <= endTs : tbucketStart + " <= " + endTs;
+            final double baseValue = (endValue >= startValue) ? startValue : 0;
+            double timeDelta = endTs - tbucketStart;
+            return baseValue + slope * timeDelta;
         } else {
-            assert tbucketEnd <= endTs : "expected lastTsSec <= endTs, got " + tbucketEnd + " <= " + endTs;
-            if (endValue >= startValue) {
-                return startValue + slope * (endTs - tbucketEnd);
-            } else {
-                return startValue;
-            }
+            assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
+            double timeDelta = tbucketEnd - startTs;
+            return startValue + slope * timeDelta;
         }
     }
 }

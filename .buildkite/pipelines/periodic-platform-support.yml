@@ -1,8 +1,10 @@
+env:
+  SMART_RETRIES: "true"
 steps:
   - group: platform-support-unix
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true functionalTests
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -28,11 +30,20 @@ steps:
           localSsdInterface: nvme
           machineType: custom-32-98304
         env: {}
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
   - group: platform-support-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
         command: |
-          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh --continue
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -55,10 +66,19 @@ steps:
           diskSizeGb: 350
         env:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
   - group: platform-support-arm
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true {{matrix.GRADLE_TASK}}
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true {{matrix.GRADLE_TASK}}
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -82,15 +102,33 @@ steps:
           diskName: /dev/sda1
         env:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
   - group: platform-support-unix-aws
     steps:
       - label: "{{matrix.image}} / platform-support-aws"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
+        command: .ci/scripts/run-gradle.sh --continue  -Dbwc.checkout.align=true functionalTests
         timeout_in_minutes: 420
         matrix:
           setup:
             image:
               - amazonlinux-2023
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
         agents:
           provider: aws
           imagePrefix: elasticsearch-{{matrix.image}}

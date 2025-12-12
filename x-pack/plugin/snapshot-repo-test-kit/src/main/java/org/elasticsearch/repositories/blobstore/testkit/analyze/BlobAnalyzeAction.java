@@ -30,8 +30,8 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -183,7 +183,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
         "repositories.blobstore.testkit.analyze.copy_during_write_contention",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Deprecated
     );
     private volatile boolean enableEarlyCopy = true;
 
@@ -196,14 +196,14 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
 
     BlobAnalyzeAction(
         TransportService transportService,
-        ClusterSettings clusterSettings,
+        Settings settings,
         ActionFilters actionFilters,
         RepositoriesService repositoriesService
     ) {
         super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
-        clusterSettings.initializeAndWatch(ENABLE_COPY_DURING_WRITE_CONTENTION, value -> { this.enableEarlyCopy = value; });
+        this.enableEarlyCopy = ENABLE_COPY_DURING_WRITE_CONTENTION.get(settings);
     }
 
     @Override
@@ -249,7 +249,6 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
         // If a copy is requested, do exactly one so that the number of blobs created is controlled by RepositoryAnalyzeAction.
         // Doing the copy in step 1 exercises copy before read completes. Step 2 exercises copy after read completes or the happy path.
         private final boolean doEarlyCopy;
-        private final boolean enableEarlyCopy;
         private final List<DiscoveryNode> earlyReadNodes;
         private final List<DiscoveryNode> readNodes;
         private final GroupedActionListener<NodeResponse> readNodesListener;
@@ -273,7 +272,6 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
             this.blobContainer = blobContainer;
             this.listener = listener;
             this.random = new Random(this.request.seed);
-            this.enableEarlyCopy = enableEarlyCopy;
 
             checksumWholeBlob = random.nextBoolean();
             if (checksumWholeBlob) {
@@ -283,7 +281,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
                 checksumStart = randomLongBetween(0L, request.targetLength);
                 checksumEnd = randomLongBetween(checksumStart + 1, request.targetLength + 1);
             }
-            doEarlyCopy = random.nextBoolean();
+            doEarlyCopy = enableEarlyCopy && random.nextBoolean();
 
             final ArrayList<DiscoveryNode> nodes = new ArrayList<>(request.nodes); // copy for shuffling purposes
             if (request.readEarly) {
@@ -427,7 +425,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
 
         private void onLastReadForInitialWrite() {
             var readBlobName = request.blobName;
-            if (request.copyBlobName != null && doEarlyCopy && enableEarlyCopy) {
+            if (request.copyBlobName != null && doEarlyCopy) {
                 try {
                     blobContainer.copyBlob(
                         OperationPurpose.REPOSITORY_ANALYSIS,

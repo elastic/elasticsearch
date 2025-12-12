@@ -119,7 +119,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         this.repositoriesService = repositoriesService;
 
         // construct (and therefore implicitly register) the subsidiary actions
-        new BlobAnalyzeAction(transportService, clusterService.getClusterSettings(), actionFilters, repositoriesService);
+        new BlobAnalyzeAction(transportService, clusterService.getSettings(), actionFilters, repositoriesService);
         new GetBlobChecksumAction(transportService, actionFilters, repositoriesService);
         new ContendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
         new UncontendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.LinkedProjectConfig;
@@ -74,12 +75,12 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
 
         @Override
         public void updateLinkedProject(LinkedProjectConfig config) {
-            String repositoryName = CcrRepository.NAME_PREFIX + config.linkedProjectAlias();
-            if (config.isConnectionEnabled()) {
-                putRepository(repositoryName);
-            } else {
-                deleteRepository(repositoryName);
-            }
+            putRepository(CcrRepository.NAME_PREFIX + config.linkedProjectAlias());
+        }
+
+        @Override
+        public void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias) {
+            deleteRepository(CcrRepository.NAME_PREFIX + linkedProjectAlias);
         }
     }
 }

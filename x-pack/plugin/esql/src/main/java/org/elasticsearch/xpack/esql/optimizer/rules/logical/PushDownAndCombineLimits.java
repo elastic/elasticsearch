@@ -101,7 +101,15 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         // Keep the smallest limit
         var upperLimitValue = (int) upper.limit().fold(ctx);
         var lowerLimitValue = (int) lower.limit().fold(ctx);
-        // We want to preserve the duplicated() value of the smaller limit.
+        /*
+         * We always want to select the smaller of the limits, but with the local flag it gets a bit tricky.
+         * If one of the limits is smaller, that's what we will choose. But if the limits are exactly equal,
+         * then we can choose the local limit because this may enable some queries that would otherwise be prohibited
+         * due to pipeline-breaking nature of non-local limits in combination with remote Enrich.
+         * However this may not be true if we have more situations where local limits are generated which do not have
+         * guarantees that local limit produced by remote enrich pushing provides.
+         * See also: https://github.com/elastic/elasticsearch/pull/139399#pullrequestreview-3573026118
+         */
         if (lowerLimitValue < upperLimitValue) {
             return lower;
         } else if (lowerLimitValue == upperLimitValue) {

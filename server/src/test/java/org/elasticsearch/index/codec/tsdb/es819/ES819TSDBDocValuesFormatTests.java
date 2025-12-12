@@ -1306,15 +1306,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     }
 
                     var binaryDVField2 = getDenseBinaryValues(leaf.reader(), binaryFieldTwo);
-                    block = (TestBlock) binaryDVField2.tryRead(
-                        factory,
-                        docs,
-                        0,
-                        random().nextBoolean(),
-                        null,
-                        false,
-                        true
-                    );
+                    block = (TestBlock) binaryDVField2.tryRead(factory, docs, 0, random().nextBoolean(), null, false, true);
                     for (int j = 0; j < block.size(); j++) {
                         var values = (List<?>) block.get(j);
                         assertFalse(values.isEmpty());

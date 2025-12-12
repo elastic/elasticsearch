@@ -16,15 +16,15 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
-    public static ElasticsearchCluster cluster = createCluster();
+public class GPUClientMultiNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public static GPUSupportedRule gpuSupportedRule = new GPUSupportedRule();
 
+    public static ElasticsearchCluster cluster = createCluster();
+
     private static ElasticsearchCluster createCluster() {
         var builder = ElasticsearchCluster.local()
-            .nodes(1)
+            .nodes(3)
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
@@ -45,7 +45,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(gpuSupportedRule).around(cluster);
 
-    public GPUClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientMultiNodeYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

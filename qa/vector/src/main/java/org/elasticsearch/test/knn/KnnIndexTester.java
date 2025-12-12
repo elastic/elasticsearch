@@ -97,7 +97,7 @@ public class KnnIndexTester {
         LOG_DOC
     }
 
-    private static String formatIndexPath(CmdLineArgs args) {
+    private static String formatIndexPath(TestConfiguration args) {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
             suffix.add("flat");
@@ -116,7 +116,7 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().get(0).getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(CmdLineArgs args) {
+    static Codec createCodec(TestConfiguration args) {
         final KnnVectorsFormat format;
         int quantizeBits = args.quantizeBits();
         if (args.indexType() == IndexType.IVF) {
@@ -233,7 +233,7 @@ public class KnnIndexTester {
             System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
             System.out.println("--warnUp is the number of warm iterations ");
             System.out.println("An example configuration object: ");
-            System.out.println(CmdLineArgs.exampleFormatForHelp());
+            System.out.println(TestConfiguration.exampleFormatForHelp());
             return;
         }
 
@@ -244,19 +244,19 @@ public class KnnIndexTester {
 
         logger.info("Using configuration file: " + jsonConfigPath);
         // Parse the JSON config file to get command line arguments
-        // This assumes that CmdLineArgs.fromXContent is implemented to parse the JSON file
-        List<CmdLineArgs> cmdLineArgsList = new ArrayList<>();
+        // This assumes that the JSON file is the correct format
+        List<TestConfiguration> testConfigurationList = new ArrayList<>();
         try (
             InputStream jsonStream = Files.newInputStream(jsonConfigPath);
             XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, jsonStream)
         ) {
             // check if the parser is at the start of an object if so, we only have one set of arguments
             if (parser.currentToken() == null && parser.nextToken() == XContentParser.Token.START_OBJECT) {
-                cmdLineArgsList.add(CmdLineArgs.fromXContent(parser));
+                testConfigurationList.add(TestConfiguration.fromXContent(parser));
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 // if the parser is at the start of an array, we have multiple sets of arguments
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    cmdLineArgsList.add(CmdLineArgs.fromXContent(parser));
+                    testConfigurationList.add(TestConfiguration.fromXContent(parser));
                 }
             } else {
                 throw new IllegalArgumentException("Invalid JSON format in config file: " + jsonConfigPath);
@@ -264,44 +264,52 @@ public class KnnIndexTester {
         }
         FormattedResults formattedResults = new FormattedResults();
 
-        for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
-            String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
-            Results indexResults = new Results(cmdLineArgs.docVectors().get(0).getFileName().toString(), indexType, cmdLineArgs.numDocs());
-            Results[] results = new Results[cmdLineArgs.numberOfSearchRuns()];
+        for (TestConfiguration testConfiguration : testConfigurationList) {
+            String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
+            Results indexResults = new Results(
+                testConfiguration.docVectors().get(0).getFileName().toString(),
+                indexType,
+                testConfiguration.numDocs()
+            );
+            Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
             for (int i = 0; i < results.length; i++) {
-                results[i] = new Results(cmdLineArgs.docVectors().get(0).getFileName().toString(), indexType, cmdLineArgs.numDocs());
+                results[i] = new Results(
+                    testConfiguration.docVectors().get(0).getFileName().toString(),
+                    indexType,
+                    testConfiguration.numDocs()
+                );
             }
             logger.info("Running with Java: " + Runtime.version());
-            logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
-            Codec codec = createCodec(cmdLineArgs);
-            Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
-            MergePolicy mergePolicy = getMergePolicy(cmdLineArgs);
-            if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
+            logger.info("Running KNN index tester with arguments: " + testConfiguration);
+            Codec codec = createCodec(testConfiguration);
+            Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
+            MergePolicy mergePolicy = getMergePolicy(testConfiguration);
+            if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
-                    cmdLineArgs.docVectors(),
+                    testConfiguration.docVectors(),
                     indexPath,
                     codec,
-                    cmdLineArgs.indexThreads(),
-                    cmdLineArgs.vectorEncoding(),
-                    cmdLineArgs.dimensions(),
-                    cmdLineArgs.vectorSpace(),
-                    cmdLineArgs.numDocs(),
+                    testConfiguration.indexThreads(),
+                    testConfiguration.vectorEncoding(),
+                    testConfiguration.dimensions(),
+                    testConfiguration.vectorSpace(),
+                    testConfiguration.numDocs(),
                     mergePolicy,
-                    cmdLineArgs.writerBufferSizeInMb(),
-                    cmdLineArgs.writerMaxBufferedDocs()
+                    testConfiguration.writerBufferSizeInMb(),
+                    testConfiguration.writerMaxBufferedDocs()
                 );
-                if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
+                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
-                if (cmdLineArgs.reindex()) {
+                if (testConfiguration.reindex()) {
                     knnIndexer.createIndex(indexResults);
                 }
-                if (cmdLineArgs.forceMerge()) {
-                    knnIndexer.forceMerge(indexResults, cmdLineArgs.forceMergeMaxNumSegments());
+                if (testConfiguration.forceMerge()) {
+                    knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
                 }
             }
             numSegments(indexPath, indexResults);
-            if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
+            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
                 if (parsedArgs.warmUpIterations() > 0) {
                     logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
                 }
@@ -309,18 +317,18 @@ public class KnnIndexTester {
                 for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
                     for (int i = 0; i < results.length; i++) {
                         var ignoreResults = new Results(
-                            cmdLineArgs.docVectors().get(0).getFileName().toString(),
+                            testConfiguration.docVectors().get(0).getFileName().toString(),
                             indexType,
-                            cmdLineArgs.numDocs()
+                            testConfiguration.numDocs()
                         );
-                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
-                        knnSearcher.runSearch(ignoreResults, cmdLineArgs.searchParams().get(i));
+                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                        knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
                     }
                 }
 
                 for (int i = 0; i < results.length; i++) {
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs);
-                    knnSearcher.runSearch(results[i], cmdLineArgs.searchParams().get(i));
+                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                    knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
                 }
             }
             formattedResults.queryResults.addAll(List.of(results));
@@ -329,7 +337,7 @@ public class KnnIndexTester {
         logger.info("Results: \n" + formattedResults);
     }
 
-    private static MergePolicy getMergePolicy(CmdLineArgs args) {
+    private static MergePolicy getMergePolicy(TestConfiguration args) {
         MergePolicy mergePolicy = null;
         if (args.mergePolicy() != null) {
             if (args.mergePolicy() == MergePolicyType.TIERED) {

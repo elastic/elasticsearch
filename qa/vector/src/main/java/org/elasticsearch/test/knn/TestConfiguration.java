@@ -31,7 +31,7 @@ import java.util.Locale;
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
-record CmdLineArgs(
+record TestConfiguration(
     List<Path> docVectors,
     Path queryVectors,
     int numDocs,
@@ -97,12 +97,12 @@ record CmdLineArgs(
      */
     static final double DEFAULT_WRITER_BUFFER_MB = (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024.0 * 1024.0)) * 0.1;
 
-    static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
+    static TestConfiguration fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
         return builder.build();
     }
 
-    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", false, Builder::new);
+    static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
@@ -144,7 +144,7 @@ record CmdLineArgs(
     }
 
     public static String exampleFormatForHelp() {
-        var b = new CmdLineArgs.Builder().setDimensions(64)
+        var b = new TestConfiguration.Builder().setDimensions(64)
             .setDocVectors(List.of("/doc/vectors/path"))
             .setQueryVectors("/query/vectors/path")
             .setSearchParams(
@@ -354,7 +354,7 @@ record CmdLineArgs(
             return this;
         }
 
-        public CmdLineArgs build() {
+        public TestConfiguration build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
             }
@@ -404,7 +404,7 @@ record CmdLineArgs(
                 }
             }
 
-            return new CmdLineArgs(
+            return new TestConfiguration(
                 docVectors,
                 queryVectors,
                 numDocs,

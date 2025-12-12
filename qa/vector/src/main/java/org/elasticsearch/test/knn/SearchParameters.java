@@ -36,15 +36,15 @@ public record SearchParameters(
     );
 
     static {
-        PARSER.declareInt(Builder::setNumCandidates, CmdLineArgs.NUM_CANDIDATES_FIELD);
-        PARSER.declareInt(Builder::setTopK, CmdLineArgs.K_FIELD);
-        PARSER.declareDouble(Builder::setVisitPercentage, CmdLineArgs.VISIT_PERCENTAGE_FIELD);
-        PARSER.declareFloat(Builder::setOverSamplingFactor, CmdLineArgs.OVER_SAMPLING_FACTOR_FIELD);
-        PARSER.declareInt(Builder::setSearchThreads, CmdLineArgs.SEARCH_THREADS_FIELD);
-        PARSER.declareInt(Builder::setNumSearchers, CmdLineArgs.NUM_SEARCHERS_FIELD);
-        PARSER.declareBoolean(Builder::setEarlyTermination, CmdLineArgs.EARLY_TERMINATION_FIELD);
-        PARSER.declareBoolean(Builder::setFilterCached, CmdLineArgs.FILTER_CACHED);
-        PARSER.declareFloat(Builder::setFilterSelectivity, CmdLineArgs.FILTER_SELECTIVITY_FIELD);
+        PARSER.declareInt(Builder::setNumCandidates, TestConfiguration.NUM_CANDIDATES_FIELD);
+        PARSER.declareInt(Builder::setTopK, TestConfiguration.K_FIELD);
+        PARSER.declareDouble(Builder::setVisitPercentage, TestConfiguration.VISIT_PERCENTAGE_FIELD);
+        PARSER.declareFloat(Builder::setOverSamplingFactor, TestConfiguration.OVER_SAMPLING_FACTOR_FIELD);
+        PARSER.declareInt(Builder::setSearchThreads, TestConfiguration.SEARCH_THREADS_FIELD);
+        PARSER.declareInt(Builder::setNumSearchers, TestConfiguration.NUM_SEARCHERS_FIELD);
+        PARSER.declareBoolean(Builder::setEarlyTermination, TestConfiguration.EARLY_TERMINATION_FIELD);
+        PARSER.declareBoolean(Builder::setFilterCached, TestConfiguration.FILTER_CACHED);
+        PARSER.declareFloat(Builder::setFilterSelectivity, TestConfiguration.FILTER_SELECTIVITY_FIELD);
     }
 
     static SearchParameters.Builder fromXContent(XContentParser parser) {
@@ -156,31 +156,31 @@ public record SearchParameters(
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (numCandidates != null) {
-                builder.field(CmdLineArgs.NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
+                builder.field(TestConfiguration.NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
             }
             if (topK != null) {
-                builder.field(CmdLineArgs.K_FIELD.getPreferredName(), topK);
+                builder.field(TestConfiguration.K_FIELD.getPreferredName(), topK);
             }
             if (visitPercentage != null) {
-                builder.field(CmdLineArgs.VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
+                builder.field(TestConfiguration.VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
             }
             if (overSamplingFactor != null) {
-                builder.field(CmdLineArgs.OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
+                builder.field(TestConfiguration.OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
             }
             if (searchThreads != null) {
-                builder.field(CmdLineArgs.SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
+                builder.field(TestConfiguration.SEARCH_THREADS_FIELD.getPreferredName(), searchThreads);
             }
             if (numSearchers != null) {
-                builder.field(CmdLineArgs.NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
+                builder.field(TestConfiguration.NUM_SEARCHERS_FIELD.getPreferredName(), numSearchers);
             }
             if (filterCached != null) {
-                builder.field(CmdLineArgs.FILTER_CACHED.getPreferredName(), filterCached);
+                builder.field(TestConfiguration.FILTER_CACHED.getPreferredName(), filterCached);
             }
             if (filterSelectivity != null) {
-                builder.field(CmdLineArgs.FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
+                builder.field(TestConfiguration.FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
             }
             if (earlyTermination != null) {
-                builder.field(CmdLineArgs.EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
+                builder.field(TestConfiguration.EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
             }
             return builder.endObject();
         }

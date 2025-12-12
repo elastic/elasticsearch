@@ -107,20 +107,20 @@ class KnnSearcher {
     private final VectorSimilarityFunction similarityFunction;
     private final VectorEncoding vectorEncoding;
 
-    KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs) {
-        this.docPath = cmdLineArgs.docVectors();
+    KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
+        this.docPath = testConfiguration.docVectors();
         this.indexPath = indexPath;
-        this.queryPath = cmdLineArgs.queryVectors();
-        this.numDocs = cmdLineArgs.numDocs();
-        this.numQueryVectors = cmdLineArgs.numQueries();
-        this.dim = cmdLineArgs.dimensions();
-        this.similarityFunction = cmdLineArgs.vectorSpace();
-        this.vectorEncoding = cmdLineArgs.vectorEncoding();
+        this.queryPath = testConfiguration.queryVectors();
+        this.numDocs = testConfiguration.numDocs();
+        this.numQueryVectors = testConfiguration.numQueries();
+        this.dim = testConfiguration.dimensions();
+        this.similarityFunction = testConfiguration.vectorSpace();
+        this.vectorEncoding = testConfiguration.vectorEncoding();
         if (numQueryVectors <= 0) {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
-        this.indexType = cmdLineArgs.indexType();
-        this.randomSeed = cmdLineArgs.seed();
+        this.indexType = testConfiguration.indexType();
+        this.randomSeed = testConfiguration.seed();
     }
 
     void runSearch(KnnIndexTester.Results finalResults, SearchParameters searchParameters) throws IOException {

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -114,17 +112,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            elasticsearchVersion = Version.readVersion(in).toString();
-        } else {
-            elasticsearchVersion = in.readString();
-        }
+        elasticsearchVersion = in.readString();
         javaVersion = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.classname = in.readOptionalString();
-        } else {
-            this.classname = in.readString();
-        }
+        this.classname = in.readOptionalString();
         this.moduleName = in.readOptionalString();
         extendedPlugins = in.readStringCollectionAsList();
         hasNativeController = in.readBoolean();
@@ -142,17 +132,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            Version.writeVersion(Version.fromString(elasticsearchVersion), out);
-        } else {
-            out.writeString(elasticsearchVersion);
-        }
+        out.writeString(elasticsearchVersion);
         out.writeString(javaVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalString(classname);
-        } else {
-            out.writeString(classname);
-        }
+        out.writeOptionalString(classname);
         out.writeOptionalString(moduleName);
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);

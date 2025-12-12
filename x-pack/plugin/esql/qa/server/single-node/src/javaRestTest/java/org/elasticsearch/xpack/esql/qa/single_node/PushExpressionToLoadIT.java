@@ -928,4 +928,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        // Preserve the cluser to speed up the semantic_text tests
+        return true;
+    }
 }

@@ -681,7 +681,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             nodeRoleCombinationsToTest.add(List.of(nodeRoleThatContainsData));
         }
 
-        // Compute random combinations of all roles, with a minimum of one role that contains data, and expect the SnapshotShardsService to
+        // Compute a random combination of all roles, with a minimum of one role containing data, and expect the SnapshotShardsService to
         // be activated.
         // NB The VOTING_ONLY_NODE_ROLE also requires MASTER_ROLE to be set which we can't guarantee so we remove it
         List<String> nodeRolesThatDoNotContainData = DiscoveryNodeRole.roles()
@@ -701,8 +701,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             String nodeRolesString = String.join(",", roles);
 
             final var nodeName = internalCluster().startNode(
-                // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
                 Settings.builder()
+                    // Speed up the logging frequency, so that the test doesn't have to wait too long to check for log messages.
                     .put(SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
                     .put("node.roles", nodeRolesString)
                     .build()
@@ -746,7 +746,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             )
             .map(DiscoveryNodeRole::roleName)
             .toList();
-        // Check that any node with an exclusive role that does not contain data does not logs snapshot shutting down progress
+
+        // Check that any node with an exclusive role that does not contain data does not log snapshot shutting down progress
         for (String nodeRoleThatDoesNotContainData : nodeRolesThatDoNotContainData) {
             nodeRoleCombinationsToTest.add(List.of(nodeRoleThatDoesNotContainData));
         }

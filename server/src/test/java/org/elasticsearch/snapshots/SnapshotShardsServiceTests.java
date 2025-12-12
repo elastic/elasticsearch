@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class SnapshotShardsServiceTests extends ESTestCase {
 
     /**
-     * If we are on a stateful node, then it can handle both indexing and search requests.
+     * Stateful nodes handle both indexing and search requests
      * If the node has at least one role that contains data, then we expect the {@code SnapshotShardsService} to be activated.
      */
     public void testShouldActivateSnapshotShardsServiceWithStatefulNodeAndAtLeastOneDataRole() {
@@ -60,6 +60,7 @@ public class SnapshotShardsServiceTests extends ESTestCase {
     }
 
     /**
+     * Stateful nodes handle both indexing and search requests.
      * If the stateful node has no roles that contains data, then we expect the {@code SnapshotShardsService} to not be activated.
      */
     public void testShouldActivateSnapshotShardsServiceWithStatefulNodeAndNoDataRoles() {
@@ -82,8 +83,8 @@ public class SnapshotShardsServiceTests extends ESTestCase {
     }
 
     /**
-     * If we are on a stateless node, then indexing and search requests are separated by tiers.
-     * If the node is an indexing node then we expect the {@code SnapshotShardsService} to be activated,
+     * Stateless indexing and search nodes are separated by tier
+     * If this is an indexing node then we expect the {@code SnapshotShardsService} to be activated
      */
     public void testShouldActivateSnapshotShardsServiceWithStatelessIndexNode() {
         Settings settings = Settings.builder().put("node.roles", "index").put("stateless.enabled", true).build();
@@ -91,8 +92,8 @@ public class SnapshotShardsServiceTests extends ESTestCase {
     }
 
     /**
-     * If we are on a stateless node, then indexing and search requests are separated by tiers.
-     * If the node is a search node then we expect the {@code SnapshotShardsService} to not be activated,
+     * Stateless indexing and search nodes are separated by tier
+     * If this is a search node then we expect the {@code SnapshotShardsService} to <i>not</i> be activated,
      */
     public void testShouldActivateSnapshotShardsServiceWithStatelessSearchNode() {
         Settings settings = Settings.builder().put("node.roles", "search").put("stateless.enabled", true).build();

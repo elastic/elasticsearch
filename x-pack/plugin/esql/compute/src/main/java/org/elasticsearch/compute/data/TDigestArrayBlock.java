@@ -306,11 +306,11 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     public TDigestHolder getTDigestHolder(int offset) {
         return new TDigestHolder(
             // TODO: Memory tracking? creating a new bytes ref here doesn't seem great
-            encodedDigests.getBytesRef(offset, new BytesRef()),
-            minima.getDouble(offset),
-            maxima.getDouble(offset),
-            sums.getDouble(offset),
-            valueCounts.getLong(offset)
+            encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(offset), new BytesRef()),
+            minima.isNull(offset) ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(offset)),
+            maxima.isNull(offset) ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(offset)),
+            sums.isNull(offset) ? Double.NaN : sums.getDouble(sums.getFirstValueIndex(offset)),
+            valueCounts.getLong(valueCounts.getFirstValueIndex(offset))
         );
     }
 

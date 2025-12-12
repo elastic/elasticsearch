@@ -153,6 +153,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         "semantic_text.sparse_vector_index_options"
     );
     public static final NodeFeature SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID = new NodeFeature("semantic_text.updatable_inference_id");
+    public static final NodeFeature SEMANTIC_TEXT_AUTO_PREFILTERING = new NodeFeature("semantic_text.auto_prefiltering");
+    public static final NodeFeature SEMANTIC_TEXT_BFLOAT16_SUPPORT = new NodeFeature("semantic_text.bfloat16_support");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -1065,7 +1067,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             k = Math.max(k, DEFAULT_SIZE);
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null)
+                            .setAutoPrefilteringEnabled(true);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["
@@ -1419,10 +1422,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     );
                 }
             }
-        }
-
-        if (modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BFLOAT16) {
-            throw new IllegalArgumentException("semantic_text does not support bfloat16");
         }
 
         assert modelSettings.dimensions() != null : "Model settings should have dimensions set by now for text embedding models";

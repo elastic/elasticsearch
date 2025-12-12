@@ -77,7 +77,7 @@ import java.util.stream.Collectors;
 public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
 
     public boolean onOrAfter(TransportVersion version) {
-        throw new UnsupportedOperationException("user TransportVersion.supports(...) instead");
+        throw new UnsupportedOperationException("use TransportVersion.supports(...) instead");
     }
 
     public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {

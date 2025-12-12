@@ -748,6 +748,22 @@ public final class ServiceUtils {
         return extractOptionalInteger(map, settingName, scope, validationException, true);
     }
 
+    public static Integer extractOptionalPositiveIntegerLessThanOrEqualToMax(
+        Map<String, Object> map,
+        String settingName,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer optionalField = extractOptionalPositiveInteger(map, settingName, scope, validationException);
+
+        if (optionalField != null && optionalField > maxValue) {
+            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, optionalField, maxValue));
+        }
+
+        return optionalField;
+    }
+
     public static Integer extractOptionalInteger(
         Map<String, Object> map,
         String settingName,
@@ -986,7 +1002,15 @@ public final class ServiceUtils {
     }
 
     public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
-        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+        throwUnsupportedTaskOperation(serviceName, "unified completion");
+    }
+
+    public static void throwUnsupportedEmbeddingOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "embedding");
+    }
+
+    private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
     }
 
     public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {

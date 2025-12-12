@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG;
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -983,6 +983,11 @@ public class EsqlCapabilities {
         INLINE_STATS,
 
         /**
+         * Added support for having INLINE STATS preceded by a SORT clause, now executable in certain cases.
+         */
+        INLINE_STATS_PRECEEDED_BY_SORT,
+
+        /**
          * Support partial_results
          */
         SUPPORT_PARTIAL_RESULTS,
@@ -1101,6 +1106,11 @@ public class EsqlCapabilities {
          * Support non-correlated subqueries in the FROM clause.
          */
         SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for views in cluster state (and REST API).
+         */
+        VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1314,6 +1324,11 @@ public class EsqlCapabilities {
         DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
 
         /**
+         * Support timezones in KQL and QSTR.
+         */
+        KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1454,7 +1469,7 @@ public class EsqlCapabilities {
         /**
          * FORK with remote indices
          */
-        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+        ENABLE_FORK_FOR_REMOTE_INDICES_V2(Build.current().isSnapshot()),
 
         /**
          * Support for the Present function
@@ -1513,6 +1528,9 @@ public class EsqlCapabilities {
         PERCENTILE_OVER_TIME,
         VARIANCE_STDDEV_OVER_TIME,
         TS_LINREG_DERIVATIVE,
+        TS_RATE_DATENANOS,
+        TS_RATE_DATENANOS_2,
+        TS_DERIV_DATENANOS,
         /**
          * INLINE STATS fix incorrect prunning of null filtering
          * https://github.com/elastic/elasticsearch/pull/135011
@@ -1568,11 +1586,11 @@ public class EsqlCapabilities {
         PACK_DIMENSIONS_IN_TS,
 
         /**
-         * Support for exponential_histogram type, before it is released into tech preview.
-         * When implementing changes on this type, we'll simply increment the version suffix at the end to prevent bwc tests from running.
-         * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
+         * Support for exponential_histogram fields in the state of when it first was released into tech preview.
          */
-        EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V4(EXPONENTIAL_HISTOGRAM_FEATURE_FLAG),
+        EXPONENTIAL_HISTOGRAM_TECH_PREVIEW,
+
+        TDIGEST_FIELD_TYPE_SUPPORT_V1(T_DIGEST_ESQL_SUPPORT),
 
         /**
          * Create new block when filtering OrdinalBytesRefBlock
@@ -1652,6 +1670,11 @@ public class EsqlCapabilities {
         FIX_MV_CONSTANT_EQUALS_FIELD,
 
         /**
+         * Support for base conversion in TO_LONG and TO_INTEGER
+         */
+        BASE_CONVERSION,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
          * https://github.com/elastic/elasticsearch/issues/137019.
          */
@@ -1660,7 +1683,7 @@ public class EsqlCapabilities {
         /**
          * Chunk function.
          */
-        CHUNK_FUNCTION_V2(Build.current().isSnapshot()),
+        CHUNK_FUNCTION_V2(),
 
         /**
          * Support for vector similarity functtions pushdown
@@ -1700,12 +1723,24 @@ public class EsqlCapabilities {
          * As soon as we move into tech preview, we'll replace this capability with a "EXPONENTIAL_HISTOGRAM_TECH_PREVIEW" one.
          * At this point, we need to add new capabilities for any further changes.
          */
-        PROMQL_PRE_TECH_PREVIEW_V1(Build.current().isSnapshot()),
+        PROMQL_PRE_TECH_PREVIEW_V7(Build.current().isSnapshot()),
 
         /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
+
+        /**
+         * Enables automatically grouping by all dimension fields in TS mode queries and outputs the _timeseries column
+         * with all the dimensions.
+         */
+        METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS,
+
+        /**
+         * Returns the top snippets for given text content and associated query.
+         */
+        TOP_SNIPPETS_FUNCTION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;
@@ -1762,7 +1797,7 @@ public class EsqlCapabilities {
      * capability.
      */
     public static String cap(NodeFeature feature) {
-        assert feature.id().startsWith("esql.");
+        assert feature.id().startsWith("esql.") : "node feature must start with 'esql.' but was " + feature.id();
         return feature.id().substring("esql.".length());
     }
 }

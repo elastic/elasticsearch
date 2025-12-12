@@ -16,7 +16,7 @@ dependencies {
   api project(':libs:logging')
   compileOnly "org.apache.lucene:lucene-core:${versions.lucene}"
   compileOnly project(':server')
-  implementation('com.nvidia.cuvs:cuvs-java:25.10.0')
+  implementation("com.nvidia.cuvs:cuvs-java:${versions.cuvs_java}")
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'gpu-codec'

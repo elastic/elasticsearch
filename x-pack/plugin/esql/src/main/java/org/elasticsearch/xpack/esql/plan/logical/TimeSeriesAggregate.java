@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -219,13 +220,18 @@ public class TimeSeriesAggregate extends Aggregate {
                     // reject COUNT(keyword), but allow COUNT(numeric)
                 } else if (outer instanceof TimeSeriesAggregateFunction == false && outer.field() instanceof AggregateFunction == false) {
                     Expression field = outer.field();
-                    var lastOverTime = new LastOverTime(
-                        source(),
-                        field,
-                        AggregateFunction.NO_WINDOW,
-                        new Literal(source(), null, DataType.DATETIME)
-                    );
-                    if (lastOverTime.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
+                    TimeSeriesAggregateFunction overTimeAgg;
+                    if (field.dataType() == DataType.EXPONENTIAL_HISTOGRAM) {
+                        overTimeAgg = new HistogramMergeOverTime(source(), field, Literal.TRUE, AggregateFunction.NO_WINDOW);
+                    } else {
+                        overTimeAgg = new LastOverTime(
+                            source(),
+                            field,
+                            AggregateFunction.NO_WINDOW,
+                            new Literal(source(), null, DataType.DATETIME)
+                        );
+                    }
+                    if (overTimeAgg.typeResolved() != Expression.TypeResolution.TYPE_RESOLVED) {
                         failures.add(
                             fail(
                                 this,

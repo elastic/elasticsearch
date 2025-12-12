@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
@@ -23,7 +24,7 @@ import java.util.List;
  * Class that produces the last value of a field for downsampling.
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
-class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
+class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDocValues> {
     // When downsampling metrics, we only keep one value even if the field was a multi-value field.
     // For labels, we preserve all the values of the last occurrence.
     private final boolean supportsMultiValue;
@@ -42,8 +43,10 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
     static LastValueFieldProducer createForLabel(String name, String fieldType) {
         assert "aggregate_metric_double".equals(fieldType) == false
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
-        if ("histogram".equals(fieldType)) {
-            return new LastValueFieldProducer.HistogramFieldProducer(name, true);
+        assert TDigestHistogramFieldProducer.TYPE.equals(fieldType) == false
+            : "field type cannot be histogram: " + fieldType + " for field " + name;
+        if ("exponential_histogram".equals(fieldType)) {
+            return new LastValueFieldProducer.ExponentialHistogramFieldProducer(name);
         } else if ("flattened".equals(fieldType)) {
             return new LastValueFieldProducer.FlattenedFieldProducer(name, true);
         }
@@ -144,26 +147,6 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    static final class HistogramFieldProducer extends LastValueFieldProducer {
-        private HistogramFieldProducer(String name, boolean producesMultiValue) {
-            super(name, producesMultiValue);
-        }
-
-        @Override
-        public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                final HistogramValue histogramValue = (HistogramValue) lastValue();
-                final List<Double> values = new ArrayList<>();
-                final List<Long> counts = new ArrayList<>();
-                while (histogramValue.next()) {
-                    values.add(histogramValue.value());
-                    counts.add(histogramValue.count());
-                }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
-            }
-        }
-    }
-
     static final class FlattenedFieldProducer extends LastValueFieldProducer {
 
         private FlattenedFieldProducer(String name, boolean producesMultiValue) {
@@ -196,6 +179,21 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer {
                 });
                 helper.write(builder);
                 builder.endObject();
+            }
+        }
+    }
+
+    static class ExponentialHistogramFieldProducer extends LastValueFieldProducer {
+        ExponentialHistogramFieldProducer(String name) {
+            // Exponential histograms do not support multi value anyway
+            super(name, false);
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.field(name());
+                ExponentialHistogramXContent.serialize(builder, (ExponentialHistogram) lastValue());
             }
         }
     }

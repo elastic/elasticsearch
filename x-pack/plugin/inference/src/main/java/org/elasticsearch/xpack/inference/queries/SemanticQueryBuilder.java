@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -166,11 +165,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             in.readBoolean(); // Discard noInferenceResults, it is no longer necessary
         }
 
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.lenient = in.readOptionalBoolean();
-        } else {
-            this.lenient = null;
-        }
+        this.lenient = in.readOptionalBoolean();
 
         if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
             this.ccsRequest = in.readBoolean();
@@ -216,9 +211,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             out.writeOptionalNamedWriteable(inferenceResults);
             out.writeBoolean(inferenceResults == null);
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalBoolean(lenient);
-        }
+        out.writeOptionalBoolean(lenient);
         if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
             out.writeBoolean(ccsRequest);
         } else if (ccsRequest) {
@@ -264,7 +257,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {

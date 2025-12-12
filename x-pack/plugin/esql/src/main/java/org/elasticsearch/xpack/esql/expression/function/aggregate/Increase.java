@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -58,12 +59,18 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     public Increase(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the increase over time",
+            optional = true
+        ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    private Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+    public Increase(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
@@ -85,7 +92,7 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     protected NodeInfo<Increase> info() {
-        return NodeInfo.create(this, Increase::new, field(), timestamp);
+        return NodeInfo.create(this, Increase::new, field(), filter(), window(), timestamp);
     }
 
     @Override
@@ -111,10 +118,12 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
+        final DataType tsType = timestamp().dataType();
+        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false);
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

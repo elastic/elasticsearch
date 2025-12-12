@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
@@ -33,7 +34,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Verifies that the {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}} is optimized into the reduce driver instead
@@ -76,12 +76,17 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
             mapping.startObject("sorted").field("type", "long").endObject();
             mapping.startObject("filtered").field("type", "long").endObject();
             mapping.startObject("read").field("type", "long").endObject();
+            mapping.startObject("more").field("type", "long").endObject();
+            mapping.startObject("some_more").field("type", "long").endObject();
         }
         mapping.endObject();
         client().admin().indices().prepareCreate("test").setSettings(indexSettings(10, 0)).setMapping(mapping.endObject()).get();
 
         var builders = IntStream.range(0, 1024)
-            .mapToObj(i -> prepareIndex("test").setId(Integer.toString(i)).setSource("read", i, "sorted", i * 2, "filtered", i * 3))
+            .mapToObj(
+                i -> prepareIndex("test").setId(Integer.toString(i))
+                    .setSource("read", i, "sorted", i * 2, "filtered", i * 3, "more", i * 4, "some_more", i * 5)
+            )
             .toList();
         indexRandom(true, builders);
     }
@@ -101,20 +106,64 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
     }
 
     public void testNoPushdowns() throws Exception {
-        testLateMaterializationAfterReduceTopN("from test | sort sorted + 1 desc | limit 3 | stats sum(read)");
+        testLateMaterializationAfterReduceTopN(
+            "from test | sort sorted + 1 desc | limit 3 | stats sum(read)",
+            Set.of("sorted"),
+            Set.of("read")
+        );
     }
 
     public void testPushdownTopN() throws Exception {
-        testLateMaterializationAfterReduceTopN("from test | sort sorted desc | limit 3 | stats sum(read)");
+        testLateMaterializationAfterReduceTopN(
+            "from test | sort sorted desc | limit 3 | stats sum(read)",
+            Set.of("sorted"),
+            Set.of("read")
+        );
     }
 
-    private void testLateMaterializationAfterReduceTopN(String query) throws Exception {
+    public void testPushdownTopNMultipleSortedFields() throws Exception {
+        testLateMaterializationAfterReduceTopN(
+            "from test | sort sorted desc, more asc | limit 3 | stats sum(read)",
+            Set.of("sorted", "more"),
+            Set.of("read")
+        );
+    }
+
+    public void testPushdownTopNMultipleRetrievedFields() throws Exception {
+        testLateMaterializationAfterReduceTopN(
+            "from test | sort sorted desc, more asc | limit 3 | stats x = sum(read), y = max(some_more)",
+            Set.of("sorted", "more"),
+            Set.of("read", "some_more")
+        );
+    }
+
+    public void testPushdownTopFilterOnNonProjected() throws Exception {
+        testLateMaterializationAfterReduceTopN(
+            "from test | where filtered > 0 | sort sorted desc | limit 3 | stats sum(read)",
+            Set.of("sorted"),
+            Set.of("read")
+        );
+    }
+
+    public void testPushdownTopFilterOnProjected() throws Exception {
+        testLateMaterializationAfterReduceTopN(
+            "from test | sort sorted desc | limit 3 | where filtered > 0 | stats sum(read)",
+            Set.of("sorted"),
+            Set.of("read", "filtered")
+        );
+    }
+
+    private void testLateMaterializationAfterReduceTopN(
+        String query,
+        Set<String> expectedDataLoadedFields,
+        Set<String> expectedNodeReduceFields
+    ) throws Exception {
         setupIndex();
         try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));
-            assertSingleKeyFieldExtracted(result, "data");
-            assertSingleKeyFieldExtracted(result, "node_reduce");
+            assertSingleKeyFieldExtracted(result, "data", expectedDataLoadedFields);
+            assertSingleKeyFieldExtracted(result, "node_reduce", expectedNodeReduceFields);
             var page = singleValue(result.pages());
             assertThat(page.getPositionCount(), equalTo(1));
             LongVectorBlock block = page.getBlock(0);
@@ -123,7 +172,7 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
         }
     }
 
-    private static void assertSingleKeyFieldExtracted(EsqlQueryResponse response, String driverName) {
+    private static void assertSingleKeyFieldExtracted(EsqlQueryResponse response, String driverName, Set<String> expectedLoadedFields) {
         long totalValuesLoader = 0;
         for (var driverProfile : response.profile().drivers().stream().filter(d -> d.description().equals(driverName)).toList()) {
             OperatorStatus operatorStatus = singleValue(
@@ -140,7 +189,13 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
                 // This can happen if the indexRandom created dummy documents which led to empty segments.
                 continue;
             }
-            assertThat("A single reader should have been built", status.readersBuilt().keySet(), hasSize(1));
+            assertThat(status.readersBuilt().size(), equalTo(expectedLoadedFields.size()));
+            for (String field : status.readersBuilt().keySet()) {
+                assertTrue(
+                    "Field " + field + " was not expected to be loaded in driver " + driverName,
+                    expectedLoadedFields.stream().anyMatch(field::contains)
+                );
+            }
         }
         assertThat("Values should have been loaded", totalValuesLoader, greaterThan(0L));
     }

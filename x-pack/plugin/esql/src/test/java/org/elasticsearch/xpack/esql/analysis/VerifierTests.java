@@ -93,7 +93,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class VerifierTests extends ESTestCase {
 
-    private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
     private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
@@ -1174,7 +1173,8 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be [any type except counter types or dense_vector],"
+                "1:19: argument of [count(network.bytes_out)] must be"
+                    + " [any type except counter types, dense_vector or exponential_histogram],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -2590,7 +2590,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkFullTextFunctionAcceptsNullField(String functionInvocation) throws Exception {
-        fullTextAnalyzer.analyze(parser.createStatement("from test | where " + functionInvocation));
+        fullTextAnalyzer.analyze(EsqlParser.INSTANCE.parseQuery("from test | where " + functionInvocation));
     }
 
     public void testInsistNotOnTopOfFrom() {
@@ -3293,47 +3293,146 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testChunkFunctionInvalidInputs() {
-        if (EsqlCapabilities.Cap.CHUNK_FUNCTION_V2.isEnabled()) {
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
-                equalTo("1:27: invalid chunking_settings, found [null]")
-            );
-            assertThat(
-                error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
-                equalTo("1:27: Invalid chunkingStrategy invalid")
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 1})",
-                    fullTextAnalyzer,
-                    VerificationException.class
-                ),
-                equalTo(
-                    "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                        + "[max_chunk_size] must be a greater than or equal to [20.0];"
-                )
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 5})",
-                    fullTextAnalyzer,
-                    VerificationException.class
-                ),
-                equalTo(
-                    "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                        + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
-                )
-            );
-            assertThat(
-                error(
-                    "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
-                        + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
-                    fullTextAnalyzer,
-                    VerificationException.class
-                ),
-                equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
-            );
-        }
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: invalid chunking_settings, found [null]")
+        );
+        assertThat(
+            error("from test | EVAL chunks = CHUNK(body, {\"strategy\": \"invalid\"})", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:27: Invalid chunkingStrategy invalid")
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 5, \"sentence_overlap\": 5})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
+                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL chunks = CHUNK(body, {\"strategy\": \"sentence\", \"max_chunk_size\": 20, "
+                    + "\"sentence_overlap\": 1, \"extra_value\": \"foo\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:27: Validation Failed: 1: Sentence based chunking settings can not have the following settings: [extra_value];")
+        );
+    }
+
+    public void testTopSnippetsFunctionInvalidInputs() {
+        // Null field allowed
+        query("from test | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
+
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(42, \"query\")", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: first argument of [TOP_SNIPPETS(42, \"query\")] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, 42)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: second argument of [TOP_SNIPPETS(body, 42)] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", null)", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: third argument of [TOP_SNIPPETS(body, \"query\", null)] cannot be null, received [null]")
+        );
+        assertThat(
+            error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", \"notamap\")", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:29: third argument of [TOP_SNIPPETS(body, \"query\", \"notamap\")] must be a map expression, received [\"notamap\"]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": null})",
+                fullTextAnalyzer,
+                ParsingException.class
+            ),
+            equalTo("1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": null})",
+                fullTextAnalyzer,
+                ParsingException.class
+            ),
+            equalTo("1:57: Invalid named parameter [\"num_words\":null], NULL is not supported")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            startsWith("1:29: Invalid option [invalid] in [TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo(
+                "1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": \"foobar\"})], "
+                    + "cannot cast [foobar] to [integer]"
+            )
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_snippets' option must be a positive integer, found [0]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": -1})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [-1]")
+        );
+        assertThat(
+            error(
+                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": 0})",
+                fullTextAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:29: 'num_words' option must be a positive integer, found [0]")
+        );
+
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
@@ -3345,7 +3444,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
     }
 
     private String error(String query) {
@@ -3380,7 +3479,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, new QueryParams(parameters)))
         );
         assertThat(e, instanceOf(exception));
 

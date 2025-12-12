@@ -668,6 +668,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             matchesList().item(expectedValue)
@@ -822,7 +823,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     private void setUpTextEmbeddingInferenceEndpoint() throws IOException {
         setupEmbeddings = true;
-        Request request = new Request("PUT", "_inference/text_embedding/test");
+        Request request = new Request("PUT", "/_inference/text_embedding/test");
         request.setJsonEntity("""
                   {
                    "service": "text_embedding_test_service",

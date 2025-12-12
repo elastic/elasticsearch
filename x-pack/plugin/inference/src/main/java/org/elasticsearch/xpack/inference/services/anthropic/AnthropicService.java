@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.anthropic;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -218,12 +217,18 @@ public class AnthropicService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         throw new UnsupportedOperationException("Anthropic service does not support chunked inference");
     }
 
     @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
@@ -155,118 +156,32 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         return field1.foldable() && field2.foldable();
     }
 
-    static <T> Set<T> getIntersectSet(int position, Block field1, Block field2, BiFunction<Integer, Block, T> getValueFunction) {
-        Set<T> values = new LinkedHashSet<>();
-
-        int firstValueCount = field1.getValueCount(position);
-        int secondValueCount = field2.getValueCount(position);
-        if (firstValueCount == 0 || secondValueCount == 0) {
-            // if either block has no values, there will be no intersection
-            return values;
-        }
-
-        int firstValueIndex = field1.getFirstValueIndex(position);
-        int secondValueIndex = field2.getFirstValueIndex(position);
-
-        for (int i = 0; i < firstValueCount; i++) {
-            values.add(getValueFunction.apply(firstValueIndex + i, field1));
-        }
-
-        Set<T> secondValues = new HashSet<>();
-        for (int i = 0; i < secondValueCount; i++) {
-            secondValues.add(getValueFunction.apply(secondValueIndex + i, field2));
-        }
-
-        values.retainAll(secondValues);
-        return values;
-    }
-
     @Evaluator(extraName = "Boolean")
     static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field1, BooleanBlock field2) {
-        Set<Boolean> result = getIntersectSet(position, field1, field2, (p, block) -> ((BooleanBlock) block).getBoolean(p));
-
-        if (result.isEmpty()) {
-            // nothing intersected
-            builder.appendNull();
-            return;
-        }
-
-        builder.beginPositionEntry();
-        for (Boolean value : result) {
-            builder.appendBoolean(value);
-        }
-        builder.endPositionEntry();
+        processIntersectSet(builder, position, field1, field2, (p, block) -> ((BooleanBlock) block).getBoolean(p), builder::appendBoolean);
     }
 
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field1, BytesRefBlock field2) {
-        Set<BytesRef> result = getIntersectSet(position, field1, field2, (p, block) -> {
+        processIntersectSet(builder, position, field1, field2, (p, block) -> {
             BytesRef value = new BytesRef();
             return ((BytesRefBlock) block).getBytesRef(p, value);
-        });
-
-        if (result.isEmpty()) {
-            // nothing intersected
-            builder.appendNull();
-            return;
-        }
-
-        builder.beginPositionEntry();
-        for (BytesRef value : result) {
-            builder.appendBytesRef(value);
-        }
-        builder.endPositionEntry();
+        }, builder::appendBytesRef);
     }
 
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
-        Set<Integer> result = getIntersectSet(position, field1, field2, (p, block) -> ((IntBlock) block).getInt(p));
-
-        if (result.isEmpty()) {
-            // nothing intersected
-            builder.appendNull();
-            return;
-        }
-
-        builder.beginPositionEntry();
-        for (Integer value : result) {
-            builder.appendInt(value);
-        }
-        builder.endPositionEntry();
+        processIntersectSet(builder, position, field1, field2, (p, block) -> ((IntBlock) block).getInt(p), builder::appendInt);
     }
 
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
-        Set<Long> result = getIntersectSet(position, field1, field2, (p, block) -> ((LongBlock) block).getLong(p));
-
-        if (result.isEmpty()) {
-            // nothing intersected
-            builder.appendNull();
-            return;
-        }
-
-        builder.beginPositionEntry();
-        for (Long value : result) {
-            builder.appendLong(value);
-        }
-        builder.endPositionEntry();
+        processIntersectSet(builder, position, field1, field2, (p, block) -> ((LongBlock) block).getLong(p), builder::appendLong);
     }
 
     @Evaluator(extraName = "Double")
     static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field1, DoubleBlock field2) {
-        Set<Double> result = getIntersectSet(position, field1, field2, (p, block) -> ((DoubleBlock) block).getDouble(p));
-
-        if (result.isEmpty()) {
-            // nothing intersected
-            builder.appendNull();
-            return;
-        }
-
-        builder.beginPositionEntry();
-        for (Double value : result) {
-            builder.appendDouble(value);
-        }
-        builder.endPositionEntry();
+        processIntersectSet(builder, position, field1, field2, (p, block) -> ((DoubleBlock) block).getDouble(p), builder::appendDouble);
     }
 
     @Override
@@ -359,5 +274,48 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         }
         MvIntersect other = (MvIntersect) obj;
         return Objects.equals(other.field1, field1) && Objects.equals(other.field2, field2);
+    }
+
+    static <T> void processIntersectSet(
+        Block.Builder builder,
+        int position,
+        Block field1,
+        Block field2,
+        BiFunction<Integer, Block, T> getValueFunction,
+        Consumer<T> addValueFunction
+    ) {
+        Set<T> values = new LinkedHashSet<>();
+
+        int firstValueCount = field1.getValueCount(position);
+        int secondValueCount = field2.getValueCount(position);
+        if (firstValueCount == 0 || secondValueCount == 0) {
+            // if either block has no values, there will be no intersection
+            builder.appendNull();
+            return;
+        }
+
+        int firstValueIndex = field1.getFirstValueIndex(position);
+        int secondValueIndex = field2.getFirstValueIndex(position);
+
+        for (int i = 0; i < firstValueCount; i++) {
+            values.add(getValueFunction.apply(firstValueIndex + i, field1));
+        }
+
+        Set<T> secondValues = new HashSet<>();
+        for (int i = 0; i < secondValueCount; i++) {
+            secondValues.add(getValueFunction.apply(secondValueIndex + i, field2));
+        }
+
+        values.retainAll(secondValues);
+        if (values.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+
+        builder.beginPositionEntry();
+        for (T value : values) {
+            addValueFunction.accept(value);
+        }
+        builder.endPositionEntry();
     }
 }

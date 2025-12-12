@@ -19,9 +19,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
+import java.util.SequencedMap;
 import java.util.stream.IntStream;
 
 import static fixture.gcs.MultipartContent.Reader.readUntilDelimiter;
@@ -41,8 +41,8 @@ public class MultipartContentTests extends ESTestCase {
         return new BytesArray(content);
     }
 
-    static Map<String, String> randomHeaders() {
-        final var headers = new HashMap<String, String>();
+    static SequencedMap<String, String> randomHeaders() {
+        final var headers = new LinkedHashMap<String, String>();
         final var numberOfHeaders = between(0, 10);
         for (var headerNum = 0; headerNum < numberOfHeaders; headerNum++) {
             headers.put("x-" + randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT), randomAlphanumericOfLength(between(1, 100)));
@@ -58,7 +58,7 @@ public class MultipartContentTests extends ESTestCase {
         final var boundary = randomAlphanumericOfLength(between(1, 70));
         final var output = new ByteArrayOutputStream();
         final var writer = new MultipartContent.Writer(boundary, output);
-        final var emptyPart = new MultipartContent.Part(Map.of(), BytesArray.EMPTY);
+        final var emptyPart = new MultipartContent.Part(new LinkedHashMap<>(), BytesArray.EMPTY);
         writer.write(emptyPart);
         writer.end();
         final var reader = MultipartContent.Reader.readStream(boundary, new ByteArrayInputStream(output.toByteArray()));

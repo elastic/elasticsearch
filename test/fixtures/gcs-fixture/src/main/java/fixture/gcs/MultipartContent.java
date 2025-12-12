@@ -19,10 +19,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
+import java.util.SequencedMap;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
@@ -56,8 +56,8 @@ public class MultipartContent {
     static final byte[] CRLF = new byte[] { '\r', '\n' };
     static final byte[] DOUBLE_DASH = new byte[] { '-', '-' };
 
-    record Part(Map<String, String> headers, BytesReference content) {
-        public static Part of(Map<String, String> headers, String content) {
+    record Part(SequencedMap<String, String> headers, BytesReference content) {
+        public static Part of(SequencedMap<String, String> headers, String content) {
             return new Part(headers, new BytesArray(content));
         }
     }
@@ -231,12 +231,12 @@ public class MultipartContent {
                 final var partBytes = readUntilDelimiter(input, delimiter);
                 done = readCloseDelimiterOrCRLF(input);
                 if (partBytes.length() == 0) {
-                    return new Part(Map.of(), BytesArray.EMPTY);
+                    return new Part(new LinkedHashMap<>(), BytesArray.EMPTY);
                 }
 
                 var partStream = partBytes.streamInput();
 
-                final var headers = new HashMap<String, String>();
+                final var headers = new LinkedHashMap<String, String>();
                 BytesReference headerLine;
                 while ((headerLine = readUntilDelimiter(partStream, CRLF)).length() > 0) {
                     final var split = headerLine.utf8ToString().split(": ", 2);

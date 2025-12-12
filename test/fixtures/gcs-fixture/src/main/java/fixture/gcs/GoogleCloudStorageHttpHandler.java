@@ -28,6 +28,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -165,8 +166,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     // only deletes are supported in batch
                     final var objectName = parseBatchItemDeleteObject(bucket, batchItem.content());
                     mockGcsBlobStore.deleteBlob(objectName);
+                    final var responsePartHeaders = new LinkedHashMap<String, String>() {
+                        {
+                            put("content-type", "application/http");
+                            put("content-id", "response-" + contentId);
+                        }
+                    };
                     final var responsePartContent = "HTTP/1.1 204 No Content\r\n\r\n";
-                    final var responsePartHeaders = Map.of("content-type", "application/http", "content-id", "response-" + contentId);
                     batchWriter.write(MultipartContent.Part.of(responsePartHeaders, responsePartContent));
                 }
                 batchWriter.end();

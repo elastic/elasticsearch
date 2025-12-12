@@ -195,6 +195,8 @@ public class AnalyzerTests extends ESTestCase {
         Settings.EMPTY
     );
 
+    private static final String DENSE_VECTOR_MAPPING_FILE = "mapping-dense_vector-all_element_types.json";
+
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
@@ -2400,7 +2402,7 @@ public class AnalyzerTests extends ESTestCase {
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
-            """, fieldName), "mapping-dense_vector.json");
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2413,7 +2415,7 @@ public class AnalyzerTests extends ESTestCase {
     private static void checkDenseVectorCastingHexKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
-            """, fieldName), "mapping-dense_vector.json");
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2426,7 +2428,7 @@ public class AnalyzerTests extends ESTestCase {
     private static void checkDenseVectorEvalCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
-            """, fieldName), "mapping-dense_vector.json");
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2446,7 +2448,7 @@ public class AnalyzerTests extends ESTestCase {
     private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | where knn(%s, ?query_vector)
-            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+            """, fieldName), DENSE_VECTOR_MAPPING_FILE, new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2516,7 +2518,7 @@ public class AnalyzerTests extends ESTestCase {
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval similarity = %s
-            """, similarityFunction), "mapping-dense_vector.json");
+            """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2568,7 +2570,7 @@ public class AnalyzerTests extends ESTestCase {
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
-            """, similarityFunction), "mapping-dense_vector.json");
+            """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2600,7 +2602,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private void checkVectorFunctionHexImplicitCastingError(String clause) {
         var query = "from test | " + clause;
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, "mapping-dense_vector.json"));
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, DENSE_VECTOR_MAPPING_FILE));
         assertThat(
             error.getMessage(),
             containsString(
@@ -2615,7 +2617,7 @@ public class AnalyzerTests extends ESTestCase {
 
         var plan = analyze(String.format(Locale.ROOT, """
             from test | eval scalar = v_magnitude([1, 2, 3])
-            """), "mapping-dense_vector.json");
+            """), DENSE_VECTOR_MAPPING_FILE);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -3967,7 +3969,7 @@ public class AnalyzerTests extends ESTestCase {
         LogicalPlan plan = analyze(
             String.format(Locale.ROOT, """
                 from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),
-            "mapping-dense_vector.json"
+            DENSE_VECTOR_MAPPING_FILE
         );
 
         Limit limit = as(plan, Limit.class);

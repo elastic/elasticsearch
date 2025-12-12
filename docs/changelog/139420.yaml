@@ -1,0 +1,5 @@
+pr: 139420
+summary: Fix offset maths bug in `InetAddress` parsing
+area: Mapping
+type: bug
+issues: []

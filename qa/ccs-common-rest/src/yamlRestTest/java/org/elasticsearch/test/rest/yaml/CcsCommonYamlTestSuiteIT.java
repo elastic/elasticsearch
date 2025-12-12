@@ -102,8 +102,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.DOC_VALUES_SKIPPER)
-        .feature(FeatureFlag.RERANK_SEMANTIC_TEXT_CHUNKS);
+        .feature(FeatureFlag.RERANK_SEMANTIC_TEXT_CHUNKS);;
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)

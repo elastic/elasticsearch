@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +33,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -220,11 +218,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         keyed = in.readBoolean();
         downsampledResultsOffset = in.readBoolean();
         buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, format));
-        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
-            // list is mutable by #readCollectionAsList contract
-            buckets.sort(Comparator.comparingLong(b -> b.key));
-        }
     }
 
     @Override

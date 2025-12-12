@@ -101,7 +101,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .feature(FeatureFlag.RERANK_SEMANTIC_TEXT_CHUNKS)
         .user("test_admin", "x-pack-test-password");
 

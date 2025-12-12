@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.action.settings;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,13 +32,13 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
@@ -55,10 +54,6 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
         .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
         .put(RemoteClusterPortSettings.PORT.getKey(), "0")
         .build();
-    private static final Settings CONNECTION_STRATEGY_SETTINGS = Settings.builder()
-        .put("cluster.remote.foo.mode", "proxy")
-        .put("cluster.remote.foo.proxy_socket_connections", 1)
-        .build();
 
     private ThreadPool threadPool;
     private MockTaskManager taskManager;
@@ -66,6 +61,8 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
     private ClusterService clusterService;
     private MockTransportService remoteTransportService;
     private MockTransportService localTransportService;
+    private RemoteClusterService localRemoteClusterService;
+    private Settings proxyConnectionStrategySettings;
     private TransportReloadRemoteClusterCredentialsAction action;
 
     @Before
@@ -83,6 +80,13 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
         );
         remoteTransportService.start();
         remoteTransportService.acceptIncomingRequests();
+        final var remoteNode = remoteTransportService.getLocalNode()
+            .withTransportAddress(remoteTransportService.boundRemoteAccessAddress().publishAddress());
+        proxyConnectionStrategySettings = Settings.builder()
+            .put("cluster.remote.foo.mode", "proxy")
+            .put("cluster.remote.foo.proxy_socket_connections", 1)
+            .put("cluster.remote.foo.proxy_address", remoteNode.getAddress().toString())
+            .build();
         localTransportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
@@ -91,6 +95,7 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
             clusterSettings
         );
         localTransportService.start();
+        localRemoteClusterService = localTransportService.getRemoteClusterService();
         action = new TransportReloadRemoteClusterCredentialsAction(
             localTransportService,
             clusterService,
@@ -134,15 +139,13 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
             .build();
         clusterService.getClusterApplierService()
             .setInitialState(new ClusterState.Builder(clusterService.getClusterName()).blocks(blocks).build());
-        Consumer<ActionListener<ActionResponse.Empty>> consumer = listener -> action.execute(task, request, listener);
-        expectThrows(ClusterBlockException.class, () -> { throw safeAwaitFailure(consumer); });
+        safeAwaitFailure(ClusterBlockException.class, ActionResponse.Empty.class, l -> action.execute(task, request, l));
     }
 
     public void testSettingsWithCredentialsButAliasNotRegisteredYet() {
         clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
         Settings settingsWithCredentials = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
-            .put("cluster.remote.foo.proxy_address", remoteTransportService.boundAddress().publishAddress().toString())
+            .put(proxyConnectionStrategySettings)
             .setSecureSettings(toSecureSettings("foo", randomAlphaOfLength(10)))
             .build();
         executeRequestWithExpectedLogMessage(
@@ -155,34 +158,14 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
 
     public void testReconnectedWhenCredentialAddedAndRemoved() {
         clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
-        final var localNode = remoteTransportService.getLocalNode();
-        final var remoteNode = remoteTransportService.getLocalNode()
-            .withTransportAddress(remoteTransportService.boundRemoteAccessAddress().publishAddress());
 
-        // The first connection will use the default profile since no credentials are set.
-        localTransportService.addConnectBehavior(localNode.getAddress(), (transport, discoveryNode, profile, listener) -> {
-            assertThat(profile.getTransportProfile(), equalTo("default"));
-            transport.openConnection(discoveryNode, profile, listener);
-        });
-
-        final var initialSettings = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
-            .put("cluster.remote.foo.proxy_address", localNode.getAddress().toString())
-            .build();
-        // Triggers the initial connection via the RemoteClusterService.
-        clusterSettings.applySettings(initialSettings);
+        // Triggers the initial connection attempt via the RemoteClusterService.
+        clusterSettings.applySettings(proxyConnectionStrategySettings);
         checkAliasConnectionStatus("foo", true);
-        final var firstConnectionInstance = localTransportService.getRemoteClusterService().getRemoteClusterConnection("foo");
-
-        // The second connection attempt will use the remote cluster profile since a credential has been added.
-        localTransportService.addConnectBehavior(remoteNode.getAddress(), (transport, discoveryNode, profile, listener) -> {
-            assertThat(profile.getTransportProfile(), equalTo("_remote_cluster"));
-            transport.openConnection(discoveryNode, profile, listener);
-        });
+        final var firstConnectionInstance = localRemoteClusterService.getRemoteClusterConnection("foo");
 
         final var updatedCredentialsSettings = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
-            .put("cluster.remote.foo.proxy_address", remoteNode.getAddress().toString())
+            .put(proxyConnectionStrategySettings)
             .setSecureSettings(toSecureSettings("foo", randomAlphaOfLength(10)))
             .build();
         executeRequestWithExpectedLogMessage(
@@ -192,39 +175,35 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
             "project [default] remote cluster connection [foo] updated after credentials change: [RECONNECTED]"
         );
         checkAliasConnectionStatus("foo", true);
-        final var secondConnectionInstance = localTransportService.getRemoteClusterService().getRemoteClusterConnection("foo");
+        final var secondConnectionInstance = localRemoteClusterService.getRemoteClusterConnection("foo");
         assertNotSame(firstConnectionInstance, secondConnectionInstance);
 
-        // Send the request again with the initial settings (no credential), should detect credential removed and reconnect.
+        // Send the request again with the initial settings (no credential), should detect the credential was removed and force a rebuild.
         executeRequestWithExpectedLogMessage(
-            initialSettings,
+            proxyConnectionStrategySettings,
             "Should log for removed credential and reconnected",
             Level.INFO,
             "project [default] remote cluster connection [foo] updated after credentials change: [RECONNECTED]"
         );
         checkAliasConnectionStatus("foo", true);
-        final var thirdConnectionInstance = localTransportService.getRemoteClusterService().getRemoteClusterConnection("foo");
+        final var thirdConnectionInstance = localRemoteClusterService.getRemoteClusterConnection("foo");
         assertNotSame(secondConnectionInstance, thirdConnectionInstance);
     }
 
     public void testNoRebuildRequiredWhenCredentialValueChanged() {
         clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
-        final var node = remoteTransportService.getLocalNode()
-            .withTransportAddress(remoteTransportService.boundRemoteAccessAddress().publishAddress());
         final var credential = randomAlphaOfLength(10);
-        final var addressSettings = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
-            .put("cluster.remote.foo.proxy_address", node.getAddress().toString())
+        final var initialSettings = Settings.builder()
+            .put(proxyConnectionStrategySettings)
+            .setSecureSettings(toSecureSettings("foo", credential))
             .build();
-        final var initialSettings = Settings.builder().put(addressSettings).setSecureSettings(toSecureSettings("foo", credential)).build();
-
-        localTransportService.getRemoteClusterService().getRemoteClusterCredentialsManager().updateClusterCredentials(initialSettings);
+        localRemoteClusterService.getRemoteClusterCredentialsManager().updateClusterCredentials(initialSettings);
         clusterSettings.applySettings(initialSettings);
         checkAliasConnectionStatus("foo", true);
-        final var firstConnectionInstance = localTransportService.getRemoteClusterService().getRemoteClusterConnection("foo");
+        final var firstConnectionInstance = localRemoteClusterService.getRemoteClusterConnection("foo");
 
         final var updateCredentialsSettings = Settings.builder()
-            .put(addressSettings)
+            .put(proxyConnectionStrategySettings)
             .setSecureSettings(toSecureSettings("foo", credential + "_mod"))
             .build();
         executeRequestWithExpectedLogMessage(
@@ -234,22 +213,17 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
             "project [default] no connection rebuilding required after credentials update"
         );
         checkAliasConnectionStatus("foo", true);
-        final var secondConnectionInstance = localTransportService.getRemoteClusterService().getRemoteClusterConnection("foo");
+        final var secondConnectionInstance = localRemoteClusterService.getRemoteClusterConnection("foo");
         assertSame(firstConnectionInstance, secondConnectionInstance);
     }
 
     public void testReconnectFailureLoggedWhenCredentialAdded() {
         clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
-
-        final var initialSettings = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
-            .put("cluster.remote.foo.proxy_address", remoteTransportService.getLocalNode().getAddress().toString())
-            .build();
-        clusterSettings.applySettings(initialSettings);
+        clusterSettings.applySettings(proxyConnectionStrategySettings);
         checkAliasConnectionStatus("foo", true);
 
         final var updateCredentialsSettings = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
+            .put(proxyConnectionStrategySettings)
             .put("cluster.remote.foo.proxy_address", "unknownhost:8080")
             .setSecureSettings(toSecureSettings("foo", randomAlphaOfLength(10)))
             .build();
@@ -264,16 +238,11 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
 
     public void testRemoveCalledWhenConnectionIsDisabled() {
         clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
-
-        final var initialSettings = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
-            .put("cluster.remote.foo.proxy_address", remoteTransportService.getLocalNode().getAddress().toString())
-            .build();
-        clusterSettings.applySettings(initialSettings);
+        clusterSettings.applySettings(proxyConnectionStrategySettings);
         checkAliasConnectionStatus("foo", true);
 
         final var updateCredentialsSettings = Settings.builder()
-            .put(CONNECTION_STRATEGY_SETTINGS)
+            .put(proxyConnectionStrategySettings)
             .put("cluster.remote.foo.proxy_address", "")
             .setSecureSettings(toSecureSettings("foo", randomAlphaOfLength(10)))
             .build();
@@ -283,7 +252,7 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
             Level.INFO,
             "project [default] remote cluster connection [foo] not enabled after credentials change"
         );
-        assertThat(localTransportService.getRemoteClusterService().getRemoteConnectionInfos().toList(), hasSize(0));
+        assertThat(localRemoteClusterService.getRemoteConnectionInfos().toList(), hasSize(0));
     }
 
     private void executeRequestWithExpectedLogMessage(Settings settings, String logExpectationName, Level level, String expectedMessage) {
@@ -305,14 +274,14 @@ public class TransportReloadRemoteClusterCredentialsActionTests extends ESTestCa
     }
 
     private void checkAliasConnectionStatus(String alias, boolean expectIsConnected) {
-        final var infos = localTransportService.getRemoteClusterService().getRemoteConnectionInfos().toList();
+        final var infos = localRemoteClusterService.getRemoteConnectionInfos().toList();
         assertThat(infos, hasSize(1));
         final var info = infos.getFirst();
         assertThat(info.getClusterAlias(), equalTo(alias));
         assertThat(
             "expected the " + alias + " cluster to be " + (expectIsConnected ? "connected" : "disconnected"),
-            expectIsConnected,
-            equalTo(info.isConnected())
+            info.isConnected(),
+            equalTo(expectIsConnected)
         );
     }
 

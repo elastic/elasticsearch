@@ -262,7 +262,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 int groupId = selected.getInt(p);
                 int tsidOrdinal = Math.toIntExact(tsidHash.getBytesRefKeyFromGroup(groupId));
                 if (firstGroups.length <= tsidOrdinal) {
+                    int prevSize = firstGroups.length;
                     firstGroups = ArrayUtil.grow(firstGroups, tsidOrdinal);
+                    Arrays.fill(firstGroups, prevSize, firstGroups.length, -1);
                 }
                 int first = firstGroups[tsidOrdinal];
                 if (first == -1) {

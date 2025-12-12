@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -178,11 +177,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.textInput = in.readOptionalStringCollectionAsList();
             this.highPriority = in.readBoolean();
             prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                chunked = in.readBoolean();
-            } else {
-                chunked = false;
-            }
+            chunked = in.readBoolean();
         }
 
         public int numberOfDocuments() {
@@ -257,9 +252,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeOptionalStringCollection(textInput);
             out.writeBoolean(highPriority);
             out.writeEnum(prefixType);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeBoolean(chunked);
-            }
+            out.writeBoolean(chunked);
         }
 
         @Override

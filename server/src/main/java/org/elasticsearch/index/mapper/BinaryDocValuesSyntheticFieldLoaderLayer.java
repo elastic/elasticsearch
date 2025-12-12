@@ -9,76 +9,65 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public final class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
-    private final String fieldName;
+    private final String name;
+    private SortedBinaryDocValues bytesValues;
+    private boolean hasValue;
 
-    // the binary doc values for a document are all encoded in a single binary array, which this stream knows how to read
-    // the doc values in the array take the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
-    private final ByteArrayStreamInput stream;
-    private int valueCount;
-
-    public BinaryDocValuesSyntheticFieldLoaderLayer(String fieldName) {
-        this.fieldName = fieldName;
-        this.stream = new ByteArrayStreamInput();
-    }
-
-    @Override
-    public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldName);
-
-        // there are no values associated with this field
-        if (docValues == null) {
-            valueCount = 0;
-            return null;
-        }
-
-        return docId -> {
-            // there are no more documents to process
-            if (docValues.advanceExact(docId) == false) {
-                valueCount = 0;
-                return false;
-            }
-
-            // otherwise, extract the doc values into a stream to later read from
-            BytesRef docValuesBytes = docValues.binaryValue();
-            stream.reset(docValuesBytes.bytes, docValuesBytes.offset, docValuesBytes.length);
-            valueCount = stream.readVInt();
-
-            return hasValue();
-        };
-    }
-
-    @Override
-    public void write(XContentBuilder b) throws IOException {
-        for (int i = 0; i < valueCount; i++) {
-            // this function already knows how to decode the underlying bytes array, so no need to explicitly call VInt()
-            BytesRef valueBytes = stream.readBytesRef();
-            b.value(valueBytes.utf8ToString());
-        }
-    }
-
-    @Override
-    public boolean hasValue() {
-        return valueCount > 0;
+    public BinaryDocValuesSyntheticFieldLoaderLayer(String name) {
+        this.name = name;
     }
 
     @Override
     public long valueCount() {
-        return valueCount;
+        return hasValue ? bytesValues.docValueCount() : 0;
+    }
+
+    @Override
+    public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+        var docValues = leafReader.getBinaryDocValues(name);
+        if (docValues == null) {
+            bytesValues = null;
+            hasValue = false;
+            return null;
+        }
+
+        bytesValues = new MultiValuedSortedBinaryDocValues(docValues);
+
+        return docId -> {
+            hasValue = bytesValues.advanceExact(docId);
+            return hasValue;
+        };
+    }
+
+    @Override
+    public boolean hasValue() {
+        return hasValue;
+    }
+
+    @Override
+    public void write(XContentBuilder b) throws IOException {
+        if (hasValue == false) {
+            return;
+        }
+
+        for (int i = 0; i < bytesValues.docValueCount(); ++i) {
+            BytesRef value = bytesValues.nextValue();
+            b.utf8Value(value.bytes, value.offset, value.length);
+        }
     }
 
     @Override
     public String fieldName() {
-        return fieldName;
+        return name;
     }
-
 }

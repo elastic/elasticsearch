@@ -362,7 +362,7 @@ public enum DataType implements Writeable {
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
             .supportedSince(
-                DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                DataTypesTransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED,
                 DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION
             )
     ),
@@ -392,7 +392,7 @@ public enum DataType implements Writeable {
         builder().esType("dense_vector")
             .estimatedSize(4096)
             .supportedSince(
-                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION,
+                DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION,
                 DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
             )
     );
@@ -1036,22 +1036,36 @@ public enum DataType implements Writeable {
          */
         public static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
-        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
-            "esql_dense_vector_created_version"
+        /**
+         * We retroactively need a suitable transport version as aggregate_metric_double's "created version".
+         * This type is supported on all snapshot builds that we run in bwc tests; at the time of writing,
+         * the oldest versions should be 8.19.x and 9.0.x.
+         * We can thus choose any transport version as long as it's on 9.0 and was backported to 8.18.
+         */
+        private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+            "cohere_bit_embedding_type_support_added"
         );
-
         public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
             "esql_aggregate_metric_double_created_version"
         );
 
         /**
-         * First transport version after the PR that introduced the exponential histogram data type which was NOT also backported to 9.2.
+         * The first version after dense_vector was supported in SNAPSHOT (but not in production)
+         */
+        public static final TransportVersion ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION = TransportVersion.fromName(
+            "ml_inference_sagemaker_chat_completion"
+        );
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
+
+        /**
+         * First transport version after the PR that introduced the exponential_histogram data type which was NOT also backported to 9.2.
          * (Exp. histogram was added as SNAPSHOT-only to 9.3.)
          */
         public static final TransportVersion TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION = TransportVersion.fromName(
             "text_similarity_rank_docs_explain_chunks"
         );
-
         public static final TransportVersion ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION = TransportVersion.fromName(
             "esql_exponential_histogram_supported_version"
         );

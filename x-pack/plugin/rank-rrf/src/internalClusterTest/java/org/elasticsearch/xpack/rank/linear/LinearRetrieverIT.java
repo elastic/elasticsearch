@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -77,6 +76,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         setupIndex();
     }
 
+    private int shardCount;
+
     protected void setupIndex() {
         String mapping = """
             {
@@ -114,7 +115,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
               }
             }
             """;
-        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5)).build());
+        shardCount = randomIntBetween(1, 5);
+        createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).build());
         admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term");
         indexDoc(
@@ -918,22 +920,49 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         });
     }
 
-    public void testLinearInnerRetrieverPartialSearchErrors() {
+    public void testLinearRetrieverPartialSearchErrorsFalse() {
         final int rankWindowSize = 100;
         SearchSourceBuilder source = new SearchSourceBuilder();
-        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
-        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(new MatchAllQueryBuilder());
+        StandardRetrieverBuilder failingRetriever = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
-                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
-                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null)
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null)
                 ),
                 rankWindowSize
             )
         );
+
+        // a failure should throw an exception when partial results are not allowed
         SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(false).setSource(source);
         Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
-        assertTrue(ex.getSuppressed()[0].getMessage().contains("simulated failure"));
+        assertTrue(ex.getSuppressed()[0].toString().contains("simulated failure"));
+    }
+
+    public void testLinearRetrieverPartialSearchErrorsTrue() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder failingRetriever = new StandardRetrieverBuilder(new ShardFailingQueryBuilder());
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        source.retriever(
+            new LinearRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(failingRetriever, null)
+                ),
+                rankWindowSize
+            )
+        );
+
+        // when partial search results are allowed we should instead get a result and for now ignore partial failures
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setAllowPartialSearchResults(true).setSource(source);
+        if (shardCount == 1) {
+            Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+            assertTrue(ex.getSuppressed()[0].toString().contains("simulated failure"));
+        } else {
+            assertResponse(req, searchResponse -> { assertEquals(shardCount / 2 + shardCount % 2, searchResponse.getFailedShards()); });
+        }
     }
 }

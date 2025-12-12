@@ -23,6 +23,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -147,7 +148,7 @@ public class CrossProjectIndexResolutionValidator {
                     if (remoteException != null) {
                         if (remoteException instanceof ElasticsearchSecurityException securityException) {
                             if (remoteAuthorizationExceptions == null) {
-                                remoteAuthorizationExceptions = new HashMap<>();
+                                remoteAuthorizationExceptions = new LinkedHashMap<>();
                                 remoteUnauthorizedIndices = new HashMap<>();
                             }
                             remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
@@ -189,6 +190,7 @@ public class CrossProjectIndexResolutionValidator {
                     if (remoteException == null) {
                         // found flat expression somewhere
                         foundFlat = true;
+                        break;
                     }
                     if (currentExpressionSecurityException == null
                         && remoteException instanceof ElasticsearchSecurityException securityException) {
@@ -216,7 +218,6 @@ public class CrossProjectIndexResolutionValidator {
                 if (currentExpressionSecurityException != null && currentExpressionSecurityException == localException) {
                     // We have a local security exception for this unqualified expression. That's what we want to report, i.e.
                     // we are no longer interested in whether any linked project also returns a security exception.
-                    assert populateRemoteSecurityExceptionAndIndices == null;
                     if (localAuthorizationException == null) {
                         localAuthorizationException = currentExpressionSecurityException;
                         localUnauthorizedIndices = new ArrayList<>();
@@ -250,7 +251,7 @@ public class CrossProjectIndexResolutionValidator {
             if (remoteAuthorizationExceptions != null) {
                 for (var e : remoteAuthorizationExceptions.entrySet()) {
                     final var unauthorizedIndices = remoteUnauthorizedIndices.get(e.getKey());
-                    if (unauthorizedIndices.isEmpty()) continue;
+                    assert unauthorizedIndices.isEmpty() == false;
 
                     var exception = formatAuthorizationException(e.getValue(), unauthorizedIndices);
                     if (firstException == null) {

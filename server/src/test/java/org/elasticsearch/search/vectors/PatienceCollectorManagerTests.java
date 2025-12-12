@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.search.knn.TopKnnCollectorManager;
 import org.elasticsearch.test.ESTestCase;

@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
@@ -209,6 +211,20 @@ public class ViewService {
         if (existing == null && views.views().size() >= this.maxViewsCount) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
+
+        final Map<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
+        indicesLookup.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().equals(view.name()))
+            .filter(entry -> entry.getValue().getType() != IndexAbstraction.Type.VIEW)
+            .findFirst()
+            .ifPresent(entry -> {
+                throw new ResourceAlreadyExistsException(
+                    "view [{}] cannot be created, an existing {} with that name is present",
+                    view.name(),
+                    entry.getValue().getType().getDisplayName()
+                );
+            });
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
         EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry, EMPTY_INFERENCE_SETTINGS);
     }

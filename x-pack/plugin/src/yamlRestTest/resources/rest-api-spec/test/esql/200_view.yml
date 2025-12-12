@@ -142,3 +142,63 @@ setup:
       catch: /view \[dogs\] not found/
       esql.delete_view:
         name: dogs
+
+---
+"view-name-conflicts":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: myindex
+
+  - do:
+      indices.put_alias:
+        index: myindex
+        name: myalias
+
+  - do:
+      allowed_warnings:
+        - "index template [mytemplate] has index patterns [mydatastream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [mytemplate] will take precedence during new index creation"
+      indices.put_index_template:
+        name: mytemplate
+        body:
+          index_patterns: [mydatastream]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: mydatastream
+
+  - do:
+      indices.put_alias:
+        index: mydatastream
+        name: mydatastreamalias
+
+  - do:
+      catch: /view \[myindex\] cannot be created, an existing concrete index with that name is present/
+      esql.put_view:
+        name: myindex
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /view \[myalias\] cannot be created, an existing alias with that name is present/
+      esql.put_view:
+        name: myalias
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /view \[mydatastream\] cannot be created, an existing data_stream with that name is present/
+      esql.put_view:
+        name: mydatastream
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /view \[mydatastreamalias\] cannot be created, an existing alias with that name is present/
+      esql.put_view:
+        name: mydatastreamalias
+        body:
+          query: 'FROM test | WHERE animal == "dog"'

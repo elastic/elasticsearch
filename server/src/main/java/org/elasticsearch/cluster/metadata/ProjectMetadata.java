@@ -1799,7 +1799,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             Map<String, IndexAbstraction> indicesLookup = new HashMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             collectDataStreams(dataStreamMetadata, indicesLookup, indexToDataStreamLookup);
-            System.out.println("--> views: " + viewMetadata.views());
             indicesLookup.putAll(viewMetadata.views());
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();

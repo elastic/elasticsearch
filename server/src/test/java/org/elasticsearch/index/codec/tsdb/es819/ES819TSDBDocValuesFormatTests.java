@@ -1237,6 +1237,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public void testOptionalColumnAtATimeReaderBinary() throws Exception {
         final boolean useCustomBinaryFormat = randomBoolean();
         final String binaryFieldOne = "binary_1";
+        final String binaryFieldTwo = "binary_2";
 
         var config = new IndexWriterConfig();
         config.setMergePolicy(new LogByteSizeMergePolicy());
@@ -1259,6 +1260,21 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     d.add(new BinaryDocValuesField(binaryFieldOne, new BytesRef(randomFrom(binaryValues))));
                 }
 
+                int valuesPerDoc = randomIntBetween(2, 8);
+                Set<String> values = new HashSet<>();
+                while (values.size() < valuesPerDoc) {
+                    values.add(randomFrom(binaryValues));
+                }
+                CustomBinaryDocValuesField fieldTwo = null;
+                for (String value : values) {
+                    if (fieldTwo == null) {
+                        fieldTwo = new CustomBinaryDocValuesField(binaryFieldTwo, value.getBytes(StandardCharsets.UTF_8));
+                    } else {
+                        fieldTwo.add(value.getBytes(StandardCharsets.UTF_8));
+                    }
+                }
+                d.add(fieldTwo);
+
                 iw.addDocument(d);
                 if (i % 1000 == 0) {
                     iw.commit();
@@ -1269,11 +1285,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             try (var reader = DirectoryReader.open(iw)) {
                 for (var leaf : reader.leaves()) {
                     int maxDoc = leaf.reader().maxDoc();
-                    var binaryFixedDV = getDenseBinaryValues(leaf.reader(), binaryFieldOne);
+                    var binaryDVField1 = getDenseBinaryValues(leaf.reader(), binaryFieldOne);
                     // Randomize start doc, starting from a docid that is part of later blocks triggers:
                     // https://github.com/elastic/elasticsearch/issues/138750
                     var docs = TestBlock.docs(IntStream.range(between(0, maxDoc - 1), maxDoc).toArray());
-                    var block = (TestBlock) binaryFixedDV.tryRead(
+                    var block = (TestBlock) binaryDVField1.tryRead(
                         factory,
                         docs,
                         0,
@@ -1287,6 +1303,25 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     for (int j = 0; j < block.size(); j++) {
                         var actual = ((BytesRef) block.get(j)).utf8ToString();
                         assertTrue("actual [" + actual + "] not in generated values", binaryValues.contains(actual));
+                    }
+
+                    var binaryDVField2 = getDenseBinaryValues(leaf.reader(), binaryFieldTwo);
+                    block = (TestBlock) binaryDVField2.tryRead(
+                        factory,
+                        docs,
+                        0,
+                        random().nextBoolean(),
+                        null,
+                        false,
+                        useCustomBinaryFormat
+                    );
+                    for (int j = 0; j < block.size(); j++) {
+                        var values = (List<?>) block.get(j);
+                        assertFalse(values.isEmpty());
+                        for (Object value : values) {
+                            var actual = ((BytesRef) value).utf8ToString();
+                            assertTrue("actual [" + actual + "] not in generated values", binaryValues.contains(actual));
+                        }
                     }
                 }
             }

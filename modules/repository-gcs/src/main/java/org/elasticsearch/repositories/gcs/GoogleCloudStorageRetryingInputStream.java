@@ -151,7 +151,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         public boolean isRetryableException(StreamAction action, Exception e) {
             return switch (action) {
                 case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
-                case READ -> true;
+                case READ -> e instanceof StorageException;
             };
         }
     }

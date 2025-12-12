@@ -413,7 +413,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     }
 
     public void testBWCVersionSerialization_GivenAutoPrefiltering() throws IOException {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
 
             TransportVersion version = TransportVersionUtils.randomVersionBetween(
                 random(),

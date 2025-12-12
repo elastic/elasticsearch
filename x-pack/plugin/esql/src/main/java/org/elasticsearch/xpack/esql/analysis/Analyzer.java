@@ -839,10 +839,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
                 boolean remote = context.indexResolution()
-                    .keySet()
+                    .values()
                     .stream()
-                    .map(IndexPattern::indexPattern)
+                    .map(IndexResolution::resolvedIndices)
+                    .flatMap(Collection::stream)
                     .anyMatch(RemoteClusterAware::isRemoteIndexName);
+
                 if (remote && EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
                     throw new VerificationException("remote clusters are not supported with LOOKUP JOIN");
                 }

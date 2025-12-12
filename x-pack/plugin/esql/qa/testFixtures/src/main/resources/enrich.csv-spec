@@ -797,40 +797,56 @@ a:long  | b:long
 ;
 
 
-circularRefComplexEnrich
-// https://github.com/elastic/elasticsearch/issues/138346
+circularRefEnrichStats2
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM firewall_logs*,languages_lookup 
-| WHERE true
-| RENAME language_name AS message 
-| LOOKUP JOIN message_types_lookup ON message 
-| SORT language_code ASC NULLS LAST, source.IP, destination.IP DESC NULLS LAST 
-| WHERE  NOT language_code > 50 OR  NOT false AND false AND  NOT language_code == 50 
-| DISSECT type "%{UbYnrgOqj}" 
-| DISSECT message "%{CFDuYXDQ}" 
-| KEEP source.*, `CFDuYXDQ`, `message`, `destination.IP`, `@timestamp` 
-| ENRICH languages_policy ON CFDuYXDQ
-| RENAME message AS message 
-| LOOKUP JOIN message_types_lookup ON message 
-| STATS  `3JfBf9ds` = count_distinct(@timestamp), `@timestamp` = count_distinct(@timestamp), CFDuYXDQ = count(to_lower(language_name)), sUSfCRAxYb = count_distinct(language_name) BY destination.IP;
+FROM languages_lookup 
+| RENAME language_name AS message  
+| ENRICH languages_policy ON language_code 
+| STATS a = count(to_lower(language_name)), b = count(message)
+;
 
-3JfBf9ds:long   | @timestamp:long   | CFDuYXDQ:long | sUSfCRAxYb:long   | destination.IP:ip
-0               | 0                 | 0             | 0                 | null
+a:long  | b:long
+4       | 4
 ;
 
 
-circularRefEnrichDissect
-// https://github.com/elastic/elasticsearch/issues/138346
+circularRefEnrichStats3
 required_capability: enrich_load
 required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
-FROM firewall_logs*,languages_lookup 
-| RENAME language_name AS message 
-| LOOKUP JOIN message_types_lookup ON message 
-| DISSECT message "%{a}"
-| ENRICH languages_policy ON a 
-| STATS a = count(to_lower(language_name)), sUSfCRAxYb = count_distinct(language_name) BY destination.IP;
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code
+| RENAME language_name AS message
+| STATS a = count(to_lower(message)), b = count(message)
+;
 
-a:long  | sUSfCRAxYb:long    | destination.IP:ip
-0       | 0                  | null
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats4
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code WITH message=language_name
+| RENAME language_name AS message
+| STATS a = count(to_lower(message)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
+;
+
+
+circularRefEnrichStats5
+required_capability: enrich_load
+required_capability: fix_enrich_alias_cycle_in_deduplicate_aggs
+FROM languages_lookup 
+| ENRICH languages_policy ON language_code WITH message=language_name
+| STATS a = count(to_lower(language_name)), b = count(message)
+;
+
+a:long  | b:long
+4       | 4
 ;

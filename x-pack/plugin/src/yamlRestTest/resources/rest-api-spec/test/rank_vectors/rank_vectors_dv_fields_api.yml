@@ -18,7 +18,7 @@ setup:
               vector:
                  type: rank_vectors
                  dims: 5
-              bfloat16:
+              bfloat16_vector:
                 type: rank_vectors
                 dims: 5
                 element_type: bfloat16

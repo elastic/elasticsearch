@@ -1665,8 +1665,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
                 boolean toInt = supportsBulkIntBlockReading();
-                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt));
-                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt);
+                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt, false));
+                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt, false);
                 assertNotNull(block);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), equalTo(expectedSampleValues[2]));

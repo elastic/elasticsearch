@@ -23,6 +23,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexModule;
@@ -44,7 +45,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
@@ -70,7 +73,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -674,5 +679,66 @@ public class NodeTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    public void testInitialClusterStateWaitCancelledOnShutdown() throws Exception {
+
+        Consumer<MockNode> startNode = node -> {
+            try {
+                node.start();
+            } catch (NodeValidationException e) {
+                throw new AssertionError(e);
+            }
+        };
+        Settings baseSettings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType()).build();
+        Settings masterSettings = Settings.builder()
+            .put(baseSettings)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("node.name", "master_node").build();
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockTransportService.TestPlugin.class);
+
+        try (MockNode masterNode = new MockNode(NodeRoles.masterOnlyNode(masterSettings), plugins)) {
+            startNode.accept(masterNode);
+
+            CountDownLatch reachedBlock = new CountDownLatch(1);
+            CountDownLatch testDone = new CountDownLatch(1);
+
+            var transportService = asInstanceOf(
+                MockTransportService.class,
+                masterNode.injector().getInstance(TransportService.class)
+            );
+            transportService.addRequestHandlingBehavior("internal:discovery/request_peers",
+                (handler, request, channel, task) -> {
+                    logger.info("blocking peer discovery");
+                    reachedBlock.countDown();
+                    testDone.await();
+                });
+            String masterAddress = masterNode.injector().getInstance(TransportService.class).getLocalNode().getAddress().toString();
+
+            Settings nodeSettings = NodeRoles.dataOnlyNode(Settings.builder()
+                    .put(baseSettings)
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    .putList("cluster.initial_master_nodes", "master_node")
+                .put("node.name", "joining_node")
+                .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), masterAddress)
+                .build());
+            try (MockNode joiningNode = new MockNode(nodeSettings, plugins)) {
+
+                Thread startupThread = new Thread(() -> startNode.accept(joiningNode));
+                startupThread.start();
+                reachedBlock.await();
+
+                logger.info("shutting down");
+                joiningNode.prepareForClose();
+                // startup should now complete on its own even though the discover request is blocked
+                startupThread.join();
+
+                testDone.countDown();
+            }
+        }
+
     }
 }

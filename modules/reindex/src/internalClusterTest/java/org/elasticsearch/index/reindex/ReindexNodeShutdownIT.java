@@ -95,8 +95,6 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
         ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
 
-        TaskManager taskManager = internalCluster().getInstance(TransportService.class, coordNodeName).getTaskManager();
-
         // Now execute the reindex action...
         ActionListener<BulkByScrollResponse> reindexListener = new ActionListener<BulkByScrollResponse>() {
             @Override
@@ -115,7 +113,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
         // Check for reindex task to appear in the tasks list and Immediately stop coordinating node
         waitForTask(ReindexAction.INSTANCE.name(), coordNodeName);
-        shutdownPrepareService.prepareForShutdown(taskManager);
+        shutdownPrepareService.prepareForShutdown();
         internalCluster().stopNode(coordNodeName);
     }
 

@@ -399,12 +399,20 @@ public class Node implements Closeable {
                         latch.countDown();
                     }
                 }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
+                var shutdownService = injector.getInstance(ShutdownPrepareService.class);
+                shutdownService.addShutdownHook("cancel-cluster-join", latch::countDown);
 
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                }
+
+                if (shutdownService.isShuttingDown()) {
+                    // shutdown started in the middle of startup, so bail early
+                    logger.warn("shutdown began while waiting for initial discovery state");
+                    return this;
                 }
             }
         }
@@ -594,8 +602,7 @@ public class Node implements Closeable {
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        injector.getInstance(ShutdownPrepareService.class)
-            .prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
+        injector.getInstance(ShutdownPrepareService.class).prepareForShutdown();
     }
 
     /**

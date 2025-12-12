@@ -37,6 +37,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -1665,8 +1666,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
                 boolean toInt = supportsBulkIntBlockReading();
-                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt));
-                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt);
+                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt, false));
+                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt, false);
                 assertNotNull(block);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), equalTo(expectedSampleValues[2]));
@@ -1856,7 +1857,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testDocValuesSkippers() throws IOException {
         assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
-        assumeTrue("FeatureFlag disabled", IndexSettings.DOC_VALUES_SKIPPER);
 
         IndexVersion preSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
             random(),
@@ -1892,6 +1892,48 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.field("index", false);
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
+
+        Settings statelessSkipperDefault = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        IndexVersion statelessNoSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
+            random(),
+            IndexVersions.STANDARD_INDEXES_USE_SKIPPERS
+        );
+        {
+            MapperService mapperService = createMapperService(statelessNoSkipperVersion, statelessSkipperDefault, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.docValuesOnly()));
+        }
+
+        Settings statelessSkipperTSDB = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        IndexVersion statelessSkipperVersion = IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB;
+        {
+            MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperTSDB, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        Settings statelessSkipperEnabled = Settings.builder()
+            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .build();
+        {
+            MapperService mapperService = createMapperService(statelessSkipperVersion, statelessSkipperEnabled, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("doc_values", true);
+                b.field("index", false);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
         }
     }
 }

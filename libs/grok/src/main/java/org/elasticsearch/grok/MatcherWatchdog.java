@@ -81,16 +81,16 @@ public interface MatcherWatchdog {
         // duplicated from org.elasticsearch.core.TimeValue because we don't have access to that here
         private static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
 
-        private final long maxExecutionTime;
+        private final long maxExecutionTimeMillis;
 
-        private Default(long maxExecutionTime) {
-            this.maxExecutionTime = maxExecutionTime;
+        private Default(long maxExecutionTimeMillis) {
+            this.maxExecutionTimeMillis = maxExecutionTimeMillis;
         }
 
         @Override
         public void register(Matcher matcher) {
-            if (maxExecutionTime > 0) {
-                matcher.setTimeout(maxExecutionTime * NSEC_PER_MSEC);
+            if (maxExecutionTimeMillis > 0) {
+                matcher.setTimeout(maxExecutionTimeMillis * NSEC_PER_MSEC);
             } else {
                 matcher.setTimeout(-1); // disable timeouts
             }
@@ -98,7 +98,7 @@ public interface MatcherWatchdog {
 
         @Override
         public long maxExecutionTimeInMillis() {
-            return maxExecutionTime;
+            return maxExecutionTimeMillis;
         }
 
         @Override

@@ -50,6 +50,7 @@ public class InlineStats extends UnaryPlan
         SurrogateLogicalPlan,
         TelemetryAware,
         SortAgnostic,
+        SortPreserving,
         PostAnalysisPlanVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,

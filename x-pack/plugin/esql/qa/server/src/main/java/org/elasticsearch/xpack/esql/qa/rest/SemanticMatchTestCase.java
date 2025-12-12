@@ -201,7 +201,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
     @Before
     public void setUpSparseEmbeddingInferenceEndpoint() throws IOException {
-        Request request = new Request("PUT", "_inference/sparse_embedding/test_sparse_inference");
+        Request request = new Request("PUT", "/_inference/sparse_embedding/test_sparse_inference");
         request.setJsonEntity("""
                   {
                    "service": "test_service",
@@ -223,7 +223,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
 
     @Before
     public void setUpTextEmbeddingInferenceEndpoint() throws IOException {
-        Request request = new Request("PUT", "_inference/text_embedding/test_dense_inference");
+        Request request = new Request("PUT", "/_inference/text_embedding/test_dense_inference");
         request.setJsonEntity("""
                   {
                    "service": "text_embedding_test_service",
@@ -249,7 +249,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         adminClient().performRequest(new Request("DELETE", "*"));
 
         try {
-            adminClient().performRequest(new Request("DELETE", "_inference/test_sparse_inference"));
+            adminClient().performRequest(new Request("DELETE", "/_inference/test_sparse_inference"));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -258,7 +258,7 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         }
 
         try {
-            adminClient().performRequest(new Request("DELETE", "_inference/test_dense_inference"));
+            adminClient().performRequest(new Request("DELETE", "/_inference/test_dense_inference"));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

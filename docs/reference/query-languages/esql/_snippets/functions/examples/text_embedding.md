@@ -12,16 +12,16 @@ ROW input="Who is Victor Hugo?"
 Generate text embeddings and store them in a variable for reuse in KNN vector search queries.
 
 ```esql
-FROM semantic_text METADATA _score
+FROM dense_vector_text METADATA _score
 | EVAL query_embedding = TEXT_EMBEDDING("be excellent to each other", "test_dense_inference")
-| WHERE KNN(semantic_text_dense_field, query_embedding)
+| WHERE KNN(text_embedding_field, query_embedding)
 ```
 
 Directly embed text within a KNN query for streamlined vector search without intermediate variables.
 
 ```esql
-FROM semantic_text METADATA _score
-| WHERE KNN(semantic_text_dense_field, TEXT_EMBEDDING("be excellent to each other", "test_dense_inference"))
+FROM dense_vector_text METADATA _score
+| WHERE KNN(text_embedding_field, TEXT_EMBEDDING("be excellent to each other", "test_dense_inference"))
 ```
 
 

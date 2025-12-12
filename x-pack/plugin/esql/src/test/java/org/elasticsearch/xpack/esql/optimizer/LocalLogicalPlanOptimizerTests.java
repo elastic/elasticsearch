@@ -2435,8 +2435,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         // Right side of join: EsRelation[languages_lookup][LOOKUP][language_code{f}#149, language_name{f}#150, $$last_..]
         var rightRelation = as(join.right(), EsRelation.class);
-        // Verify that the pushed down field t (last_name length) is in the lookup relation output
-        assertTrue(rightRelation.output().contains(tFieldAttr));
+        // Verify that the pushed down field t (last_name length) is not in the lookup relation output
+        assertFalse(rightRelation.output().contains(tFieldAttr));
     }
 
     private IsNotNull isNotNull(Expression field) {

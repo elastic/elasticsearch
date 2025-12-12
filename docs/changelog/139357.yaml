@@ -1,0 +1,6 @@
+pr: 139357
+summary: Prune `InlineJoin` right aggregations by delegating to the child plan
+area: ES|QL
+type: bug
+issues:
+ - 138283

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -264,7 +263,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
     public void testMixedBareOverTimeAndRegularAggregates() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
 
-        var error = expectThrows(EsqlIllegalArgumentException.class, () -> { planK8s("""
+        var error = expectThrows(IllegalArgumentException.class, () -> { planK8s("""
             TS k8s
             | STATS avg_over_time(network.cost), sum(network.total_bytes_in)
             """); });
@@ -277,7 +276,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
     public void testGroupingKeyInAggregatesListPreserved() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
 
-        var error = expectThrows(EsqlIllegalArgumentException.class, () -> { planK8s("""
+        var error = expectThrows(IllegalArgumentException.class, () -> { planK8s("""
             TS k8s
             | STATS rate(network.total_bytes_out) BY region, TBUCKET(1hour)
             """); });

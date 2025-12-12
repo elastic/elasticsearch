@@ -161,9 +161,21 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
 
     public void append(TDigestHolder val) {
         encodedDigestsBuilder.appendBytesRef(val.getEncodedDigest());
-        minimaBuilder.appendDouble(val.getMin());
-        maximaBuilder.appendDouble(val.getMax());
-        sumsBuilder.appendDouble(val.getSum());
+        if (Double.isNaN(val.getMin())) {
+            minimaBuilder.appendNull();
+        } else {
+            minimaBuilder.appendDouble(val.getMin());
+        }
+        if (Double.isNaN(val.getMax())) {
+            maximaBuilder.appendNull();
+        } else {
+            maximaBuilder.appendDouble(val.getMax());
+        }
+        if (Double.isNaN(val.getSum())) {
+            sumsBuilder.appendNull();
+        } else {
+            sumsBuilder.appendDouble(val.getSum());
+        }
         valueCountsBuilder.appendLong(val.getValueCount());
     }
 

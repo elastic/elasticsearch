@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -868,6 +869,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             aggregateMetricDoubleCases(),
             expectedType,
             v -> expectedValue.apply((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v),
+            warnings
+        );
+    }
+
+    public static void forUnaryExponentialHistogram(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<ExponentialHistogram, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            exponentialHistogramCases(),
+            expectedType,
+            v -> expectedValue.apply((ExponentialHistogram) v),
             warnings
         );
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -235,6 +236,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(false);
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
+                        builder.index(false);
+                    }
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,
@@ -242,6 +246,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         ScriptCompiler.NONE,
                         indexSettings
                     ).allowMultipleValues(false).ignoreMalformed(false).coerce(true);
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
+                        builder.index(false);
+                    }
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
@@ -495,20 +502,30 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
             if (cfg != null) {
-                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_MIN) {
-                    return new DoublesBlockLoader(metricFields.get(Metric.min).name(), NumericUtils::sortableLongToDouble);
+                var function = cfg.function();
+                Metric metric = switch (function) {
+                    case AMD_COUNT -> Metric.value_count;
+                    case AMD_MAX -> Metric.max;
+                    case AMD_MIN -> Metric.min;
+                    case AMD_SUM -> Metric.sum;
+                    default -> null;
+                };
+                if (metric == null) {
+                    return new AggregateMetricDoubleBlockLoader(metricFields);
                 }
-                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_MAX) {
-                    return new DoublesBlockLoader(metricFields.get(Metric.max).name(), NumericUtils::sortableLongToDouble);
-                }
-                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_SUM) {
-                    return new DoublesBlockLoader(metricFields.get(Metric.sum).name(), NumericUtils::sortableLongToDouble);
-                }
-                if (cfg.function() == BlockLoaderFunctionConfig.Function.AMD_COUNT) {
-                    return new IntsBlockLoader(metricFields.get(Metric.value_count).name());
-                }
+                return getIndividualBlockLoader(metric);
             }
             return new AggregateMetricDoubleBlockLoader(metricFields);
+        }
+
+        private BlockLoader getIndividualBlockLoader(Metric metric) {
+            if (metricFields.containsKey(metric) == false) {
+                return BlockLoader.CONSTANT_NULLS;
+            }
+            if (metric == Metric.value_count) {
+                return new IntsBlockLoader(metricFields.get(Metric.value_count).name());
+            }
+            return new DoublesBlockLoader(metricFields.get(metric).name(), NumericUtils::sortableLongToDouble);
         }
 
         @Override

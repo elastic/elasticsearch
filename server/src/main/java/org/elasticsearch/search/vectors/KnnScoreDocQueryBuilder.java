@@ -68,26 +68,17 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.fieldName = in.readOptionalString();
-            if (in.readBoolean()) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                    this.queryVector = in.readOptionalWriteable(VectorData::new);
-                } else {
-                    this.queryVector = VectorData.fromFloats(in.readFloatArray());
-                }
+        this.fieldName = in.readOptionalString();
+        if (in.readBoolean()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                this.queryVector = in.readOptionalWriteable(VectorData::new);
             } else {
-                this.queryVector = null;
+                this.queryVector = VectorData.fromFloats(in.readFloatArray());
             }
         } else {
-            this.fieldName = null;
             this.queryVector = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.vectorSimilarity = in.readOptionalFloat();
         if (in.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             this.filterQueries = readQueries(in);
         } else {
@@ -119,22 +110,18 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalString(fieldName);
-            if (queryVector != null) {
-                out.writeBoolean(true);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                    out.writeOptionalWriteable(queryVector);
-                } else {
-                    out.writeFloatArray(queryVector.asFloatVector());
-                }
+        out.writeOptionalString(fieldName);
+        if (queryVector != null) {
+            out.writeBoolean(true);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                out.writeOptionalWriteable(queryVector);
             } else {
-                out.writeBoolean(false);
+                out.writeFloatArray(queryVector.asFloatVector());
             }
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().supports(TO_CHILD_BLOCK_JOIN_QUERY)) {
             writeQueries(out, filterQueries);
         }
@@ -231,6 +218,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_4_0;
+        return TransportVersion.minimumCompatible();
     }
 }

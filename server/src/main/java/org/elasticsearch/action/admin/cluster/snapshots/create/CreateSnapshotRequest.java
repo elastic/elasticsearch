@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -107,7 +106,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
-        uuid = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalString() : null;
+        uuid = in.readOptionalString();
     }
 
     @Override
@@ -122,9 +121,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalString(uuid);
-        }
+        out.writeOptionalString(uuid);
     }
 
     @Override

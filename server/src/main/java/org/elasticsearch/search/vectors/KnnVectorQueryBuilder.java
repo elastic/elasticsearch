@@ -289,16 +289,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.k = in.readOptionalVInt();
-        } else {
-            this.k = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            this.numCands = in.readOptionalVInt();
-        } else {
-            this.numCands = in.readVInt();
-        }
+        this.k = in.readOptionalVInt();
+        this.numCands = in.readOptionalVInt();
         if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
@@ -307,34 +299,16 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
-            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-            } else {
-                in.readBoolean();
-                this.queryVector = VectorData.fromFloats(in.readFloatArray());
-                in.readBoolean(); // used for byteQueryVector, which was always null
-            }
+            this.queryVector = VectorData.fromFloats(in.readFloatArray());
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            this.filterQueries.addAll(readQueries(in));
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.filterQueries.addAll(readQueries(in));
+        this.vectorSimilarity = in.readOptionalFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
             this.queryVectorBuilder = null;
         }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
-        } else {
-            this.rescoreVectorBuilder = null;
-        }
-
+        this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
         this.queryVectorSupplier = null;
         if (in.getTransportVersion().supports(POST_FILTERING_THRESHOLD)) {
             this.postFilteringThreshold = in.readOptionalFloat();
@@ -411,45 +385,18 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             throw new IllegalStateException("missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalVInt(k);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalVInt(numCands);
-        } else {
-            if (numCands == null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + NUM_CANDS_FIELD.getPreferredName()
-                        + "] field was mandatory in previous releases "
-                        + "and is required to be non-null by some nodes. "
-                        + "Please make sure to provide the parameter as part of the request."
-                );
-            } else {
-                out.writeVInt(numCands);
-            }
-        }
+        out.writeOptionalVInt(k);
+        out.writeOptionalVInt(numCands);
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalWriteable(queryVector);
         } else {
-            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
-                || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeFloatArray(queryVector.asFloatVector());
-            } else {
-                out.writeBoolean(true);
-                out.writeFloatArray(queryVector.asFloatVector());
-                out.writeBoolean(false); // used for byteQueryVector, which was always null
-            }
+            out.writeFloatArray(queryVector.asFloatVector());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            writeQueries(out, filterQueries);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        writeQueries(out, filterQueries);
+        out.writeOptionalFloat(vectorSimilarity);
         if (out.getTransportVersion().before(TransportVersions.V_8_14_0) && queryVectorBuilder != null) {
             throw new IllegalArgumentException(
                 format(
@@ -462,9 +409,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalWriteable(rescoreVectorBuilder);
-        }
+        out.writeOptionalWriteable(rescoreVectorBuilder);
         if (out.getTransportVersion().supports(POST_FILTERING_THRESHOLD)) {
             out.writeOptionalFloat(postFilteringThreshold);
         }
@@ -750,6 +695,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_0_0;
+        return TransportVersion.minimumCompatible();
     }
 }

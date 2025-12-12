@@ -17,6 +17,11 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
+/**
+ * This block loader should be used for fields that are directly encoded as binary values but are always single valued, such as the
+ * histogram fields.  See also {@link BytesRefsFromCustomBinaryBlockLoader} for multivalued binary fields, and
+ * {@link BytesRefsFromOrdsBlockLoader} for ordinals-based binary values
+ */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final String fieldName;

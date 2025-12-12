@@ -10,6 +10,7 @@ package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.common.Strings;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.containsString;
@@ -114,11 +116,71 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_max_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
             assertThat(countDownHead.isCountedDown(), is(true));
             assertThat(countDownGet.isCountedDown(), is(true));
         }
+    }
+
+    public void testReadBlobWithFailuresMidDownload() throws IOException {
+        final int responsesToSend = randomIntBetween(3, 5);
+        final AtomicInteger responseCounter = new AtomicInteger(responsesToSend);
+        final byte[] blobContents = randomBlobContent();
+        final String eTag = UUIDs.base64UUID();
+        httpServer.createContext("/account/container/read_blob_fail_mid_stream", exchange -> {
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blobContents.length));
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobContents.length));
+                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    if (responseCounter.decrementAndGet() > 0) {
+                        switch (randomIntBetween(1, 3)) {
+                            case 1 -> {
+                                final Integer rCode = randomFrom(
+                                    RestStatus.INTERNAL_SERVER_ERROR.getStatus(),
+                                    RestStatus.SERVICE_UNAVAILABLE.getStatus(),
+                                    RestStatus.TOO_MANY_REQUESTS.getStatus()
+                                );
+                                logger.info("---> sending error: {}", rCode);
+                                exchange.sendResponseHeaders(rCode, -1);
+                            }
+                            case 2 -> logger.info("---> sending no response");
+                            case 3 -> sendResponse(eTag, blobContents, exchange, true);
+                        }
+                    } else {
+                        sendResponse(eTag, blobContents, exchange, false);
+                    }
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(responsesToSend * 2);
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_fail_mid_stream")) {
+            assertArrayEquals(blobContents, BytesReference.toBytes(Streams.readFully(inputStream)));
+        }
+    }
+
+    private void sendResponse(String eTag, byte[] blobContents, HttpExchange exchange, boolean partial) throws IOException {
+        final var ranges = getRanges(exchange);
+        final int start = ranges.v1().intValue();
+        final int end = partial ? randomIntBetween(start, ranges.v2().intValue()) : ranges.v2().intValue();
+        final var contents = Arrays.copyOfRange(blobContents, start, end + 1);
+
+        logger.info("---> responding to: {} -> {} (sending chunk of size {})", ranges.v1(), ranges.v2(), contents.length);
+        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+        exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blobContents.length));
+        exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobContents.length));
+        exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+        exchange.getResponseHeaders().add("ETag", eTag);
+        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blobContents.length - ranges.v1().intValue());
+        exchange.getResponseBody().write(contents, 0, contents.length);
     }
 
     public void testReadRangeBlobWithRetries() throws Exception {
@@ -466,7 +528,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         }
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, secondaryHost, locationMode);
-        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "read_blob_from_secondary")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "read_blob_from_secondary")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
 
             // It does round robin, first tries on the primary, then on the secondary

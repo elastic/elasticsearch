@@ -75,7 +75,12 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsInferenceTestService() {
+    protected boolean supportsSemanticTextInference() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestServiceOnLocalCluster() {
         return false;
     }
 

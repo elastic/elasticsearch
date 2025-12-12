@@ -393,10 +393,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(
-            err,
-            containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@2:3")
-        );
+        assertThat(err, containsString("5:3: ENRICH with remote policy can't be executed after [STATS c = COUNT(*) by languages]@2:3"));
 
         err = error("""
             FROM test
@@ -405,7 +402,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [SORT emp_no]@2:3"));
+        assertThat(err, containsString("5:3: ENRICH with remote policy can't be executed after [SORT emp_no]@2:3"));
 
         err = error("""
             FROM test
@@ -414,7 +411,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
+        assertThat(err, containsString("5:3: ENRICH with remote policy can't be executed after [LIMIT 2]@2:3"));
 
         err = error("""
             FROM test
@@ -423,10 +420,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(
-            err,
-            containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@3:3")
-        );
+        assertThat(err, containsString("5:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages_coord]@3:3"));
     }
 
     public void testDanglingOrderByInInlineStats() {

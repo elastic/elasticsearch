@@ -28,6 +28,7 @@ import java.util.OptionalInt;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -271,6 +272,7 @@ public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
         request.addParameter("filter_path", "hits.total.value,_shards.failed");
         Response searchTestIndexResponse = client().performRequest(request);
         // should return all indexed docs and no failures
+        assertThat(searchTestIndexResponse.getStatusLine().getStatusCode(), equalTo(200));
         assertEquals(
             "Failed on index " + index,
             "{\"_shards\":{\"failed\":0},\"hits\":{\"total\":{\"value\":" + expected + "}}}",
@@ -293,6 +295,7 @@ public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
         request.addParameter("filter_path", "hits.total.value,_shards.failed");
         Response searchTestIndexResponse = client().performRequest(request);
         // should return 9 hints (the k value) and no failures
+        assertThat(searchTestIndexResponse.getStatusLine().getStatusCode(), equalTo(200));
         assertEquals(
             "Failed on index " + index,
             "{\"_shards\":{\"failed\":0},\"hits\":{\"total\":{\"value\":9}}}",

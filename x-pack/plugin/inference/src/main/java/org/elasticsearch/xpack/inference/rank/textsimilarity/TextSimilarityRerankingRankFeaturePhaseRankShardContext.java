@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.inference.common.chunks.SemanticChunkScorer;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.ChunkScorerConfig.DEFAULT_SIZE;
@@ -63,7 +64,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
                     Mapper mapper = searchExecutionContext.getMappingLookup().getMapper(field);
                     boolean isSemanticTextField = mapper instanceof SemanticTextFieldMapper;
 
-                    List<ScoredChunk> scoredChunks;
+                    List<ScoredChunk> scoredChunks = new ArrayList<>();
 
                     if (RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG.isEnabled() && isSemanticTextField) {
                         SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
@@ -111,11 +112,7 @@ public class TextSimilarityRerankingRankFeaturePhaseRankShardContext extends Rer
     ) {
         SemanticChunkScorer scorer = new SemanticChunkScorer(searchContext);
         try {
-            List<ScoredChunk> scoredChunks = scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
-            if (scoredChunks.isEmpty()) {
-                scoredChunks = chunkAndScoreBm25(hit.field(field).getValue().toString(), size);
-            }
-            return scoredChunks;
+            return scorer.scoreChunks(fieldType, hit, chunkScorerConfig.inferenceText(), size);
         } catch (IOException e) {
             throw new IllegalStateException("Could not score semantic text chunks", e);
         }

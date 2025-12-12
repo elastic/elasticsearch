@@ -114,9 +114,6 @@ public class SemanticChunkScorer {
                 );
                 for (int j = 0; j < numChunks; j++) {
                     OffsetAndScore offsetAndScore = chunkOffsetsAndScores.get(j);
-                    if (nestedSources.size() <= offsetAndScore.index()) {
-                        throw new IllegalStateException("Invalid chunk index: " + offsetAndScore.index());
-                    }
                     String content = getContentFromLegacyNestedSources(fieldType.name(), offsetAndScore, nestedSources);
                     scoredChunks.add(new ScoredChunk(content, offsetAndScore.score()));
                 }

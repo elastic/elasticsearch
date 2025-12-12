@@ -262,6 +262,11 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         }
 
         @Override
+        public long skip(long n) {
+            throw new UnsupportedOperationException("Skip should be implemented by RetryingInputStream#skip");
+        }
+
+        @Override
         public void reset() {
             throw new UnsupportedOperationException("S3InputStream does not support seeking");
         }

@@ -321,18 +321,9 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     @Override
     public long skip(long n) throws IOException {
-        ensureOpen();
-        final int initialAttempt = attempt;
-        while (true) {
-            // noinspection TryWithIdenticalCatches
-            try {
-                return currentStream.skip(n);
-            } catch (IOException e) {
-                retryOrAbortOnRead(initialAttempt, e);
-            } catch (RuntimeException e) {
-                retryOrAbortOnRead(initialAttempt, e);
-            }
-        }
+        // This could be optimized on a failure by re-opening stream directly to the preferred location. However, it is rarely called,
+        // so for now we will rely on the default implementation which just discards bytes by reading.
+        return super.skip(n);
     }
 
     @Override

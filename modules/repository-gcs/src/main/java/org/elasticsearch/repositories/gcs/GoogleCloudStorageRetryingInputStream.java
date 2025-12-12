@@ -218,13 +218,7 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public long skip(long len) {
-            try {
-                final long n = in.skip(len);
-                read += n;
-                return n;
-            } catch (IOException e) {
-                throw StorageException.translate(e);
-            }
+            throw new UnsupportedOperationException("Skip should be implemented by RetryingInputStream#skip");
         }
 
         private void checkContentLengthOnEOF() throws IOException {

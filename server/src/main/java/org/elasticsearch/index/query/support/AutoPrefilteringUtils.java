@@ -42,35 +42,28 @@ public final class AutoPrefilteringUtils {
             return Optional.empty();
         }
 
-        if (query instanceof BoolQueryBuilder boolQuery) {
-            return pruneBoolQuery(boolQuery, prunedTypes);
-        }
-        if (query instanceof BoostingQueryBuilder boostingQuery) {
+        return switch (query) {
+            case BoolQueryBuilder boolQuery -> pruneBoolQuery(boolQuery, prunedTypes);
             // We only need the positive query here as the negative query is used for scoring only - we are filtering.
-            return pruneQuery(boostingQuery.positiveQuery(), prunedTypes);
-        }
-        if (query instanceof ConstantScoreQueryBuilder constantScoreQuery) {
-            Optional<QueryBuilder> pruned = pruneQuery(constantScoreQuery.innerQuery(), prunedTypes);
-            return pruned.map(q -> q == constantScoreQuery.innerQuery() ? constantScoreQuery : new ConstantScoreQueryBuilder(q));
-        }
-        if (query instanceof DisMaxQueryBuilder disMaxQuery) {
-            return pruneDisMaxQuery(disMaxQuery, prunedTypes);
-        }
-        if (query instanceof FunctionScoreQueryBuilder functionScoreQuery) {
-            return pruneFunctionScoreQuery(functionScoreQuery, prunedTypes);
-        }
-        if (query instanceof InterceptedQueryBuilderWrapper interceptedQuery) {
-            Optional<QueryBuilder> pruned = pruneQuery(interceptedQuery.query(), prunedTypes);
-            return pruned.map(q -> q == interceptedQuery.query() ? interceptedQuery : new InterceptedQueryBuilderWrapper(q));
-        }
-        if (query instanceof NestedQueryBuilder nestedQuery) {
-            Optional<QueryBuilder> pruned = pruneQuery(nestedQuery.query(), prunedTypes);
-            return pruned.map(
-                q -> q == nestedQuery.query() ? nestedQuery : new NestedQueryBuilder(nestedQuery.path(), q, nestedQuery.scoreMode())
-            );
-        }
-
-        return Optional.of(query);
+            case BoostingQueryBuilder boostingQuery -> pruneQuery(boostingQuery.positiveQuery(), prunedTypes);
+            case ConstantScoreQueryBuilder constantScoreQuery -> {
+                Optional<QueryBuilder> pruned = pruneQuery(constantScoreQuery.innerQuery(), prunedTypes);
+                yield pruned.map(q -> q == constantScoreQuery.innerQuery() ? constantScoreQuery : new ConstantScoreQueryBuilder(q));
+            }
+            case DisMaxQueryBuilder disMaxQuery -> pruneDisMaxQuery(disMaxQuery, prunedTypes);
+            case FunctionScoreQueryBuilder functionScoreQuery -> pruneFunctionScoreQuery(functionScoreQuery, prunedTypes);
+            case InterceptedQueryBuilderWrapper interceptedQuery -> {
+                Optional<QueryBuilder> pruned = pruneQuery(interceptedQuery.query(), prunedTypes);
+                yield pruned.map(q -> q == interceptedQuery.query() ? interceptedQuery : new InterceptedQueryBuilderWrapper(q));
+            }
+            case NestedQueryBuilder nestedQuery -> {
+                Optional<QueryBuilder> pruned = pruneQuery(nestedQuery.query(), prunedTypes);
+                yield pruned.map(
+                    q -> q == nestedQuery.query() ? nestedQuery : new NestedQueryBuilder(nestedQuery.path(), q, nestedQuery.scoreMode())
+                );
+            }
+            default -> Optional.of(query);
+        };
     }
 
     private static Optional<QueryBuilder> pruneBoolQuery(BoolQueryBuilder boolQuery, Set<Class<? extends QueryBuilder>> prunedTypes) {

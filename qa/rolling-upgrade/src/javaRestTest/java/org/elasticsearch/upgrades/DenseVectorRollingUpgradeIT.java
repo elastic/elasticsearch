@@ -209,7 +209,12 @@ public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
                     index.setJsonEntity(generateBulkData(upgradedNodes, dims.getAsInt()));
                     assertOK(client().performRequest(index));
 
-                    assertCount(indexName, (upgradedNodes + 1) * 10);
+                    int count = (upgradedNodes + 1) * 10;
+                    assertCount(indexName, count);
+                    checkQuery(indexName, dims.getAsInt(), count);
+                    if (i.index()) {
+                        checkSearch(indexName, dims.getAsInt());
+                    }
                 }
             }
         }
@@ -237,13 +242,60 @@ public class DenseVectorRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
     }
 
     private void assertCount(String index, int count) throws IOException {
-        Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
-        searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        searchTestIndexRequest.addParameter("filter_path", "hits.total");
-        Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
+        Request request = new Request("POST", "/" + index + "/_search");
+        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+        request.addParameter("filter_path", "hits.total");
+        Response searchTestIndexResponse = client().performRequest(request);
         assertEquals(
             "Failed on index " + index,
             "{\"hits\":{\"total\":" + count + "}}",
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
+        );
+    }
+
+    private void checkQuery(String index, int dims, int expected) throws IOException {
+        Request request = new Request("POST", "/" + index + "/_search");
+        request.setJsonEntity(Strings.format("""
+            {
+              "query": {
+                "script_score": {
+                  "query": {"match_all": {}},
+                  "script": {
+                    "source": "1 / (1 + l2norm(params.queryVector, 'embedding'))",
+                    "params": {"queryVector": %s}
+                  }
+                }
+              }
+            }
+            """, Arrays.toString(new byte[dims])));
+        request.addParameter("filter_path", "hits.total.value,_shards.failed");
+        Response searchTestIndexResponse = client().performRequest(request);
+        // should return all indexed docs and no failures
+        assertEquals(
+            "Failed on index " + index,
+            "{\"_shards\":{\"failed\":0},\"hits\":{\"total\":{\"value\":" + expected + "}}}",
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
+        );
+    }
+
+    private void checkSearch(String index, int dims) throws IOException {
+        Request request = new Request("POST", "/" + index + "/_search");
+        request.setJsonEntity(Strings.format("""
+            {
+              "knn": {
+                "field": "embedding",
+                "query_vector": %s,
+                "k": 9,
+                "num_candidates": 50
+              }
+            }
+            """, Arrays.toString(new byte[dims])));
+        request.addParameter("filter_path", "hits.total.value,_shards.failed");
+        Response searchTestIndexResponse = client().performRequest(request);
+        // should return 9 hints (the k value) and no failures
+        assertEquals(
+            "Failed on index " + index,
+            "{\"_shards\":{\"failed\":0},\"hits\":{\"total\":{\"value\":9}}}",
             EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
         );
     }

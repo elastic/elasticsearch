@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -401,14 +402,21 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             Map.of(
                 "data",
-                List.of(matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)),
+                Build.current().isSnapshot()
+                    ? List.of(matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1))
+                    : List.of(
+                        matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)
+                            .entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
+                    ),
                 "node_reduce",
-                List.of(
-                    // Pushed down function
-                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
-                    // Field
-                    matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
-                )
+                Build.current().isSnapshot()
+                    ? List.of(
+                        // Pushed down function
+                        matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                        // Field
+                        matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                    )
+                    : List.of(matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1))
             ),
             sig -> {}
         );

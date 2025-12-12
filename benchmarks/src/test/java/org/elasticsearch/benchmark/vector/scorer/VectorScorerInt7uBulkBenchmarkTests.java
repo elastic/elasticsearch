@@ -49,7 +49,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.setup(vectorData);
 
                 try {
-                    float[] result = bench.dotProductMultipleSequential();
+                    float[] result = bench.scoreMultipleSequential();
                     if (expected == null) {
                         assert impl == VectorScorerInt7uBulkBenchmark.Implementation.SCALAR;
                         expected = result;
@@ -57,7 +57,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                     }
 
                     assertArrayEquals(impl.toString(), expected, result, delta);
-                    assertArrayEquals(impl.toString(), expected, bench.dotProductMultipleSequentialBulk(), delta);
+                    assertArrayEquals(impl.toString(), expected, bench.scoreMultipleSequentialBulk(), delta);
                 } finally {
                     bench.teardown();
                 }
@@ -79,7 +79,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.setup(vectorData);
 
                 try {
-                    float[] result = bench.dotProductMultipleRandom();
+                    float[] result = bench.scoreMultipleRandom();
                     if (expected == null) {
                         assert impl == VectorScorerInt7uBulkBenchmark.Implementation.SCALAR;
                         expected = result;
@@ -87,7 +87,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                     }
 
                     assertArrayEquals(impl.toString(), expected, result, delta);
-                    assertArrayEquals(impl.toString(), expected, bench.dotProductMultipleRandomBulk(), delta);
+                    assertArrayEquals(impl.toString(), expected, bench.scoreMultipleRandomBulk(), delta);
                 } finally {
                     bench.teardown();
                 }
@@ -113,7 +113,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.setup(vectorData);
 
                 try {
-                    float[] result = bench.dotProductQueryMultipleRandom();
+                    float[] result = bench.scoreQueryMultipleRandom();
                     if (expected == null) {
                         assert impl == VectorScorerInt7uBulkBenchmark.Implementation.LUCENE;
                         expected = result;
@@ -121,7 +121,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                     }
 
                     assertArrayEquals(impl.toString(), expected, result, delta);
-                    assertArrayEquals(impl.toString(), expected, bench.dotProductQueryMultipleRandomBulk(), delta);
+                    assertArrayEquals(impl.toString(), expected, bench.scoreQueryMultipleRandomBulk(), delta);
                 } finally {
                     bench.teardown();
                 }

@@ -256,7 +256,7 @@ public class VectorScorerInt7uBulkBenchmark {
     }
 
     @Benchmark
-    public float[] dotProductMultipleSequential() throws IOException {
+    public float[] scoreMultipleSequential() throws IOException {
         for (int v = 0; v < numVectorsToScore; v++) {
             scores[v] = scorer.score(v);
         }
@@ -264,7 +264,7 @@ public class VectorScorerInt7uBulkBenchmark {
     }
 
     @Benchmark
-    public float[] dotProductMultipleRandom() throws IOException {
+    public float[] scoreMultipleRandom() throws IOException {
         for (int v = 0; v < numVectorsToScore; v++) {
             scores[v] = scorer.score(ordinals[v]);
         }
@@ -272,7 +272,7 @@ public class VectorScorerInt7uBulkBenchmark {
     }
 
     @Benchmark
-    public float[] dotProductQueryMultipleRandom() throws IOException {
+    public float[] scoreQueryMultipleRandom() throws IOException {
         for (int v = 0; v < numVectorsToScore; v++) {
             scores[v] = queryScorer.score(ordinals[v]);
         }
@@ -280,19 +280,19 @@ public class VectorScorerInt7uBulkBenchmark {
     }
 
     @Benchmark
-    public float[] dotProductMultipleSequentialBulk() throws IOException {
+    public float[] scoreMultipleSequentialBulk() throws IOException {
         scorer.bulkScore(ids, scores, ordinals.length);
         return scores;
     }
 
     @Benchmark
-    public float[] dotProductMultipleRandomBulk() throws IOException {
+    public float[] scoreMultipleRandomBulk() throws IOException {
         scorer.bulkScore(ordinals, scores, ordinals.length);
         return scores;
     }
 
     @Benchmark
-    public float[] dotProductQueryMultipleRandomBulk() throws IOException {
+    public float[] scoreQueryMultipleRandomBulk() throws IOException {
         queryScorer.bulkScore(ordinals, scores, ordinals.length);
         return scores;
     }

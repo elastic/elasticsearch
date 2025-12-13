@@ -2105,18 +2105,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(
-        LongSupplier nowInMillis,
-        ResolvedIndices resolvedIndices,
-        PointInTimeBuilder pit
-    ) {
-        return getRewriteContext(
-            nowInMillis,
-            resolvedIndices,
-            pit,
-            false,
-            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
-        );
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
+        return getRewriteContext(nowInMillis, resolvedIndices, pit, false, DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS);
     }
 
     /**
@@ -2129,13 +2119,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final boolean isExplain,
         final boolean allowPartialSearchResults
     ) {
-        return indicesService.getRewriteContext(
-            nowInMillis,
-            resolvedIndices,
-            pit,
-            isExplain,
-            allowPartialSearchResults
-        );
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain, allowPartialSearchResults);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

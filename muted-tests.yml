@@ -63,9 +63,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
-  method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
-  issue: https://github.com/elastic/elasticsearch/issues/121625
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
@@ -484,6 +481,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:tdigest.UngroupedPercentiles}
   issue: https://github.com/elastic/elasticsearch/issues/139458
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139482
 
 # Examples:
 #

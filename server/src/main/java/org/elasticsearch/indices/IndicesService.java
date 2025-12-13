@@ -1786,13 +1786,6 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
-    }
-
-    /**
-     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
-     */
     public QueryRewriteContext getRewriteContext(
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,

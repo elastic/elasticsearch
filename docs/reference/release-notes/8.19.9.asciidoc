@@ -1,0 +1,47 @@
+[[release-notes-8.19.9]]
+== {es} version 8.19.9
+
+coming[8.19.9]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.9]]
+[float]
+=== Bug fixes
+
+Downsampling::
+* Fix multi fields in downsampling {es-pull}138869[#138869]
+
+ES|QL::
+* [ES|QL] Compare query builders using identity {es-pull}139080[#139080]
+
+Infra/Core::
+* GET /_migration/deprecations doesn't check disk watermarks against correct settings values {es-pull}138115[#138115] (issue: {es-issue}137005[#137005])
+
+Ingest Node::
+* Handle individual doc parsing failure in bulk request with pipeline {es-pull}138624[#138624] (issue: {es-issue}138445[#138445])
+
+Machine Learning::
+* Correctly handle empty inputs in `chunkedInfer()` {es-pull}138632[#138632]
+
+Security::
+* More reliable trigger for security index migration {es-pull}139028[#139028]
+
+[[enhancement-8.19.9]]
+[float]
+=== Enhancements
+
+Security::
+* Improve security migration resilience by handling version conflicts {es-pull}137558[#137558]
+
+[[upgrade-8.19.9]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Bump lz4 dependency {es-pull}138806[#138806]
+
+Infra/Logging::
+* Upgrade ECS logging layout {es-pull}138854[#138854]
+
+

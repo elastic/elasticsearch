@@ -262,7 +262,7 @@ public abstract class SwissTable {
      * Iterates the entries in the {@link SwissTable}.
      */
     public abstract class Itr {
-        protected int slot = -1;
+        protected int keyId = -1;
 
         /**
          * Advance to the next entry in the {@link SwissTable}, returning {@code false}
@@ -274,9 +274,5 @@ public abstract class SwissTable {
          * The id the iterator is current pointing to.
          */
         public abstract int id();
-
-        public int slot() {
-            return slot;
-        }
     }
 }

@@ -74,18 +74,18 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
 
     private static final int PAGE_MASK = PageCacheRecycler.PAGE_SIZE_IN_BYTES - 1;
 
-    private static final int ID_SIZE = Integer.BYTES;
+    private static final int ID_AND_HASH_SIZE = Long.BYTES;
 
     // We use a smaller initial capacity than LongSwissTable because we don't store keys in pages,
     // but we want to be consistent with the page-based sizing logic.
-    // PAGE_SIZE / ID_SIZE = 16384 / 4 = 4096.
-    static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / ID_SIZE;
+    // PAGE_SIZE / ID_AND_HASH_SIZE = 16384 / 8 = 2048.
+    static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / ID_AND_HASH_SIZE;
 
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
             throw new AssertionError("bad constants");
         }
-        if (Integer.highestOneBit(ID_SIZE) != ID_SIZE) {
+        if (Integer.highestOneBit(ID_AND_HASH_SIZE) != ID_AND_HASH_SIZE) {
             throw new AssertionError("not a power of two");
         }
         if (Integer.highestOneBit(INITIAL_CAPACITY) != INITIAL_CAPACITY) {
@@ -93,7 +93,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         }
     }
 
-    private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+    private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
     private final BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
@@ -228,13 +228,13 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
     final class SmallCore extends Core {
         static final float FILL_FACTOR = 0.6F;
 
-        private final byte[] idPage;
+        private final byte[] idAndHashPage;
 
         private SmallCore() {
             boolean success = false;
             try {
-                idPage = grabPage();
-                Arrays.fill(idPage, (byte) 0xff);
+                idAndHashPage = grabPage();
+                Arrays.fill(idAndHashPage, (byte) 0xff);
                 success = true;
             } finally {
                 if (success == false) {
@@ -246,8 +246,9 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         int find(final BytesRef key, final int hash) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
-                int id = id(slot);
+            for (;;) {
+                long value = (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
+                int id = id(value);
                 if (id < 0) {
                     return -1; // empty
                 }
@@ -262,22 +263,23 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         int add(final BytesRef key, final int hash) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
-                int idOffset = idOffset(slot);
-                int slotId = (int) INT_HANDLE.get(idPage, idOffset);
-                if (slotId >= 0) {
-                    if (matches(key, slotId)) {
-                        return slotId;
+            for (;;) {
+                final int offset = idAndHashOffset(slot);
+                final long value = (long) LONG_HANDLE.get(idAndHashPage, offset);
+                final int id = id(value);
+                if (id >= 0) {
+                    if (hash(value) == hash && matches(key, id)) {
+                        return id;
                     }
                     slotIncrement++;
                     slot = slot(slot + slotIncrement);
                 } else {
-                    // We don't use idSpace.next() because BytesRefArray manages IDs
-                    int id = (int) bytesRefs.size();
+                    final int nextId = (int) bytesRefs.size();
                     bytesRefs.append(key);
-                    INT_HANDLE.set(idPage, idOffset, id);
+                    final long newValue = ((long) nextId << 32) | Integer.toUnsignedLong(hash);
+                    LONG_HANDLE.set(idAndHashPage, offset, newValue);
                     size++;
-                    return id;
+                    return nextId;
                 }
             }
         }
@@ -303,38 +305,35 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
             return new Itr() {
                 @Override
                 public boolean next() {
-                    do {
-                        slot++;
-                    } while (slot < capacity && SmallCore.this.id(slot) < 0);
-                    return slot < capacity;
+                    return ++keyId < size;
                 }
 
                 @Override
                 public int id() {
-                    return SmallCore.this.id(slot);
+                    return keyId;
                 }
 
                 @Override
                 public BytesRef key(BytesRef dest) {
-                    return bytesRefs.get(SmallCore.this.id(slot), dest);
+                    return bytesRefs.get(keyId, dest);
                 }
             };
         }
 
         private void rehash(int oldCapacity) {
-            for (int slot = 0; slot < oldCapacity; slot++) {
-                int id = id(slot);
+            for (int slot = 0; slot < oldCapacity; slot++) {  // TODO consider size
+                final long value = idAndHash(slot);
+                final int id = id(value);
                 if (id < 0) {
                     continue;
                 }
-                bytesRefs.get(id, scratch);
-                final int hash = hash(scratch);
+                final int hash = hash(value);
                 bigCore.insert(hash, control(hash), id);
             }
         }
 
-        private int id(int slot) {
-            return (int) INT_HANDLE.get(idPage, idOffset(slot));
+        private long idAndHash(int slot) {
+            return (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
         }
     }
 
@@ -359,7 +358,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
          * are {@code int}s so it's very quick to select the appropriate page
          * for each slot.
          */
-        private final byte[][] idPages;
+        private final byte[][] idAndHashPages;
 
         private int insertProbes;
 
@@ -372,13 +371,13 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
 
             boolean success = false;
             try {
-                int idPagesNeeded = (capacity * ID_SIZE - 1) >> PAGE_SHIFT;
-                idPagesNeeded++;
-                idPages = new byte[idPagesNeeded][];
-                for (int i = 0; i < idPagesNeeded; i++) {
-                    idPages[i] = grabPage();
+                int pagesNeeded = (capacity * ID_AND_HASH_SIZE - 1) >> PAGE_SHIFT;
+                pagesNeeded++;
+                idAndHashPages = new byte[pagesNeeded][];
+                for (int i = 0; i < pagesNeeded; i++) {
+                    idAndHashPages[i] = grabPage();
                 }
-                assert idPages[idOffset(mask) >> PAGE_SHIFT] != null;
+                assert idAndHashPages[idAndHashOffset(mask) >> PAGE_SHIFT] != null;
                 success = true;
             } finally {
                 if (false == success) {
@@ -390,13 +389,14 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         private int find(final BytesRef key, final int hash, final byte control) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
+            for (;;) {
                 long candidateMatches = controlMatches(slot, control);
                 int first;
                 while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
                     final int checkSlot = slot(slot + first);
-                    final int id = id(checkSlot);
-                    if (matches(key, id)) {
+                    final long value = idAndHash(checkSlot);
+                    final int id = id(value);
+                    if (hash(value) == hash && matches(key, id)) {
                         return id;
                     }
                     // Clear the first set bit and try again
@@ -437,12 +437,13 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         private void insert(final int hash, final byte control, final int id) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
+            for (;;) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
-                if (VectorComparisonUtils.anyTrue(empty)) {
+                if (empty != 0L) {
                     final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
-                    final int idOffset = idOffset(insertSlot);
-                    INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
+                    final int offset = idAndHashOffset(insertSlot);
+                    final long value = ((long) id << 32) | Integer.toUnsignedLong(hash);
+                    LONG_HANDLE.set(idAndHashPages[offset >> PAGE_SHIFT], offset & PAGE_MASK, value);
                     controlData[insertSlot] = control;
                     // mirror only if slot is within the first group size, to handle wraparound loads
                     if (insertSlot < BYTE_VECTOR_LANES) {
@@ -458,7 +459,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
 
         @Override
         protected Status status() {
-            return new BigCoreStatus(growCount, capacity, size, nextGrowSize, insertProbes, 0, idPages.length);
+            return new BigCoreStatus(growCount, capacity, size, nextGrowSize, insertProbes, 0, idAndHashPages.length);
         }
 
         @Override
@@ -466,20 +467,17 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
             return new Itr() {
                 @Override
                 public boolean next() {
-                    do {
-                        slot++;
-                    } while (slot < capacity && controlData[slot] == CONTROL_EMPTY);
-                    return slot < capacity;
+                    return ++keyId < size;
                 }
 
                 @Override
                 public int id() {
-                    return BigCore.this.id(slot);
+                    return keyId;
                 }
 
                 @Override
                 public BytesRef key(BytesRef dest) {
-                    return bytesRefs.get(BigCore.this.id(slot), dest);
+                    return bytesRefs.get(keyId, dest);
                 }
             };
         }
@@ -503,9 +501,10 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
                         continue;
                     }
                     final int actualSlot = slot + i;
-                    final int id = id(actualSlot);
+                    final long value = idAndHash(actualSlot);
+                    final int hash = hash(value);
+                    final int id = id(value);
                     bytesRefs.get(id, scratch);
-                    final int hash = hash(scratch);
                     bigCore.insert(hash, control(hash), id);
                 }
                 slot += BYTE_VECTOR_LANES;
@@ -522,9 +521,9 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
             return VECTOR_UTILS.equalMask(controlData, slot, control);
         }
 
-        private int id(final int slot) {
-            final int idOffset = idOffset(slot);
-            return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
+        private long idAndHash(final int slot) {
+            final int offset = idAndHashOffset(slot);
+            return (long) LONG_HANDLE.get(idAndHashPages[offset >> PAGE_SHIFT], offset & PAGE_MASK);
         }
     }
 
@@ -544,8 +543,16 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         return bytesRefs;
     }
 
-    int idOffset(int slot) {
-        return slot * ID_SIZE;
+    int idAndHashOffset(int slot) {
+        return slot * ID_AND_HASH_SIZE;
+    }
+
+    int id(long value) {
+        return (int) (value >>> 32);
+    }
+
+    int hash(long value) {
+        return (int) value;
     }
 
     int hash(BytesRef v) {
@@ -562,7 +569,9 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
 
     @Override
     public long ramBytesUsed() {
-        long keys = smallCore != null ? smallCore.idPage.length : Arrays.stream(bigCore.idPages).mapToLong(b -> b.length).sum();
+        long keys = smallCore != null
+            ? smallCore.idAndHashPage.length
+            : Arrays.stream(bigCore.idAndHashPages).mapToLong(b -> b.length).sum();
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + keys;
     }
 }

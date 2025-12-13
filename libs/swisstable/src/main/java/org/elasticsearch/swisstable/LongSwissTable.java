@@ -252,7 +252,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
         int find(final long key, final int hash) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
+            for (;;) {
                 int id = id(slot);
                 if (id < 0) {
                     return -1; // empty
@@ -268,7 +268,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
         int add(final long key, final int hash) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
+            for (;;) {
                 final int idOffset = idOffset(slot);
                 final int currentId = (int) INT_HANDLE.get(idPage, idOffset);
                 if (currentId >= 0) {
@@ -309,20 +309,17 @@ public final class LongSwissTable extends SwissTable implements Releasable {
             return new Itr() {
                 @Override
                 public boolean next() {
-                    do {
-                        slot++;
-                    } while (slot < capacity && SmallCore.this.id(slot) < 0);
-                    return slot < capacity;
+                    return ++keyId < size;
                 }
 
                 @Override
                 public int id() {
-                    return SmallCore.this.id(slot);
+                    return keyId;
                 }
 
                 @Override
                 public long key() {
-                    return SmallCore.this.key(id());
+                    return SmallCore.this.key(keyId);
                 }
             };
         }
@@ -458,7 +455,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
         private int find(final long key, final int hash, final byte control) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
+            for (;;) {
                 long candidateMatches = controlMatches(slot, control);
                 int first;
                 while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
@@ -505,7 +502,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
         private void insert(final int hash, final byte control, final int id) {
             int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
-            while (true) {
+            for (;;) {
                 long empty = controlMatches(slot, CONTROL_EMPTY);
                 if (VectorComparisonUtils.anyTrue(empty)) {
                     final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
@@ -534,20 +531,17 @@ public final class LongSwissTable extends SwissTable implements Releasable {
             return new Itr() {
                 @Override
                 public boolean next() {
-                    do {
-                        slot++;
-                    } while (slot < capacity && controlData[slot] == CONTROL_EMPTY);
-                    return slot < capacity;
+                    return ++keyId < size;
                 }
 
                 @Override
                 public int id() {
-                    return BigCore.this.id(slot);
+                    return keyId;
                 }
 
                 @Override
                 public long key() {
-                    return BigCore.this.key(id());
+                    return BigCore.this.key(keyId);
                 }
             };
         }

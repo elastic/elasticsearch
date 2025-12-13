@@ -41,9 +41,9 @@ public class BytesRefSwissTableTests extends ESTestCase {
         // name, count, expectedGrowCount, expectedIdPageCount
         params.add(new Object[] { "tiny", 5, 0, 1 });
         params.add(new Object[] { "small", BytesRefSwissTable.INITIAL_CAPACITY / 2, 0, 1 });
-        params.add(new Object[] { "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 1, 2 });
-        params.add(new Object[] { "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 3, 8 });
-        params.add(new Object[] { "huge", 100_000, 5, 32 });
+        params.add(new Object[] { "two idAndHash pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES, 1, 2 });
+        params.add(new Object[] { "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 16 });
+        params.add(new Object[] { "huge", 100_000, 6, 64 });
         return params;
     }
 
@@ -188,6 +188,16 @@ public class BytesRefSwissTableTests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("over test limit"));
         assertThat(recycler.open, hasSize(0));
+    }
+
+    public void testEmpty() {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        try (BytesRefSwissTable hash = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
+            assertThat(hash.size(), equalTo(0));
+            assertFalse(hash.iterator().next());
+        }
     }
 
     private void assertStatus(BytesRefSwissTable hash) {

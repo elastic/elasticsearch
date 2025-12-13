@@ -243,6 +243,15 @@ public class LongSwissTableTests extends ESTestCase {
         }
     }
 
+    public void testEmpty() {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
+            assertThat(hash.size(), equalTo(0));
+            assertFalse(hash.iterator().next());
+        }
+    }
+
     public void testWorstCaseCollisionClusterSmall() {
         testWorstCaseCollisionClusterImpl(1000);  // small core
     }

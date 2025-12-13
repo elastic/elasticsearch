@@ -11,17 +11,24 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.util.UnicodeProps;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -93,6 +100,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1323,11 +1331,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+                    var countField = (MultiValuedBinaryDocValuesField.UpdateableNumericField) context.doc().getByKey(fieldName + ".counts");
                     if (field == null) {
                         field = new MultiValuedBinaryDocValuesField(fieldName, MultiValuedBinaryDocValuesField.Ordering.INSERTION);
                         context.doc().addWithKey(fieldName, field);
+                        countField = new MultiValuedBinaryDocValuesField.UpdateableNumericField(fieldName + ".counts");
+                        context.doc().addWithKey(countField.name(), countField);
                     }
                     field.add(bytesRef);
+                    countField.setValue(field.count());
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to
                     context.doc().add(new StoredField(fieldName, bytesRef));
@@ -1371,11 +1383,16 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
             MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getField(fieldType().name());
+            var countField = (MultiValuedBinaryDocValuesField.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
             if (field == null) {
                 field = new MultiValuedBinaryDocValuesField(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
                 context.doc().addWithKey(fieldType().name(), field);
+                countField = new MultiValuedBinaryDocValuesField.UpdateableNumericField(fieldType().name() + ".counts");
+                context.doc().addWithKey(countField.name(), countField);
             }
+
             field.add(binaryValue);
+            countField.setValue(field.count());
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)
@@ -1579,15 +1596,90 @@ public final class KeywordFieldMapper extends FieldMapper {
             int streamSize = docValuesByteCount + (docValuesCount + 1) * Integer.BYTES;
 
             try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
-                out.writeVInt(docValuesCount);
-                for (BytesRef value : uniqueValues) {
-                    int valueLength = value.length;
-                    out.writeVInt(valueLength);
-                    out.writeBytes(value.bytes, value.offset, valueLength);
+                if (docValuesCount == 1) {
+                    BytesRef value = uniqueValues.stream().findFirst().get();
+                    out.writeBytes(value.bytes, value.offset, value.length);
+                } else {
+                    for (BytesRef value : uniqueValues) {
+                        int valueLength = value.length;
+                        out.writeVInt(valueLength);
+                        out.writeBytes(value.bytes, value.offset, valueLength);
+                    }
                 }
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
+            }
+        }
+
+        public int count() {
+            return uniqueValues.size();
+        }
+
+        public static class UpdateableNumericField implements IndexableField {
+
+            public static final FieldType TYPE;
+            static {
+                FieldType ft = new FieldType();
+                ft.setDocValuesType(DocValuesType.NUMERIC);
+                ft.setOmitNorms(true);
+                TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
+            }
+
+            private final String name;
+            private long value = 0;
+
+            protected UpdateableNumericField(String name) {
+                this.name = name;
+            }
+
+            public void setValue(long value) {
+                this.value = value;
+            }
+
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public IndexableFieldType fieldType() {
+                return TYPE;
+            }
+
+            @Override
+            public String stringValue() {
+                return null;
+            }
+
+            @Override
+            public Reader readerValue() {
+                return null;
+            }
+
+            @Override
+            public Number numericValue() {
+                return value;
+            }
+
+            @Override
+            public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
+                return null;
+            }
+
+            @Override
+            public BytesRef binaryValue() {
+                return null;
+            }
+
+            @Override
+            public StoredValue storedValue() {
+                return null;
+            }
+
+            @Override
+            public InvertableType invertableType() {
+                return InvertableType.BINARY;
             }
         }
     }

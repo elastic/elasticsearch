@@ -10,6 +10,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -18,11 +19,13 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
     private final BinaryDocValues values;
+    private final NumericDocValues counts;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    MultiValuedBinaryDVLeafFieldData(BinaryDocValues values, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+    MultiValuedBinaryDVLeafFieldData(BinaryDocValues values, NumericDocValues counts, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
         super();
         this.values = values;
+        this.counts = counts;
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
@@ -33,7 +36,7 @@ public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
 
     @Override
     public SortedBinaryDocValues getBytesValues() {
-        return new MultiValuedSortedBinaryDocValues(values);
+        return new MultiValuedSortedBinaryDocValues(values, counts);
     }
 
     @Override

@@ -35,13 +35,14 @@ public final class BinaryDocValuesSyntheticFieldLoaderLayer implements Composite
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         var docValues = leafReader.getBinaryDocValues(name);
+        var counts = leafReader.getNumericDocValues(name + ".counts");
         if (docValues == null) {
             bytesValues = null;
             hasValue = false;
             return null;
         }
 
-        bytesValues = new MultiValuedSortedBinaryDocValues(docValues);
+        bytesValues = new MultiValuedSortedBinaryDocValues(docValues, counts);
 
         return docId -> {
             hasValue = bytesValues.advanceExact(docId);

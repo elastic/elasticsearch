@@ -10,6 +10,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 
@@ -22,6 +23,7 @@ import java.io.IOException;
 public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
 
     BinaryDocValues values;
+    NumericDocValues counts;
     int count;
 
     // the binary doc values for a document are all encoded in a single binary array, which this stream knows how to read
@@ -29,18 +31,27 @@ public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
     final ByteArrayStreamInput in = new ByteArrayStreamInput();
     final BytesRef scratch = new BytesRef();
 
-    public MultiValuedSortedBinaryDocValues(BinaryDocValues values) {
+    public MultiValuedSortedBinaryDocValues(BinaryDocValues values, NumericDocValues counts) {
         this.values = values;
+        this.counts = counts;
     }
 
     @Override
     public boolean advanceExact(int doc) throws IOException {
         if (values.advanceExact(doc)) {
+            assert counts.advanceExact(doc);
+            count = Math.toIntExact(counts.longValue());
+
             final BytesRef bytes = values.binaryValue();
-            assert bytes.length > 0;
-            in.reset(bytes.bytes, bytes.offset, bytes.length);
-            count = in.readVInt();
-            scratch.bytes = bytes.bytes;
+
+            if (count == 1) {
+                scratch.bytes = bytes.bytes;
+                scratch.offset = bytes.offset;
+                scratch.length = bytes.length;
+            } else {
+                in.reset(bytes.bytes, bytes.offset, bytes.length);
+                scratch.bytes = bytes.bytes;
+            }
             return true;
         } else {
             count = 0;
@@ -55,9 +66,11 @@ public class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
 
     @Override
     public BytesRef nextValue() throws IOException {
-        scratch.length = in.readVInt();
-        scratch.offset = in.getPosition();
-        in.setPosition(scratch.offset + scratch.length);
+        if (count != 1) {
+            scratch.length = in.readVInt();
+            scratch.offset = in.getPosition();
+            in.setPosition(scratch.offset + scratch.length);
+        }
         return scratch;
     }
 }

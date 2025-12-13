@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -78,7 +80,9 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            return new MultiValuedBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptFieldFactory);
+            NumericDocValues counts = DocValues.getNumeric(context.reader(), fieldName + ".counts");
+            BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
+            return new MultiValuedBinaryDVLeafFieldData(values, counts, toScriptFieldFactory);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

@@ -61,7 +61,9 @@ public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBin
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            return new MultiValuedBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptFieldFactory);
+            var values = DocValues.getBinary(context.reader(), fieldName);
+            var counts = DocValues.getNumeric(context.reader(), fieldName + ".counts");
+            return new MultiValuedBinaryDVLeafFieldData(values, counts, toScriptFieldFactory);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

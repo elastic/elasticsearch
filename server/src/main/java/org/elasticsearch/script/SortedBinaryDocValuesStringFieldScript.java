@@ -28,7 +28,8 @@ public class SortedBinaryDocValuesStringFieldScript extends StringFieldScript {
         super(fieldName, Map.of(), searchLookup, OnScriptError.FAIL, ctx);
         try {
             var binaryDocValues = DocValues.getBinary(ctx.reader(), fieldName);
-            sortedBinaryDocValues = new MultiValuedSortedBinaryDocValues(binaryDocValues);
+            var counts = DocValues.getNumeric(ctx.reader(), fieldName + ".counts");
+            sortedBinaryDocValues = new MultiValuedSortedBinaryDocValues(binaryDocValues, counts);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

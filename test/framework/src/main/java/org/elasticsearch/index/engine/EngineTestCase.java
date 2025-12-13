@@ -142,6 +142,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -1434,7 +1435,7 @@ public abstract class EngineTestCase extends ESTestCase {
                         translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)
                     );
                 } else {
-                    assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
+                    assertThat(((Translog.Index) luceneOp).source(), equalBytes(((Translog.Index) translogOp).source()));
                 }
             }
         }

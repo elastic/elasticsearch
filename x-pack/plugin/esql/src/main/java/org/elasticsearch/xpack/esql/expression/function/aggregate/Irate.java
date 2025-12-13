@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -54,12 +55,18 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     public Irate(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the irate",
+            optional = true
+        ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    private Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+    public Irate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
@@ -81,7 +88,7 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected NodeInfo<Irate> info() {
-        return NodeInfo.create(this, Irate::new, field(), timestamp);
+        return NodeInfo.create(this, Irate::new, field(), filter(), window(), timestamp);
     }
 
     @Override
@@ -107,10 +114,12 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
+        final DataType tsType = timestamp().dataType();
+        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false);
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false, isDateNanos);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false, isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

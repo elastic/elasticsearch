@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -446,7 +447,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomResolvedExpression(argClass);
         } else if (argClass == Stat.class) {
             // record field
-            return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
+            return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {

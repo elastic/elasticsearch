@@ -287,8 +287,8 @@ public class TaskManagerTests extends ESTestCase {
         final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
-        // fake a parent APM trace context
-        threadPool.getThreadContext().putTransient(Task.PARENT_APM_TRACE_CONTEXT, null);
+        // fake an APM trace context
+        threadPool.getThreadContext().putTransient(Task.APM_TRACE_CONTEXT, new Object());
         final boolean hasParentTask = randomBoolean();
         final TaskId parentTask = hasParentTask ? new TaskId("parentNode", 1) : TaskId.EMPTY_TASK_ID;
 
@@ -408,8 +408,8 @@ public class TaskManagerTests extends ESTestCase {
         final Tracer mockTracer = mock(Tracer.class);
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
 
-        // fake a parent APM trace context
-        threadPool.getThreadContext().putTransient(Task.PARENT_APM_TRACE_CONTEXT, null);
+        // fake an APM trace context
+        threadPool.getThreadContext().putTransient(Task.APM_TRACE_CONTEXT, new Object());
 
         final Task task = taskManager.registerAndExecute(
             "testType",

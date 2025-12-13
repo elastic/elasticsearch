@@ -17,6 +17,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -119,31 +120,34 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     @Override
     public void close() throws IOException {}
 
-    protected List<ChunkedInput> chunkInputs(ChunkInferenceInput input) {
-        ChunkingSettings chunkingSettings = input.chunkingSettings();
-        String inputString = input.input().value();
-        if (chunkingSettings == null || input.input().isText() == false) {
-            return List.of(new ChunkedInput(inputString, 0, inputString.length()));
+    protected List<ChunkedInput> chunkInputs(ChunkInferenceInput chunkInput) {
+        ChunkingSettings chunkingSettings = chunkInput.chunkingSettings();
+        InferenceString inferenceString = chunkInput.input().value();
+        String inferenceStringValue = inferenceString.value();
+        if (chunkingSettings == null || inferenceString.isText() == false) {
+            return List.of(new ChunkedInput(inferenceStringValue, 0, inferenceStringValue.length()));
         }
 
         List<ChunkedInput> chunkedInputs = new ArrayList<>();
         if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
-            var offsets = NoopChunker.INSTANCE.chunk(inputString, chunkingSettings);
+            var offsets = NoopChunker.INSTANCE.chunk(inferenceStringValue, chunkingSettings);
             List<ChunkedInput> ret = new ArrayList<>();
             for (var offset : offsets) {
-                ret.add(new ChunkedInput(inputString.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+                ret.add(new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end()));
             }
             return ret;
         } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
             List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
-                inputString,
+                inferenceStringValue,
                 wordBoundaryChunkingSettings.maxChunkSize(),
                 wordBoundaryChunkingSettings.overlap()
             );
             for (WordBoundaryChunker.ChunkOffset offset : offsets) {
-                chunkedInputs.add(new ChunkedInput(inputString.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+                chunkedInputs.add(
+                    new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end())
+                );
             }
 
         } else {

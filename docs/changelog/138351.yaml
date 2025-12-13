@@ -1,0 +1,5 @@
+pr: 138351
+summary: Bumps jts version to 1.20.0
+area: Geo
+type: upgrade
+issues: []

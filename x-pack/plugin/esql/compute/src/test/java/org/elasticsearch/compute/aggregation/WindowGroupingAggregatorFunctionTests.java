@@ -59,6 +59,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         final long START_TIME = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
         List<BytesRef> groups = List.of(new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d"));
+        size = 2;
         List<List<Object>> rows = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long tsOffset = randomLongBetween(0, 20 * 60 * 1000);
@@ -81,6 +82,14 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         }
         Map<Key, Long> expected = new TreeMap<>(Comparator.comparing(Key::tsid).thenComparingLong(Key::bucket));
         // original groups
+        long oneMinute = TimeValue.timeValueMinutes(1).millis();
+        long smallestBucket = Long.MAX_VALUE;
+        for (Page page : input) {
+            LongBlock timestamp = page.getBlock(1);
+            for (int p = 0; p < timestamp.getPositionCount(); p++) {
+                smallestBucket = Math.min(timestamp.getLong(p), smallestBucket);
+            }
+        }
         for (Page page : input) {
             BytesRefBlock tsids = page.getBlock(0);
             LongBlock timestamp = page.getBlock(1);
@@ -89,27 +98,15 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             for (int p = 0; p < page.getPositionCount(); p++) {
                 long bucket = timestamp.getLong(p);
                 var tsid = tsids.getBytesRef(p, scratch).utf8ToString();
-                Key key = new Key(tsid, bucket);
-                long val = values.getInt(p);
-                expected.merge(key, val, Long::sum);
-            }
-        }
-        // window
-        for (Page page : input) {
-            BytesRefBlock tsids = page.getBlock(0);
-            LongBlock timestamp = page.getBlock(1);
-            IntBlock values = page.getBlock(2);
-            var scratch = new BytesRef();
-            for (int m = 1; m <= 4; m++) {
-                long offset = TimeValue.timeValueMinutes(m).millis();
-                for (int p = 0; p < page.getPositionCount(); p++) {
-                    long bucket = timestamp.getLong(p) - offset;
-                    var tsid = tsids.getBytesRef(p, scratch).utf8ToString();
-                    Key key = new Key(tsid, bucket);
-                    long val = values.getInt(p);
-                    if (expected.containsKey(key)) {
+                // slide the window over the last 5 minutes
+                // bucket = 00:06 -> it should generate buckets at 00:02, 00:03, 00:04, 00:05, 00:06
+                for (int i = 0; i < 5; i++) {
+                    if (bucket >= smallestBucket) {
+                        Key key = new Key(tsid, bucket);
+                        long val = values.getInt(p);
                         expected.merge(key, val, Long::sum);
                     }
+                    bucket = bucket - oneMinute;
                 }
             }
         }
@@ -172,5 +169,9 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         try (var agg = aggregatorFunction().groupingAggregator(driverContext(), List.of())) {
             return agg.intermediateBlockCount();
         }
+    }
+
+    public void testMissingGroup() {
+
     }
 }

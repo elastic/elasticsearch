@@ -94,6 +94,8 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
@@ -112,6 +114,10 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatComp
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -160,6 +166,7 @@ public class InferenceNamedWriteablesProvider {
         addHuggingFaceNamedWriteables(namedWriteables);
         addOpenAiNamedWriteables(namedWriteables);
         addCohereNamedWriteables(namedWriteables);
+        addGroqNamedWriteables(namedWriteables);
         addAzureOpenAiNamedWriteables(namedWriteables);
         addAzureAiStudioNamedWriteables(namedWriteables);
         addGoogleAiStudioNamedWritables(namedWriteables);
@@ -178,6 +185,7 @@ public class InferenceNamedWriteablesProvider {
         addLlamaNamedWriteables(namedWriteables);
         addAi21NamedWriteables(namedWriteables);
         addOpenShiftAiNamedWriteables(namedWriteables);
+        addNvidiaNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -187,6 +195,19 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.addAll(SageMakerSchemas.namedWriteables());
 
         return namedWriteables;
+    }
+
+    private static void addGroqNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GroqChatCompletionServiceSettings.NAME,
+                GroqChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, GroqChatCompletionTaskSettings.NAME, GroqChatCompletionTaskSettings::new)
+        );
     }
 
     private static void addCustomNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -311,6 +332,29 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         // no task settings for AI21
+    }
+
+    private static void addNvidiaNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                NvidiaChatCompletionServiceSettings.NAME,
+                NvidiaChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                NvidiaEmbeddingsServiceSettings.NAME,
+                NvidiaEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, NvidiaRerankServiceSettings.NAME, NvidiaRerankServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, NvidiaEmbeddingsTaskSettings.NAME, NvidiaEmbeddingsTaskSettings::new)
+        );
     }
 
     private static void addAzureAiStudioNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

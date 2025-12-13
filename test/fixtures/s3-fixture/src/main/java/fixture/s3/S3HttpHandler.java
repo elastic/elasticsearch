@@ -20,12 +20,14 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
@@ -44,6 +46,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,24 +69,29 @@ public class S3HttpHandler implements HttpHandler {
     private final String bucket;
     private final String basePath;
     private final String bucketAndBasePath;
+    private final S3ConsistencyModel consistencyModel;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
 
-    public S3HttpHandler(final String bucket) {
-        this(bucket, null);
+    public S3HttpHandler(final String bucket, S3ConsistencyModel consistencyModel) {
+        this(bucket, null, consistencyModel);
     }
 
-    public S3HttpHandler(final String bucket, @Nullable final String basePath) {
+    public S3HttpHandler(final String bucket, @Nullable final String basePath, S3ConsistencyModel consistencyModel) {
         this.bucket = Objects.requireNonNull(bucket);
         this.basePath = Objects.requireNonNullElse(basePath, "");
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
+        this.consistencyModel = consistencyModel;
     }
 
     /**
      * Requests using these HTTP methods never have a request body (this is checked in the handler).
      */
     private static final Set<String> METHODS_HAVING_NO_REQUEST_BODY = Set.of("GET", "HEAD", "DELETE");
+
+    private static final String SHA_256_ETAG_PREFIX = "es-test-sha-256-";
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
@@ -187,57 +196,66 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
             } else if (request.isCompleteMultipartUploadRequest()) {
+                final var uploadId = request.getQueryParamOnce("uploadId");
                 final byte[] responseBody;
-                final boolean preconditionFailed;
-                synchronized (uploads) {
-                    final var upload = getUpload(request.getQueryParamOnce("uploadId"));
-                    if (upload == null) {
-                        preconditionFailed = false;
-                        if (Randomness.get().nextBoolean()) {
-                            responseBody = null;
+                final RestStatus responseCode;
+                try (var ignoredCompletingUploadRef = setUploadCompleting(uploadId)) {
+                    synchronized (uploads) {
+                        final var upload = getUpload(request.getQueryParamOnce("uploadId"));
+                        if (upload == null) {
+                            if (Randomness.get().nextBoolean()) {
+                                responseCode = RestStatus.NOT_FOUND;
+                                responseBody = null;
+                            } else {
+                                responseCode = RestStatus.OK;
+                                responseBody = """
+                                    <?xml version="1.0" encoding="UTF-8"?>
+                                    <Error>
+                                    <Code>NoSuchUpload</Code>
+                                    <Message>No such upload</Message>
+                                    <RequestId>test-request-id</RequestId>
+                                    <HostId>test-host-id</HostId>
+                                    </Error>""".getBytes(StandardCharsets.UTF_8);
+                            }
                         } else {
-                            responseBody = """
-                                <?xml version="1.0" encoding="UTF-8"?>
-                                <Error>
-                                <Code>NoSuchUpload</Code>
-                                <Message>No such upload</Message>
-                                <RequestId>test-request-id</RequestId>
-                                <HostId>test-host-id</HostId>
-                                </Error>""".getBytes(StandardCharsets.UTF_8);
-                        }
-                    } else {
-                        final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
-
-                        preconditionFailed = updateBlobContents(exchange, request.path(), blobContents) == false;
-
-                        if (preconditionFailed == false) {
-                            responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                                + "<CompleteMultipartUploadResult>\n"
-                                + "<Bucket>"
-                                + bucket
-                                + "</Bucket>\n"
-                                + "<Key>"
-                                + request.path()
-                                + "</Key>\n"
-                                + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                            removeUpload(upload.getUploadId());
-                        } else {
-                            responseBody = null;
+                            final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
+                            responseCode = updateBlobContents(exchange, request.path(), blobContents);
+                            if (responseCode == RestStatus.OK) {
+                                responseBody = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                                    + "<CompleteMultipartUploadResult>\n"
+                                    + "<Bucket>"
+                                    + bucket
+                                    + "</Bucket>\n"
+                                    + "<Key>"
+                                    + request.path()
+                                    + "</Key>\n"
+                                    + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                            } else {
+                                responseBody = null;
+                            }
+                            if (responseCode != RestStatus.PRECONDITION_FAILED) {
+                                removeUpload(upload.getUploadId());
+                            }
                         }
                     }
                 }
-                if (preconditionFailed) {
-                    exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                } else if (responseBody == null) {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-                } else {
+                if (responseCode == RestStatus.OK) {
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBody.length);
                     exchange.getResponseBody().write(responseBody);
+                } else {
+                    exchange.sendResponseHeaders(responseCode.getStatus(), -1);
                 }
+
             } else if (request.isAbortMultipartUploadRequest()) {
-                final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
-                exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
+                final var uploadId = request.getQueryParamOnce("uploadId");
+                if (consistencyModel.hasStrongMultipartUploads() == false && completingUploads.containsKey(uploadId)) {
+                    // See AWS support case 176070774900712: aborts may sometimes return early if complete is already in progress
+                    exchange.sendResponseHeaders(RestStatus.NO_CONTENT.getStatus(), -1);
+                } else {
+                    final var upload = removeUpload(request.getQueryParamOnce("uploadId"));
+                    exchange.sendResponseHeaders((upload == null ? RestStatus.NOT_FOUND : RestStatus.NO_CONTENT).getStatus(), -1);
+                }
 
             } else if (request.isPutObjectRequest()) {
                 // a copy request is a put request with an X-amz-copy-source header
@@ -245,6 +263,9 @@ public class S3HttpHandler implements HttpHandler {
                 if (copySource != null) {
                     if (isProtectOverwrite(exchange)) {
                         throw new AssertionError("If-None-Match: * header is not supported here");
+                    }
+                    if (getRequiredExistingETag(exchange) != null) {
+                        throw new AssertionError("If-Match: * header is not supported here");
                     }
 
                     var sourceBlob = blobs.get(copySource);
@@ -262,14 +283,12 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                    final var preconditionFailed = updateBlobContents(exchange, request.path(), blob.v2()) == false;
+                    final var updateResponseCode = updateBlobContents(exchange, request.path(), blob.v2());
 
-                    if (preconditionFailed) {
-                        exchange.sendResponseHeaders(RestStatus.PRECONDITION_FAILED.getStatus(), -1);
-                    } else {
+                    if (updateResponseCode == RestStatus.OK) {
                         exchange.getResponseHeaders().add("ETag", blob.v1());
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     }
+                    exchange.sendResponseHeaders(updateResponseCode.getStatus(), -1);
                 }
 
             } else if (request.isListObjectsRequest()) {
@@ -322,6 +341,9 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
+
+                exchange.getResponseHeaders().add("ETag", getEtagFromContents(blob));
+
                 final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
                 if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
@@ -402,15 +424,52 @@ public class S3HttpHandler implements HttpHandler {
     /**
      * Update the blob contents if and only if the preconditions in the request are satisfied.
      *
-     * @return whether the blob contents were updated: if {@code false} then a requested precondition was not satisfied.
+     * @return {@link RestStatus#OK} if the blob contents were updated, or else a different status code to indicate the error: possibly
+     *         {@link RestStatus#CONFLICT} in any case, but if not then either  {@link RestStatus#PRECONDITION_FAILED} if the object exists
+     *         but doesn't match the specified precondition, or {@link RestStatus#NOT_FOUND} if the object doesn't exist but is required to
+     *         do so by the precondition.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response">AWS docs</a>
      */
-    private boolean updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
-        if (isProtectOverwrite(exchange)) {
-            return blobs.putIfAbsent(path, newContents) == null;
-        } else {
-            blobs.put(path, newContents);
-            return true;
+    private RestStatus updateBlobContents(HttpExchange exchange, String path, BytesReference newContents) {
+        if (consistencyModel.hasConditionalWrites()) {
+            if (isProtectOverwrite(exchange)) {
+                return blobs.putIfAbsent(path, newContents) == null
+                    ? RestStatus.OK
+                    : ESTestCase.randomFrom(RestStatus.PRECONDITION_FAILED, RestStatus.CONFLICT);
+            }
+
+            final var requireExistingETag = getRequiredExistingETag(exchange);
+            if (requireExistingETag != null) {
+                final var responseCode = new AtomicReference<>(RestStatus.OK);
+                blobs.compute(path, (ignoredPath, existingContents) -> {
+                    if (existingContents != null && requireExistingETag.equals(getEtagFromContents(existingContents))) {
+                        return newContents;
+                    }
+
+                    responseCode.set(
+                        ESTestCase.randomFrom(
+                            existingContents == null ? RestStatus.NOT_FOUND : RestStatus.PRECONDITION_FAILED,
+                            RestStatus.CONFLICT
+                        )
+                    );
+                    return existingContents;
+                });
+                return responseCode.get();
+            }
         }
+
+        blobs.put(path, newContents);
+        return RestStatus.OK;
+    }
+
+    /**
+     * Etags are opaque identifiers for the contents of an object.
+     *
+     * @see <a href="https://en.wikipedia.org/wiki/HTTP_ETag">HTTP ETag on Wikipedia</a>.
+     */
+    public static String getEtagFromContents(BytesReference blobContents) {
+        return '"' + SHA_256_ETAG_PREFIX + MessageDigests.toHexString(MessageDigests.digest(blobContents, MessageDigests.sha256())) + '"';
     }
 
     public Map<String, BytesReference> blobs() {
@@ -490,7 +549,7 @@ public class S3HttpHandler implements HttpHandler {
                     );
                 }
             }
-            return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
+            return Tuple.tuple(getEtagFromContents(bytesReference), bytesReference);
         } catch (Exception e) {
             logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);
@@ -580,6 +639,10 @@ public class S3HttpHandler implements HttpHandler {
             return false;
         }
 
+        if (exchange.getRequestHeaders().get("If-Match") != null) {
+            throw new AssertionError("Handling both If-None-Match and If-Match headers is not supported");
+        }
+
         if (ifNoneMatch.size() != 1) {
             throw new AssertionError("multiple If-None-Match headers found: " + ifNoneMatch);
         }
@@ -589,6 +652,29 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         throw new AssertionError("invalid If-None-Match header: " + ifNoneMatch);
+    }
+
+    @Nullable // if no If-Match header found
+    private static String getRequiredExistingETag(final HttpExchange exchange) {
+        final var ifMatch = exchange.getRequestHeaders().get("If-Match");
+
+        if (ifMatch == null) {
+            return null;
+        }
+
+        if (exchange.getRequestHeaders().get("If-None-Match") != null) {
+            throw new AssertionError("Handling both If-None-Match and If-Match headers is not supported");
+        }
+
+        final var iterator = ifMatch.iterator();
+        if (iterator.hasNext()) {
+            final var result = iterator.next();
+            if (iterator.hasNext() == false) {
+                return result;
+            }
+        }
+
+        throw new AssertionError("multiple If-Match headers found: " + ifMatch);
     }
 
     MultipartUpload putUpload(String path) {
@@ -609,6 +695,24 @@ public class S3HttpHandler implements HttpHandler {
         synchronized (uploads) {
             return uploads.remove(uploadId);
         }
+    }
+
+    private Releasable setUploadCompleting(String uploadId) {
+        completingUploads.computeIfAbsent(uploadId, ignored -> new AtomicInteger()).incrementAndGet();
+        return () -> clearUploadCompleting(uploadId);
+    }
+
+    private void clearUploadCompleting(String uploadId) {
+        completingUploads.compute(uploadId, (ignored, uploadCount) -> {
+            if (uploadCount == null) {
+                throw new AssertionError("upload [" + uploadId + "] not tracked");
+            }
+            if (uploadCount.decrementAndGet() == 0) {
+                return null;
+            } else {
+                return uploadCount;
+            }
+        });
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

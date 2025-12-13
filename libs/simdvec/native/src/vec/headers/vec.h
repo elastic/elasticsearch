@@ -8,11 +8,11 @@
  */
 
 #ifdef _MSC_VER
-#define EXPORT __declspec(dllexport)
+#define EXPORT extern "C" __declspec(dllexport)
 #elif defined(__GNUC__) && !defined(__clang__)
-#define EXPORT __attribute__((externally_visible,visibility("default")))
+#define EXPORT extern "C" __attribute__((externally_visible,visibility("default")))
 #elif __clang__
-#define EXPORT __attribute__((visibility("default")))
+#define EXPORT extern "C" __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
@@ -31,29 +31,29 @@
     #else
         #error "Unsupported compiler. Please define f32_t to designate a 32-bit float."
     #endif
-#elif (__STDC_VERSION__ >= 202311L)
-    // Compiler is C and supports the C23 floating-point definitions
-    #define f32_t _Float32
-#elif (__STDC_VERSION__ >= 201112L)
-    // Compiler is C and support C11 static assert
-    // Define our own 32-bit float type as float, but check the dimension is correct, or fail
-    _Static_assert(sizeof(float) == 4, "Unsupported compiler. Please define f32_t to designate a 32-bit float.");
-    #define f32_t float
 #else
-    #error "Unsupported compiler. Please define f32_t to designate a 32-bit float."
+    #error "This library is meant to be compiled with a C++ compiler"
 #endif
 
 EXPORT int vec_caps();
 
-EXPORT int32_t dot7u(int8_t* a, int8_t* b, const int32_t dims);
+EXPORT int32_t vec_dot7u(const int8_t* a, const int8_t* b, const int32_t dims);
 
-EXPORT void dot7u_bulk(int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, float* results);
+EXPORT void vec_dot7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results);
 
-EXPORT int32_t sqr7u(int8_t *a, int8_t *b, const int32_t length);
+EXPORT void vec_dot7u_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results);
 
-EXPORT f32_t cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount);
+EXPORT int32_t vec_sqr7u(int8_t *a, int8_t *b, const int32_t length);
 
-EXPORT f32_t dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount);
+EXPORT f32_t vec_cosf32(const f32_t *a, const f32_t *b, const int32_t elementCount);
 
-EXPORT f32_t sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount);
+EXPORT f32_t vec_dotf32(const f32_t *a, const f32_t *b, const int32_t elementCount);
 
+EXPORT f32_t vec_sqrf32(const f32_t *a, const f32_t *b, const int32_t elementCount);

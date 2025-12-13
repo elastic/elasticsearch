@@ -130,9 +130,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
-        @Override
-        public String toString() {
-            return "QueryBuilderAndTags{" + "queryBuilder=[" + query + "], tags=" + tags.toString() + "}";
+        public QueryBuilderAndTags withQuery(QueryBuilder query) {
+            return new QueryBuilderAndTags(query, tags);
         }
     };
 
@@ -304,6 +303,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private QueryBuilder queryWithoutTag() {
         QueryBuilder queryWithoutTag;
+
         if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
             return null;
         } else if (queryBuilderAndTags.size() == 1) {

@@ -67,3 +67,6 @@ org.elasticsearch.cluster.metadata.IndexMetadata#getForecastedWriteLoad()
 @defaultMessage Use org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer instead
 org.apache.lucene.util.quantization.OptimizedScalarQuantizer#<init>(org.apache.lucene.index.VectorSimilarityFunction, float, int)
 org.apache.lucene.util.quantization.OptimizedScalarQuantizer#<init>(org.apache.lucene.index.VectorSimilarityFunction)
+
+@defaultMessage Use org.elasticsearch.common.lucene.search.Queries#NO_DOCS_INSTANCE instead
+org.apache.lucene.search.MatchNoDocsQuery#<init>()

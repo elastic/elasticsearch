@@ -513,6 +513,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         final SearchSourceBuilder source = original.source();
         final boolean isExplain = source != null && source.explain() != null && source.explain();
+        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
+            ? original.allowPartialSearchResults()
+            : searchService.defaultAllowPartialSearchResults();
         if (shouldOpenPIT(source)) {
             // disabling shard reordering for request
             original.setPreFilterShardSize(Integer.MAX_VALUE);
@@ -546,7 +549,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider::absoluteStartMillis,
                     resolvedIndices,
                     original.pointInTimeBuilder(),
-                    isExplain
+                    isExplain,
+                    allowPartialSearchResults
                 ),
                 rewriteListener
             );

@@ -10,12 +10,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.intervals.IntervalQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -123,7 +123,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
             // Be lenient with unmapped fields so that cross-index search will work nicely
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         Set<String> maskedFields = new HashSet<>();
         sourceProvider.extractFields(maskedFields);
@@ -131,7 +131,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
             MappedFieldType ft = context.getFieldType(maskedField);
             if (ft == null) {
                 // Be lenient with unmapped fields so that cross-index search will work nicely
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
         }
         if (fieldType instanceof TextFamilyFieldType tfft) {

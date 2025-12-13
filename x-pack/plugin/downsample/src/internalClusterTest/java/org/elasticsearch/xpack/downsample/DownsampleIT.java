@@ -102,6 +102,14 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     "cpu_usage": {
                         "type": "double",
                         "time_series_metric": "counter"
+                    },
+                    "memory_usage": {
+                        "type": "double",
+                        "time_series_metric": "counter"
+                    },
+                    "memory_usage.free": {
+                        "type": "double",
+                        "time_series_metric": "counter"
                     }
                   }
                 }
@@ -120,6 +128,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
                     .field("metrics.memory_usage", randomDouble())
+                    .field("metrics.memory_usage.free", randomDouble())
+                    .field("metrics.load", randomDouble())
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -128,11 +138,26 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         downsampleAndAssert(dataStreamName, mapping, sourceSupplier, randomSamplingMethod());
     }
 
-    public void testLastValueMode() throws Exception {
+    public void testLastValueMethod() throws Exception {
+        downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod.LAST_VALUE);
+    }
+
+    public void testAggregateMethod() throws Exception {
+        downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod.AGGREGATE);
+    }
+
+    private void downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod method) throws Exception {
         String dataStreamName = "metrics-foo";
         String mapping = """
             {
               "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "timestamp": {
+                  "path": "@timestamp",
+                  "type": "alias"
+                },
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,
@@ -148,6 +173,14 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                   "type": "double",
                   "time_series_metric": "gauge"
                 },
+                "metrics.latency": {
+                  "type": "exponential_histogram",
+                  "time_series_metric": "histogram"
+                },
+                "metrics.tdigest": {
+                  "type": "histogram",
+                  "time_series_metric": "histogram"
+                },
                 "my_labels": {
                   "properties": {
                     "my_histogram": {
@@ -157,6 +190,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                       "type": "aggregate_metric_double",
                       "metrics": [ "min", "max", "sum", "value_count" ],
                       "default_metric": "max"
+                    },
+                    "my_exponential_histogram": {
+                      "type": "exponential_histogram"
                     }
                   }
                 }
@@ -177,6 +213,30 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
 
+                    .startObject("metrics.latency")
+                    .field("scale", 0)
+                    .field("sum", -3775.0)
+                    .field("min", -100.0)
+                    .field("max", 50.0)
+                    .startObject("zero")
+                    .field("count", 1)
+                    .field("threshold", 1.0E-4)
+                    .endObject()
+                    .startObject("positive")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 18 })
+                    .endObject()
+                    .startObject("negative")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5, 6 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 32, 36 })
+                    .endObject()
+                    .endObject()
+
+                    .startObject("metrics.tdigest")
+                    .array("values", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
+                    .endObject()
+
                     .startObject("my_labels.my_histogram")
                     .array("values", randomHistogramValues(maxHistogramSize))
                     .array("counts", randomHistogramValueCounts(maxHistogramSize))
@@ -188,12 +248,32 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("sum", randomFloatBetween(20.0f, 30.0f, true))
                     .field("value_count", randomIntBetween(1, 10))
                     .endObject()
+
+                    .startObject("my_labels.my_exponential_histogram")
+                    .field("scale", 0)
+                    .field("sum", -3775.0)
+                    .field("min", -100.0)
+                    .field("max", 50.0)
+                    .startObject("zero")
+                    .field("count", 1)
+                    .field("threshold", 1.0E-4)
+                    .endObject()
+                    .startObject("positive")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 18 })
+                    .endObject()
+                    .startObject("negative")
+                    .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5, 6 })
+                    .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 32, 36 })
+                    .endObject()
+                    .endObject()
+
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         };
-        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, DownsampleConfig.SamplingMethod.LAST_VALUE);
+        downsampleAndAssert(dataStreamName, mapping, sourceSupplier, method);
     }
 
     /**

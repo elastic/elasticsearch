@@ -2764,16 +2764,24 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
             .entry("drivers", instanceOf(List.class))
-            .entry("plans", instanceOf(List.class));
+            .entry("plans", instanceOf(List.class))
+            .entry("minimumTransportVersion", instanceOf(Integer.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound) {
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         }
+        if (includeTimestamps) {
+            // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
+            mapMatcher = mapMatcher.entry("start_time_in_millis", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("completion_time_in_millis", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("expiration_time_in_millis", greaterThanOrEqualTo(0L));
+        }
+
         mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
         // Older version may not have is_partial
         if (includePartial) {
@@ -2786,7 +2794,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Create empty result matcher from result, taking into account all metadata items.
      */
     protected static MapMatcher getResultMatcher(Map<String, Object> result) {
-        return getResultMatcher(result.containsKey("is_partial"), result.containsKey("documents_found"));
+        return getResultMatcher(
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found"),
+            result.containsKey("start_time_in_millis")
+        );
     }
 
     /**

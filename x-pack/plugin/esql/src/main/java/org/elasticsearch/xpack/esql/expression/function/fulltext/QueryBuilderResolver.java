@@ -63,7 +63,7 @@ public final class QueryBuilderResolver {
         ClusterState clusterState = services.clusterService().state();
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
-            IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
+            IndexResolver.DEFAULT_OPTIONS,
             services.projectResolver().getProjectMetadata(clusterState),
             services.indexNameExpressionResolver(),
             services.transportService().getRemoteClusterService(),

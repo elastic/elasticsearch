@@ -11,7 +11,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +47,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
+    private static final MatchNoDocsQuery EMPTY_QUERY_VECTORS = new MatchNoDocsQuery("Empty query vectors");
     public static final String NAME = "sparse_vector";
     public static final String ALLOWED_FIELD_TYPE = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -225,7 +225,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (queryVectors == null) {
-            return new MatchNoDocsQuery("Empty query vectors");
+            return EMPTY_QUERY_VECTORS;
         }
 
         final MappedFieldType ft = context.getFieldType(fieldName);
@@ -271,7 +271,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalArgumentException("inference_id required to perform vector search on query string");
         }
 
-        // TODO: Move this class to `server` and update to use InferenceAction.Request
+        // TODO: Move this class to `server`
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             inferenceId,
             List.of(query),
@@ -348,7 +348,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     private static final ConstructingObjectParser<SparseVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

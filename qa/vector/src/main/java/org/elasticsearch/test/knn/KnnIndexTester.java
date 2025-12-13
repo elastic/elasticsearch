@@ -231,7 +231,7 @@ public class KnnIndexTester {
             // printout an example configuration formatted file and indicate that it is required
             System.out.println("Usage: java -cp <your-classpath> org.elasticsearch.test.knn.KnnIndexTester <config-file> [--warmUp]");
             System.out.println("Where <config-file> is a JSON file containing one or more configurations for the KNN index tester.");
-            System.out.println("--warnUp is the number of warm iterations ");
+            System.out.println("--warmUp is the number of warm iterations ");
             System.out.println("An example configuration object: ");
             System.out.println(TestConfiguration.exampleFormatForHelp());
             return;

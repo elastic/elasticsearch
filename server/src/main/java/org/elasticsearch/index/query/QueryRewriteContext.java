@@ -51,7 +51,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
-import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH_COORDINATION;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.

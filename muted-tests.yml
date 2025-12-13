@@ -490,6 +490,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testIntegerDocValuesConflict {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/139488
+- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
+  issue: https://github.com/elastic/elasticsearch/issues/139490
 
 # Examples:
 #

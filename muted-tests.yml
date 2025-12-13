@@ -499,6 +499,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
   issue: https://github.com/elastic/elasticsearch/issues/139492
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testReductionPlanForTopNWithPushedDownFunctions
+  issue: https://github.com/elastic/elasticsearch/issues/139493
 
 # Examples:
 #

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::new);
 
     private final Expression timestamp;
+    private final List<QuerySetting> querySettings;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
@@ -69,14 +71,23 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             description = "the time window over which the rate is computed",
             optional = true
         ) Expression window,
-        Expression timestamp
+        Expression timestamp,
+        List<QuerySetting> querySettings
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp, querySettings);
     }
 
-    public Rate(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+    public Rate(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression timestamp,
+        List<QuerySetting> querySettings
+    ) {
         super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
+        this.querySettings = List.copyOf(querySettings);
     }
 
     public Rate(StreamInput in) throws IOException {
@@ -85,7 +96,8 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst(),
+            List.of()
         );
     }
 
@@ -96,17 +108,17 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
 
     @Override
     protected NodeInfo<Rate> info() {
-        return NodeInfo.create(this, Rate::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, Rate::new, field(), filter(), window(), timestamp, querySettings);
     }
 
     @Override
     public Rate replaceChildren(List<Expression> newChildren) {
-        return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Rate(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), querySettings);
     }
 
     @Override
     public Rate withFilter(Expression filter) {
-        return new Rate(source(), field(), filter, window(), timestamp);
+        return new Rate(source(), field(), filter, window(), timestamp, querySettings);
     }
 
     @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -105,7 +106,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             randomBoolean(),
             in.resultTruncationMaxSize(true),
             in.resultTruncationDefaultSize(true),
-            null
+            null,
+            List.of()
         );
     }
 }

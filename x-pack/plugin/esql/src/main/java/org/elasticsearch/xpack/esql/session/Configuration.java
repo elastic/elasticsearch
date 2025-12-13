@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -61,6 +63,7 @@ public class Configuration implements Writeable {
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
     private final String projectRouting;
+    private final List<QuerySetting> querySettings;
 
     public Configuration(
         ZoneId zi,
@@ -77,7 +80,8 @@ public class Configuration implements Writeable {
         boolean allowPartialResults,
         int resultTruncationMaxSizeTimeseries,
         int resultTruncationDefaultSizeTimeseries,
-        String projectRouting
+        String projectRouting,
+        List<QuerySetting> querySettings
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -96,6 +100,7 @@ public class Configuration implements Writeable {
         this.queryStartTimeNanos = queryStartTimeNanos;
         this.allowPartialResults = allowPartialResults;
         this.projectRouting = projectRouting;
+        this.querySettings = querySettings;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -126,6 +131,11 @@ public class Configuration implements Writeable {
 
         // not needed on the data nodes for now
         this.projectRouting = null;
+        this.querySettings = null;
+    }
+
+    public List<QuerySetting> querySettings() {
+        return querySettings;
     }
 
     @Override
@@ -240,7 +250,8 @@ public class Configuration implements Writeable {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting
+            projectRouting,
+            querySettings
         );
     }
 

@@ -224,6 +224,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
@@ -540,7 +541,7 @@ public class EsqlFunctionRegistry {
                 def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") },
             // time-series functions
             new FunctionDefinition[] {
-                defTS3(Rate.class, Rate::new, "rate"),
+                defTS3WithQuerySettings(Rate.class, Rate::new, "rate"),
                 defTS3(Irate.class, Irate::new, "irate"),
                 defTS3(Idelta.class, Idelta::new, "idelta"),
                 defTS3(Delta.class, Delta::new, "delta"),
@@ -1089,6 +1090,10 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression one, Expression two, Expression three);
     }
 
+    protected interface TernaryBuilderWithQuerySettings<T> {
+        T build(Source source, Expression one, Expression two, Expression three, List<QuerySetting> querySettings);
+    }
+
     /**
      * Build a {@linkplain FunctionDefinition} for a quaternary function.
      */
@@ -1352,6 +1357,25 @@ public class EsqlFunctionRegistry {
                 children.size() == 2 ? children.get(1) : null,
                 UnresolvedTimestamp.withSource(source),
                 cfg
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected static <T extends Function> FunctionDefinition defTS3WithQuerySettings(
+        Class<T> function,
+        TernaryBuilderWithQuerySettings<T> ctorRef,
+        String... names
+    ) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalBiFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() == 2 ? children.get(1) : null,
+                UnresolvedTimestamp.withSource(source),
+                cfg.querySettings()
             );
         };
         return def(function, builder, names);

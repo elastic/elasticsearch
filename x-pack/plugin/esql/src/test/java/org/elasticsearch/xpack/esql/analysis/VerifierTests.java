@@ -3435,6 +3435,23 @@ public class VerifierTests extends ESTestCase {
 
     }
 
+    public void testMvIntersectValidatesDataTypesAreEqual() {
+        String[] values = {
+            "[\"one\", \"two\", \"three\", \"four\", \"five\"]",
+            "[1, 2, 3, 4, 5]",
+            "[1, 2, 3, 4, 5]::long",
+            "[1.1, 2.2, 3.3, 4.4, 5.5]" };
+        for (int i = 0; i < values.length; i++) {
+            for (int j = 0; j < values.length; j++) {
+                if (i == j) {
+                    continue;
+                }
+                String query = "ROW a = " + values[i] + ", b = " + values[j] + " | EVAL finalValue = MV_INTERSECT(a, b)";
+                assertThat(error(query, tsdb), containsString(": All child fields must be the same type"));
+            }
+        }
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

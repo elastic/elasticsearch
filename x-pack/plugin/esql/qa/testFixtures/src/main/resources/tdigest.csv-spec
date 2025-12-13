@@ -73,7 +73,7 @@ FROM tdigest_standard_index
 ;
 
 p75:double
-0.2
+0.3
 ;
 
 
@@ -90,7 +90,7 @@ FROM tdigest_standard_index
 ;
 
 instance:keyword | p75:double
-instance-0       | 0.2
+instance-0       | 0.3
 instance-1       | null
 instance-2       | null
 ;

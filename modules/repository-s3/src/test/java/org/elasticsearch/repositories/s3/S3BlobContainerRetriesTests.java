@@ -1462,15 +1462,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Override
     protected OperationPurpose randomRetryingPurpose() {
-        return randomValueOtherThan(OperationPurpose.REPOSITORY_ANALYSIS, BlobStoreTestUtil::randomPurpose);
+        return BlobStoreTestUtil.randomRetryingPurpose();
     }
 
     @Override
     protected OperationPurpose randomFiniteRetryingPurpose() {
-        return randomValueOtherThanMany(
-            purpose -> purpose == OperationPurpose.REPOSITORY_ANALYSIS || purpose == OperationPurpose.INDICES,
-            BlobStoreTestUtil::randomPurpose
-        );
+        return BlobStoreTestUtil.randomFiniteRetryingPurpose();
     }
 
     private void assertMetricsForOpeningStream() {

@@ -478,12 +478,27 @@ tests:
 - class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
   method: testSortShortcuts
   issue: https://github.com/elastic/elasticsearch/issues/139456
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:tdigest.UngroupedPercentiles}
-  issue: https://github.com/elastic/elasticsearch/issues/139458
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/139482
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testIntegerDocValuesConflict {STORED}
+  issue: https://github.com/elastic/elasticsearch/issues/139487
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testIntegerDocValuesConflict {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/139488
+- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
+  issue: https://github.com/elastic/elasticsearch/issues/139490
+- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+  method: testReductionPlanForTopNWithPushedDownFunctions
+  issue: https://github.com/elastic/elasticsearch/issues/139491
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
+  issue: https://github.com/elastic/elasticsearch/issues/139492
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testReductionPlanForTopNWithPushedDownFunctions
+  issue: https://github.com/elastic/elasticsearch/issues/139493
 
 # Examples:
 #

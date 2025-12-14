@@ -284,8 +284,6 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         BiFunction<Integer, Block, T> getValueFunction,
         Consumer<T> addValueFunction
     ) {
-        Set<T> values = new LinkedHashSet<>();
-
         int firstValueCount = field1.getValueCount(position);
         int secondValueCount = field2.getValueCount(position);
         if (firstValueCount == 0 || secondValueCount == 0) {
@@ -297,6 +295,7 @@ public class MvIntersect extends EsqlScalarFunction implements EvaluatorMapper {
         int firstValueIndex = field1.getFirstValueIndex(position);
         int secondValueIndex = field2.getFirstValueIndex(position);
 
+        Set<T> values = new LinkedHashSet<>();
         for (int i = 0; i < firstValueCount; i++) {
             values.add(getValueFunction.apply(firstValueIndex + i, field1));
         }

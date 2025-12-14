@@ -45,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -105,7 +106,7 @@ public final class SourceConfirmedTextQuery extends Query {
     private static Query approximate(MultiPhrasePrefixQuery query) {
         Term[][] terms = query.getTerms();
         if (terms.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         } else if (terms.length == 1) {
             // Only a prefix, approximate with a prefix query
             BooleanQuery.Builder approximation = new BooleanQuery.Builder();

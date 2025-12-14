@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -93,11 +92,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_14_0)) {
-            // The action is not available before ALLOCATION_STATS
-            listener.onResponse(new Response(Map.of(), null));
-            return;
-        }
         super.doExecute(task, request, listener);
     }
 
@@ -140,7 +134,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0);
             super.writeTo(out);
             out.writeEnumSet(metrics);
         }

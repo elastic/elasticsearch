@@ -449,8 +449,8 @@ public class IndexNameExpressionResolver {
         return resources;
     }
 
-    public static IllegalArgumentException invalidExpression(boolean isExclusion) {
-        return new IllegalArgumentException("Index " + (isExclusion ? "exclusion" : "expression") + " cannot be empty");
+    public static InvalidIndexNameException invalidExpression(boolean isExclusion) {
+        return new InvalidIndexNameException("", (isExclusion ? "exclusion" : "expression") + " cannot be empty");
     }
 
     /**

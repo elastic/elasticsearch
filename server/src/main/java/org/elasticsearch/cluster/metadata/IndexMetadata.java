@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -1767,15 +1766,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             settingsDiff = Settings.readSettingsDiffFromStream(in);
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                inferenceFields = DiffableUtils.readImmutableOpenMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    INFERENCE_FIELDS_METADATA_DIFF_VALUE_READER
-                );
-            } else {
-                inferenceFields = DiffableUtils.emptyDiff();
-            }
+            inferenceFields = DiffableUtils.readImmutableOpenMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                INFERENCE_FIELDS_METADATA_DIFF_VALUE_READER
+            );
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIAS_METADATA_DIFF_VALUE_READER);
             customData = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_DIFF_VALUE_READER);
             inSyncAllocationIds = DiffableUtils.readJdkMapDiff(
@@ -1788,21 +1783,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getStringKeySerializer(),
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                mappingsUpdatedVersion = IndexVersion.readVersion(in);
-            } else {
-                mappingsUpdatedVersion = IndexVersions.ZERO;
-            }
+            mappingsUpdatedVersion = IndexVersion.readVersion(in);
             isSystem = in.readBoolean();
             timestampRange = IndexLongFieldRange.readFrom(in);
             stats = in.readOptionalWriteable(IndexMetadataStats::new);
             indexWriteLoadForecast = in.readOptionalDouble();
             shardSizeInBytesForecast = in.readOptionalLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                eventIngestedRange = IndexLongFieldRange.readFrom(in);
-            } else {
-                eventIngestedRange = IndexLongFieldRange.UNKNOWN;
-            }
+            eventIngestedRange = IndexLongFieldRange.readFrom(in);
             if (in.getTransportVersion().supports(INDEX_RESHARDING_METADATA)) {
                 reshardingMetadata = in.readOptionalWriteable(IndexReshardingMetadata::new);
             } else {
@@ -1827,16 +1814,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             settingsDiff.writeTo(out);
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                inferenceFields.writeTo(out);
-            }
+            inferenceFields.writeTo(out);
             aliases.writeTo(out);
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                IndexVersion.writeVersion(mappingsUpdatedVersion, out);
-            }
+            IndexVersion.writeVersion(mappingsUpdatedVersion, out);
             out.writeBoolean(isSystem);
             timestampRange.writeTo(out);
             out.writeOptionalWriteable(stats);
@@ -1919,10 +1902,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(in));
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
-            fields.stream().forEach(f -> builder.putInferenceField(f));
-        }
+        var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
+        fields.stream().forEach(f -> builder.putInferenceField(f));
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             AliasMetadata aliasMd = new AliasMetadata(in);
@@ -1944,9 +1925,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
-        }
+        builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
         builder.system(in.readBoolean());
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
 
@@ -1987,9 +1966,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeCollection(inferenceFields.values());
-        }
+        out.writeCollection(inferenceFields.values());
         out.writeCollection(aliases.values());
         out.writeMap(customData, StreamOutput::writeWriteable);
         out.writeMap(
@@ -1998,9 +1975,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
         );
         out.writeCollection(rolloverInfos.values());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            IndexVersion.writeVersion(mappingsUpdatedVersion, out);
-        }
+        IndexVersion.writeVersion(mappingsUpdatedVersion, out);
         out.writeBoolean(isSystem);
         timestampRange.writeTo(out);
         out.writeOptionalWriteable(stats);

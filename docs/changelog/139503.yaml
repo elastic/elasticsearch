@@ -1,0 +1,5 @@
+pr: 139503
+summary: Enable large numeric blocks for TSDB codec in production
+area: Codec
+type: enhancement
+issues: []

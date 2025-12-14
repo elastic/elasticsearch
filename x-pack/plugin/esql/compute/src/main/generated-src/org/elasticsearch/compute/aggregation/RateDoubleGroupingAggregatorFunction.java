@@ -799,14 +799,13 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
         final double delta = (endValue >= startValue) ? endValue - startValue : endValue;
         final double slope = delta / (endTs - startTs);
         if (isLowerBoundary) {
-            assert tbucketStart <= endTs : tbucketStart + " <= " + endTs;
+            assert startTs <= tbucketStart : startTs + " <= " + tbucketStart;
             final double baseValue = (endValue >= startValue) ? startValue : 0;
-            double timeDelta = endTs - tbucketStart;
+            double timeDelta = tbucketStart - startTs;
             return baseValue + slope * timeDelta;
-        } else {
-            assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
-            double timeDelta = tbucketEnd - startTs;
-            return startValue + slope * timeDelta;
         }
+        assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
+        double timeDelta = tbucketEnd - startTs;
+        return startValue + slope * timeDelta;
     }
 }

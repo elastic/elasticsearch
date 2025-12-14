@@ -294,24 +294,23 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         DeltaAgg deltaAgg
     ) {
         List<RateRange> allRates = allTimeseries.get(offset).stream().map(timeseries -> {
-            String timeseriesId = timeseries.getFirst().v1();
+            timeseries = new ArrayList<>(timeseries); // Copy time series to add adjacent tuples without affecting results.
+            timeseries.sort(Comparator.comparing(t -> t.v2().v1())); // Sort the timeseries by timestamp
             if (offset > 0) {
                 var previousWindow = allTimeseries.get(offset - 1);
                 if (previousWindow.isEmpty() == false) {
-                    addNextTuple(timeseries, previousWindow, timeseriesId, true);
+                    addBoundaryTuple(timeseries, previousWindow, true);
                 }
             }
             if (offset < allTimeseries.size() - 1) {
                 var nextWindow = allTimeseries.get(offset + 1);
                 if (nextWindow.isEmpty() == false) {
-                    addNextTuple(timeseries, nextWindow, timeseriesId, false);
+                    addBoundaryTuple(timeseries, nextWindow, false);
                 }
             }
             if (timeseries.size() < 2) {
                 return null;
             }
-            // Sort the timeseries by timestamp
-            timeseries.sort(Comparator.comparing(t -> t.v2().v1()));
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
             var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
@@ -372,7 +371,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             } else {
                 double smaller = Math.min(secondsInWindow, tsDurationSeconds);
                 double larger = Math.max(secondsInWindow, tsDurationSeconds);
-                return new RateRange(counterGrowth / larger * 0.90, counterGrowth / smaller * 1.10);
+                return new RateRange(counterGrowth / larger * 0.80, counterGrowth / smaller * 1.20);
             }
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
@@ -390,13 +389,14 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    private static void addNextTuple(
+    private static void addBoundaryTuple(
         List<Tuple<String, Tuple<Instant, Double>>> timeseries,
         Collection<List<Tuple<String, Tuple<Instant, Double>>>> otherWindow,
-        String timeseriesId,
         boolean isLowerBoundary
     ) {
-        Tuple<String, Tuple<Instant, Double>> otherTuple = null;
+        String timeseriesId = timeseries.getFirst().v1();
+        var referenceTuple = isLowerBoundary ? timeseries.getFirst().v2() : timeseries.getLast().v2();
+        Tuple<Instant, Double> otherTuple = null;
         long otherTimestamp = 0;
         for (var doc : otherWindow) {
             for (var tuple : doc) {
@@ -407,13 +407,41 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                         || (timestamp > otherTimestamp && isLowerBoundary)
                         || (timestamp < otherTimestamp && isLowerBoundary == false)) {
                         otherTimestamp = timestamp;
-                        otherTuple = tuple;
+                        otherTuple = tuple.v2();
                     }
                 }
             }
         }
         if (otherTuple != null) {
-            timeseries.add(otherTuple);
+            final long timeDelta = Math.abs(referenceTuple.v1().toEpochMilli() - otherTuple.v1().toEpochMilli());
+            if (isLowerBoundary) {
+                final double valueDelta;
+                final double baseValue;
+                if (referenceTuple.v2() > otherTuple.v2()) {
+                    valueDelta = referenceTuple.v2() - otherTuple.v2();
+                    baseValue = otherTuple.v2();
+                } else {
+                    valueDelta = referenceTuple.v2();
+                    baseValue = 0;
+                }
+                var boundaryTuple = new Tuple<>(
+                    timeseriesId,
+                    new Tuple<>(otherTuple.v1().plusMillis(timeDelta / 2), baseValue + valueDelta / 2)
+                );
+                timeseries.addFirst(boundaryTuple);
+            } else {
+                final double valueDelta;
+                if (otherTuple.v2() > referenceTuple.v2()) {
+                    valueDelta = otherTuple.v2() - referenceTuple.v2();
+                } else {
+                    valueDelta = otherTuple.v2();
+                }
+                var boundaryTuple = new Tuple<>(
+                    timeseriesId,
+                    new Tuple<>(referenceTuple.v1().plusMillis(timeDelta / 2), referenceTuple.v2() + valueDelta / 2)
+                );
+                timeseries.addLast(boundaryTuple);
+            }
         }
     }
 

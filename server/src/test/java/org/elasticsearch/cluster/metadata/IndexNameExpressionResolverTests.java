@@ -1067,8 +1067,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         for (var expressions : expressionsList) {
             expectThrows(
-                IllegalArgumentException.class,
-                containsString("Index exclusion cannot be empty"),
+                InvalidIndexNameException.class,
+                containsString("Invalid index name [], exclusion cannot be empty"),
                 () -> indexNameExpressionResolver.concreteIndexNames(context, expressions)
             );
         }

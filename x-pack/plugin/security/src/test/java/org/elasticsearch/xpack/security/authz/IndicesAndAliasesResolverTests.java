@@ -58,6 +58,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -733,8 +734,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         for (var expressions : expressionsList) {
             expectThrows(
-                IllegalArgumentException.class,
-                Matchers.containsString("Index expression cannot be empty"),
+                InvalidIndexNameException.class,
+                Matchers.containsString("Invalid index name [], expression cannot be empty"),
                 () -> resolveIndices(new SearchRequest(expressions), buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
             );
         }
@@ -750,8 +751,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         for (var expressions : expressionsList) {
             expectThrows(
-                IllegalArgumentException.class,
-                Matchers.containsString("Index exclusion cannot be empty"),
+                InvalidIndexNameException.class,
+                Matchers.containsString("Invalid index name [], exclusion cannot be empty"),
                 () -> resolveIndices(new SearchRequest(expressions), buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()))
             );
         }

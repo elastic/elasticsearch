@@ -1,0 +1,6 @@
+pr: 138949
+summary: Update plugin-cli tool to use BC FIPS 2.x as a runtime dependency with class
+  loader isolation
+area: Security
+type: enhancement
+issues: []

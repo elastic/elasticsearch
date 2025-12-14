@@ -14,12 +14,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.util.UnicodeProps;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.InvertableType;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StoredValue;
@@ -1383,7 +1380,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storedInBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
             MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getField(fieldType().name());
-            var countField = (MultiValuedBinaryDocValuesField.UpdateableNumericField) context.doc().getByKey(fieldType().name() + ".counts");
+            var countField = (MultiValuedBinaryDocValuesField.UpdateableNumericField) context.doc()
+                .getByKey(fieldType().name() + ".counts");
             if (field == null) {
                 field = new MultiValuedBinaryDocValuesField(fieldType().name(), MultiValuedBinaryDocValuesField.Ordering.NATURAL);
                 context.doc().addWithKey(fieldType().name(), field);

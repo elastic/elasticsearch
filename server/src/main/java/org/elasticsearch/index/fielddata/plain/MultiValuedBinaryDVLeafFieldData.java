@@ -22,7 +22,11 @@ public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
     private final NumericDocValues counts;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    MultiValuedBinaryDVLeafFieldData(BinaryDocValues values, NumericDocValues counts, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+    MultiValuedBinaryDVLeafFieldData(
+        BinaryDocValues values,
+        NumericDocValues counts,
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+    ) {
         super();
         this.values = values;
         this.counts = counts;

@@ -946,7 +946,7 @@ max_rate:double
 ;
 
 oneRateIncreaseWithBucketAndClusterThenFilter
-required_capability: ts_command_v0
+required_capability: rate_with_interpolation
 TS k8s
 | WHERE cluster=="prod"
 | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster

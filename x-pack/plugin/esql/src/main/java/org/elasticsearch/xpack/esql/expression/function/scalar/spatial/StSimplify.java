@@ -63,7 +63,7 @@ public class StSimplify extends SpatialDocValuesFunction {
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         examples = @Example(file = "spatial-jts", tag = "st_simplify")
     )
     public StSimplify(
@@ -170,14 +170,14 @@ public class StSimplify extends SpatialDocValuesFunction {
             ArrayList<BytesRef> results = new ArrayList<>(list.size());
             for (Object o : list) {
                 if (o instanceof BytesRef inputGeometry) {
-                    results.add(geoSourceAndConstantTolerance(inputGeometry, inputTolerance));
+                    results.add(BlockProcessor.geoSourceAndConstantTolerance(inputGeometry, inputTolerance));
                 } else {
                     throw new IllegalArgumentException("unsupported list element type: " + o.getClass().getSimpleName());
                 }
             }
             return results;
         } else if (input instanceof BytesRef inputGeometry) {
-            return geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
+            return BlockProcessor.geoSourceAndConstantTolerance(inputGeometry, inputTolerance);
         } else {
             throw new IllegalArgumentException("unsupported block type: " + input.getClass().getSimpleName());
         }
@@ -204,19 +204,6 @@ public class StSimplify extends SpatialDocValuesFunction {
         @Fixed double tolerance
     ) throws IOException {
         geoProcessor.processPoints(builder, p, point, tolerance);
-    }
-
-    private static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, double inputTolerance) {
-        if (inputGeometry == null) {
-            return null;
-        }
-        try {
-            Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(inputGeometry);
-            Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
-            return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("could not parse the geometry expression: " + e);
-        }
     }
 
     private static double getInputTolerance(Object toleranceExpression) {
@@ -253,6 +240,19 @@ public class StSimplify extends SpatialDocValuesFunction {
 
         BlockProcessor(SpatialCoordinateTypes spatialCoordinateType) {
             this.spatialCoordinateType = spatialCoordinateType;
+        }
+
+        private static BytesRef geoSourceAndConstantTolerance(BytesRef inputGeometry, double inputTolerance) {
+            if (inputGeometry == null) {
+                return null;
+            }
+            try {
+                Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(inputGeometry);
+                Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, inputTolerance);
+                return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
+            } catch (ParseException e) {
+                throw new IllegalArgumentException("could not parse the geometry expression: " + e);
+            }
         }
 
         void processPoints(BytesRefBlock.Builder builder, int p, LongBlock left, double tolerance) throws IOException {

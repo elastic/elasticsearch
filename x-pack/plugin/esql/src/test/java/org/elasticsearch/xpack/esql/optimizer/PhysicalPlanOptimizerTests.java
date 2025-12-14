@@ -3855,6 +3855,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Before local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER],null]
+     * \_AggregateExec[[grid{r}#5],[SPATIALCENTROID(location{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS centroid#9, grid{r}#5],FINAL,[g
+     * rid{r}#5, $$centroid$xVal{r}#18, $$centroid$xDel{r}#19, $$centroid$yVal{r}#20, $$centroid$yDel{r}#21, $$centroid$count{r}#22],
+     * null]
+     *   \_ExchangeExec[[grid{r}#5, $$centroid$xVal{r}#18, $$centroid$xDel{r}#19, $$centroid$yVal{r}#20, $$centroid$yDel{r}#21, $$cent
+     * roid$count{r}#22],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     *          Aggregate[[grid{r}#5],[SPATIALCENTROID(location{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS centroid#9, grid{r}#5]]
+     *          \_Eval[[STGEOHASH(location{f}#14,2[INTEGER]) AS grid#5]]
+     *          \_EsRelation[airports-no-doc-values][abbrev{f}#10, city{f}#16, city_location{f}#17, coun..]]
+     *     ]
+     * </code>
+     *
      * After local optimizations:
      * <code>
      * LimitExec[1000[INTEGER],29]
@@ -3878,7 +3893,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           \_EsQueryExec[airports], indexMode[standard], [_doc{f}#28], limit[], sort[] estimatedRowSize[33]
      *               queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
      * </code>
-     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#14][location{f}#14]
      * <p>
      * Also note that the type converting function is removed when it does not actually convert the type,
      * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
@@ -3919,7 +3934,39 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     * Before local optimizations:
+     * LimitExec[1000[INTEGER],null]
+     * \_AggregateExec[[simplified{r}#5],[SPATIALEXTENT(location{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS extent#9, simplified{r}#5
+     * ],FINAL,[simplified{r}#5, $$extent$top{r}#18, $$extent$bottom{r}#19, $$extent$negLeft{r}#20, $$extent$negRight{r
+     * }#21, $$extent$posLeft{r}#22, $$extent$posRight{r}#23],null]
+     *   \_ExchangeExec[[simplified{r}#5, $$extent$top{r}#18, $$extent$bottom{r}#19, $$extent$negLeft{r}#20, $$extent$negRight{r}#21,
+     * $$extent$posLeft{r}#22, $$extent$posRight{r}#23],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     *          Aggregate[[simplified{r}#5],[SPATIALEXTENT(location{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS extent#9, simplified{r}#5]
+     * ]
+     * \_Eval[[STSIMPLIFY(location{f}#14,0.05[DOUBLE]) AS simplified#5]]
+     *   \_EsRelation[airports-no-doc-values][abbrev{f}#10, city{f}#16, city_location{f}#17, coun..]]]
+     *
+     * After local optimizations:
+     * <code>
+     * LimitExec[1000[INTEGER],221]
+     * \_AggregateExec[[simplified{r}#5],[SPATIALEXTENT(location{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS extent#9, simplified{r}#5
+     * ],FINAL,[simplified{r}#5, $$extent$top{r}#18, $$extent$bottom{r}#19, $$extent$negLeft{r}#20, $$extent$negRight{r
+     * }#21, $$extent$posLeft{r}#22, $$extent$posRight{r}#23],221]
+     *   \_ExchangeExec[[simplified{r}#5, $$extent$top{r}#18, $$extent$bottom{r}#19, $$extent$negLeft{r}#20, $$extent$negRight{r}#21,
+     * $$extent$posLeft{r}#22, $$extent$posRight{r}#23],true]
+     *     \_AggregateExec[[simplified{r}#5],[SPATIALEXTENT(location{f}#14,true[BOOLEAN],PT0S[TIME_DURATION]) AS extent#9, simplified{r}#5
+     * ],INITIAL,[simplified{r}#5, $$extent$top{r}#24, $$extent$bottom{r}#25, $$extent$negLeft{r}#26, $$extent$negRight
+     * {r}#27, $$extent$posLeft{r}#28, $$extent$posRight{r}#29],221]
+     *       \_EvalExec[[STSIMPLIFY(location{f}#14,0.05[DOUBLE]) AS simplified#5]]
+     *         \_FieldExtractExec[location{f}#14][]
+     *           \_EsQueryExec[airports-no-doc-values], indexMode[standard], [_doc{f}#30], limit[],
+     *              sort[] estimatedRowSize[46] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * </code>
+     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#14][location{f}#14]
+     * <p>
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
     public void testSpatialSimplifyAndStatsExtentUseDocValues() {
         String query = """

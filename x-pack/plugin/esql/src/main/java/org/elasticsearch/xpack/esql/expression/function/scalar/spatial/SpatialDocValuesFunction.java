@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Spatial functions that take one spatial argument, one parameter and one optional bounds can inherit from this class.
- * Obvious choices are: StGeohash, StGeotile and StGeohex.
+ * Spatial functions that can take doc values as an argument can inherit from this class.
+ * Examples: StGeohash, StGeotile, StGeohex and StSimplify
  */
 public abstract class SpatialDocValuesFunction extends EsqlScalarFunction {
     protected final boolean spatialDocValues;

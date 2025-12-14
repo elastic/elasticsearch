@@ -39,8 +39,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 /**
  * A {@code IpLookup} is a logical plan node that represents the ESQL
- * `IP_LOOKUP` command. It takes an IP address expression, looks up
- * geolocation information, and adds the results to a new target field.
+ * {@code IP_LOOKUP} command. It takes an IP address expression, looks up
+ * geolocation information, and adds the results to the output as new attributes.
+ * The attributes added are based on the specified database file and they are all prefixed with the target field name.
  */
 public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, GeneratingPlan<IpLookup> {
 
@@ -54,6 +55,16 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
     private final List<Attribute> resolvedGeoLocationFields;
     private final Map<String, DataType> geoLocationFieldTemplates;
 
+    /**
+     * Initial plan node constructor. Only use this constructor when first creating the node. Any further construction for purposes like
+     * renaming fields or replacing child node or deserialization should use the private constructor. This constructor calculates the
+     * geolocation attributes that this node will output, so they should not be re-calculated later.
+     * @param source the source information
+     * @param child the child logical plan
+     * @param ipAddress the IP address expression
+     * @param targetField the root to use for all generated fields
+     * @param databaseFile the database file name to use for ip lookup
+     */
     public IpLookup(Source source, LogicalPlan child, Expression ipAddress, Attribute targetField, String databaseFile) {
         super(source, child);
         this.ipAddress = ipAddress;
@@ -77,7 +88,17 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
             .toList();
     }
 
-    // Private constructor to be used by withGeneratedNames for rebuilding the node with new names and for deserialization.
+    /**
+     * Private constructor used for rebuilding the node with new field names, for deserialization and for child replacement.
+     * This constructor allows creation of a new instance while preserving the geoLocationFieldTemplates and resolvedGeoLocationFields.
+     * @param source the source information
+     * @param child the child logical plan
+     * @param ipAddress the IP address expression
+     * @param targetField the root of all generated fields
+     * @param databaseFile the database file name to use for ip lookup
+     * @param geoLocationFieldTemplates the geolocation field templates - name and data type
+     * @param resolvedGeoLocationFields the resolved geolocation fields as attributes
+     */
     private IpLookup(
         Source source,
         LogicalPlan child,
@@ -206,9 +227,8 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
 
     @Override
     public IpLookup replaceChild(LogicalPlan newChild) {
-        // When replacing a child, the derived fields should be re-calculated based on the same targetField and databaseFile
-        // This constructor automatically recalculates resolvedGeoLocationFields.
-        return new IpLookup(source(), newChild, ipAddress, targetField, databaseFile);
+        // When replacing a child, the derived fields SHOULD NOT be re-calculated, so to keep the references of the attributes valid
+        return new IpLookup(source(), newChild, ipAddress, targetField, databaseFile, geoLocationFieldTemplates, resolvedGeoLocationFields);
     }
 
     @Override
@@ -253,7 +273,6 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
             return false;
         }
         IpLookup other = (IpLookup) obj;
-        // Use targetField's name for equality to survive serialization.
         return Objects.equals(ipAddress, other.ipAddress)
             && Objects.equals(targetField.name(), other.targetField.name())
             && Objects.equals(databaseFile, other.databaseFile)

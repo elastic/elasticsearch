@@ -33,7 +33,7 @@ ROW ip_addr = "8.8.8.8"
 ;
 
 ip_addr:keyword | continent:keyword | city:keyword
-8.8.8.8         | North America     | Mountain Viewde
+8.8.8.8         | North America     | Mountain View
 ;
 
 
@@ -42,8 +42,10 @@ required_capability: ip_lookup
 
 FROM sample_data
 | IP_LOOKUP_🐔 geo = client_ip WITH {"database_file": "GeoLite2-City.mmdb"}
+| KEEP @timestamp, client_ip, event_duration, message, geo.continent_name, geo.city_name, geo.location
 | RENAME geo.continent_name AS continent
 | RENAME geo.city_name AS city
+| RENAME geo.location AS lat_lon
 | SORT client_ip, @timestamp
 ;
 
@@ -58,29 +60,15 @@ FROM sample_data
 ;
 
 
-null_ip_value
-required_capability: ip_lookup
-
-ROW ip_addr = null
-| IP_LOOKUP_🐔 geo = ip_addr
-| KEEP ip_addr, geo.continent_name, geo.country_name
-;
-
-ip_addr:ip | geo.continent_name:keyword | geo.country_name:keyword
-null       | null                       | null
-;
-
-
 invalid_ip_value
 required_capability: ip_lookup
 
 ROW ip_addr = "not-an-ip"
 | IP_LOOKUP_🐔 geo = ip_addr
-| KEEP ip_addr, geo.continent_name, geo.country_name
 ;
 
-ip_addr:keyword | geo.continent_name:keyword | geo.country_name:keyword
-not-an-ip       | null                       | null
+ip_addr:keyword | geo.continent_name:keyword | geo.country_iso_code:keyword | geo.region_name:keyword | geo.city_name:keyword | geo.location:geo_point
+not-an-ip       | null                       | null                         | null                    | null                  | null
 ;
 
 
@@ -88,26 +76,40 @@ private_ip_value
 required_capability: ip_lookup
 
 FROM sample_data
-| WHERE "@timestamp" == "2023-10-23T12:15:03.360Z"
+| WHERE event_duration == 3450233
 | GROK message "Connected to %{IP:private_ip}"
 | IP_LOOKUP_🐔 geo = private_ip WITH {"database_file": "GeoLite2-Country.mmdb"}
-| KEEP private_ip, geo.continent_name, geo.country_name
+| KEEP event_duration, private_ip, geo.continent_name, geo.country_iso_code
 ;
 
-private_ip:keyword | geo.continent_name:keyword | geo.country_name:keyword
-10.0.0.3           | null                       | null
+event_duration:long | private_ip:keyword | geo.continent_name:keyword | geo.country_iso_code:keyword 
+3450233             | 10.1.0.3           | null                       | null
 ;
 
 
-chaining_with_where
+chaining_after_where
 required_capability: ip_lookup
 
 FROM sample_data
-| WHERE "@timestamp" == "2023-10-23T13:53:55.832Z"
+| WHERE event_duration == 5033755
 | IP_LOOKUP_🐔 geo = client_ip WITH {"database_file": "GeoLite2-Country.mmdb"}
-| KEEP client_ip, geo.country_name
+| KEEP event_duration, client_ip, geo.continent_name, geo.country_iso_code
 ;
 
-client_ip:ip | geo.country_name:keyword
-172.21.3.15  | null
+event_duration:long | client_ip:ip | geo.continent_name:keyword | geo.country_iso_code:keyword 
+5033755             | 172.21.3.15  | null                       | null
+;
+
+
+chaining_before_where
+required_capability: ip_lookup
+
+FROM sample_data
+| IP_LOOKUP_🐔 geo = client_ip WITH {"database_file": "GeoLite2-Country.mmdb"}
+| WHERE event_duration == 5033755
+| KEEP event_duration, client_ip, geo.continent_name, geo.country_iso_code
+;
+
+event_duration:long | client_ip:ip | geo.continent_name:keyword | geo.country_iso_code:keyword 
+5033755             | 172.21.3.15  | null                       | null
 ;

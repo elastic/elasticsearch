@@ -44,8 +44,6 @@ public class PerFieldFormatSupplier {
     private static final Set<String> INCLUDE_META_FIELDS;
     private static final Set<String> EXCLUDE_MAPPER_TYPES;
 
-    private static final boolean TSDB_USE_LARGE_NUMERIC_BLOCKS = new FeatureFlag("tsdb_large_numeric_blocks").isEnabled();
-
     static {
         // TODO: should we just allow all fields to use tsdb doc values codec?
         // Avoid using tsdb codec for fields like _seq_no, _primary_term.
@@ -63,9 +61,7 @@ public class PerFieldFormatSupplier {
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new ES93HnswVectorsFormat();
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(
-        TSDB_USE_LARGE_NUMERIC_BLOCKS
-    );
+    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(true);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 

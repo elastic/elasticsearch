@@ -3,3 +3,11 @@ summary: Enable large numeric blocks for TSDB codec in production
 area: Codec
 type: enhancement
 issues: []
+highlight:
+  title: Enable large numeric blocks for TSDB codec
+  body: |-
+    The size of numeric blocks gets increased from 128 to 512, for indices with [index.mode:time-series].
+    This mostly improves compression for multi-values in fields using sorted-set doc values, such as keyword and
+    ip fields, as run-length encoding covers more data for the same storage footprint.
+
+  notable: true

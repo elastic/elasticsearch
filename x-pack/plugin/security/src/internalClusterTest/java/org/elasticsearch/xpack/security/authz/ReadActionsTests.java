@@ -20,7 +20,6 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -235,8 +234,9 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             new String[] { "*", "", "test1" }
         );
         for (var expressions : expressionsList) {
-            final var e = expectThrows(InvalidIndexNameException.class, () -> trySearch(expressions).get());
-            assertThat(e.getMessage(), containsString("Invalid index name [], expression cannot be empty"));
+            final var e = expectThrows(ElasticsearchSecurityException.class, () -> trySearch(expressions).get());
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getMessage(), containsString("Index expression cannot be empty"));
         }
     }
 
@@ -250,8 +250,9 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             new String[] { "*", "-", "test1" }
         );
         for (var expressions : expressionsList) {
-            final var e = expectThrows(InvalidIndexNameException.class, () -> trySearch(expressions).get());
-            assertThat(e.getMessage(), containsString("Invalid index name [], exclusion cannot be empty"));
+            final var e = expectThrows(ElasticsearchSecurityException.class, () -> trySearch(expressions).get());
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getMessage(), containsString("Index exclusion cannot be empty"));
         }
     }
 

@@ -1172,8 +1172,10 @@ public final class TextFieldMapper extends FieldMapper {
          * There was an unintended change that resulted in some text fields being stored in ignored source.
          */
         private boolean wasIndexCreatedWhenTextFieldsWereStoredInIgnoredSource() {
-            return indexCreatedVersion.between(IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
-                                               IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX);
+            return indexCreatedVersion.between(
+                IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+                IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX
+            );
         }
 
         FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {
@@ -1730,7 +1732,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         // this check exists for BWC purposes - there was a bug that resulted in some text fields being stored in ignored source
-        if (fieldType().syntheticSourceDelegate.isEmpty() && indexCreatedVersion.before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
+        if (fieldType().syntheticSourceDelegate.isEmpty()
+            && indexCreatedVersion.before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
             return super.syntheticSourceSupport();
         }
 

@@ -599,7 +599,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
                 if (state == null || state.samples == 0) {
                     rate = Double.NaN;
                 } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(flushedStates, group, tsContext, isRateOverTime, dateFactor);
+                    rate = computeRate(flushedStates, group, tsContext, isRateOverTime, dateFactor);
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime);
                 }
@@ -691,15 +691,10 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     }
 
     /**
-     * Credit to PromQL for this extrapolation algorithm:
-     * If samples are close enough to the rangeStart and rangeEnd, we extrapolate the rate all the way to the boundary in question.
-     * "Close enough" is defined as "up to 10% more than the average duration between samples within the range".
-     * Essentially, we assume a more or less regular spacing between samples. If we don't see a sample where we would expect one,
-     * we assume the series does not cover the whole range but starts and/or ends within the range.
-     * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
-     * samples (which is our guess for where the series actually starts or ends).
+     * Computes the rate for a given group by interpolating boundary values with adjacent groups,
+     * or extrapolating values at the time bucket boundaries.
      */
-    private static double extrapolateRate(
+    private static double computeRate(
         Map<Integer, ReducedState> states,
         int group,
         TimeSeriesGroupingAggregatorEvaluationContext tsContext,
@@ -714,7 +709,8 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         double firstTsSec = tbucketStart;
         double lastTsSec = tbucketEnd;
 
-        var previousState = states.get(tsContext.previousGroupId(group));
+        int previousGroupId = tsContext.previousGroupId(group);
+        var previousState = (previousGroupId >= 0) ? states.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
                 firstTsSec = state.intervals[0].t1 / dateFactor;
@@ -726,7 +722,8 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             firstValue = interpolateBetweenStates(previousState, state, tbucketStart, tbucketEnd, dateFactor, true);
         }
 
-        var nextState = states.get(tsContext.nextGroupId(group));
+        int nextGroupId = tsContext.nextGroupId(group);
+        var nextState = (nextGroupId < states.size()) ? states.get(nextGroupId) : null;
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
                 lastTsSec = state.intervals[0].t1 / dateFactor;
@@ -746,6 +743,15 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
     }
 
+    /**
+     * Credit to PromQL for this extrapolation algorithm:
+     * If samples are close enough to the rangeStart and rangeEnd, we extrapolate the rate all the way to the boundary in question.
+     * "Close enough" is defined as "up to 10% more than the average duration between samples within the range".
+     * Essentially, we assume a more or less regular spacing between samples. If we don't see a sample where we would expect one,
+     * we assume the series does not cover the whole range but starts and/or ends within the range.
+     * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
+     * samples (which is our guess for where the series actually starts or ends).
+     */
     private static double extrapolateToBoundary(
         ReducedState state,
         double tbucketStart,
@@ -782,6 +788,16 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         }
     }
 
+    /**
+     * Interpolates the value at the time bucket boundary between two states.
+     *
+     * For the lower boundary (tbucketStart), interpolation is applied between the last sample of the lower state
+     * and the first sample of the upper state. Conversely, for the upper boundary (tbucketEnd), interpolation
+     * is applied between the first sample of the lower state and the last sample of the upper state.
+     *
+     * The logic detects counter resets across the boundary, with interpolation using the last value instead of the
+     * value delta to produce correct results.
+     */
     private static double interpolateBetweenStates(
         ReducedState lowerState,
         ReducedState upperState,
@@ -794,8 +810,10 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         final double startTs = lowerState.intervals[0].t1 / dateFactor;
         final double endValue = upperState.intervals[upperState.intervals.length - 1].v2;
         final double endTs = upperState.intervals[upperState.intervals.length - 1].t2 / dateFactor;
-
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
+
+        // If the end value is smaller than the start value, a counter reset occurred.
+        // In this case, the delta is considered equal to the end value.
         final double delta = (endValue >= startValue) ? endValue - startValue : endValue;
         final double slope = delta / (endTs - startTs);
         if (isLowerBoundary) {
@@ -803,9 +821,10 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             final double baseValue = (endValue >= startValue) ? startValue : 0;
             double timeDelta = tbucketStart - startTs;
             return baseValue + slope * timeDelta;
+        } else {
+            assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
+            double timeDelta = tbucketEnd - startTs;
+            return startValue + slope * timeDelta;
         }
-        assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
-        double timeDelta = tbucketEnd - startTs;
-        return startValue + slope * timeDelta;
     }
 }

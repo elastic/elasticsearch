@@ -126,12 +126,12 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
 
                     @Override
                     public int previousGroupId(int currentGroupId) {
-                        throw new UnsupportedOperationException();
+                        return -1;
                     }
 
                     @Override
                     public int nextGroupId(int currentGroupId) {
-                        throw new UnsupportedOperationException();
+                        return -1;
                     }
                 }
             );

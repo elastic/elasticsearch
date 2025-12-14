@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,11 +30,13 @@ import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -157,7 +160,15 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                     Settings.EMPTY,
                     new ClusterService(Settings.EMPTY, ClusterSettings.createBuiltInClusterSettings(), threadPool, null),
                     mock(RepositoriesService.class),
-                    MockTransportService.createMockTransportService(new MockTransport(), threadPool),
+                    MockTransportService.createNewService(
+                        Settings.EMPTY,
+                        new MockTransport(),
+                        VersionInformation.CURRENT,
+                        threadPool,
+                        null,
+                        Set.of(),
+                        TransportService.NOOP_TRANSPORT_INTERCEPTOR
+                    ),
                     mock(IndicesService.class)
                 ),
                 mock(PrimaryReplicaSyncer.class),

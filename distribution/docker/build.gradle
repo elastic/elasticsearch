@@ -590,7 +590,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 }
 
 // fips
-String fipsPolicySourceFilename = isFips140_3 ? 'fips_java_140_3.policy' : 'fips_java.policy'
+String fipsPolicySourceFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
 
 TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsDockerResources', ExportElasticsearchBuildResourcesTask)
 fipsResourcesTask.configure {

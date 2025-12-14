@@ -28,7 +28,7 @@ if (buildParams.inFipsJvm) {
     def bcUtilFips
     def manualDebug = false; //change this to manually debug bouncy castle in an IDE
     def isFips140_3 = buildParams.fipsMode == '140-3'
-    String javaPolicyFilename = isFips140_3 ? 'fips_java_140_3.policy' : 'fips_java.policy'
+    String javaPolicyFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
     File fipsPolicy = new File(fipsResourcesDir, javaPolicyFilename)
 
     if (isFips140_3) {

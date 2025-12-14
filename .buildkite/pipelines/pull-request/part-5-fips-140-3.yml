@@ -1,6 +1,5 @@
 config:
   allow-labels:
-    - Team:Security
     - test-fips-140-3
 steps:
   - label: part-5-fips-140-3

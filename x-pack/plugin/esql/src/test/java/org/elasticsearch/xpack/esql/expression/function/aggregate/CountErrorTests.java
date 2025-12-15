@@ -37,7 +37,7 @@ public class CountErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "any type except counter types, dense_vector or exponential_histogram"
+                (v, p) -> "any type except counter types, dense_vector, tdigest or exponential_histogram"
             )
         );
     }

@@ -41,7 +41,7 @@ public class PackDimension extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(
+        return TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
             field(),
             sourceText(),
             DEFAULT

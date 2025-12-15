@@ -3121,25 +3121,61 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testCrossProjectSearchSelectorsNotAllowed() {
+    public void testCrossProjectSearchForAllIndicesAndSelector() {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
-        var request = new SearchRequest("_all::data");
+        roleMap.put(
+            "data_stream_only",
+            new RoleDescriptor(
+                "data_stream_only",
+                null,
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("logs-foo", "logs-foobar").privileges("all").build() },
+                null
+            )
+        );
+        final User user = new User("data-stream-tester3", "data_stream_only");
+        final String pattern = randomFrom("_all", "l*", "*");
+        final String selector = randomFrom(IndexComponentSelector.values()).getKey();
+
+        var request = new SearchRequest(pattern + "::" + selector);
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true));
-        var exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliases(
-                "indices:/" + randomAlphaOfLength(8),
-                request,
-                projectMetadata,
-                buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
-                new TargetProjects(
-                    createRandomProjectWithAlias("local"),
-                    List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request),
+            new TargetProjects(
+                createRandomProjectWithAlias("local"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"), createRandomProjectWithAlias("P3"))
+            )
+        );
+
+        // ::data is the default selector so that it is not attached to local index names
+        var expectedIndices = new String[] { "logs-foo", "logs-foobar" };
+        if (selector.equals("failures")) {
+            expectedIndices = Arrays.stream(expectedIndices).map(name -> name + "::" + selector).toArray(String[]::new);
+        }
+
+        assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedIndices));
+        assertThat(
+            resolvedIndices.getRemote(),
+            containsInAnyOrder("P1:" + pattern + "::" + selector, "P2:" + pattern + "::" + selector, "P3:" + pattern + "::" + selector)
+        );
+
+        final var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, is(notNullValue()));
+        assertThat(
+            resolved.expressions(),
+            contains(
+                resolvedIndexExpression(
+                    pattern + "::" + selector,
+                    Set.of(expectedIndices),
+                    SUCCESS,
+                    Set.of("P1:" + pattern + "::" + selector, "P2:" + pattern + "::" + selector, "P3:" + pattern + "::" + selector)
                 )
             )
         );
-        assertThat(exception.getMessage(), equalTo("Selectors are not currently supported but was found in the expression [_all::data]"));
     }
 
     public void testResolveAllWithWildcardRemotePrefix() {

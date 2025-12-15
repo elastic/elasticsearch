@@ -14,7 +14,6 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -154,6 +154,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     );
     public static final NodeFeature SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID = new NodeFeature("semantic_text.updatable_inference_id");
     public static final NodeFeature SEMANTIC_TEXT_AUTO_PREFILTERING = new NodeFeature("semantic_text.auto_prefiltering");
+    public static final NodeFeature SEMANTIC_TEXT_BFLOAT16_SUPPORT = new NodeFeature("semantic_text.bfloat16_support");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -951,7 +952,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         public Query existsQuery(SearchExecutionContext context) {
             // If this field has never seen inference results (no model settings), there are no values yet
             if (modelSettings == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             return NestedQueryBuilder.toQuery(
@@ -1421,10 +1422,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     );
                 }
             }
-        }
-
-        if (modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BFLOAT16) {
-            throw new IllegalArgumentException("semantic_text does not support bfloat16");
         }
 
         assert modelSettings.dimensions() != null : "Model settings should have dimensions set by now for text embedding models";

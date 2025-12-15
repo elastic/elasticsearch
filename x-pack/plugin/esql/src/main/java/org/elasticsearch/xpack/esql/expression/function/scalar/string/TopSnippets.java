@@ -79,7 +79,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
                 TopSnippets will extract the best snippets for a given query string.
             """,
         examples = {
-            @Example(file = "top-snippets", tag = "top-snippets", applies_to = "stack: preview 9.3.0"),
+            @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),
             @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0") }
     )
     public TopSnippets(

@@ -138,7 +138,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
             case AllocationDecision.YES -> (targetNode != null);
             case AllocationDecision.NOT_PREFERRED -> {
                 // If canRemain is not-preferred, then there should be no shard move, and thus no target node.
-                assert (canRemainDecision != Decision.NOT_PREFERRED) == (targetNode != null);
+                assert (canRemainDecision.type() == Type.NOT_PREFERRED) == (targetNode == null)
+                    : "remain decision: " + canRemainDecision + ", target node: " + targetNode;
                 yield true;
             }
             default -> targetNode == null;

@@ -9,7 +9,8 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -18,46 +19,46 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StNPoints}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromWKBGeoEvaluator.class);
+public final class StNPointsFromPointDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StNPointsFromPointDocValuesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator wkbBlock;
+  private final EvalOperator.ExpressionEvaluator encoded;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StEnvelopeFromWKBGeoEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
-      DriverContext driverContext) {
+  public StNPointsFromPointDocValuesEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator encoded, DriverContext driverContext) {
     this.source = source;
-    this.wkbBlock = wkbBlock;
+    this.encoded = encoded;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock wkbBlockBlock = (BytesRefBlock) wkbBlock.eval(page)) {
-      return eval(page.getPositionCount(), wkbBlockBlock);
+    try (LongBlock encodedBlock = (LongBlock) encoded.eval(page)) {
+      return eval(page.getPositionCount(), encodedBlock);
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += wkbBlock.baseRamBytesUsed();
+    baseRamBytesUsed += encoded.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public IntBlock eval(int positionCount, LongBlock encodedBlock) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (!wkbBlockBlock.isNull(p)) {
+        if (!encodedBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
@@ -65,7 +66,7 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
           continue position;
         }
         try {
-          StEnvelope.fromWellKnownBinaryGeo(result, p, wkbBlockBlock);
+          StNPoints.fromPointDocValues(result, p, encodedBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -77,12 +78,12 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
 
   @Override
   public String toString() {
-    return "StEnvelopeFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StNPointsFromPointDocValuesEvaluator[" + "encoded=" + encoded + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(wkbBlock);
+    Releasables.closeExpectNoException(encoded);
   }
 
   private Warnings warnings() {
@@ -100,21 +101,21 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
+    private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded) {
       this.source = source;
-      this.wkbBlock = wkbBlock;
+      this.encoded = encoded;
     }
 
     @Override
-    public StEnvelopeFromWKBGeoEvaluator get(DriverContext context) {
-      return new StEnvelopeFromWKBGeoEvaluator(source, wkbBlock.get(context), context);
+    public StNPointsFromPointDocValuesEvaluator get(DriverContext context) {
+      return new StNPointsFromPointDocValuesEvaluator(source, encoded.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StEnvelopeFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StNPointsFromPointDocValuesEvaluator[" + "encoded=" + encoded + "]";
     }
   }
 }

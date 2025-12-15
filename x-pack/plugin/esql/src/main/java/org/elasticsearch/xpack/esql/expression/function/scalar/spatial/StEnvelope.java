@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,12 +22,12 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,10 +42,10 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
 /**
  * Determines the minimum bounding rectangle of a geometry.
  * The function `st_envelope` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
- * Alternatively it is well described in PostGIS documentation at
+ * Alternatively, it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_ENVELOPE.html">PostGIS:ST_ENVELOPE</a>.
  */
-public class StEnvelope extends UnaryScalarFunction {
+public class StEnvelope extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StEnvelope",
@@ -67,11 +69,15 @@ public class StEnvelope extends UnaryScalarFunction {
                 + "If `null`, the function returns `null`."
         ) Expression field
     ) {
-        super(source, field);
+        this(source, field, false);
+    }
+
+    private StEnvelope(Source source, Expression field, boolean useDocValues) {
+        super(source, List.of(field), useDocValues);
     }
 
     private StEnvelope(StreamInput in) throws IOException {
-        super(in);
+        this(Source.readFrom((StreamInput & PlanStreamInput) in), in.readNamedWriteable(Expression.class), false);
     }
 
     @Override
@@ -81,9 +87,9 @@ public class StEnvelope extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        var resolution = isSpatial(field(), sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
+        var resolution = isSpatial(spatialField(), sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
         if (resolution.resolved()) {
-            this.dataType = switch (field().dataType()) {
+            this.dataType = switch (spatialField().dataType()) {
                 case GEO_POINT, GEO_SHAPE -> GEO_SHAPE;
                 case CARTESIAN_POINT, CARTESIAN_SHAPE -> CARTESIAN_SHAPE;
                 default -> NULL;
@@ -94,10 +100,26 @@ public class StEnvelope extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
+        if (spatialField().dataType() == GEO_POINT || spatialField().dataType() == DataType.GEO_SHAPE) {
+            return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         }
-        return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
+        return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+    }
+
+    @Override
+    public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
+        return new StEnvelope(source(), spatialField());
+    }
+
+    @Override
+    public Expression spatialField() {
+        return children().getFirst();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(spatialField());
     }
 
     @Override
@@ -110,37 +132,47 @@ public class StEnvelope extends UnaryScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new StEnvelope(source(), newChildren.get(0));
+        return new StEnvelope(source(), newChildren.getFirst(), spatialDocValues);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StEnvelope::new, field());
+        return NodeInfo.create(this, StEnvelope::new, spatialField());
     }
 
-    @ConvertEvaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromWellKnownBinary(BytesRef wkb) {
-        var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point) {
-            return wkb;
+    private static void fromWellKnownBinary(
+        BytesRefBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        SpatialEnvelopeVisitor.PointVisitor pointVisitor
+    ) {
+        int firstValueIndex = wkbBlock.getFirstValueIndex(p);
+        int valueCount = wkbBlock.getValueCount(p);
+        if (valueCount == 0) {
+            results.appendNull();
+            return;
         }
-        var envelope = SpatialEnvelopeVisitor.visitCartesian(geometry);
-        if (envelope.isPresent()) {
-            return UNSPECIFIED.asWkb(envelope.get());
+        BytesRef scratch = new BytesRef();
+        var visitor = new SpatialEnvelopeVisitor(pointVisitor);
+        for (int i = 0; i < valueCount; i++) {
+            BytesRef wkb = wkbBlock.getBytesRef(firstValueIndex + i, scratch);
+            var geometry = UNSPECIFIED.wkbToGeometry(wkb);
+            geometry.visit(visitor);
+        }
+        if (pointVisitor.isValid()) {
+            results.appendBytesRef(UNSPECIFIED.asWkb(visitor.getResult()));
+            return;
         }
         throw new IllegalArgumentException("Cannot determine envelope of geometry");
     }
 
-    @ConvertEvaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromWellKnownBinaryGeo(BytesRef wkb) {
-        var geometry = UNSPECIFIED.wkbToGeometry(wkb);
-        if (geometry instanceof Point) {
-            return wkb;
-        }
-        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.WRAP);
-        if (envelope.isPresent()) {
-            return UNSPECIFIED.asWkb(envelope.get());
-        }
-        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromWellKnownBinary(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+        fromWellKnownBinary(results, p, wkbBlock, new SpatialEnvelopeVisitor.CartesianPointVisitor());
+    }
+
+    @Evaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
+    static void fromWellKnownBinaryGeo(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
+        fromWellKnownBinary(results, p, wkbBlock, new SpatialEnvelopeVisitor.GeoPointVisitor(WrapLongitude.WRAP));
     }
 }

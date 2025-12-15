@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -18,11 +19,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StNPoints}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StEnvelopeFromWKBGeoEvaluator.class);
+public final class StNPointsFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StNPointsFromWKBEvaluator.class);
 
   private final Source source;
 
@@ -32,7 +33,7 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
 
   private Warnings warnings;
 
-  public StEnvelopeFromWKBGeoEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
+  public StNPointsFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
       DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
@@ -53,8 +54,8 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public IntBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!wkbBlockBlock.isNull(p)) {
@@ -65,7 +66,7 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
           continue position;
         }
         try {
-          StEnvelope.fromWellKnownBinaryGeo(result, p, wkbBlockBlock);
+          StNPoints.fromWellKnownBinary(result, p, wkbBlockBlock);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -77,7 +78,7 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
 
   @Override
   public String toString() {
-    return "StEnvelopeFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+    return "StNPointsFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
   }
 
   @Override
@@ -108,13 +109,13 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
     }
 
     @Override
-    public StEnvelopeFromWKBGeoEvaluator get(DriverContext context) {
-      return new StEnvelopeFromWKBGeoEvaluator(source, wkbBlock.get(context), context);
+    public StNPointsFromWKBEvaluator get(DriverContext context) {
+      return new StNPointsFromWKBEvaluator(source, wkbBlock.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "StEnvelopeFromWKBGeoEvaluator[" + "wkbBlock=" + wkbBlock + "]";
+      return "StNPointsFromWKBEvaluator[" + "wkbBlock=" + wkbBlock + "]";
     }
   }
 }

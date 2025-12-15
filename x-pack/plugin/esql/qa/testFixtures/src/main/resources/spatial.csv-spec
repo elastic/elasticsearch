@@ -1934,6 +1934,83 @@ wkt:keyword                               |pt:geo_point
 ;
 
 ###############################################
+# Tests for GEO_POINT type with ST_ENVELOPE, ST_XMIN, etc.
+#
+
+stEnvelopeOnGeoPoint
+required_capability: st_envelope_mv_fix
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL envelope = ST_ENVELOPE(location)
+| KEEP abbrev, name, envelope
+;
+
+abbrev:keyword | name:text  | envelope:geo_shape
+CPH            | Copenhagen | BBOX (12.6493508684508, 12.6493508684508, 55.6285017221528, 55.6285017221528)
+;
+
+stEnvelopeOnGeoPointStats
+required_capability: st_envelope_mv_fix
+
+FROM airports
+| WHERE country == "United States"
+| STATS count=COUNT(*), points = VALUES(location)
+| EVAL envelope = ST_ENVELOPE(points)
+| KEEP count, envelope
+;
+
+count:long | envelope:geo_shape
+129        | BBOX(-159.349084290522, -71.0164066172958, 64.8180981117369, 19.7147976868663)
+;
+
+stEnvelopeOnGeoPointStatsXYMinMax
+required_capability: st_envelope_mv_fix
+
+FROM airports
+| WHERE country == "United States"
+| STATS count=COUNT(*), points = VALUES(location)
+| EVAL envelope = ST_ENVELOPE(points)
+| EVAL xmin = ST_XMIN(envelope), xmax = ST_XMAX(envelope), ymin = ST_YMIN(envelope), ymax = ST_YMAX(envelope)
+| KEEP count, xmin, xmax, ymin, ymax
+;
+
+count:long | xmin:double       | xmax:double       | ymin:double      | ymax:double
+129        | -159.349084290522 | -71.0164066172958 | 19.7147976868663 | 64.8180981117369
+;
+
+###############################################
+# Tests for GEO_POINT type with ST_NPOINTS
+#
+
+stNPointsOnGeoPoint
+required_capability: st_npoints
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(location)
+| KEEP abbrev, name, points
+;
+
+abbrev:keyword | name:text  | points:integer
+CPH            | Copenhagen | 1
+;
+
+stNPointsOnGeoPointStats
+required_capability: st_npoints
+
+FROM airports
+| WHERE country == "United States"
+| STATS count=COUNT(*), points = VALUES(location)
+| EVAL points = ST_NPOINTS(points)
+| KEEP count, points
+;
+
+count:long | points:integer
+129        | 129
+;
+
+###############################################
 # Tests for CARTESIAN_POINT type
 ###############################################
 
@@ -3103,4 +3180,101 @@ FROM cartesian_multipolygons
 
 count:long | extent:cartesian_shape
 1          | null
+;
+
+###############################################
+# Tests for CARTESIAN_POINT type with ST_ENVELOPE, ST_XMIN, etc.
+#
+
+stEnvelopeOnCartesianPoint
+required_capability: st_envelope_mv_fix
+
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL envelope = ST_ENVELOPE(location)
+| KEEP abbrev, name, envelope
+;
+
+abbrev:keyword | name:text  | envelope:cartesian_shape
+CPH            | Copenhagen | BBOX (1408119.2975413958, 1408119.2975413958, 7484813.53657096, 7484813.53657096)
+;
+
+stEnvelopeOnCartesianPointStats
+required_capability: st_envelope_mv_fix
+
+FROM airports_web
+| STATS count=COUNT(*), points = VALUES(location) BY scalerank
+| EVAL envelope = ST_ENVELOPE(points)
+| KEEP scalerank, count, envelope
+| SORT scalerank ASC, count DESC
+;
+
+scalerank:integer | count:long | envelope:cartesian_shape
+2                 | 63         | BBOX (-1.757954984908658E7, 1.9457725202241894E7, 8665630.66786446, -4532903.928433404)
+3                 | 24         | BBOX (-1.6460336780947097E7, 1.1870890052742634E7, 9560620.05078907, 305969.0287561493)
+4                 | 191        | BBOX (-1.9496009707956623E7, 1.9877213660566133E7, 1.1501923229607187E7, -6983935.755957038)
+5                 | 46         | BBOX (-1.3815535337549312E7, 1.951833888750571E7, 8257643.750388128, -4569995.781535456)
+6                 | 147        | BBOX (-1.9146654327152207E7, 1.6225214846172804E7, 1.0031697623810166E7, -4159199.717766613)
+7                 | 124        | BBOX (-1.891609023893756E7, 1.9947945358478162E7, 8455469.633769127, -7128878.350037609)
+8                 | 228        | BBOX (-1.936603963214016E7, 1.869537311511E7, 1.4502137593437826E7, -3943067.186649304)
+9                 | 26         | BBOX (4783520.559160681, 1.6168485927626405E7, 8704352.415875759, -584415.9142832769)
+;
+
+stEnvelopeOnCartesianPointStatsXYMinMax
+required_capability: st_envelope_mv_fix
+
+FROM airports_web
+| STATS count=COUNT(*), points = VALUES(location) BY scalerank
+| EVAL envelope = ST_ENVELOPE(points)
+| EVAL xmin = ST_XMIN(envelope), xmax = ST_XMAX(envelope), ymin = ST_YMIN(envelope), ymax = ST_YMAX(envelope)
+| KEEP scalerank, count, xmin, xmax, ymin, ymax
+;
+
+scalerank:integer | count:long | xmin:double           | xmax:double          | ymin:double        | ymax:double
+9                 | 26         | 4783520.559160681     | 1.6168485927626405E7 | -584415.9142832769 | 8704352.415875759
+8                 | 228        | -1.936603963214016E7  | 1.869537311511E7     | -3943067.186649304 | 1.4502137593437826E7
+7                 | 124        | -1.891609023893756E7  | 1.9947945358478162E7 | -7128878.350037609 | 8455469.633769127
+6                 | 147        | -1.9146654327152207E7 | 1.6225214846172804E7 | -4159199.717766613 | 1.0031697623810166E7
+5                 | 46         | -1.3815535337549312E7 | 1.951833888750571E7  | -4569995.781535456 | 8257643.750388128
+4                 | 191        | -1.9496009707956623E7 | 1.9877213660566133E7 | -6983935.755957038 | 1.1501923229607187E7
+3                 | 24         | -1.6460336780947097E7 | 1.1870890052742634E7 | 305969.0287561493  | 9560620.05078907
+2                 | 63         | -1.757954984908658E7  | 1.9457725202241894E7 | -4532903.928433404 | 8665630.66786446
+;
+
+###############################################
+# Tests for CARTESIAN_POINT type with ST_NPOINTS
+#
+
+stNPointsOnCartesianPoint
+required_capability: st_npoints
+
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(location)
+| KEEP abbrev, name, points
+;
+
+abbrev:keyword | name:text  | points:integer
+CPH            | Copenhagen | 1
+;
+
+stNPointsOnCartesianPointStats
+required_capability: st_npoints
+
+FROM airports_web
+| STATS count=COUNT(*), points = VALUES(location) BY scalerank
+| EVAL points = ST_NPOINTS(points)
+| KEEP scalerank, count, points
+| SORT scalerank ASC, count DESC
+;
+
+scalerank:integer | count:long | points:integer
+2                 | 63         | 63
+3                 | 24         | 24
+4                 | 191        | 191
+5                 | 46         | 46
+6                 | 147        | 147
+7                 | 124        | 124
+8                 | 228        | 228
+9                 | 26         | 26
 ;

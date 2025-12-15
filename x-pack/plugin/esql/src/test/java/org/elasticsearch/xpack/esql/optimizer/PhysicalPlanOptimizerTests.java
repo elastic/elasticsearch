@@ -3956,7 +3956,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
     public void testSpatialTypesAndStatsGeoGridUseDocValues() {
-        for (String grid : new String[] { "geohash" }) {
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
             var dataType = DataType.fromEs(grid);
             for (String query : new String[] { "FROM airports | EVAL grid = st_" + grid + "(location, 2) | STATS count=COUNT() BY grid" }) {
                 for (boolean withDocValues : new boolean[] { true, false, true }) {

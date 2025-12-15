@@ -412,65 +412,33 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
-            return false;
-        }
-        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
-        JsonNode properties = mappingNode.get("properties");
-        if (properties != null) {
-            for (var fieldWithValue : properties.properties()) {
-                JsonNode fieldProperties = fieldWithValue.getValue();
-                if (fieldProperties != null) {
-                    JsonNode typeNode = fieldProperties.get("type");
-                    if (typeNode != null && typeNode.asText().equals("exponential_histogram")) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return containsFieldWithProperties(dataset, Map.of("type", "exponential_histogram"));
     }
 
     private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
-            return false;
-        }
-        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
-        JsonNode properties = mappingNode.get("properties");
-        if (properties != null) {
-            for (var fieldWithValue : properties.properties()) {
-                JsonNode fieldProperties = fieldWithValue.getValue();
-                if (fieldProperties != null) {
-                    JsonNode typeNode = fieldProperties.get("type");
-                    if (typeNode != null && typeNode.asText().equals("tdigest")) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return containsFieldWithProperties(dataset, Map.of("type", "tdigest"));
     }
 
     private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
+        return containsFieldWithProperties(dataset, Map.of("element_type", "bfloat16"));
+    }
+
+    private static boolean containsFieldWithProperties(TestDataset dataset, Map<String, Object> properties) throws IOException {
+        if (dataset.mappingFileName() == null || properties.isEmpty()) {
             return false;
         }
+
         String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
-        JsonNode properties = mappingNode.get("properties");
-        if (properties != null) {
-            for (var fieldWithValue : properties.properties()) {
-                JsonNode fieldProperties = fieldWithValue.getValue();
-                if (fieldProperties != null) {
-                    JsonNode typeNode = fieldProperties.get("element_type");
-                    if (typeNode != null && typeNode.asText().equals("bfloat16")) {
-                        return true;
-                    }
+        Map<?, ?> mappingNode = new ObjectMapper().readValue(mappingJsonText, Map.class);
+        Object mappingProperties = mappingNode.get("properties");
+        if (mappingProperties instanceof Map<?, ?> mappingPropertiesMap) {
+            for (Object field : mappingPropertiesMap.values()) {
+                if (field instanceof Map<?, ?> fieldMap && fieldMap.entrySet().containsAll(properties.entrySet())) {
+                    return true;
                 }
             }
         }
+
         return false;
     }
 

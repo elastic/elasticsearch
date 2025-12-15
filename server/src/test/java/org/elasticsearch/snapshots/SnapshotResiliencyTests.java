@@ -1880,7 +1880,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
     }
 
-    private void disconnectOrRestartMasterNode() {
+    protected void disconnectOrRestartMasterNode() {
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
             if (randomBoolean()) {
                 testClusterNodes.disconnectNode(masterNode);

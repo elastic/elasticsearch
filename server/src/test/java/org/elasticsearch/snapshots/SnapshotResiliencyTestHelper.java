@@ -1210,7 +1210,7 @@ public class SnapshotResiliencyTestHelper {
             return ElectionStrategy.DEFAULT_INSTANCE;
         }
 
-        protected LeaderHeartbeatService createLeaderHeartbeatService() {
+        protected LeaderHeartbeatService getLeaderHeartbeatService() {
             return LeaderHeartbeatService.NO_OP;
         }
 
@@ -1265,7 +1265,7 @@ public class SnapshotResiliencyTestHelper {
                 () -> new StatusInfo(HEALTHY, "healthy-info"),
                 new NoneCircuitBreakerService(),
                 createReconfigurator(),
-                createLeaderHeartbeatService(),
+                getLeaderHeartbeatService(),
                 createPrevoteCollector(),
                 CompatibilityVersionsUtils.staticCurrent(),
                 new FeatureService(List.of()),

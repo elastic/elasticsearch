@@ -4,7 +4,7 @@ area: ES|QL
 type: enhancement
 issues: []
 highlight:
-  title: Support windows in time series aggregations
+  title: Evaluate time series aggregation functions over sliding windows
   body: |-
     Time series aggregations in ES|QL can be optionally calculated over a sliding time window. Using a window
     larger than the time bucket interval reduces jitter in dashboards, by taking a larger number of data points into

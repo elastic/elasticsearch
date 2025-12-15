@@ -30,7 +30,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @State(Scope.Benchmark)
 @Warmup(iterations = 3, time = 2)
 @Measurement(iterations = 5, time = 3)
-@Fork(value = 1)
+@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 public class LongSwissHashBenchmark {
 
     static {
@@ -56,7 +56,7 @@ public class LongSwissHashBenchmark {
     long[] lookupKeys;
     int[] ids;
 
-    LongSwissHash ord;
+    LongSwissHash hash;
     LongHash longHash;
 
     @Setup(Level.Trial)
@@ -64,7 +64,7 @@ public class LongSwissHashBenchmark {
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
 
-        ord = new LongSwissHash(recycler, breaker);
+        hash = new LongSwissHash(recycler, breaker);
         longHash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         keys = generateKeys(uniqueKeys);
         lookupKeys = keys.clone();
@@ -73,7 +73,7 @@ public class LongSwissHashBenchmark {
         // For lookup-mode, we must pre-insert the benchmark keys
         if (mode.equals("lookup") || mode.equals("mixed")) {
             for (long k : keys) {
-                ord.add(k);
+                hash.add(k);
                 longHash.add(k);
             }
         }
@@ -83,18 +83,6 @@ public class LongSwissHashBenchmark {
     // Benchmarks
     // -----------------------
 
-    @Fork(value = 1)
-    @Benchmark
-    public int swissTablesBenchmarkNoSIMD() {
-        return switch (mode) {
-            case "insert" -> doInsert();
-            case "lookup" -> doLookup();
-            case "mixed" -> doMixed();
-            default -> throw new IllegalArgumentException(mode);
-        };
-    }
-
-    @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     @Benchmark
     public int swissHashBenchmark() {
         return switch (mode) {
@@ -108,7 +96,7 @@ public class LongSwissHashBenchmark {
     private int doInsert() {
         int sum = 0;
         for (long k : keys) {
-            sum += ord.add(k);
+            sum += hash.add(k);
         }
         return sum;
     }
@@ -116,7 +104,7 @@ public class LongSwissHashBenchmark {
     private int doLookup() {
         int sum = 0;
         for (long k : lookupKeys) {
-            sum += ord.find(k);
+            sum += hash.find(k);
         }
         return sum;
     }
@@ -127,9 +115,9 @@ public class LongSwissHashBenchmark {
 
         for (long k : keys) {
             if (r.nextInt(100) < 80) { // 80% lookups
-                sum += ord.find(k);
+                sum += hash.find(k);
             } else { // 20% insert
-                sum += ord.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
+                sum += hash.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
             }
         }
         return sum;
@@ -170,7 +158,7 @@ public class LongSwissHashBenchmark {
             if (r.nextInt(100) < 80) { // 80% lookups
                 sum += longHash.find(k);
             } else { // 20% insert
-                sum += ord.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
+                sum += hash.add(k ^ 0x9E3779B97F4A7C15L); // mutate to force growth
             }
         }
         return sum;

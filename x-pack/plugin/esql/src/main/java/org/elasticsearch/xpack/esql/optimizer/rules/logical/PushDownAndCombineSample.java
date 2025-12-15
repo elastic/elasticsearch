@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  *  <ul>
  *      <li>
  *          one row to one row (e.g. <code>DISSECT</code>, <code>DROP</code>, <code>ENRICH</code>,
- *          <code>EVAL</code>, <code>GROK</code>, <code>KEEP</code>, <code>RENAME</code>)
+ *          <code>EVAL</code>, <code>GROK</code>, <code>IP_LOOKUP</code>, <code>KEEP</code>, <code>RENAME</code>)
  *      </li>
  *      <li>
  *          one row to zero or one row (<code>WHERE</code>)

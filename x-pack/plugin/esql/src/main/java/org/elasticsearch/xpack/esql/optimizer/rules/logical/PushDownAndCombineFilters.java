@@ -40,7 +40,7 @@ import java.util.function.Predicate;
 
 /**
  * Perform filters as early as possible in the logical plan by pushing them past certain plan nodes (like {@link Eval},
- * {@link RegexExtract}, {@link Enrich}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
+ * {@link RegexExtract}, {@link IpLookup}, {@link Enrich}, {@link Project}, {@link OrderBy} and left {@link Join}s) where possible.
  * Ideally, the filter ends up all the way down at the data source and can be turned into a Lucene query.
  * When pushing down past nodes, only conditions that do not depend on fields created by those nodes are pushed down; if the condition
  * consists of {@code AND}s, we split out the parts that do not depend on the previous node.

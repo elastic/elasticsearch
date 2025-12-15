@@ -33,10 +33,12 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
- * A {@code IpLookup} is a logical plan node that represents the ESQL
- * {@code IP_LOOKUP} command. It takes an IP address expression, looks up
- * geolocation information, and adds the results to the output as new attributes.
- * The attributes added are based on the specified database file and they are all prefixed with the target field name.
+ * A {@code IpLookup} is a logical plan node that represents the ESQL {@code IP_LOOKUP} command. It takes an IP address expression,
+ * looks up geolocation information, and adds the results to the output as new attributes.
+ * The attributes added are based on the specified database file, and they are all prefixed with the target field name.
+ * If the IP address is null or invalid, all generated fields will be null.
+ * It is the caller's responsibility to ensure that the database file exists and is accessible. If this plan is constructed, it is assumed
+ * that the database file is valid and available.
  */
 public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, GeneratingPlan<IpLookup> {
 
@@ -138,6 +140,11 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
         return resolvedGeoLocationFields;
     }
 
+    /**
+     * By explicitly returning the references of the {@code ipAddress} expression, we implicitly exclude the generated fields from the
+     * references that require resolution.
+     * @return only the input expression references
+     */
     @Override
     protected AttributeSet computeReferences() {
         return ipAddress.references();
@@ -158,7 +165,6 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
             }
         }
 
-        // Reconstruct the node with the renamed fields using the private constructor
         return new IpLookup(source(), child(), ipAddress, targetField, databaseFile, geoLocationFieldTemplates, renamedFields);
     }
 
@@ -169,7 +175,6 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
 
     @Override
     public IpLookup replaceChild(LogicalPlan newChild) {
-        // When replacing a child, the derived fields SHOULD NOT be re-calculated, so to keep the references of the attributes valid
         return new IpLookup(source(), newChild, ipAddress, targetField, databaseFile, geoLocationFieldTemplates, resolvedGeoLocationFields);
     }
 

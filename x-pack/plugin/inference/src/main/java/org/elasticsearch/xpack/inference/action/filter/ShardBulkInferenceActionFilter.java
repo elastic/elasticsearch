@@ -554,7 +554,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                          * This ensures that the field is treated as intentionally cleared,
                          * preventing any unintended carryover of prior inference results.
                          */
-                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
+                        if (incrementIndexingPressurePreInference(indexRequest, itemIndex) == false) {
                             return inputLength;
                         }
 
@@ -592,7 +592,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
                     for (String v : values) {
-                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
+                        if (incrementIndexingPressurePreInference(indexRequest, itemIndex) == false) {
                             return inputLength;
                         }
 
@@ -640,7 +640,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
         }
 
-        private boolean incrementIndexingPressure(IndexRequestWithIndexingPressure indexRequest, int itemIndex) {
+        private boolean incrementIndexingPressurePreInference(IndexRequestWithIndexingPressure indexRequest, int itemIndex) {
             boolean success = true;
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
@@ -740,6 +740,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
+            updateIndexSource(item, inferenceFieldsMap);
+        }
+
+        private void updateIndexSource(BulkItemRequest item, Map<String, Object> inferenceFieldsMap) throws IOException {
+            IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             IndexSource indexSource = indexRequest.indexSource();
             int originalSourceSize = indexSource.byteLength();
             BytesReference originalSource = indexSource.bytes();

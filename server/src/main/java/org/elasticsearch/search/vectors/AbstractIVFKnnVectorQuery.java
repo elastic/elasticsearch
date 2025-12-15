@@ -161,7 +161,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                             leafSearchMetas.add(
                                 new VectorLeafSearchFilterMeta(
                                     leafReaderContext,
-                                    new ESAcceptDocs.PostFilterEsAcceptDocs(filterWeight, leafReaderContext, liveDocs)
+                                    new ESAcceptDocs.PostFilterEsAcceptDocs(supplier, liveDocs)
                                 )
                             );
                         } else {
@@ -223,21 +223,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             Arrays.sort(scoreDocs, Comparator.comparingInt(x -> x.doc));
         }
 
-        int writeIndex = 0;
+        int docsAdded = 0;
         for (ScoreDoc scoreDoc : scoreDocs) {
             if (dedup.add(scoreDoc.doc) && (false == postFilter || accepted(iterator, scoreDoc.doc))) {
                 scoreDoc.doc += context.docBase;
-                scoreDocs[writeIndex++] = scoreDoc;
+                scoreDocs[docsAdded++] = scoreDoc;
             }
         }
 
         if (postFilter) {
-            Arrays.sort(scoreDocs, 0, writeIndex, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
-            writeIndex = Math.min(k, writeIndex);
+            Arrays.sort(scoreDocs, 0, docsAdded, Comparator.comparingDouble((ScoreDoc x) -> x.score).reversed());
+            docsAdded = Math.min(k, docsAdded);
         }
 
-        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[writeIndex];
-        System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, writeIndex);
+        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[docsAdded];
+        System.arraycopy(scoreDocs, 0, deduplicatedScoreDocs, 0, docsAdded);
 
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }

@@ -19,12 +19,10 @@
  */
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -251,8 +249,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         private final ScorerSupplier scorerSupplier;
         private final Bits liveDocs;
 
-        PostFilterEsAcceptDocs(Weight weight, LeafReaderContext ctx, Bits liveDocs) throws IOException {
-            this.scorerSupplier = weight.scorerSupplier(ctx);
+        PostFilterEsAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs) throws IOException {
+            this.scorerSupplier = scorerSupplier;
             this.liveDocs = liveDocs;
         }
 

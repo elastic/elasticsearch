@@ -36,6 +36,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessThrottlingConcurre
 import co.elastic.elasticsearch.stateless.api.DocValuesFormatFactory;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsProvider;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.autoscaling.DesiredTopologyContext;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.AverageWriteLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.indexing.IngestLoadPublisher;
@@ -364,6 +365,7 @@ public class ServerlessStatelessPlugin extends Plugin
     private final SetOnce<BCCHeaderReadExecutor> bccHeaderReadExecutor = new SetOnce<>();
     private final SetOnce<SearchCommitPrefetcherDynamicSettings> prefetchingDynamicSettings = new SetOnce<>();
     private final SetOnce<IngestLoadProbe> ingestLoadProbe = new SetOnce<>();
+    private final SetOnce<DesiredTopologyContext> desiredTopologyContext = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
@@ -757,6 +759,9 @@ public class ServerlessStatelessPlugin extends Plugin
             services.telemetryProvider().getMeterRegistry()
         );
         components.add(searchMetricsService);
+        var desiredTopologyContext = setAndGet(this.desiredTopologyContext, new DesiredTopologyContext(clusterService));
+        components.add(desiredTopologyContext);
+        desiredTopologyContext.init();
         var replicationUpdaterService = new ReplicasUpdaterService(threadPool, clusterService, (NodeClient) client, searchMetricsService);
         components.add(replicationUpdaterService);
 

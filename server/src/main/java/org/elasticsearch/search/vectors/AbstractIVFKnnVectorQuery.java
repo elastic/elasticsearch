@@ -51,7 +51,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     record VectorLeafSearchFilterMeta(LeafReaderContext context, AcceptDocs filter) {}
 
-    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 0.85f;
+    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 0.75f;
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
@@ -154,7 +154,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         float selectivity = (float) filterCost / floatVectorValues.size();
                         if (selectivity >= postFilteringThreshold) {
                             // for filters with coverage greater than the provided postFilteringThreshold, we:
-                            // * oversample by (1 + (3 * (1 - selectivity))) * k)
+                            // * oversample by (1 + (1 - selectivity)) * k)
                             // * skip centroid filtering (most centroids will be valid either way)
                             // * skip filtering docs as we score them (to take advantage of bulk scoring)
                             // * apply post filtering at the end

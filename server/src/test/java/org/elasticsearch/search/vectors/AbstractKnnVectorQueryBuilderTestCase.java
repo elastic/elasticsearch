@@ -86,7 +86,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         int numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float similarity
+        Float similarity,
+        Float postFilteringThreshold
     );
 
     protected boolean isQuantizedElementType() {
@@ -148,6 +149,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             numCands,
             visitPercentage,
             isIndextypeBBQ() ? randomBBQRescoreVectorBuilder() : randomRescoreVectorBuilder(),
+            randomFloat(),
             randomFloat()
         );
 
@@ -283,7 +285,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testWrongDimension() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f }, 5, 10, 10f, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f }, 5, 10, 10f, null, null, null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
         assertThat(
             e.getMessage(),
@@ -293,7 +295,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testNonexistentField() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, 10f, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
+            "nonexistent",
+            new float[] { 1.0f, 1.0f, 1.0f },
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null
+        );
         context.setAllowUnmappedFields(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.doToQuery(context));
         assertThat(e.getMessage(), containsString("No field mapping can be found for the field with name [nonexistent]"));
@@ -301,7 +312,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     public void testNonexistentFieldReturnEmpty() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, 10f, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
+            "nonexistent",
+            new float[] { 1.0f, 1.0f, 1.0f },
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null
+        );
         Query queryNone = query.doToQuery(context);
         assertThat(queryNone, instanceOf(MatchNoDocsQuery.class));
     }
@@ -315,6 +335,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             10,
             10f,
             null,
+            null,
             null
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
@@ -326,14 +347,23 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         int numCands = 3;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 1.0f, 1.0f }, k, numCands, 10f, null, null)
+            () -> new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 1.0f, 1.0f }, k, numCands, 10f, null, null, null)
         );
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
     @Override
     public void testValidOutput() {
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, null, 10, 10f, null, null);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
+            VECTOR_FIELD,
+            new float[] { 1.0f, 2.0f, 3.0f },
+            null,
+            10,
+            10f,
+            null,
+            null,
+            null
+        );
 
         String expected = """
             {
@@ -351,7 +381,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
         assertEquals(expected, query.toString());
 
-        KnnVectorQueryBuilder query2 = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 10, 10f, null, null);
+        KnnVectorQueryBuilder query2 = new KnnVectorQueryBuilder(
+            VECTOR_FIELD,
+            new float[] { 1.0f, 2.0f, 3.0f },
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null
+        );
         String expected2 = """
             {
               "knn" : {
@@ -368,7 +407,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             }""";
         assertEquals(expected2, query2.toString());
 
-        KnnVectorQueryBuilder query3 = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 10, null, null, null);
+        KnnVectorQueryBuilder query3 = new KnnVectorQueryBuilder(
+            VECTOR_FIELD,
+            new float[] { 1.0f, 2.0f, 3.0f },
+            5,
+            10,
+            null,
+            null,
+            null,
+            null
+        );
         String expected3 = """
             {
               "knn" : {
@@ -394,6 +442,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             VECTOR_FIELD,
             new float[] { 1.0f, 2.0f, 3.0f },
             vectorDimensions,
+            null,
             null,
             null,
             null,
@@ -443,7 +492,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             null,
             5,
             10f,
-            1f
+            1f,
+            .8f
         );
         knnVectorQueryBuilder.boost(randomFloat());
         List<QueryBuilder> filters = new ArrayList<>();

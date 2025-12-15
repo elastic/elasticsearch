@@ -272,6 +272,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             1,
             10f,
             null,
+            null,
             null
         );
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(

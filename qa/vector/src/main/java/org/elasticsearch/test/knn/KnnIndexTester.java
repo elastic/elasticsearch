@@ -361,10 +361,9 @@ public class KnnIndexTester {
                 "recall",
                 "visited",
                 "filter_selectivity",
-                "method",
+                "post_filtering_threshold",
                 "filter_cached",
-                "oversampling_factor",
-                " - " };
+                "oversampling_factor" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -386,12 +385,6 @@ public class KnnIndexTester {
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
-                final String method;
-                if (queryResult.postFilteringThreshold < queryResult.filterSelectivity) {
-                    method = "post-filtering";
-                } else {
-                    method = "eager";
-                }
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
@@ -403,10 +396,9 @@ public class KnnIndexTester {
                     String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
                     String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
                     String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
-                    method,
+                    String.format(Locale.ROOT, "%.2f", queryResult.postFilteringThreshold),
                     Boolean.toString(queryResult.filterCached),
-                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
-                    String.format(queryResult.postFilteringThreshold < 1f ? "candidate" : "baseline") };
+                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor) };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);

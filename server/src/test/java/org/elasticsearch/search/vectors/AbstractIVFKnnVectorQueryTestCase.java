@@ -83,6 +83,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.DEFAULT_POST_FILTERING_THRESHOLD;
 
 /** Test cases for AbstractIVFKnnVectorQuery objects. */
 abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
@@ -111,7 +112,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     );
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter) {
-        return getKnnVectorQuery(field, query, k, queryFilter, 0.05f, 0.8f);
+        return getKnnVectorQuery(field, query, k, queryFilter, 0.05f, DEFAULT_POST_FILTERING_THRESHOLD);
     }
 
     final AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k) {

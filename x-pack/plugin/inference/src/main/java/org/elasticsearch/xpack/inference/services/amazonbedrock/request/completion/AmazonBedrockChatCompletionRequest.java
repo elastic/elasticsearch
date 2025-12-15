@@ -39,13 +39,12 @@ import java.util.concurrent.Flow;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.convertChatCompletionMessagesToConverse;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.toDocument;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.AUTO_TOOL_CHOICE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FUNCTION_TYPE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.NONE_TOOL_CHOICE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.REQUIRED_TOOL_CHOICE;
 
 public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
-    static final String AUTO_TOOL_CHOICE = "auto";
-    static final String REQUIRED_TOOL_CHOICE = "required";
-    static final String NONE_TOOL_CHOICE = "none";
-    static final String FUNCTION_TYPE = "function";
-
     private static final Set<String> VALID_TOOL_CHOICES = Set.of(AUTO_TOOL_CHOICE, REQUIRED_TOOL_CHOICE, NONE_TOOL_CHOICE);
 
     private final AmazonBedrockChatCompletionRequestEntity requestEntity;

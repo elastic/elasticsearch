@@ -28,6 +28,13 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingProcessor.class);
 
     final AtomicReference<Throwable> error = new AtomicReference<>(null);
+    /**
+     * The purpose of demand is solely to guard against the situation where the bedrock sdk can complete the future before the publisher
+     * and subscriber aren't connected together via {@link #subscribe(Flow.Subscriber)} and {@link AmazonBedrockInferenceClient}
+     * getAmazonBedrockStreamingProcessor(). We should refactor this logic to be like
+     * {@link org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient} which tracks the subscriber and publisher via atomic
+     * references instead of using a demand variable.
+     */
     final AtomicLong demand = new AtomicLong(0);
     final AtomicBoolean isDone = new AtomicBoolean(false);
     final AtomicBoolean onCompleteCalled = new AtomicBoolean(false);
@@ -88,8 +95,6 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     protected AmazonBedrockStreamingProcessor(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
-
-    // TODO create a helper that wraps the runnable in a try catch and calls onError appropriately
 
     void runOnUtilityThreadPool(Runnable runnable) {
         try {

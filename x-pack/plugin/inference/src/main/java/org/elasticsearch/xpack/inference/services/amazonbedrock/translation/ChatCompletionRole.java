@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
+package org.elasticsearch.xpack.inference.services.amazonbedrock.translation;
 
 import java.util.Locale;
 
-public enum AmazonBedrockRole {
+public enum ChatCompletionRole {
     SYSTEM,
     USER,
     ASSISTANT,
@@ -20,11 +20,11 @@ public enum AmazonBedrockRole {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static AmazonBedrockRole fromString(String name) {
+    public static ChatCompletionRole fromString(String name) {
         try {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(String.format("Received invalid role [%s] from Bedrock", name), e);
+            throw new IllegalArgumentException(String.format("Received invalid role [%s]", name), e);
         }
     }
 }

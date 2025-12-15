@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
@@ -152,12 +153,14 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         verifyMetadata(downstream);
     }
 
+    @SuppressWarnings("unchecked")
     private void verifyMessageStart(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream, String expectedText) {
         verify(downstream, times(1)).onNext(assertArg(results -> {
             assertThat(results, notNullValue());
             assertThat(results.chunks().size(), equalTo(1));
             assertThat(results.chunks().getFirst().choices().getFirst().delta().role(), equalTo(expectedText));
         }));
+        Mockito.clearInvocations(downstream);
     }
 
     private ConverseStreamOutput messageStartOutput(String role) {
@@ -179,6 +182,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
             ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
             ContentBlockStartEvent event = ContentBlockStartEvent.builder()
                 .start(ContentBlockStart.builder().toolUse(ToolUseBlockStart.builder().build()).build())
+                .contentBlockIndex(0)
                 .build();
             visitor.visitContentBlockStart(event);
             return null;
@@ -191,8 +195,8 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA);
         doAnswer(ans -> {
             ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
-            ContentBlockDelta delta = ContentBlockDelta.builder().build();
-            ContentBlockDeltaEvent event = ContentBlockDeltaEvent.builder().delta(delta).build();
+            ContentBlockDelta delta = ContentBlockDelta.builder().text("some text").build();
+            ContentBlockDeltaEvent event = ContentBlockDeltaEvent.builder().delta(delta).contentBlockIndex(0).build();
             visitor.visitContentBlockDelta(event);
             return null;
         }).when(output).accept(any());
@@ -204,7 +208,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         when(output.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_STOP);
         doAnswer(ans -> {
             ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
-            ContentBlockStopEvent event = ContentBlockStopEvent.builder().build();
+            ContentBlockStopEvent event = ContentBlockStopEvent.builder().contentBlockIndex(0).build();
             visitor.visitContentBlockStop(event);
             return null;
         }).when(output).accept(any());
@@ -255,11 +259,13 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         verifyDownstream(downstream);
     }
 
+    @SuppressWarnings("unchecked")
     private static void verifyDownstream(Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream) {
         verify(downstream, times(1)).onNext(assertArg(results -> {
             assertThat(results, notNullValue());
             assertThat(results.chunks().size(), equalTo(1));
         }));
+        Mockito.clearInvocations(downstream);
     }
 
     public void verifyCompleteBeforeRequest() {

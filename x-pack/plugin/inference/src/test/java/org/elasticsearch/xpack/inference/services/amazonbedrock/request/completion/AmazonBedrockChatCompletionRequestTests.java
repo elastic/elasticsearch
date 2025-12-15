@@ -22,11 +22,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest.AUTO_TOOL_CHOICE;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest.FUNCTION_TYPE;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest.NONE_TOOL_CHOICE;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest.REQUIRED_TOOL_CHOICE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest.paramToDocumentMap;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.AUTO_TOOL_CHOICE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FUNCTION_TYPE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.NONE_TOOL_CHOICE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.REQUIRED_TOOL_CHOICE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

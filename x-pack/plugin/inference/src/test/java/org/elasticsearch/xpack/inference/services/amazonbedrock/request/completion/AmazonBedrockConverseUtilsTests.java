@@ -16,19 +16,16 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlo
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest.FUNCTION_TYPE;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.ASSISTANT_ROLE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.DEFAULT_USER_MESSAGE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.HI_TEXT;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.PLEASE_CONTINUE_TEXT;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.SYSTEM_ROLE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.TEXT_CONTENT_TYPE;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.TOOL_ROLE;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.USER_ROLE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.convertChatCompletionMessagesToConverse;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.FUNCTION_TYPE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -60,7 +57,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
                 new UnifiedCompletionRequest.ContentObjects(
                     List.of(new UnifiedCompletionRequest.ContentObject(SYSTEM_TEXT, TEXT_CONTENT_TYPE))
                 ),
-                SYSTEM_ROLE,
+                ChatCompletionRole.SYSTEM.toString(),
                 null,
                 null
             )
@@ -74,8 +71,18 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
     public void testConvertChatCompletionMessages_UserAndAssistantMessages() {
         var messages = List.of(
-            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(USER_TEXT), USER_ROLE, null, null),
-            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(ASSISTANT_TEXT), ASSISTANT_ROLE, null, null)
+            new UnifiedCompletionRequest.Message(
+                new UnifiedCompletionRequest.ContentString(USER_TEXT),
+                ChatCompletionRole.USER.toString(),
+                null,
+                null
+            ),
+            new UnifiedCompletionRequest.Message(
+                new UnifiedCompletionRequest.ContentString(ASSISTANT_TEXT),
+                ChatCompletionRole.ASSISTANT.toString(),
+                null,
+                null
+            )
         );
 
         var result = convertChatCompletionMessagesToConverse(messages, false);
@@ -95,7 +102,12 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_ToolMessageWithToolsEnabled() {
         var toolCallId = TOOL_CALL_ID;
         var messages = List.of(
-            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(RESULT), TOOL_ROLE, toolCallId, null)
+            new UnifiedCompletionRequest.Message(
+                new UnifiedCompletionRequest.ContentString(RESULT),
+                ChatCompletionRole.TOOL.toString(),
+                toolCallId,
+                null
+            )
         );
 
         var result = convertChatCompletionMessagesToConverse(messages, true);
@@ -125,7 +137,12 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
     public void testConvertChatCompletionMessages_ToolMessageWithToolsDisabled() {
         var messages = List.of(
-            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(RESULT), TOOL_ROLE, TOOL_CALL_ID, null)
+            new UnifiedCompletionRequest.Message(
+                new UnifiedCompletionRequest.ContentString(RESULT),
+                ChatCompletionRole.TOOL.toString(),
+                TOOL_CALL_ID,
+                null
+            )
         );
 
         var result = convertChatCompletionMessagesToConverse(messages, false);
@@ -140,14 +157,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
         var toolMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(PREVIOUS_TOOL_RESULT),
-            TOOL_ROLE,
+            ChatCompletionRole.TOOL.toString(),
             toolCallId,
             null
         );
 
         var assistantMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(ASSISTANT_REGULAR_MESSAGE),
-            ASSISTANT_ROLE,
+            ChatCompletionRole.ASSISTANT.toString(),
             null,
             List.of(
                 new UnifiedCompletionRequest.ToolCall(
@@ -160,7 +177,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
         var userMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(USER_MESSAGE),
-            USER_ROLE,
+            ChatCompletionRole.USER.toString(),
             null,
             null
         );
@@ -193,7 +210,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
                     new UnifiedCompletionRequest.ContentObject("", TEXT_CONTENT_TYPE)
                 )
             ),
-            USER_ROLE,
+            ChatCompletionRole.USER.toString(),
             null,
             null
         );
@@ -205,7 +222,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
                     new UnifiedCompletionRequest.ContentObject(ASSISTANT_RESPONSE, TEXT_CONTENT_TYPE)
                 )
             ),
-            ASSISTANT_ROLE,
+            ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
@@ -236,7 +253,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
                     new UnifiedCompletionRequest.ContentObject("", TEXT_CONTENT_TYPE)
                 )
             ),
-            SYSTEM_ROLE,
+            ChatCompletionRole.SYSTEM.toString(),
             null,
             null
         );
@@ -248,8 +265,18 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_MergeConsecutiveUserMessages() {
-        var user1 = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(USER1_TEXT), USER_ROLE, null, null);
-        var user2 = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(USER2_TEXT), USER_ROLE, null, null);
+        var user1 = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(USER1_TEXT),
+            ChatCompletionRole.USER.toString(),
+            null,
+            null
+        );
+        var user2 = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(USER2_TEXT),
+            ChatCompletionRole.USER.toString(),
+            null,
+            null
+        );
 
         var result = convertChatCompletionMessagesToConverse(List.of(user1, user2), false);
 
@@ -267,16 +294,21 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_MergeConsecutiveAssistantMessages() {
-        var user = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(HI_TEXT), USER_ROLE, null, null);
+        var user = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(HI_TEXT),
+            ChatCompletionRole.USER.toString(),
+            null,
+            null
+        );
         var assistant1 = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(ASSISTANT1_TEXT),
-            ASSISTANT_ROLE,
+            ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
         var assistant2 = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(ASSISTANT2_TEXT),
-            ASSISTANT_ROLE,
+            ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
@@ -307,14 +339,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
         var toolMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(TOOL_RESULT),
-            TOOL_ROLE,
+            ChatCompletionRole.TOOL.toString(),
             toolCallId,
             null
         );
 
         var userMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(USER_TEXT),
-            USER_ROLE,
+            ChatCompletionRole.USER.toString(),
             null,
             null
         );
@@ -353,14 +385,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
         var userMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(USER_TEXT),
-            USER_ROLE,
+            ChatCompletionRole.USER.toString(),
             null,
             null
         );
 
         var toolMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(TOOL_RESULT),
-            TOOL_ROLE,
+            ChatCompletionRole.TOOL.toString(),
             toolCallId,
             null
         );
@@ -395,14 +427,24 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_NonConsecutiveSameRoleMessagesDontMerge() {
-        var user1 = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(USER1_TEXT), USER_ROLE, null, null);
-        var assistant = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(ASSISTANT_TEXT),
-            ASSISTANT_ROLE,
+        var user1 = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(USER1_TEXT),
+            ChatCompletionRole.USER.toString(),
             null,
             null
         );
-        var user2 = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(USER2_TEXT), USER_ROLE, null, null);
+        var assistant = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(ASSISTANT_TEXT),
+            ChatCompletionRole.ASSISTANT.toString(),
+            null,
+            null
+        );
+        var user2 = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(USER2_TEXT),
+            ChatCompletionRole.USER.toString(),
+            null,
+            null
+        );
 
         var result = convertChatCompletionMessagesToConverse(List.of(user1, assistant, user2), false);
 
@@ -421,11 +463,16 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_PrependUserMessageWhenFirstMessageIsAssistant() {
         var assistant = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(FIRST_ASSISTANT_MESSAGE),
-            ASSISTANT_ROLE,
+            ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
-        var user = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(USER_RESPONSE), USER_ROLE, null, null);
+        var user = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(USER_RESPONSE),
+            ChatCompletionRole.USER.toString(),
+            null,
+            null
+        );
 
         var result = convertChatCompletionMessagesToConverse(List.of(assistant, user), false);
 
@@ -453,10 +500,15 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_MixedRolesWithEmptyContent() {
-        var userMessage = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(""), USER_ROLE, null, null);
+        var userMessage = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString(""),
+            ChatCompletionRole.USER.toString(),
+            null,
+            null
+        );
         var assistantMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(""),
-            ASSISTANT_ROLE,
+            ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
@@ -473,13 +525,13 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
         var systemMessage1 = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(systemMessage1Text),
-            SYSTEM_ROLE,
+            ChatCompletionRole.SYSTEM.toString(),
             null,
             null
         );
         var systemMessage2 = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(systemMessage2Text),
-            SYSTEM_ROLE,
+            ChatCompletionRole.SYSTEM.toString(),
             null,
             null
         );
@@ -495,7 +547,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_ToolMessageWithoutToolsEnabled() {
         var toolMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(TOOL_RESULT),
-            TOOL_ROLE,
+            ChatCompletionRole.TOOL.toString(),
             TOOL_CALL_ID,
             null
         );
@@ -514,7 +566,7 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
         );
         var assistantMessage = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString(ASSISTANT_RESPONSE),
-            ASSISTANT_ROLE,
+            ChatCompletionRole.ASSISTANT.toString(),
             null,
             List.of(toolCall)
         );

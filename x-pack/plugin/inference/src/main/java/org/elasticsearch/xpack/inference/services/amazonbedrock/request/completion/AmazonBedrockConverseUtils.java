@@ -23,6 +23,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,10 +36,6 @@ import java.util.stream.Collectors;
 
 public final class AmazonBedrockConverseUtils {
 
-    static final String SYSTEM_ROLE = "system";
-    static final String TOOL_ROLE = "tool";
-    static final String ASSISTANT_ROLE = "assistant";
-    static final String USER_ROLE = "user";
     static final String TEXT_CONTENT_TYPE = "text";
     static final String HI_TEXT = "Hi";
     static final String PLEASE_CONTINUE_TEXT = "Please continue.";
@@ -56,7 +53,7 @@ public final class AmazonBedrockConverseUtils {
     public static List<Message> getConverseMessageList(List<String> texts) {
         return texts.stream()
             .map(text -> ContentBlock.builder().text(text).build())
-            .map(content -> Message.builder().role(USER_ROLE).content(content).build())
+            .map(content -> Message.builder().role(ChatCompletionRole.USER.toString()).content(content).build())
             .toList();
     }
 
@@ -71,15 +68,18 @@ public final class AmazonBedrockConverseUtils {
 
         for (var message : messages) {
             Message convertedMessage = null;
-            switch (message.role()) {
-                case SYSTEM_ROLE -> systemContent.addAll(getSystemContentBlock(message.content()));
-                case TOOL_ROLE -> {
+            var role = ChatCompletionRole.fromString(message.role());
+
+            switch (role) {
+                case ChatCompletionRole.SYSTEM -> systemContent.addAll(getSystemContentBlock(message.content()));
+                case ChatCompletionRole.TOOL -> {
                     if (toolsEnabled) {
                         convertedMessage = convertToolResultMessage(message);
                     }
                 }
-                case ASSISTANT_ROLE -> convertedMessage = convertAssistantMessage(message, toolsEnabled);
-                case USER_ROLE -> convertedMessage = convertUserMessage(message);
+                case ChatCompletionRole.ASSISTANT -> convertedMessage = convertAssistantMessage(message, toolsEnabled);
+                case ChatCompletionRole.USER -> convertedMessage = convertUserMessage(message);
+                default -> throw new IllegalArgumentException("Unsupported message role: " + role);
             }
 
             if (convertedMessage != null) {

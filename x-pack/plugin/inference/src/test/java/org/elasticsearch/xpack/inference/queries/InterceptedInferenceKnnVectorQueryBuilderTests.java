@@ -60,9 +60,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
 
     @Override
     protected KnnVectorQueryBuilder createQueryBuilder(String field) {
-        return new KnnVectorQueryBuilder(field, new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"), 30, 200, 30f, 0.2f, 1f).boost(
-            randomFloatBetween(0.1f, 4.0f, true)
-        )
+        return new KnnVectorQueryBuilder(field, new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"), 30, 200, 30f, 0.2f, 1f)
+            .boost(randomFloatBetween(0.1f, 4.0f, true))
             .queryName(randomAlphanumericOfLength(5))
             .addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, randomAlphanumericOfLength(5)));
     }

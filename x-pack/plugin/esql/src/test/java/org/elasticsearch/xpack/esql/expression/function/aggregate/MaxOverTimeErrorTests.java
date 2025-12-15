@@ -38,7 +38,7 @@ public class MaxOverTimeErrorTests extends ErrorsForCasesWithoutExamplesTestCase
                 validPerPosition,
                 signature,
                 (v, p) -> "boolean, date, ip, string, version, aggregate_metric_double, "
-                    + "exponential_histogram or numeric except counter types"
+                    + "exponential_histogram, tdigest or numeric except counter types"
             )
         );
     }

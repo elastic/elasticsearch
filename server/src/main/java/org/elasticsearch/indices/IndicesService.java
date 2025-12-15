@@ -106,6 +106,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -916,7 +917,13 @@ public class IndicesService extends AbstractLifecycleComponent
             mergeMetrics
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
+        // If an IndexService with a DocumentMapper already exists for this index, reuse its DocumentMapper to avoid parsing/merging
+        // mappings again, which can be expensive for large mappings.
+        final DocumentMapper documentMapper = Optional.ofNullable(indexService(indexMetadata.getIndex()))
+            .map(IndexService::mapperService)
+            .map(MapperService::documentMapper)
+            .orElse(null);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
     }
 
     /**
@@ -1861,7 +1868,8 @@ public class IndicesService extends AbstractLifecycleComponent
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain,
-        final boolean isProfile
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         return new QueryRewriteContext(
             parserConfig,
@@ -1874,7 +1882,8 @@ public class IndicesService extends AbstractLifecycleComponent
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
             isExplain,
-            isProfile
+            isProfile,
+            allowPartialSearchResults
         );
     }
 

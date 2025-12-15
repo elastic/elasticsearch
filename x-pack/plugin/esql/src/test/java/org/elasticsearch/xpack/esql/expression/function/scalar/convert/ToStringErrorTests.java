@@ -43,11 +43,11 @@ public class ToStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
         /*
          * In general ToString should support all signatures. While building a
          * new type you may we to temporarily relax this.
          */
-        assertThat("all signatures should be supported", checked, equalTo(0));
+        assertThat("all signatures should be supported", invalidSignatureSamples, equalTo(Set.of()));
     }
 }

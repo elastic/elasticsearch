@@ -25,7 +25,9 @@ public record JinaAIEmbeddingsRequestEntity(
     InputType inputType,
     JinaAIEmbeddingsTaskSettings taskSettings,
     @Nullable String model,
-    @Nullable JinaAIEmbeddingType embeddingType
+    @Nullable JinaAIEmbeddingType embeddingType,
+    Integer dimensions,
+    boolean dimensionsSetByUser
 ) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "retrieval.passage";
@@ -36,6 +38,7 @@ public record JinaAIEmbeddingsRequestEntity(
     private static final String MODEL_FIELD = "model";
     public static final String TASK_TYPE_FIELD = "task";
     static final String EMBEDDING_TYPE_FIELD = "embedding_type";
+    static final String DIMENSIONS_FIELD = "dimensions";
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -58,6 +61,10 @@ public record JinaAIEmbeddingsRequestEntity(
             builder.field(TASK_TYPE_FIELD, convertToString(inputType));
         } else if (InputType.isSpecified(taskSettings.getInputType())) {
             builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
+        }
+
+        if (dimensionsSetByUser && dimensions != null) {
+            builder.field(DIMENSIONS_FIELD, dimensions);
         }
 
         builder.endObject();

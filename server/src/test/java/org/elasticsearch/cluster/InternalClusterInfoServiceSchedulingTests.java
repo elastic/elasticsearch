@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -222,6 +223,11 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
         @Override
         public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+            listener.onResponse(Map.of());
+        }
+
+        @Override
+        public void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener) {
             listener.onResponse(Map.of());
         }
     }

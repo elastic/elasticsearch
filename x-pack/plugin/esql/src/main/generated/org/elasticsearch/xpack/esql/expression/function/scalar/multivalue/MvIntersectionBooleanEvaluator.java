@@ -17,11 +17,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvIntersect}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvIntersection}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvIntersectBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvIntersectBooleanEvaluator.class);
+public final class MvIntersectionBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvIntersectionBooleanEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class MvIntersectBooleanEvaluator implements EvalOperator.Expressio
 
   private Warnings warnings;
 
-  public MvIntersectBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
+  public MvIntersectionBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
       EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
     this.source = source;
     this.field1 = field1;
@@ -72,7 +72,7 @@ public final class MvIntersectBooleanEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        MvIntersect.process(result, p, field1Block, field2Block);
+        MvIntersection.process(result, p, field1Block, field2Block);
       }
       return result.build();
     }
@@ -80,7 +80,7 @@ public final class MvIntersectBooleanEvaluator implements EvalOperator.Expressio
 
   @Override
   public String toString() {
-    return "MvIntersectBooleanEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+    return "MvIntersectionBooleanEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
   }
 
   @Override
@@ -115,13 +115,13 @@ public final class MvIntersectBooleanEvaluator implements EvalOperator.Expressio
     }
 
     @Override
-    public MvIntersectBooleanEvaluator get(DriverContext context) {
-      return new MvIntersectBooleanEvaluator(source, field1.get(context), field2.get(context), context);
+    public MvIntersectionBooleanEvaluator get(DriverContext context) {
+      return new MvIntersectionBooleanEvaluator(source, field1.get(context), field2.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvIntersectBooleanEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+      return "MvIntersectionBooleanEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
     }
   }
 }

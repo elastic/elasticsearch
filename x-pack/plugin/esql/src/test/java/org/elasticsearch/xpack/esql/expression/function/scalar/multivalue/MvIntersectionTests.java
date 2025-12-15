@@ -33,9 +33,9 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSliceTests.randomGrid;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvIntersectTests extends AbstractScalarFunctionTestCase {
+public class MvIntersectionTests extends AbstractScalarFunctionTestCase {
 
-    public MvIntersectTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public MvIntersectionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -52,7 +52,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvIntersect(source, args.get(0), args.get(1));
+        return new MvIntersection(source, args.get(0), args.get(1));
     }
 
     private static <T> Matcher<?> matchResult(HashSet<T> result) {
@@ -78,7 +78,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
                 ),
-                "MvIntersectBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 matchResult(result)
             );
@@ -96,7 +96,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
                 ),
-                "MvIntersectIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.INTEGER,
                 matchResult(result)
             );
@@ -122,7 +122,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.UNSIGNED_LONG, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.UNSIGNED_LONG, "field2")
                 ),
-                "MvIntersectLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.UNSIGNED_LONG,
                 matchResult(result)
             );
@@ -141,7 +141,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, dataType, "field1"),
                     new TestCaseSupplier.TypedData(field2, dataType, "field2")
                 ),
-                "MvIntersectLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 dataType,
                 matchResult(result)
             );
@@ -160,7 +160,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
                 ),
-                "MvIntersectDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.DOUBLE,
                 matchResult(result)
             );
@@ -181,7 +181,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(field1, lhs, "field1"),
                             new TestCaseSupplier.TypedData(field2, rhs, "field2")
                         ),
-                        "MvIntersectBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                        "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                         DataType.KEYWORD,
                         matchResult(result)
                     );
@@ -199,7 +199,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.IP, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.IP, "field")
                 ),
-                "MvIntersectBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.IP,
                 matchResult(result)
             );
@@ -216,7 +216,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field")
                 ),
-                "MvIntersectBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.VERSION,
                 matchResult(result)
             );
@@ -233,7 +233,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
                 ),
-                "MvIntersectBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.GEO_POINT,
                 matchResult(result)
             );
@@ -250,7 +250,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
                 ),
-                "MvIntersectBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.CARTESIAN_POINT,
                 matchResult(result)
             );
@@ -267,7 +267,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
                 ),
-                "MvIntersectBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.GEO_SHAPE,
                 matchResult(result)
             );
@@ -284,7 +284,7 @@ public class MvIntersectTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
                 ),
-                "MvIntersectBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvIntersectionBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.CARTESIAN_SHAPE,
                 matchResult(result)
             );

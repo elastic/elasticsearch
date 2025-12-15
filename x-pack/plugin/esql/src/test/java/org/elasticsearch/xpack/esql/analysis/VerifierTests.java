@@ -3435,7 +3435,7 @@ public class VerifierTests extends ESTestCase {
 
     }
 
-    public void testMvIntersectValidatesDataTypesAreEqual() {
+    public void testMvIntersectionValidatesDataTypesAreEqual() {
         String[] values = {
             "[\"one\", \"two\", \"three\", \"four\", \"five\"]",
             "[1, 2, 3, 4, 5]",
@@ -3446,7 +3446,7 @@ public class VerifierTests extends ESTestCase {
                 if (i == j) {
                     continue;
                 }
-                String query = "ROW a = " + values[i] + ", b = " + values[j] + " | EVAL finalValue = MV_INTERSECT(a, b)";
+                String query = "ROW a = " + values[i] + ", b = " + values[j] + " | EVAL finalValue = MV_INTERSECTION(a, b)";
                 assertThat(error(query, tsdb), containsString(": All child fields must be the same type"));
             }
         }

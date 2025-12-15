@@ -8,7 +8,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -17,11 +17,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvIntersect}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvIntersection}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvIntersectDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvIntersectDoubleEvaluator.class);
+public final class MvIntersectionLongEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvIntersectionLongEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +33,7 @@ public final class MvIntersectDoubleEvaluator implements EvalOperator.Expression
 
   private Warnings warnings;
 
-  public MvIntersectDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
+  public MvIntersectionLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
       EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
     this.source = source;
     this.field1 = field1;
@@ -43,8 +43,8 @@ public final class MvIntersectDoubleEvaluator implements EvalOperator.Expression
 
   @Override
   public Block eval(Page page) {
-    try (DoubleBlock field1Block = (DoubleBlock) field1.eval(page)) {
-      try (DoubleBlock field2Block = (DoubleBlock) field2.eval(page)) {
+    try (LongBlock field1Block = (LongBlock) field1.eval(page)) {
+      try (LongBlock field2Block = (LongBlock) field2.eval(page)) {
         return eval(page.getPositionCount(), field1Block, field2Block);
       }
     }
@@ -58,8 +58,8 @@ public final class MvIntersectDoubleEvaluator implements EvalOperator.Expression
     return baseRamBytesUsed;
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock field1Block, DoubleBlock field2Block) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongBlock field1Block, LongBlock field2Block) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!field1Block.isNull(p)) {
@@ -72,7 +72,7 @@ public final class MvIntersectDoubleEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
-        MvIntersect.process(result, p, field1Block, field2Block);
+        MvIntersection.process(result, p, field1Block, field2Block);
       }
       return result.build();
     }
@@ -80,7 +80,7 @@ public final class MvIntersectDoubleEvaluator implements EvalOperator.Expression
 
   @Override
   public String toString() {
-    return "MvIntersectDoubleEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+    return "MvIntersectionLongEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
   }
 
   @Override
@@ -115,13 +115,13 @@ public final class MvIntersectDoubleEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public MvIntersectDoubleEvaluator get(DriverContext context) {
-      return new MvIntersectDoubleEvaluator(source, field1.get(context), field2.get(context), context);
+    public MvIntersectionLongEvaluator get(DriverContext context) {
+      return new MvIntersectionLongEvaluator(source, field1.get(context), field2.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvIntersectDoubleEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
+      return "MvIntersectionLongEvaluator[" + "field1=" + field1 + ", field2=" + field2 + "]";
     }
   }
 }

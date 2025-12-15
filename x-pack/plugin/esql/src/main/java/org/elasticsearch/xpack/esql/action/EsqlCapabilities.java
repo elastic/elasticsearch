@@ -1747,9 +1747,9 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
 
         /**
-         * Support for the MV_INTERSECT function which returns the set intersection of two multivalued fields
+         * Support for the MV_INTERSECTION function which returns the set intersection of two multivalued fields
          */
-        FN_MV_INTERSECT,
+        FN_MV_INTERSECTION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -1,5 +1,5 @@
 pr: 139379
-summary: Add MV_INTERSECT Function
+summary: Add MV_INTERSECTION Function
 area: ES|QL
 type: enhancement
-issues: []
+issues: [ ]

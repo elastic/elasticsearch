@@ -91,6 +91,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient TimeSpan.Builder relativeStart;
     private transient TimeSpan overallTimeSpan;
     private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
+    private transient TimeSpan preAnalysisTimeSpan; // time elapsed for index preanalysis, including lookup indices
+    private transient TimeSpan.Builder preAnalysisTimeSpanBuilder; // Builder for preAnalysisTimeSpan
+    private transient TimeSpan analysisTimeSpan; // time elapsed for plan analysis
+    private transient TimeSpan.Builder analysisTimeSpanBuilder; // Builder for analysisTimeSpan
     private TimeValue overallTook;
 
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
@@ -195,6 +199,52 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public TimeValue planningTookTime() {
         return planningTimeSpan != null ? planningTimeSpan.toTimeValue() : null;
+    }
+
+    /**
+     * Call when ES|QL "preanalysis" phase starts - this includes preanalysis, retrieving field caps information for indices,
+     * resolve enrich policies, and resolve inference IDs.
+     * Both main indices and lookup indices will be included in this phase
+     */
+    public void markBeginPreAnalysis() {
+        assert preAnalysisTimeSpanBuilder == null : "markBeginPreAnalysis should only be called once";
+        preAnalysisTimeSpanBuilder = TimeSpan.start();
+    }
+
+    /**
+     * Call when ES|QL "preanalysis" phase starts
+     */
+    public void markEndPreAnalysis() {
+        assert preAnalysisTimeSpanBuilder != null : "markBeginPreAnalysis should have been called";
+        assert preAnalysisTimeSpan == null : "markEndPreAnalysis should be called just once";
+        preAnalysisTimeSpan = preAnalysisTimeSpanBuilder.stop();
+    }
+
+    public TimeSpan preAnalysisTimeSpan() {
+        return preAnalysisTimeSpan;
+    }
+
+    /**
+     * Call when ES|QL "analysis" phase starts - this does not include plan optimizations, which come later and
+     * are part of each individual plan profiling
+     */
+    public void markBeginAnalysis() {
+        assert analysisTimeSpanBuilder == null : "markBeginAnalysis should only be called once";
+        analysisTimeSpanBuilder = TimeSpan.start();
+    }
+
+    /**
+     * Call when ES|QL "analysis" phase starts - this includes retrieving field caps information for indices
+     * Both main indices and lookup indices will be included in this phase
+     */
+    public void markEndAnalysis() {
+        assert analysisTimeSpanBuilder != null : "markBeginAnalysis should have been called";
+        assert analysisTimeSpan == null : "markEndAnalysis should be called just once";
+        analysisTimeSpan = analysisTimeSpanBuilder.stop();
+    }
+
+    public TimeSpan analysisTimeSpan() {
+        return analysisTimeSpan;
     }
 
     /**

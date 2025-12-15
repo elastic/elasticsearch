@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
+import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
@@ -38,6 +39,10 @@ public final class EsqlQueryLog {
     public static final String ELASTICSEARCH_QUERYLOG_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".took_millis";
     public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took";
     public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took_millis";
+    public static final String ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".preanalysis.took";
+    public static final String ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".preanalysis.took_millis";
+    public static final String ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".analysis.took";
+    public static final String ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".analysis.took_millis";
     public static final String ELASTICSEARCH_QUERYLOG_SUCCESS = ELASTICSEARCH_QUERYLOG_PREFIX + ".success";
     public static final String ELASTICSEARCH_QUERYLOG_SEARCH_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".search_type";
     public static final String ELASTICSEARCH_QUERYLOG_QUERY = ELASTICSEARCH_QUERYLOG_PREFIX + ".query";
@@ -142,6 +147,12 @@ public final class EsqlQueryLog {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK, esqlResult.executionInfo().planningTookTime().nanos());
             fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS, esqlResult.executionInfo().planningTookTime().millis());
+            TimeSpan preAnalysisTimeSpan = esqlResult.executionInfo().preAnalysisTimeSpan();
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK, preAnalysisTimeSpan.toTimeValue().nanos());
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS, preAnalysisTimeSpan.toTimeValue().millis());
+            TimeSpan analysisTimeSpan = esqlResult.executionInfo().preAnalysisTimeSpan();
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK, analysisTimeSpan.toTimeValue().nanos());
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS, analysisTimeSpan.toTimeValue().millis());
         }
 
         private static void addErrorFields(Map<String, Object> jsonFields, long took, Exception exception) {

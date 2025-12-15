@@ -574,6 +574,7 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
+        executionInfo.markBeginPreAnalysis();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
@@ -665,9 +666,10 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> {
                 inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
-            .<Versioned<LogicalPlan>>andThen(
-                (l, r) -> analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l)
-            )
+            .<Versioned<LogicalPlan>>andThen((l, r) -> {
+                executionInfo.markEndPreAnalysis();
+                analyzeWithRetry(parsed, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
+            })
             .addListener(logicalPlanListener);
     }
 
@@ -1042,6 +1044,7 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> listener
     ) {
         LOGGER.debug("Analyzing the plan ({})", description);
+        executionInfo.markBeginAnalysis();
         try {
             if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
@@ -1053,6 +1056,7 @@ public class EsqlSession {
                 );
             }
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
+            executionInfo.markEndAnalysis();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
             listener.onResponse(new Versioned<>(plan, result.minimumTransportVersion()));

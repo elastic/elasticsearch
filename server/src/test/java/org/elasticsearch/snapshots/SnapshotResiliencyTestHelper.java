@@ -221,7 +221,7 @@ public class SnapshotResiliencyTestHelper {
 
         protected final DeterministicTaskQueue deterministicTaskQueue;
 
-        protected final Consumer<String> warningConsumer;
+        protected final Consumer<String[]> warningConsumer;
 
         // LinkedHashMap so we have deterministic ordering when iterating over the map in tests
         protected final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
@@ -238,7 +238,7 @@ public class SnapshotResiliencyTestHelper {
             Path tempDir,
             DeterministicTaskQueue deterministicTaskQueue,
             TransportInterceptorFactory transportInterceptorFactory,
-            Consumer<String> warningConsumer
+            Consumer<String[]> warningConsumer
         ) {
             this.tempDir = tempDir;
             this.deterministicTaskQueue = deterministicTaskQueue;
@@ -403,7 +403,7 @@ public class SnapshotResiliencyTestHelper {
 
         private final DeterministicTaskQueue deterministicTaskQueue;
 
-        private final Consumer<String> warningConsumer;
+        private final Consumer<String[]> warningConsumer;
 
         protected final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(
             CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
@@ -474,7 +474,7 @@ public class SnapshotResiliencyTestHelper {
             DeterministicTaskQueue deterministicTaskQueue,
             TestClusterNodes testClusterNodes,
             TransportInterceptorFactory transportInterceptorFactory,
-            Consumer<String> warningConsumer
+            Consumer<String[]> warningConsumer
         ) throws IOException {
             this.node = node;
             this.tempDir = tempDir;
@@ -642,10 +642,6 @@ public class SnapshotResiliencyTestHelper {
                     .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                     .build(),
                 snapshotsInfoService
-            );
-            warningConsumer.accept(
-                "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the breaking changes documentation for the next major version."
             );
             rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
             rerouteServiceSetOnce.set(rerouteService);
@@ -1117,6 +1113,14 @@ public class SnapshotResiliencyTestHelper {
                 transportService.getLocalNodeConnection(),
                 transportService.getRemoteClusterService()
             );
+
+            warningConsumer.accept(getWarningHeaders());
+        }
+
+        protected String[] getWarningHeaders() {
+            return new String[] {
+                "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the breaking changes documentation for the next major version." };
         }
 
         protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}

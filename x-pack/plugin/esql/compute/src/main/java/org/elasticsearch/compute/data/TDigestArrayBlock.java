@@ -247,6 +247,40 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     }
 
     @Override
+    public DoubleBlock buildHistogramComponentBlock(Component component) {
+        // as soon as we support multi-values, we need to implement this differently,
+        // as the sub-blocks will be flattened and the position count won't match anymore
+        // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
+        assert doesHaveMultivaluedFields() == false;
+        return switch (component) {
+            case MIN -> {
+                minima.incRef();
+                yield minima;
+            }
+            case MAX -> {
+                maxima.incRef();
+                yield maxima;
+            }
+            case SUM -> {
+                sums.incRef();
+                yield sums;
+            }
+            case COUNT -> {
+                try (var doubleBuilder = blockFactory().newDoubleBlockBuilder(valueCounts.getPositionCount())) {
+                    for (int i = 0; i < valueCounts.getPositionCount(); i++) {
+                        if (isNull(i)) {
+                            doubleBuilder.appendNull();
+                        } else {
+                            doubleBuilder.appendDouble(valueCounts.getLong(valueCounts.getFirstValueIndex(i)));
+                        }
+                    }
+                    yield doubleBuilder.build();
+                }
+            }
+        };
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         Block.writeTypedBlock(encodedDigests, out);
         Block.writeTypedBlock(minima, out);
@@ -306,11 +340,11 @@ public final class TDigestArrayBlock extends AbstractNonThreadSafeRefCounted imp
     public TDigestHolder getTDigestHolder(int offset) {
         return new TDigestHolder(
             // TODO: Memory tracking? creating a new bytes ref here doesn't seem great
-            encodedDigests.getBytesRef(offset, new BytesRef()),
-            minima.getDouble(offset),
-            maxima.getDouble(offset),
-            sums.getDouble(offset),
-            valueCounts.getLong(offset)
+            encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(offset), new BytesRef()),
+            minima.isNull(offset) ? Double.NaN : minima.getDouble(minima.getFirstValueIndex(offset)),
+            maxima.isNull(offset) ? Double.NaN : maxima.getDouble(maxima.getFirstValueIndex(offset)),
+            sums.isNull(offset) ? Double.NaN : sums.getDouble(sums.getFirstValueIndex(offset)),
+            valueCounts.getLong(valueCounts.getFirstValueIndex(offset))
         );
     }
 

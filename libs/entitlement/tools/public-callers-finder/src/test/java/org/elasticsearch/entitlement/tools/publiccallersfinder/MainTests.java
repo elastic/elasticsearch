@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.hasItem;
 public class MainTests extends ESTestCase {
 
     public void testTransitiveFindsDeepCallChain() throws Exception {
-        URI uri = getClass().getResource("shutdown-halt-input.tsv").toURI();
+        URI uri = getClass().getResource("public-callers-finder-test-input.tsv").toURI();
         String filePath = PathUtils.get(uri).toAbsolutePath().toString();
         String output = runMain(filePath, "--transitive");
         assertThat(findClassesWithAccess(output), hasItem("java/lang/System"));
@@ -39,7 +39,7 @@ public class MainTests extends ESTestCase {
             .collect(Collectors.toSet());
     }
 
-    @SuppressForbidden(reason = "Main prints to System.out, so we must capture it")
+    @SuppressForbidden(reason = "Need to verify System.out")
     private String runMain(String... args) throws Exception {
         PrintStream original = System.out;
         ByteArrayOutputStream captured = new ByteArrayOutputStream();

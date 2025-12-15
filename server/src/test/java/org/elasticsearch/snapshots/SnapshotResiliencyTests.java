@@ -751,7 +751,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             // finalization
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(indices, createIndicesListener);
             for (int i = 0; i < indices; ++i) {
-                client().admin().indices().create(new CreateIndexRequest("index-" + i), listener);
+                client().admin().indices().create(new CreateIndexRequest("index-" + i).settings(defaultIndexSettings(1)), listener);
             }
         });
 
@@ -777,7 +777,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     if (partialSnapshot) {
                         // Recreate index by the same name to test that we don't snapshot conflicting metadata in this scenario
-                        client().admin().indices().create(new CreateIndexRequest(index), ActionListener.noop());
+                        client().admin()
+                            .indices()
+                            .create(new CreateIndexRequest(index).settings(defaultIndexSettings(1)), ActionListener.noop());
                     }
                 }
 

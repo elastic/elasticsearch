@@ -36,26 +36,17 @@ import java.util.stream.Collectors;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
- * <p>
- * Note: We are currently transitioning to a file-based system to load and maintain transport versions. These file-based transport
- * versions are named and are referred to as named transport versions. Named transport versions also maintain a linked list of their
- * own patch versions to simplify transport version compatibility checks. Transport versions that continue to be loaded through
- * {@link TransportVersions} are referred to as unnamed transport versions. Unnamed transport versions will continue being used
- * over the wire as we only need the id for compatibility checks even against named transport versions. There are changes
- * throughout {@link TransportVersion} that are for this transition. For now, continue to use the existing system of adding unnamed
- * transport versions to {@link TransportVersions}.
- * <p>
- * Prior to 8.8.0, the release {@link Version} was used everywhere. This class separates the wire protocol version from the release version.
- * <p>
- * Each transport version constant has an id number, which for versions prior to 8.9.0 is the same as the release version for backwards
- * compatibility. In 8.9.0 this is changed to an incrementing number, disconnected from the release version.
- * <p>
- * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure each protocol
- * version is only added to the source file once. This string needs to be unique (normally a UUID, but can be any other unique nonempty
- * string). If two concurrent PRs add the same transport version, the different unique ids cause a git conflict, ensuring that the second PR
- * to be merged must be updated with the next free version first. Without the unique id string, git will happily merge the two versions
- * together, resulting in the same transport version being used across multiple commits, causing problems when you try to upgrade between
- * those two merged commits.
+ *
+ * <h2>Defining transport versions</h2>
+ * Transport versions can be defined anywhere, including in plugins/modules. Defining a new transport version is done via the
+ * {@link TransportVersion#fromName(String)} method, for example:
+ * <pre>
+ *     private static final TransportVersion MY_NEW_TRANSPORT_VERSION = TransportVersion.fromName("my-new-transport-version");
+ * </pre>
+ *
+ * Names must be logically unique. The same name must not be used to represent two transport versions with differing behavior. However,
+ * the same name may be used to define the same constant at multiple use-sites. Alternatively, a single constant can be shared across
+ * multiple use sites.
  *
  * <h2>Version compatibility</h2>
  * The earliest compatible version is hardcoded in the {@link VersionsHolder#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
@@ -120,7 +111,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * This method takes in the parameter {@code upperBound} which is the highest transport version id
      * that will be loaded by this node.
      */
-    public static TransportVersion fromBufferedReader(
+    static TransportVersion fromBufferedReader(
         String component,
         String path,
         boolean nameInFile,
@@ -337,7 +328,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * @return whether this is a known {@link TransportVersion}, i.e. one declared in {@link TransportVersions}. Other versions may exist
+     * @return whether this is a known {@link TransportVersion}, i.e. one declared via {@link #fromName(String)}. Other versions may exist
      *         in the wild (they're sent over the wire by numeric ID) but we don't know how to communicate using such versions.
      */
     public boolean isKnown() {
@@ -367,23 +358,6 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
     /**
      * Returns {@code true} if this version is a patch version at or after {@code version}.
-     * <p>
-     * This should not be used normally. It is used for matching patch versions of the same base version,
-     * using the standard version number format specified in {@link TransportVersions}.
-     * When a patch version of an existing transport version is created, {@code transportVersion.isPatchFrom(patchVersion)}
-     * will match any transport version at or above {@code patchVersion} that is also of the same base version.
-     * <p>
-     * For example, {@code version.isPatchFrom(8_800_0_04)} will return the following for the given {@code version}:
-     * <ul>
-     *     <li>{@code 8_799_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_799_0_09.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_800_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_800_0_03.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_800_0_04.isPatchFrom(8_800_0_04)}: {@code true}</li>
-     *     <li>{@code 8_800_0_49.isPatchFrom(8_800_0_04)}: {@code true}</li>
-     *     <li>{@code 8_800_1_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     *     <li>{@code 8_801_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
-     * </ul>
      */
     public boolean isPatchFrom(TransportVersion version) {
         return id >= version.id && id < version.id + 100 - (version.id % 100);
@@ -466,10 +440,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     /**
-     * This class holds various data structures for loading transport versions, both
-     * named file-based definitions and unnamed. While we transition to file-based transport versions, this class will
-     * load and merge unnamed transport versions from {@link TransportVersions} along with
-     * transport version definitions specified in a manifest file in resources.
+     * This class holds various data structures for loading transport versions
      */
     private static class VersionsHolder {
 
@@ -485,7 +456,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
         static {
             // collect all the transport versions from server and es modules/plugins (defined in server)
-            List<TransportVersion> allVersions = new ArrayList<>(TransportVersions.DEFINED_VERSIONS);
+            List<TransportVersion> allVersions = new ArrayList<>();
             List<TransportVersion> streamVersions = collectFromResources(
                 "<server>",
                 "/transport",
@@ -500,7 +471,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             // set version lookup by release before adding serverless versions
             // serverless versions should not affect release version
             VERSION_LOOKUP_BY_RELEASE = ReleaseVersions.generateVersionsLookup(
-                TransportVersions.class,
+                "/org/elasticsearch/TransportVersions.csv",
                 allVersions.get(allVersions.size() - 1).id()
             );
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -22,11 +23,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -61,19 +60,6 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
-
-    @Before
-    public void checkPushCapability() throws IOException {
-        assumeTrue(
-            "requires " + EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.capabilityName(),
-            clusterHasCapability(
-                "POST",
-                "_query",
-                List.of(),
-                List.of(EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.capabilityName())
-            ).orElseGet(() -> false)
-        );
-    }
 
     public void testLengthToKeyword() throws IOException {
         String value = "v".repeat(between(0, 256));
@@ -416,14 +402,21 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             Map.of(
                 "data",
-                List.of(matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)),
+                Build.current().isSnapshot()
+                    ? List.of(matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1))
+                    : List.of(
+                        matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)
+                            .entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
+                    ),
                 "node_reduce",
-                List.of(
-                    // Pushed down function
-                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
-                    // Field
-                    matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
-                )
+                Build.current().isSnapshot()
+                    ? List.of(
+                        // Pushed down function
+                        matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                        // Field
+                        matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                    )
+                    : List.of(matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1))
             ),
             sig -> {}
         );

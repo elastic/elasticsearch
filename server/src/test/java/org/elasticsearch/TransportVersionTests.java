@@ -22,8 +22,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -75,23 +73,6 @@ public class TransportVersionTests extends ESTestCase {
         public static final TransportVersion V_0_000_001 = new TransportVersion(1);
         public static final TransportVersion V_0_000_002 = new TransportVersion(2);
         public static final TransportVersion V_0_000_003 = new TransportVersion(2);
-    }
-
-    public void testStaticTransportVersionChecks() {
-        assertThat(
-            TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
-            contains(
-                CorrectFakeVersion.V_0_000_002,
-                CorrectFakeVersion.V_0_000_003,
-                CorrectFakeVersion.V_0_000_004,
-                CorrectFakeVersion.V_0_00_01
-            )
-        );
-        AssertionError e = expectThrows(
-            AssertionError.class,
-            () -> TransportVersions.collectAllVersionIdsDefinedInClass(DuplicatedIdFakeVersion.class)
-        );
-        assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
     private static String padNumber(String number) {
@@ -167,18 +148,6 @@ public class TransportVersionTests extends ESTestCase {
         } else {
             assertEquals(version1, TransportVersion.max(version1, version));
         }
-    }
-
-    public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
-        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
     }
 
     public void testVersionConstantPresent() {

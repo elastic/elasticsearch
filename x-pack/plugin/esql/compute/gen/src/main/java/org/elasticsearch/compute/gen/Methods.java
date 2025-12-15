@@ -317,6 +317,9 @@ public class Methods {
         if (elementType.equals(Types.EXPONENTIAL_HISTOGRAM)) {
             return "getExponentialHistogram";
         }
+        if (elementType.equals(Types.TDIGEST)) {
+            return "getTDigestHolder";
+        }
         throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }
 

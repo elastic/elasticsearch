@@ -18,6 +18,6 @@ highlight:
     | STATS avg(rate(requests, 10m)) BY TBUCKET(1m), host
 
     Acceptable window values are currently limited to multiples of the time bucket value (e.g. `BUCKET` or `TBUCKET`),
-    as specified in the BY-clause. If no window is provided, it's implicitly set to match the time bucket value,
+    as specified in the BY-clause. If no window is provided, it's implicitly set to the time bucket value,
     matching existing behavior.
   notable: true

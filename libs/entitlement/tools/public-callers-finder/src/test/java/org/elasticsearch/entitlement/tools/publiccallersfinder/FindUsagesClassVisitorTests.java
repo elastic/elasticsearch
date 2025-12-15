@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.entitlement.tools.ExternalAccess.PROTECTED_METHOD;
 import static org.elasticsearch.entitlement.tools.ExternalAccess.PUBLIC_CLASS;
 import static org.elasticsearch.entitlement.tools.ExternalAccess.PUBLIC_METHOD;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
 
 public class FindUsagesClassVisitorTests extends ESTestCase {
@@ -30,31 +31,24 @@ public class FindUsagesClassVisitorTests extends ESTestCase {
     public void testFindUsagesClassVisitor() throws IOException {
         var callers = findCallers(TestClass.class, new MethodDescriptor("java/lang/String", "length", "()I"));
 
-        assertEquals(6, callers.size());
         assertThat(
-            "Expected publicMethod not found",
+            "Should find publicMethod, privateMethod, protectedMethod, staticMethod, <init> and lambda in any order",
             callers,
-            hasItem(new FoundCaller("publicMethod", EnumSet.of(PUBLIC_CLASS, PUBLIC_METHOD)))
+            containsInAnyOrder(
+                new FoundCaller("publicMethod", EnumSet.of(PUBLIC_CLASS, PUBLIC_METHOD)),
+                new FoundCaller("privateMethod", EnumSet.of(PUBLIC_CLASS)),
+                new FoundCaller("protectedMethod", EnumSet.of(PROTECTED_METHOD, PUBLIC_CLASS)),
+                new FoundCaller("staticMethod", EnumSet.of(PUBLIC_CLASS, PUBLIC_METHOD)),
+                new FoundCaller("<init>", EnumSet.of(PUBLIC_CLASS, PUBLIC_METHOD)),
+                new FoundCaller("lambda$lambdaMethod$0", EnumSet.of(PUBLIC_CLASS))
+            )
         );
-        assertThat("Expected privateMethod not found", callers, hasItem(new FoundCaller("privateMethod", EnumSet.of(PUBLIC_CLASS))));
-        assertThat(
-            "Expected protectedMethod not found",
-            callers,
-            hasItem(new FoundCaller("protectedMethod", EnumSet.of(PROTECTED_METHOD, PUBLIC_CLASS)))
-        );
-        assertThat(
-            "Expected staticMethod not found",
-            callers,
-            hasItem(new FoundCaller("staticMethod", EnumSet.of(PUBLIC_CLASS, PUBLIC_METHOD)))
-        );
-        assertThat("Expected <init> not found", callers, hasItem(new FoundCaller("<init>", EnumSet.of(PUBLIC_CLASS, PUBLIC_METHOD))));
-        assertThat("Expected lambda not found", callers, hasItem(new FoundCaller("lambda$lambdaMethod$0", EnumSet.of(PUBLIC_CLASS))));
     }
 
     public void testMultipleCallsInSameMethod() throws IOException {
         var callers = findCallers(MultipleCallsTestClass.class, new MethodDescriptor("java/lang/String", "length", "()I"));
-        assertEquals(2, callers.size());
-        assertTrue(callers.stream().allMatch(c -> c.methodName().equals("lengthTwice")));
+        var expectedCaller = new FoundCaller("lengthTwice", EnumSet.of(PUBLIC_CLASS, PUBLIC_METHOD));
+        assertThat(callers, containsInAnyOrder(expectedCaller, expectedCaller));
     }
 
     public void testMethodDescriptorMatching() throws IOException {

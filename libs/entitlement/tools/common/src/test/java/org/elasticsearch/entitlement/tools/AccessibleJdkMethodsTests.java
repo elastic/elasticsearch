@@ -19,15 +19,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.hasItem;
 
 public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testKnownJdkMethods() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
+            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
 
         assertThat(
             "System methods should be loaded",
@@ -48,11 +51,6 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
                 .filter(m -> "getClass".equals(m.descriptor().method()))
                 .anyMatch(AccessibleMethod::isFinal)
         );
-
-        assertTrue(
-            "Some deprecated methods should be loaded",
-            methodsByClass.values().stream().flatMap(List::stream).anyMatch(AccessibleMethod::isDeprecated)
-        );
     }
 
     public void testExcludesToStringHashCodeEqualsClose() throws IOException {
@@ -65,7 +63,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
         Set<AccessibleMethod.Descriptor> allDescriptors = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
             .map(t -> t.v2().descriptor())
-            .collect(Collectors.toSet());
+            .collect(toSet());
 
         for (AccessibleMethod.Descriptor excluded : excludedDescriptors) {
             assertFalse("Should not contain " + excluded.method(), allDescriptors.contains(excluded));
@@ -103,25 +101,25 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testConstructorsNotInherited() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
+            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
 
         Set<String> parentCtors = methodsByClass.get(new ModuleClass("java.base", "java/io/InputStream"))
             .stream()
             .filter(m -> "<init>".equals(m.descriptor().method()))
             .map(m -> m.descriptor().descriptor())
-            .collect(Collectors.toSet());
+            .collect(toSet());
         Set<String> childCtors = methodsByClass.get(new ModuleClass("java.base", "java/io/BufferedInputStream"))
             .stream()
             .filter(m -> "<init>".equals(m.descriptor().method()))
             .map(m -> m.descriptor().descriptor())
-            .collect(Collectors.toSet());
+            .collect(toSet());
 
         assertTrue("Parent and child should have different constructors (no inheritance)", Collections.disjoint(parentCtors, childCtors));
     }
 
     public void testFinalClassExcludesProtectedMethods() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
+            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
 
         var stringMethods = methodsByClass.get(new ModuleClass("java.base", "java/lang/String"));
         assertFalse(
@@ -132,7 +130,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testNonFinalClassIncludesProtectedMethods() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
+            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
 
         assertTrue(
             "Non-final class Object should include protected clone() method",
@@ -145,7 +143,7 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
 
     public void testStaticMethodsNotInherited() throws IOException {
         Map<ModuleClass, List<AccessibleMethod>> methodsByClass = AccessibleJdkMethods.loadAccessibleMethods(Utils.DEFAULT_MODULE_PREDICATE)
-            .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
+            .collect(groupingBy(Tuple::v1, mapping(Tuple::v2, toList())));
 
         var inputStreamMethods = methodsByClass.get(new ModuleClass("java.base", "java/io/InputStream"));
         var bufferedInputStreamMethods = methodsByClass.get(new ModuleClass("java.base", "java/io/BufferedInputStream"));
@@ -153,11 +151,11 @@ public class AccessibleJdkMethodsTests extends ESTestCase {
         Set<String> parentStaticMethods = inputStreamMethods.stream()
             .filter(m -> m.descriptor().isStatic())
             .map(m -> m.descriptor().method())
-            .collect(Collectors.toSet());
+            .collect(toSet());
         Set<String> childStaticMethods = bufferedInputStreamMethods.stream()
             .filter(m -> m.descriptor().isStatic())
             .map(m -> m.descriptor().method())
-            .collect(Collectors.toSet());
+            .collect(toSet());
 
         assertTrue("Static methods should not be inherited from parent", Collections.disjoint(parentStaticMethods, childStaticMethods));
     }

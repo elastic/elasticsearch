@@ -10,13 +10,13 @@
 package org.elasticsearch.entitlement.tools.publiccallersfinder;
 
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -26,8 +26,7 @@ public class MainTests extends ESTestCase {
 
     public void testTransitiveFindsDeepCallChain() throws Exception {
         URI uri = getClass().getResource("public-callers-finder-test-input.tsv").toURI();
-        String filePath = PathUtils.get(uri).toAbsolutePath().toString();
-        String output = runMain(filePath, "--transitive");
+        String output = runWithTransitive(PathUtils.get(uri).toAbsolutePath());
         assertThat(findClassesWithAccess(output), hasItem("java/lang/System"));
     }
 
@@ -39,16 +38,10 @@ public class MainTests extends ESTestCase {
             .collect(Collectors.toSet());
     }
 
-    @SuppressForbidden(reason = "Need to verify System.out")
-    private String runMain(String... args) throws Exception {
-        PrintStream original = System.out;
+    private String runWithTransitive(Path csvFilePath) throws Exception {
         ByteArrayOutputStream captured = new ByteArrayOutputStream();
-        try {
-            System.setOut(new PrintStream(captured, false, StandardCharsets.UTF_8));
-            Main.main(args);
-            return captured.toString(StandardCharsets.UTF_8);
-        } finally {
-            System.setOut(original);
-        }
+        PrintStream out = new PrintStream(captured, false, StandardCharsets.UTF_8);
+        Main.run(csvFilePath, true, false, false, out);
+        return captured.toString(StandardCharsets.UTF_8);
     }
 }

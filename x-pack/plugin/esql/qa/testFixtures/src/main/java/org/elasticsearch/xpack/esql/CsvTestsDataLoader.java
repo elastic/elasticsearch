@@ -173,6 +173,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
     private static final TestDataset BASE_CONVERSION = new TestDataset("base_conversion");
@@ -248,6 +249,7 @@ public class CsvTestsDataLoader {
         Map.entry(DENSE_VECTOR_TEXT.indexName, DENSE_VECTOR_TEXT),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
+        Map.entry(DENSE_VECTOR_BFLOAT16.indexName, DENSE_VECTOR_BFLOAT16),
         Map.entry(COLORS.indexName, COLORS),
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(BASE_CONVERSION.indexName, BASE_CONVERSION),
@@ -348,7 +350,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, false, true, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -373,7 +375,8 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         boolean requiresTimeSeries,
         boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported
+        boolean tDigestFieldSupported,
+        boolean bFloat16ElementTypeSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -383,7 +386,8 @@ public class CsvTestsDataLoader {
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
                 && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
-                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)) {
+                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
+                && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -408,44 +412,33 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
-            return false;
-        }
-        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
-        JsonNode properties = mappingNode.get("properties");
-        if (properties != null) {
-            for (var fieldWithValue : properties.properties()) {
-                JsonNode fieldProperties = fieldWithValue.getValue();
-                if (fieldProperties != null) {
-                    JsonNode typeNode = fieldProperties.get("type");
-                    if (typeNode != null && typeNode.asText().equals("exponential_histogram")) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return containsFieldWithProperties(dataset, Map.of("type", "exponential_histogram"));
     }
 
     private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
+        return containsFieldWithProperties(dataset, Map.of("type", "tdigest"));
+    }
+
+    private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
+        return containsFieldWithProperties(dataset, Map.of("element_type", "bfloat16"));
+    }
+
+    private static boolean containsFieldWithProperties(TestDataset dataset, Map<String, Object> properties) throws IOException {
+        if (dataset.mappingFileName() == null || properties.isEmpty()) {
             return false;
         }
+
         String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
-        JsonNode properties = mappingNode.get("properties");
-        if (properties != null) {
-            for (var fieldWithValue : properties.properties()) {
-                JsonNode fieldProperties = fieldWithValue.getValue();
-                if (fieldProperties != null) {
-                    JsonNode typeNode = fieldProperties.get("type");
-                    if (typeNode != null && typeNode.asText().equals("tdigest")) {
-                        return true;
-                    }
+        Map<?, ?> mappingNode = new ObjectMapper().readValue(mappingJsonText, Map.class);
+        Object mappingProperties = mappingNode.get("properties");
+        if (mappingProperties instanceof Map<?, ?> mappingPropertiesMap) {
+            for (Object field : mappingPropertiesMap.values()) {
+                if (field instanceof Map<?, ?> fieldMap && fieldMap.entrySet().containsAll(properties.entrySet())) {
+                    return true;
                 }
             }
         }
+
         return false;
     }
 
@@ -461,7 +454,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false);
     }
 
     public static void loadDataSetIntoEs(
@@ -471,7 +464,8 @@ public class CsvTestsDataLoader {
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported
+        boolean tDigestFieldSupported,
+        boolean bFloat16ElementTypeSupported
     ) throws IOException {
         loadDataSetIntoEs(
             client,
@@ -481,6 +475,7 @@ public class CsvTestsDataLoader {
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
             tDigestFieldSupported,
+            bFloat16ElementTypeSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -495,6 +490,7 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
+        boolean bFloat16ElementTypeSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
@@ -507,7 +503,8 @@ public class CsvTestsDataLoader {
             inferenceEnabled,
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
-            tDigestFieldSupported
+            tDigestFieldSupported,
+            bFloat16ElementTypeSupported
         )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);

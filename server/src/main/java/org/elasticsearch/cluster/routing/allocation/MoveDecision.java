@@ -118,13 +118,31 @@ public final class MoveDecision extends AbstractAllocationDecision {
     ) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#createRemainYesDecision instead";
-        assert (targetNode == null) == (moveDecision == AllocationDecision.NO || moveDecision == AllocationDecision.THROTTLED);
+        assert decisionAndTargetAreConsistent(canRemainDecision, moveDecision, targetNode)
+            : "targetNode: " + targetNode + ", move decision: " + moveDecision;
         if (nodeDecisions == null && moveDecision == AllocationDecision.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
             return new MoveDecision(targetNode, nodeDecisions, moveDecision, canRemainDecision, null, 0);
         }
+    }
+
+    private static boolean decisionAndTargetAreConsistent(
+        Decision canRemainDecision,
+        AllocationDecision moveDecision,
+        DiscoveryNode targetNode
+    ) {
+        return switch (moveDecision) {
+            // YES must always have a target
+            case AllocationDecision.YES -> (targetNode != null);
+            case AllocationDecision.NOT_PREFERRED -> {
+                // If canRemain is not-preferred, then there should be no shard move, and thus no target node.
+                assert (canRemainDecision != Decision.NOT_PREFERRED) == (targetNode != null);
+                yield true;
+            }
+            default -> targetNode == null;
+        };
     }
 
     /**

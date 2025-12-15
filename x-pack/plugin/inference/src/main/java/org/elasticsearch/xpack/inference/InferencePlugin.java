@@ -450,6 +450,7 @@ public class InferencePlugin extends Plugin
                 services.featureService()
             )
         );
+        components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
         return components;
     }

@@ -695,6 +695,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         List<String> nodeRoles = randomNonEmptySubsetOf(nodeRolesThatContainData);
         nodeRoles.addAll(randomSubsetOf(nodeRolesThatDoNotContainData));
         nodeRoleCombinationsToTest.add(nodeRoles);
+        logger.info("Testing {} roles", nodeRoles);
 
         // Now test each combination of node roles
         for (List<String> roles : nodeRoleCombinationsToTest) {
@@ -765,11 +766,11 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             );
 
             mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
+                new MockLog.PatternNotSeenEventExpectation(
                     "Expect SnapshotShutdownProgressTracker to not run for node roles " + nodeRolesString,
                     SnapshotShutdownProgressTracker.class.getCanonicalName(),
                     Level.INFO,
-                    "*Shard snapshot completion stats since shutdown began*"
+                    "Shard snapshot completion stats since shutdown began*"
                 )
             );
 

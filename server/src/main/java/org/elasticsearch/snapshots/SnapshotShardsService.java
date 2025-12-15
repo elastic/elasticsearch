@@ -233,7 +233,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      */
     static boolean shouldActivateSnapshotShardsService(Settings settings) {
         if (DiscoveryNode.isStateless(settings)) {
-            return DiscoveryNode.getRolesFromSettings(settings).contains(DiscoveryNodeRole.INDEX_ROLE);
+            return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
         } else {
             return DiscoveryNode.canContainData(settings);
         }

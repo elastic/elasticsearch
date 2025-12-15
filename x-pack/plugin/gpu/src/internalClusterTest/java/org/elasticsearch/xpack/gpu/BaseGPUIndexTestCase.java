@@ -40,6 +40,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     protected static boolean isGpuIndexingFeatureAllowed = true;
 
     protected String similarity;
+    protected String type;
 
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin(Settings settings) {
@@ -56,6 +57,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     public void reset() {
         isGpuIndexingFeatureAllowed = true;
         similarity = null;
+        type = null;
     }
 
     @Override
@@ -87,7 +89,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
         final int[] numDocs = new int[] { randomIntBetween(1, 100), 1, 2, randomIntBetween(1, 100) };
-        createIndex(indexName, dims, false);
+        createIndex(indexName, dims, false, internalCluster().numDataNodes());
         int totalDocs = 0;
         for (int i = 0; i < numDocs.length; i++) {
             indexDocs(indexName, numDocs[i], dims, i * 100);
@@ -101,13 +103,13 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
         String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
         final int numDocs = randomIntBetween(1, 500);
-        createIndex(indexName, dims, false);
+        createIndex(indexName, dims, false, internalCluster().numDataNodes());
         ensureGreen();
 
         indexDocs(indexName, numDocs, dims, 0);
         refresh();
 
-        // Disable GPU usage via feature flag (simulating missing license)
+        // Disable GPU usage: simulating missing license
         isGpuIndexingFeatureAllowed = false;
         ensureGreen();
 
@@ -128,7 +130,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     public void testSortedIndexReturnsSameResultsAsUnsorted() {
-        assumeTrue("Sort not consistent if graph built in different ways", isGpuEnabledOnAllNodes());
+        assumeTrue("The test requires GPU on all nodes to ensure graphs are built in the same way", isGpuEnabledOnAllNodes());
 
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";
@@ -255,7 +257,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     public void testDeletesUpdates() {
         String indexName = "index_deletes_updates";
         final int dims = randomIntBetween(4, 128);
-        createIndex(indexName, dims, false);
+        createIndex(indexName, dims, false, internalCluster().numDataNodes());
 
         final int numDocs = randomIntBetween(700, 1000);
         indexDocs(indexName, numDocs, dims, 0);
@@ -305,7 +307,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     public void testInt8HnswMaxInnerProductProductFails() {
-        assumeTrue("CPU indexing nodes will not fail", isGpuEnabledOnAllNodes());
+        assumeTrue("This test requires GPU on all nodes", isGpuEnabledOnAllNodes());
 
         String indexName = "index_int8_max_inner_product_fails";
         final int dims = randomIntBetween(4, 128);
@@ -344,8 +346,12 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
     }
 
     protected void createIndex(String indexName, int dims, boolean sorted) {
+        createIndex(indexName, dims, sorted, 1);
+    }
+
+    protected void createIndex(String indexName, int dims, boolean sorted, int numberOfShards) {
         var settings = Settings.builder().put(indexSettings());
-        settings.put("index.number_of_shards", 1);
+        settings.put("index.number_of_shards", numberOfShards);
         if (sorted) {
             settings.put("index.sort.field", "my_keyword");
         }
@@ -354,7 +360,10 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
             similarity = randomFrom("dot_product", "l2_norm", "cosine");
         }
 
-        String type = randomFrom("hnsw", "int8_hnsw");
+        if (type == null) {
+            type = randomFrom("hnsw", "int8_hnsw");
+        }
+
         String mapping = String.format(Locale.ROOT, """
             {
               "properties": {

@@ -180,7 +180,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             );
         }
         if (EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.isEnabled()) {
-            Map<String, EsField> mapping = loadMapping("tdigest_timeseries_index-mapping.json");
+            Map<String, EsField> mapping = loadMapping("tdigest_timeseries_index-mappings.json");
             metricIndices.add(
                 EsIndexGenerator.esIndex("tdigest_timeseries_index", mapping, Map.of("tdigest_timeseries_index", IndexMode.TIME_SERIES))
             );

@@ -1,5 +1,5 @@
 pr: 139316
 summary: Support Failure Stores in Cross Cluster Search
-area: "Authorization, ES|QL, Data streams, CCR"
+area: "Data streams"
 type: enhancement
 issues: []

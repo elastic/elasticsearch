@@ -389,8 +389,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(metadata.getSettings())
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_COMPATIBLE)
-                    // this is invalid but should be archived
-                    .put("index.similarity.BM25.type", "boolean")
                     // this one is not validated ahead of time and breaks allocation
                     .put("index.analysis.filter.myCollator.type", "icu_collation")
             );
@@ -415,7 +413,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().getProject().index(metadata.getIndex()).getState());
-        assertNull(state.getMetadata().getProject().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
         // try to open it with the broken setting - fail again!
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());

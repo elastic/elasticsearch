@@ -88,26 +88,14 @@ public class IndexMetadataVerifier {
      *
      * <p>
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
-     * cannot be updated the method throws an exception.
+     * cannot be updated the method throws an exception. Also archived unsupported settings.
      */
     public IndexMetadata verifyIndexMetadata(
         IndexMetadata indexMetadata,
         IndexVersion minimumIndexCompatibilityVersion,
         IndexVersion minimumReadOnlyIndexCompatibilityVersion
     ) {
-        checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion);
-
-        // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
-        IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
-        // Remove _tier routing settings if available, because though these are technically not
-        // invalid settings, since they are now removed the FilterAllocationDecider treats them as
-        // regular attribute filters, and shards cannot be allocated.
-        newMetadata = removeTierFiltering(newMetadata);
-        // Next we have to run this otherwise if we try to create IndexSettings
-        // with broken settings it would fail in checkMappingsCompatibility
-        newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
-        checkMappingsCompatibility(newMetadata);
-        return newMetadata;
+        return verifyIndexMetadata(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion, true);
     }
 
     /**
@@ -120,13 +108,21 @@ public class IndexMetadataVerifier {
         IndexVersion minimumReadOnlyIndexCompatibilityVersion,
         boolean archiveOrDeleteBrokenIndexSettings
     ) {
-        if (archiveOrDeleteBrokenIndexSettings) {
-            return verifyIndexMetadata(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion);
-        }
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion);
+
+        // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
         IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
-        // Skip validation from disk on startup as this is unnecessary.
-        return removeTierFiltering(newMetadata);
+        // Remove _tier routing settings if available, because though these are technically not
+        // invalid settings, since they are now removed the FilterAllocationDecider treats them as
+        // regular attribute filters, and shards cannot be allocated.
+        newMetadata = removeTierFiltering(newMetadata);
+        if (archiveOrDeleteBrokenIndexSettings) {
+            // Next we have to run this otherwise if we try to create IndexSettings
+            // with broken settings it would fail in checkMappingsCompatibility
+            newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
+            checkMappingsCompatibility(newMetadata);
+        }
+        return newMetadata;
     }
 
     /**
@@ -334,6 +330,7 @@ public class IndexMetadataVerifier {
         final Settings newSettings;
 
         if (indexMetadata.isSystem()) {
+            // TODO This is also skipped if the upgrade/archive step is skipped. To be discussed
             newSettings = indexScopedSettings.deleteUnknownOrInvalidSettings(
                 settings,
                 e -> logger.warn(

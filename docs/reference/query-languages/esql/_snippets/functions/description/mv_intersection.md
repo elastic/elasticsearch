@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns only the values that appear in both input fields. Returns `null` if either field is null or if no values match.
+Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.
 

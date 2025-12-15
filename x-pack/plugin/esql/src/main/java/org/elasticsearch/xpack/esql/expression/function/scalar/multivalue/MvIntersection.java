@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
@@ -23,7 +22,9 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -33,14 +34,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -54,15 +53,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * Example:
  *   Given set A = {"a","b","c"} and set B = {"b","c","d"}, MV_INTERSECTION(A, B) returns {"b", "c"}
  */
-public class MvIntersection extends EsqlScalarFunction implements EvaluatorMapper {
+public class MvIntersection extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvIntersection",
         MvIntersection::new
     );
 
-    private final Expression field1;
-    private final Expression field2;
     private DataType dataType;
 
     @FunctionInfo(
@@ -84,7 +81,7 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
             "long",
             "unsigned_long",
             "version" },
-        description = "Returns only the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
+        description = "Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
         preview = true,
         examples = {
             @Example(file = "mv_intersection", tag = "testMvIntersectWithIntValues"),
@@ -116,7 +113,7 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
                 "long",
                 "text",
                 "unsigned_long",
-                "version", },
+                "version" },
             description = "Multivalue expression. If null, the function returns null."
         ) Expression field1,
         @Param(
@@ -143,13 +140,16 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
             description = "Multivalue expression. If null, the function returns null."
         ) Expression field2
     ) {
-        super(source, List.of(field1, field2));
-        this.field1 = field1;
-        this.field2 = field2;
+        super(source, field1, field2);
     }
 
     private MvIntersection(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Evaluator(extraName = "Boolean")
@@ -202,14 +202,14 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
         }
 
         // ensure all children are the same type
-        ElementType field1Type = PlannerUtils.toElementType(field1.dataType());
-        ElementType field2Type = PlannerUtils.toElementType(field2.dataType());
+        ElementType field1Type = PlannerUtils.toElementType(left().dataType());
+        ElementType field2Type = PlannerUtils.toElementType(right().dataType());
 
         if (field1Type != field2Type && field1Type.equals(ElementType.NULL) == false && field2Type.equals(ElementType.NULL) == false) {
             return new TypeResolution("All child fields must be the same type");
         }
 
-        Expression evaluatedField = field1Type.equals(ElementType.NULL) ? field2 : field1;
+        Expression evaluatedField = field1Type.equals(ElementType.NULL) ? right() : left();
 
         this.dataType = evaluatedField.dataType().noText();
 
@@ -225,22 +225,14 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
         return resolution;
     }
 
-    /*
     @Override
-    public boolean foldable() {
-        // we can't fold as the result of the intersection will need to be resolved at runtime
-        return false;
-    }
-     */
-
-    @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new MvIntersection(source(), newChildren.get(0), newChildren.get(1));
+    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
+        return new MvIntersection(source(), newLeft, newRight);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MvIntersection::new, field1, field2);
+        return NodeInfo.create(this, MvIntersection::new, left(), right());
     }
 
     @Override
@@ -251,21 +243,14 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
-            case BOOLEAN -> new MvIntersectionBooleanEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
-            case BYTES_REF -> new MvIntersectionBytesRefEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
-            case INT -> new MvIntersectionIntEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
-            case LONG -> new MvIntersectionLongEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
-            case DOUBLE -> new MvIntersectionDoubleEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case BOOLEAN -> new MvIntersectionBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case BYTES_REF -> new MvIntersectionBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case INT -> new MvIntersectionIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case LONG -> new MvIntersectionLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case DOUBLE -> new MvIntersectionDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field1);
-        out.writeNamedWriteable(field2);
     }
 
     @Override
@@ -274,13 +259,8 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
     }
 
     @Override
-    public boolean foldable() {
-        return field1.foldable() && field2.foldable();
-    }
-
-    @Override
     public int hashCode() {
-        return Objects.hash(field1, field2);
+        return Objects.hash(left(), right());
     }
 
     @Override
@@ -289,7 +269,7 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
             return false;
         }
         MvIntersection other = (MvIntersection) obj;
-        return Objects.equals(other.field1, field1) && Objects.equals(other.field2, field2);
+        return Objects.equals(other.left(), left()) && Objects.equals(other.right(), right());
     }
 
     static <T> void processIntersectionSet(

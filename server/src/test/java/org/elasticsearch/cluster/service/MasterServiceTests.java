@@ -1783,7 +1783,11 @@ public class MasterServiceTests extends ESTestCase {
                     safeAwait(cyclicBarrier);
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
-                        masterService.submitUnbatchedStateUpdateTask("starvation-causing task " + (iteration++), this);
+                        masterService.submitUnbatchedStateUpdateTask(
+                            "starvation-causing task " + (iteration >= 295 ? ">=295" : iteration),
+                            this
+                        );
+                        iteration += 1;
                     }
                     safeAwait(cyclicBarrier);
                     return currentState;
@@ -1828,9 +1832,9 @@ public class MasterServiceTests extends ESTestCase {
                 Level.INFO,
                 """
                     recent cluster state updates while pending task queue has been nonempty (max 200, starting with the most recent): \
-                    [HIGH]: unbatched[starvation-causing task 299], \
-                    [HIGH]: unbatched[starvation-causing task 298], \
-                    [HIGH]: unbatched[starvation-causing task 297], \
+                    [HIGH]: unbatched[starvation-causing task >=295] (5 times), \
+                    [HIGH]: unbatched[starvation-causing task 294], \
+                    [HIGH]: unbatched[starvation-causing task 293], \
                     *, ... (200 in total, 29 omitted)"""
             );
             mockLog.addExpectation(infoExpectation1);

@@ -1382,10 +1382,13 @@ public class MasterService extends AbstractLifecycleComponent {
             var batch = queue.queue.poll();
             if (batch != null) {
                 currentlyExecutingBatch = batch;
-                while (executionHistory.size() >= maxExecutionHistorySize) {
-                    executionHistory.removeLast();
+                if (executionHistory.isEmpty()
+                    || executionHistory.peekFirst().incrementCountIfMatching(batch.queueName(), queue.priority) == false) {
+                    while (executionHistory.size() >= maxExecutionHistorySize) {
+                        executionHistory.removeLast();
+                    }
+                    executionHistory.addFirst(new ExecutionHistoryEntry(batch.queueName(), queue.priority()));
                 }
-                executionHistory.addFirst(new ExecutionHistoryEntry(batch.queueName(), queue.priority()));
                 return batch;
             }
         }
@@ -1821,9 +1824,27 @@ public class MasterService extends AbstractLifecycleComponent {
 
     static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
 
-    private record ExecutionHistoryEntry(String queueName, Priority priority) {
-        public String getDescription() {
-            return "[" + priority + "]: " + queueName;
+    private static final class ExecutionHistoryEntry {
+        private final String queueName;
+        private final Priority priority;
+        private int count = 1;
+
+        private ExecutionHistoryEntry(String queueName, Priority priority) {
+            this.queueName = queueName;
+            this.priority = priority;
+        }
+
+        String getDescription() {
+            return "[" + priority + "]: " + queueName + (count == 1 ? "" : " (" + count + " times)");
+        }
+
+        boolean incrementCountIfMatching(String queueName, Priority priority) {
+            if (this.queueName.equals(queueName) && this.priority.equals(priority)) {
+                count += 1;
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 }

@@ -2043,7 +2043,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             assertThat(exception.getMessage(), is("failed"));
             verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);
-                assertThat(attributes.get("error.type"), is("504"));
+                assertThat(attributes.get("error_type"), is("504"));
             }));
         }
     }
@@ -2073,7 +2073,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             );
             verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);
-                assertThat(attributes.get("error.type"), is("408"));
+                assertThat(attributes.get("error_type"), is("408"));
             }));
         }
     }
@@ -2094,7 +2094,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
             verify(inferenceStats.deploymentDuration()).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);
-                assertNull(attributes.get("error.type"));
+                assertNull(attributes.get("error_type"));
                 assertThat(attributes.get("status_code"), is(200));
             }));
         }

@@ -40,7 +40,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         boolean addLimitAfterFork = randomBoolean();
 
         String suffix = " | FORK (WHERE true) (WHERE true) ";
-        suffix = addLimitAfterFork ? suffix + " | LIMIT 100 " : suffix;
+        suffix = addLimitAfterFork ? suffix + " | LIMIT 300 " : suffix;
 
         suffix = suffix + "| WHERE _fork == \"fork1\" | DROP _fork";
 

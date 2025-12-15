@@ -110,23 +110,23 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
      * Test the {@link WriteLoadConstraintDecider#canAllocate} implementation.
      */
     public void testWriteLoadDeciderCanAllocate() {
-        internalDeciderAllocationCheck((decider, shardRouting, node, allocation) -> decider.canAllocate(shardRouting, node, allocation));
+        checkDeciderCanAllocateDecisions((decider, shardRouting, node, allocation) -> decider.canAllocate(shardRouting, node, allocation));
     }
 
     /**
      * Test the {@link WriteLoadConstraintDecider#canForceAllocateDuringReplace} implementation.
      */
     public void testWriteLoadDeciderCanForceAllocateDuringReplace() {
-        internalDeciderAllocationCheck(
+        checkDeciderCanAllocateDecisions(
             (decider, shardRouting, node, allocation) -> decider.canForceAllocateDuringReplace(shardRouting, node, allocation)
         );
     }
 
-    interface DeciderAllocation {
+    interface DeciderCanAllocateOrForceAllocateCallback {
         Decision canAllocate(WriteLoadConstraintDecider decider, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation);
     }
 
-    void internalDeciderAllocationCheck(DeciderAllocation decider) {
+    void checkDeciderCanAllocateDecisions(DeciderCanAllocateOrForceAllocateCallback decider) {
         String indexName = "test-index";
         var testHarness = createClusterStateAndRoutingAllocation(indexName);
         testHarness.routingAllocation.debugDecision(true);

@@ -25,11 +25,11 @@ class ES813Int8FlatRWVectorFormat extends ES813Int8FlatVectorFormat {
         return new ES813FlatVectorWriter(format.fieldsWriter(state));
     }
 
-    public static class ES813FlatVectorWriter extends KnnVectorsWriter {
+    static class ES813FlatVectorWriter extends KnnVectorsWriter {
 
         private final FlatVectorsWriter writer;
 
-        public ES813FlatVectorWriter(FlatVectorsWriter writer) {
+        ES813FlatVectorWriter(FlatVectorsWriter writer) {
             super();
             this.writer = writer;
         }

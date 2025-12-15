@@ -21,6 +21,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
@@ -165,6 +168,9 @@ public class SearchContextStats implements SearchStats {
         BlockLoaderFunctionConfig config,
         MappedFieldType.FieldExtractPreference preference
     ) {
+        if (config == null) {
+            throw new UnsupportedOperationException("config must be provided");
+        }
         for (SearchExecutionContext context : contexts) {
             MappedFieldType ft = context.getFieldType(name.string());
             if (ft == null) {
@@ -494,5 +500,16 @@ public class SearchContextStats implements SearchStats {
         } catch (IOException ex) {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
+    }
+
+    @Override
+    public Map<ShardId, IndexMetadata> targetShards() {
+        Map<ShardId, IndexMetadata> shards = Maps.newHashMapWithExpectedSize(contexts.size());
+        for (SearchExecutionContext context : contexts) {
+            IndexMetadata indexMetadata = context.getIndexSettings().getIndexMetadata();
+            ShardId shardId = new ShardId(context.index(), context.getShardId());
+            shards.putIfAbsent(shardId, indexMetadata);
+        }
+        return shards;
     }
 }

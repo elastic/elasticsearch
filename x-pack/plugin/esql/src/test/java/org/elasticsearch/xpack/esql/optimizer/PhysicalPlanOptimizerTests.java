@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -234,7 +235,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      */
     private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
-    private EsqlParser parser;
     private Mapper mapper;
     private TestDataSource testData;
     private TestDataSource testDataLimitedRaw;
@@ -296,7 +296,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @Before
     public void init() {
-        parser = new EsqlParser();
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
         var enrichResolution = setupEnrichResolution();
@@ -401,7 +400,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex[] indexes = new EsIndex[1 + lookupResolution.size()];
-        indexes[0] = new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
+        indexes[0] = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
         for (int i = 0; i < lookupResolution.size(); i++) {
             indexes[i + 1] = lookupResolution.values().toArray(new IndexResolution[0])[i].get();
         }
@@ -3127,14 +3126,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // Transform the verified plan so that it is invalid (i.e. no source attributes)
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(
-                node.source(),
-                node.indexPattern(),
-                IndexMode.STANDARD,
-                node.indexNameWithModes(),
-                List.of(),
-                node.query()
-            )
+            node -> new EsSourceExec(node.source(), node.indexPattern(), IndexMode.STANDARD, List.of(), node.query())
         );
 
         var e = expectThrows(VerificationException.class, () -> testData.physicalOptimizer().verify(badPlan, verifiedPlan.output()));
@@ -3251,11 +3243,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new EsField("some_field1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
             new EsField("some_field2", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        var index = new EsIndex("test", esField.stream().collect(Collectors.toMap(EsField::getName, Function.identity())));
+        var index = EsIndexGenerator.esIndex("test", esField.stream().collect(Collectors.toMap(EsField::getName, Function.identity())));
         var relation = new EsRelation(
             Source.EMPTY,
             index.name(),
             IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
             index.indexNameWithModes(),
             esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );
@@ -8091,7 +8085,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsNotPushedInCoordinator() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             from test_all
             | sort long
@@ -8156,7 +8149,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             String lookupIndexName = entry.getKey();
             Map<String, EsField> lookup_fields = fields(entry.getValue());
 
-            EsIndex lookupIndex = new EsIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
+            EsIndex lookupIndex = EsIndexGenerator.esIndex(lookupIndexName, lookup_fields, Map.of(lookupIndexName, IndexMode.LOOKUP));
             lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
         }
 
@@ -8185,7 +8178,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         var flags = new EsqlFlags(true);
-        plan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        plan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -8564,7 +8557,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
             var flags = new EsqlFlags(true);
-            var localPlan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), fragment, stats);
+            var localPlan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), fragment, stats, null);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 
@@ -8607,7 +8600,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(new Versioned<>(logical, dataSource.minimumVersion()));
         // System.out.println("Physical\n" + physical);

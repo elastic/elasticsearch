@@ -44,11 +44,18 @@ public class CrossProjectModeDecider {
         return crossProjectEnabled;
     }
 
-    public boolean resolvesCrossProject(IndicesRequest.Replaceable request) {
+    public boolean resolvesCrossProject(IndicesRequest.CrossProjectCandidate request) {
         if (crossProjectEnabled == false) {
             return false;
         }
+
         // TODO: The following check can be an method on the request itself
-        return request.allowsCrossProject() && request.indicesOptions().resolveCrossProjectIndexExpression();
+        if (request.allowsCrossProject() == false) {
+            return false;
+        }
+        if (request instanceof IndicesRequest indicesRequest) {
+            return indicesRequest.indicesOptions().resolveCrossProjectIndexExpression();
+        }
+        return true;
     }
 }

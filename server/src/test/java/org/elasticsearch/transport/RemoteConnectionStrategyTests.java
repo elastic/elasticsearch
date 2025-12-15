@@ -30,6 +30,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
@@ -42,7 +44,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {
-
+    private static final String clusterAlias = "cluster-alias";
+    private static final Map<RemoteConnectionStrategy.ConnectionStrategy, LinkedProjectConfig> cfgMap = Map.of(
+        RemoteConnectionStrategy.ConnectionStrategy.PROXY,
+        new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias).proxyAddress(
+            "localhost:8080"
+        ).build(),
+        RemoteConnectionStrategy.ConnectionStrategy.SNIFF,
+        new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias).seedNodes(
+            List.of("localhost:8080")
+        ).build()
+    );
     private static final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
@@ -143,13 +155,9 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testCorrectChannelNumber() {
-        String clusterAlias = "cluster-alias";
-
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            String settingKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
-            Settings proxySettings = Settings.builder().put(settingKey, strategy.name()).build();
             ConnectionProfile proxyProfile = buildConnectionProfile(
-                toConfig(clusterAlias, proxySettings),
+                cfgMap.get(strategy),
                 randomBoolean() ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
             );
             assertEquals(
@@ -161,14 +169,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
     }
 
     public void testTransportProfile() {
-        String clusterAlias = "cluster-alias";
 
         // New rcs connection with credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = buildConnectionProfile(
-                toConfig(clusterAlias, Settings.EMPTY),
-                RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
-            );
+            ConnectionProfile profile = buildConnectionProfile(cfgMap.get(strategy), RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
@@ -178,7 +182,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         // Legacy ones without credentials
         for (RemoteConnectionStrategy.ConnectionStrategy strategy : RemoteConnectionStrategy.ConnectionStrategy.values()) {
-            ConnectionProfile profile = buildConnectionProfile(toConfig(clusterAlias, Settings.EMPTY), TransportSettings.DEFAULT_PROFILE);
+            ConnectionProfile profile = buildConnectionProfile(cfgMap.get(strategy), TransportSettings.DEFAULT_PROFILE);
             assertEquals(
                 "Incorrect transport profile for " + strategy.name(),
                 TransportSettings.DEFAULT_PROFILE,
@@ -267,15 +271,18 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                         final var measurement = measurements.getLast();
                         assertThat(measurement.getLong(), equalTo(1L));
                         final var attributes = measurement.attributes();
-                        final var keySet = Set.of("linked_project_id", "linked_project_alias", "attempt", "strategy");
+                        final var keySet = Set.of(
+                            RemoteConnectionStrategy.linkedProjectIdLabel,
+                            RemoteConnectionStrategy.linkedProjectAliasLabel,
+                            RemoteConnectionStrategy.connectionAtemptLabel
+                        );
                         final var expectedAttemptType = isInitialConnectAttempt
                             ? RemoteConnectionStrategy.ConnectionAttempt.initial
                             : RemoteConnectionStrategy.ConnectionAttempt.reconnect;
                         assertThat(attributes.keySet(), equalTo(keySet));
-                        assertThat(attributes.get("linked_project_id"), equalTo(linkedProjectId.toString()));
-                        assertThat(attributes.get("linked_project_alias"), equalTo(alias));
-                        assertThat(attributes.get("attempt"), equalTo(expectedAttemptType.toString()));
-                        assertThat(attributes.get("strategy"), equalTo(strategy.strategyType().toString()));
+                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectIdLabel), equalTo(linkedProjectId.toString()));
+                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectAliasLabel), equalTo(alias));
+                        assertThat(attributes.get(RemoteConnectionStrategy.connectionAtemptLabel), equalTo(expectedAttemptType.toString()));
                     }
                 }
             }
@@ -350,8 +357,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ) {
             super(switch (strategy) {
                 case PROXY -> new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
+                    .proxyAddress("localhost:8080")
                     .build();
                 case SNIFF -> new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
+                    .seedNodes(List.of("localhost:8080"))
                     .build();
             }, transportService, connectionManager);
             this.strategy = strategy;

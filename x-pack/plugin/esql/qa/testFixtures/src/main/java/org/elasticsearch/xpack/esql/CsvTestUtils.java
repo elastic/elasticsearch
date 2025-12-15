@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -32,8 +34,10 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -81,6 +85,13 @@ public final class CsvTestUtils {
     private static final char ESCAPE_CHAR = '\\';
     public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
     public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
+
+    public record Range(Object lowerBound, Object upperBound) {
+        @SuppressWarnings("unchecked")
+        <T extends Comparable<T>> boolean includes(Object value) {
+            return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
+        }
+    }
 
     private CsvTestUtils() {}
 
@@ -505,6 +516,7 @@ public final class CsvTestUtils {
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
+        TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -601,6 +613,7 @@ public final class CsvTestUtils {
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case EXPONENTIAL_HISTOGRAM -> EXPONENTIAL_HISTOGRAM;
+                case TDIGEST -> TDIGEST;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }
@@ -617,7 +630,16 @@ public final class CsvTestUtils {
             if (value == null) {
                 return null;
             }
-            return converter.apply(value);
+            if (Number.class.isAssignableFrom(clazz) && value.contains("..")) {
+                // Numbers of the form "lower..upper" are parsed to a Range, indicating that
+                // the expected value is within that range.
+                int separator = value.indexOf("..");
+                Object lowerBound = converter.apply(value.substring(0, separator).trim());
+                Object upperBound = converter.apply(value.substring(separator + 2).trim());
+                return new Range(lowerBound, upperBound);
+            } else {
+                return converter.apply(value);
+            }
         }
 
         Class<?> clazz() {
@@ -713,6 +735,27 @@ public final class CsvTestUtils {
         }
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
             return ExponentialHistogramXContent.parseForTesting(parser);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private static TDigestHolder parseTDigest(@Nullable String json) {
+        if (json == null) {
+            return null;
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT but found: " + parser.currentToken());
+            }
+            parser.nextToken();
+            TDigestParser.ParsedTDigest parsed = TDigestParser.parse(
+                "field from test data",
+                parser,
+                DocumentParsingException::new,
+                XContentParserUtils::parsingException
+            );
+            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }

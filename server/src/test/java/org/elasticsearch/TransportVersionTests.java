@@ -25,7 +25,6 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -34,27 +33,35 @@ import static org.hamcrest.Matchers.sameInstance;
 public class TransportVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
-        TransportVersion V_8_2_0 = TransportVersions.V_8_2_0;
-        TransportVersion V_8_16_0 = TransportVersions.V_8_16_0;
-        assertThat(V_8_2_0.before(V_8_16_0), is(true));
-        assertThat(V_8_2_0.before(V_8_2_0), is(false));
-        assertThat(V_8_16_0.before(V_8_2_0), is(false));
+        TransportVersion older = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.minimumCompatible(),
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
+        );
+        TransportVersion newer = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getNextVersion(older),
+            TransportVersion.current()
+        );
+        assertThat(older.before(newer), is(true));
+        assertThat(older.before(older), is(false));
+        assertThat(newer.before(older), is(false));
 
-        assertThat(V_8_2_0.onOrBefore(V_8_16_0), is(true));
-        assertThat(V_8_2_0.onOrBefore(V_8_2_0), is(true));
-        assertThat(V_8_16_0.onOrBefore(V_8_2_0), is(false));
+        assertThat(older.onOrBefore(newer), is(true));
+        assertThat(older.onOrBefore(older), is(true));
+        assertThat(newer.onOrBefore(older), is(false));
 
-        assertThat(V_8_2_0.after(V_8_16_0), is(false));
-        assertThat(V_8_2_0.after(V_8_2_0), is(false));
-        assertThat(V_8_16_0.after(V_8_2_0), is(true));
+        assertThat(older.after(newer), is(false));
+        assertThat(older.after(older), is(false));
+        assertThat(newer.after(older), is(true));
 
-        assertThat(V_8_2_0.onOrAfter(V_8_16_0), is(false));
-        assertThat(V_8_2_0.onOrAfter(V_8_2_0), is(true));
-        assertThat(V_8_16_0.onOrAfter(V_8_2_0), is(true));
+        assertThat(older.onOrAfter(newer), is(false));
+        assertThat(older.onOrAfter(older), is(true));
+        assertThat(newer.onOrAfter(older), is(true));
 
-        assertThat(V_8_2_0, is(lessThan(V_8_16_0)));
-        assertThat(V_8_2_0.compareTo(V_8_2_0), is(0));
-        assertThat(V_8_16_0, is(greaterThan(V_8_2_0)));
+        assertThat(older, is(lessThan(newer)));
+        assertThat(older.compareTo(older), is(0));
+        assertThat(newer, is(greaterThan(older)));
     }
 
     public static class CorrectFakeVersion {
@@ -191,7 +198,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+            if (tv.onOrAfter(TransportVersion.fromId(8_84_10_00)) && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv
@@ -411,15 +418,6 @@ public class TransportVersionTests extends ESTestCase {
                 "Unknown transport version [brand_new_version_unrelated_to_others]. "
                     + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
-        );
-    }
-
-    public void testTransportVersionsLocked() {
-        assertThat(
-            "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
-                + "and generateTransportVersion gradle task",
-            TransportVersions.DEFINED_VERSIONS.getLast().id(),
-            equalTo(8_840_0_00)
         );
     }
 }

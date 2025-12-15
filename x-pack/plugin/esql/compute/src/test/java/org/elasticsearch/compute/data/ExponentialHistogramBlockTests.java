@@ -39,7 +39,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
-            (LongBlock) blockFactory().newConstantNullBlock(elementCount),
+            (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (DoubleBlock) blockFactory().newConstantNullBlock(elementCount),
             (BytesRefBlock) blockFactory().newConstantNullBlock(elementCount)
         );
@@ -65,8 +65,8 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
             block = (ExponentialHistogramBlock) blockFactory().newConstantNullBlock(randomIntBetween(1, 100));
         }
         ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-        for (ExponentialHistogramBlock.Component component : ExponentialHistogramBlock.Component.values()) {
-            Block componentBlock = block.buildExponentialHistogramComponentBlock(component);
+        for (ExponentialHistogramBlock.Component component : HistogramBlock.Component.values()) {
+            Block componentBlock = block.buildHistogramComponentBlock(component);
             assertThat(componentBlock.getPositionCount(), equalTo(block.getPositionCount()));
             for (int i = 0; i < block.getPositionCount(); i++) {
                 if (block.isNull(i)) {
@@ -95,14 +95,18 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
                             }
                         }
                         case SUM -> {
-                            assertThat(componentBlock.getValueCount(i), equalTo(1));
-                            int valueIndex = componentBlock.getFirstValueIndex(i);
-                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo(histo.sum()));
+                            if (histo.valueCount() == 0) {
+                                assertThat(componentBlock.isNull(i), equalTo(true));
+                            } else {
+                                assertThat(componentBlock.getValueCount(i), equalTo(1));
+                                int valueIndex = componentBlock.getFirstValueIndex(i);
+                                assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo(histo.sum()));
+                            }
                         }
                         case COUNT -> {
                             assertThat(componentBlock.getValueCount(i), equalTo(1));
                             int valueIndex = componentBlock.getFirstValueIndex(i);
-                            assertThat(((LongBlock) componentBlock).getLong(valueIndex), equalTo(histo.valueCount()));
+                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo((double) histo.valueCount()));
                         }
                     }
                 }
@@ -115,10 +119,10 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
     public void testComponentEnumSerialization() {
         assertEnumSerialization(
             ExponentialHistogramBlock.Component.class,
-            ExponentialHistogramBlock.Component.MIN,
-            ExponentialHistogramBlock.Component.MAX,
-            ExponentialHistogramBlock.Component.SUM,
-            ExponentialHistogramBlock.Component.COUNT
+            HistogramBlock.Component.MIN,
+            HistogramBlock.Component.MAX,
+            HistogramBlock.Component.SUM,
+            HistogramBlock.Component.COUNT
         );
     }
 

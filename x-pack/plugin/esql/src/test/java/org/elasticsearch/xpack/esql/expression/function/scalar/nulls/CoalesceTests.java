@@ -134,7 +134,6 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));
-
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);
         for (TestCaseSupplier s : noNullsSuppliers) {
             for (int nullUpTo = 1; nullUpTo < s.types().size(); nullUpTo++) {

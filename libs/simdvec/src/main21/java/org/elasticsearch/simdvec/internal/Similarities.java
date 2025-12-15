@@ -22,22 +22,9 @@ public class Similarities {
         .orElseThrow(AssertionError::new);
 
     static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.dotProductHandle7u();
-    static final MethodHandle DOT_PRODUCT_7U_BULK = DISTANCE_FUNCS.dotProductHandle7uBulk();
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
-
-    static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
-        try {
-            DOT_PRODUCT_7U_BULK.invokeExact(a, b, length, count, scores);
-        } catch (Throwable e) {
-            if (e instanceof Error err) {
-                throw err;
-            } else if (e instanceof RuntimeException re) {
-                throw re;
-            } else {
-                throw new RuntimeException(e);
-            }
-        }
-    }
+    static final MethodHandle DOT_PRODUCT_7U_BULK = DISTANCE_FUNCS.dotProductHandle7uBulk();
+    static final MethodHandle DOT_HANDLE_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.dotProductHandle7uBulkWithOffsets();
 
     static int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
@@ -56,6 +43,42 @@ public class Similarities {
     static int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
         try {
             return (int) SQUARE_DISTANCE_7U.invokeExact(a, b, length);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_7U_BULK.invokeExact(a, b, length, count, scores);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    static void dotProduct7uBulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_HANDLE_7U_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

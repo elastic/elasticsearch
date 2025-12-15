@@ -42,6 +42,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.idp.HttpProxyTestContainer;
 import org.elasticsearch.test.fixtures.idp.OidcProviderTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.Junit4NetworkRule;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -192,7 +193,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(network).around(c2id).around(proxy).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(Junit4NetworkRule.from(network)).around(c2id).around(proxy).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

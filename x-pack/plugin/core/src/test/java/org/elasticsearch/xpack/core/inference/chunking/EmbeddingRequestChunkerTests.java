@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
@@ -21,15 +22,20 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
-import static org.elasticsearch.inference.InferenceString.toStringList;
+import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -38,8 +44,12 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class EmbeddingRequestChunkerTests extends ESTestCase {
 
+    private static final int MAX_BATCH_SIZE = 512;
+
     public void testEmptyInput_WordChunker() {
-        var batches = new EmbeddingRequestChunker<>(List.of(), 100, 100, 10).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker<>(List.of(), 100, new WordBoundaryChunkingSettings(100, 10)).batchRequestsWithListeners(
+            testListener()
+        );
         assertThat(batches, empty());
     }
 
@@ -63,7 +73,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.getFirst().batch().inputs().get(), hasSize(1));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst().value(), is(randomInput));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().textValue(), is(randomInput));
     }
 
     public void testWhitespaceInput_SentenceChunker() {
@@ -74,16 +84,15 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         ).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.getFirst().batch().inputs().get(), hasSize(1));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst().value(), is("   "));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().textValue(), is("   "));
     }
 
     public void testBlankInput_WordChunker() {
-        var batches = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput("")), 100, 100, 10).batchRequestsWithListeners(
-            testListener()
-        );
+        var batches = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput("")), 100, new WordBoundaryChunkingSettings(100, 10))
+            .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.getFirst().batch().inputs().get(), hasSize(1));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst().value(), is(""));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().textValue(), is(""));
     }
 
     public void testBlankInput_SentenceChunker() {
@@ -91,16 +100,18 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.getFirst().batch().inputs().get(), hasSize(1));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst().value(), is(""));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().textValue(), is(""));
     }
 
     public void testInputThatDoesNotChunk_WordChunker() {
-        var batches = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput("ABBAABBA")), 100, 100, 10).batchRequestsWithListeners(
-            testListener()
-        );
+        var batches = new EmbeddingRequestChunker<>(
+            List.of(new ChunkInferenceInput("ABBAABBA")),
+            100,
+            new WordBoundaryChunkingSettings(100, 10)
+        ).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.getFirst().batch().inputs().get(), hasSize(1));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst().value(), is("ABBAABBA"));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().textValue(), is("ABBAABBA"));
     }
 
     public void testInputThatDoesNotChunk_SentenceChunker() {
@@ -111,12 +122,13 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         ).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.getFirst().batch().inputs().get(), hasSize(1));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst().value(), is("ABBAABBA"));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().textValue(), is("ABBAABBA"));
     }
 
     public void testShortInputsAreSingleBatch() {
         ChunkInferenceInput input = new ChunkInferenceInput("one chunk");
-        var batches = new EmbeddingRequestChunker<>(List.of(input), 100, 100, 10).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker<>(List.of(input), 100, new WordBoundaryChunkingSettings(100, 10))
+            .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(toStringList(batches.getFirst().batch().inputs().get()), contains(input.inputText()));
     }
@@ -127,10 +139,12 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             new ChunkInferenceInput("2nd small"),
             new ChunkInferenceInput("3rd small")
         );
-        var batches = new EmbeddingRequestChunker<>(inputs, 100, 100, 10).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker<>(inputs, 100, new WordBoundaryChunkingSettings(100, 10)).batchRequestsWithListeners(
+            testListener()
+        );
         assertThat(batches, hasSize(1));
         EmbeddingRequestChunker.BatchRequest batch = batches.getFirst().batch();
-        assertEquals(batch.inputs().get(), ChunkInferenceInput.inputs(inputs));
+        assertEquals(batch.inputs().get(), inputs.stream().map(ChunkInferenceInput::input).toList());
         for (int i = 0; i < inputs.size(); i++) {
             var request = batch.requests().get(i);
             assertThat(request.chunkText().value(), equalTo(inputs.get(i).inputText()));
@@ -148,21 +162,22 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             inputs.add(new ChunkInferenceInput("input " + i));
         }
 
-        var batches = new EmbeddingRequestChunker<>(inputs, maxNumInputsPerBatch, 100, 10).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker<>(inputs, maxNumInputsPerBatch, new WordBoundaryChunkingSettings(100, 10))
+            .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(4));
         assertThat(batches.get(0).batch().inputs().get(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(1).batch().inputs().get(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(2).batch().inputs().get(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(3).batch().inputs().get(), hasSize(1));
 
-        assertEquals("input 0", batches.get(0).batch().inputs().get().get(0).value());
-        assertEquals("input 9", batches.get(0).batch().inputs().get().get(9).value());
+        assertEquals("input 0", batches.get(0).batch().inputs().get().get(0).textValue());
+        assertEquals("input 9", batches.get(0).batch().inputs().get().get(9).textValue());
         assertThat(
             toStringList(batches.get(1).batch().inputs().get()),
             contains("input 10", "input 11", "input 12", "input 13", "input 14", "input 15", "input 16", "input 17", "input 18", "input 19")
         );
-        assertEquals("input 20", batches.get(2).batch().inputs().get().get(0).value());
-        assertEquals("input 29", batches.get(2).batch().inputs().get().get(9).value());
+        assertEquals("input 20", batches.get(2).batch().inputs().get().get(0).textValue());
+        assertEquals("input 29", batches.get(2).batch().inputs().get().get(9).textValue());
         assertThat(toStringList(batches.get(3).batch().inputs().get()), contains("input 30"));
 
         List<EmbeddingRequestChunker.Request> requests = batches.get(0).batch().requests();
@@ -191,14 +206,14 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(batches.get(2).batch().inputs().get(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(3).batch().inputs().get(), hasSize(1));
 
-        assertEquals("input 0", batches.get(0).batch().inputs().get().get(0).value());
-        assertEquals("input 9", batches.get(0).batch().inputs().get().get(9).value());
+        assertEquals("input 0", batches.get(0).batch().inputs().get().get(0).textValue());
+        assertEquals("input 9", batches.get(0).batch().inputs().get().get(9).textValue());
         assertThat(
             toStringList(batches.get(1).batch().inputs().get()),
             contains("input 10", "input 11", "input 12", "input 13", "input 14", "input 15", "input 16", "input 17", "input 18", "input 19")
         );
-        assertEquals("input 20", batches.get(2).batch().inputs().get().get(0).value());
-        assertEquals("input 29", batches.get(2).batch().inputs().get().get(9).value());
+        assertEquals("input 20", batches.get(2).batch().inputs().get().get(0).textValue());
+        assertEquals("input 29", batches.get(2).batch().inputs().get().get(9).textValue());
         assertThat(toStringList(batches.get(3).batch().inputs().get()), contains("input 30"));
 
         List<EmbeddingRequestChunker.Request> requests = batches.get(0).batch().requests();
@@ -230,7 +245,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             new ChunkInferenceInput("3rd small")
         );
 
-        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, new WordBoundaryChunkingSettings(chunkSize, overlap))
+            .batchRequestsWithListeners(testListener());
 
         assertThat(batches, hasSize(2));
 
@@ -291,8 +307,11 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
 
         var finalListener = testListener();
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, 0)
-            .batchRequestsWithListeners(finalListener);
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(
+            inputs,
+            batchSize,
+            new WordBoundaryChunkingSettings(chunkSize, 0)
+        ).batchRequestsWithListeners(finalListener);
 
         // The very long passage is split into 10000 chunks for inference, so
         // there are 10002 inference requests, resulting in 2001 batches.
@@ -386,8 +405,11 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
 
         var finalListener = testListener();
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, 0)
-            .batchRequestsWithListeners(finalListener);
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(
+            inputs,
+            batchSize,
+            new WordBoundaryChunkingSettings(chunkSize, 0)
+        ).batchRequestsWithListeners(finalListener);
 
         // The very long passage is split into 10000 chunks for inference, so
         // there are 10002 inference requests, resulting in 2001 batches.
@@ -482,8 +504,11 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
 
         var finalListener = testListener();
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, 0)
-            .batchRequestsWithListeners(finalListener);
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(
+            inputs,
+            batchSize,
+            new WordBoundaryChunkingSettings(chunkSize, 0)
+        ).batchRequestsWithListeners(finalListener);
 
         // The very long passage is split into 10000 chunks for inference, so
         // there are 10002 inference requests, resulting in 2001 batches.
@@ -582,7 +607,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, new WordBoundaryChunkingSettings(chunkSize, overlap))
+            .batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(2));
 
         // 4 inputs in 2 batches
@@ -680,7 +706,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, new WordBoundaryChunkingSettings(chunkSize, overlap))
+            .batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(2));
 
         // 4 inputs in 2 batches
@@ -775,7 +802,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, new WordBoundaryChunkingSettings(chunkSize, overlap))
+            .batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(2));
 
         // 4 inputs in 2 batches
@@ -870,7 +898,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         );
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker<>(inputs, batchSize, new WordBoundaryChunkingSettings(chunkSize, overlap))
+            .batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(3));
 
         // 4 inputs in 3 batches
@@ -943,6 +972,78 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
     }
 
+    public void testBatchChunksAcrossInputsIsFalse_DoesNotBatchChunksFromSeparateInputs() {
+        testBatchChunksAcrossInputs(false, List.of(3, 1, 4));
+    }
+
+    public void testBatchChunksAcrossInputsIsTrue_DoesBatchChunksFromSeparateInputs() {
+        testBatchChunksAcrossInputs(true, List.of(3, 1, 4));
+    }
+
+    public void testBatchChunksAcrossInputsIsTrue_GeneratesMultipleBatches() {
+        testBatchChunksAcrossInputs(true, List.of(200, 200, 200));
+    }
+
+    public void testBatchChunksAcrossInputsIsFalseAndBatchesLessThanMaxChunkLimit_ThrowsAssertionError() {
+        int batchSize = randomIntBetween(1, MAX_BATCH_SIZE - 1);
+        List<ChunkInferenceInput> inputs = List.of(new ChunkInferenceInput("This is a test sentence with ten words in total. "));
+        var chunkingSettings = new SentenceBoundaryChunkingSettings(10, 0);
+        expectThrows(
+            AssertionError.class,
+            () -> new EmbeddingRequestChunker<>(inputs, batchSize, false, chunkingSettings).batchRequestsWithListeners(testListener())
+        );
+    }
+
+    private void testBatchChunksAcrossInputs(boolean batchChunksAcrossInputs, List<Integer> batchSizes) {
+        int maxChunkSize = 10;
+        var testSentence = IntStream.range(0, maxChunkSize).mapToObj(i -> "Word" + i).collect(Collectors.joining(" ")) + ".";
+        var chunkingSettings = new SentenceBoundaryChunkingSettings(maxChunkSize, 0);
+        var totalBatchSizes = batchSizes.stream().mapToInt(Integer::intValue).sum();
+        List<ChunkInferenceInput> inputs = batchSizes.stream()
+            .map(i -> new ChunkInferenceInput(String.join(" ", Collections.nCopies(i, testSentence))))
+            .toList();
+
+        var finalListener = testListener();
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(
+            inputs,
+            MAX_BATCH_SIZE,
+            batchChunksAcrossInputs,
+            chunkingSettings
+        ).batchRequestsWithListeners(finalListener);
+
+        // If we are batching chunks across inputs, we expect the batches to be filled up to the max batch size.
+        // Otherwise, we expect one batch per input.
+        int expectedNumberOfBatches = batchChunksAcrossInputs ? (int) Math.ceil((double) totalBatchSizes / MAX_BATCH_SIZE) : inputs.size();
+        assertThat(batches, hasSize(expectedNumberOfBatches));
+        if (batchChunksAcrossInputs) {
+            for (int i = 0; i < batches.size(); i++) {
+                var expectedBatchSize = i < batches.size() - 1 ? MAX_BATCH_SIZE : totalBatchSizes - (MAX_BATCH_SIZE * (batches.size() - 1));
+                assertThat(batches.get(i).batch().inputs().get(), hasSize(expectedBatchSize));
+                batches.get(i)
+                    .listener()
+                    .onResponse(
+                        new DenseEmbeddingFloatResults(
+                            List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { randomFloatBetween(0, 1, true) }))
+                        )
+                    );
+            }
+        } else {
+            for (int i = 0; i < batches.size(); i++) {
+                assertThat(batches.get(i).batch().inputs().get(), hasSize(batchSizes.get(i)));
+                batches.get(i)
+                    .listener()
+                    .onResponse(
+                        new DenseEmbeddingFloatResults(
+                            List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { randomFloatBetween(0, 1, true) }))
+                        )
+                    );
+            }
+        }
+
+        assertNotNull(finalListener.results);
+        assertThat(finalListener.results, hasSize(3));
+    }
+
     public void testListenerErrorsWithWrongNumberOfResponses() {
         List<ChunkInferenceInput> inputs = List.of(
             new ChunkInferenceInput("1st small"),
@@ -966,7 +1067,9 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             }
         };
 
-        var batches = new EmbeddingRequestChunker<>(inputs, 10, 100, 0).batchRequestsWithListeners(listener);
+        var batches = new EmbeddingRequestChunker<>(inputs, 10, new WordBoundaryChunkingSettings(100, 0)).batchRequestsWithListeners(
+            listener
+        );
         assertThat(batches, hasSize(1));
 
         var embeddings = new ArrayList<DenseEmbeddingFloatResults.Embedding>();
@@ -977,36 +1080,77 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
     }
 
     public void testDoesNotChunkNonTextInputs_whenChunkingSettingsAreNullInInput() {
-        InferenceString imageString = new InferenceString(
-            "image chunks",
-            randomValueOtherThan(TEXT, () -> randomFrom(InferenceString.DataType.values()))
+        InferenceString nonTextString = new InferenceString(
+            randomValueOtherThan(TEXT, () -> randomFrom(InferenceString.DataType.values())),
+            "image chunks"
         );
-        ChunkInferenceInput imageInput = new ChunkInferenceInput(imageString, null);
-        ChunkInferenceInput textInput = new ChunkInferenceInput(new InferenceString("text chunks", TEXT), null);
+        ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(nonTextString), null);
+        ChunkInferenceInput textInput = new ChunkInferenceInput("text chunks");
 
-        var batches = new EmbeddingRequestChunker<>(List.of(imageInput, textInput), 100, 1, 0).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker<>(List.of(imageInput, textInput), 100, new WordBoundaryChunkingSettings(1, 0))
+            .batchRequestsWithListeners(testListener());
 
         assertThat(batches, hasSize(1));
-        var expectedOutput = List.of(imageString, new InferenceString("text", TEXT), new InferenceString(" chunks", TEXT));
+        var expectedOutput = List.of(
+            new InferenceStringGroup(nonTextString),
+            new InferenceStringGroup("text"),
+            new InferenceStringGroup(" chunks")
+        );
         assertThat(batches.getFirst().batch().inputs().get(), is(expectedOutput));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst(), is(sameInstance(imageString)));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().inferenceStrings().getFirst(), is(sameInstance(nonTextString)));
     }
 
     public void testDoesNotChunkNonTextInputs_whenChunkingSettingsAreSpecifiedInInput() {
-        InferenceString imageString = new InferenceString(
-            "image chunks",
-            randomValueOtherThan(TEXT, () -> randomFrom(InferenceString.DataType.values()))
+        InferenceString nonTextString = new InferenceString(
+            randomValueOtherThan(TEXT, () -> randomFrom(InferenceString.DataType.values())),
+            "image chunks"
         );
         WordBoundaryChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(1, 0);
-        ChunkInferenceInput imageInput = new ChunkInferenceInput(imageString, chunkingSettings);
-        ChunkInferenceInput textInput = new ChunkInferenceInput(new InferenceString("text chunks", TEXT), chunkingSettings);
+        ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(nonTextString), chunkingSettings);
+        ChunkInferenceInput textInput = new ChunkInferenceInput(
+            new InferenceStringGroup(new InferenceString(TEXT, "text chunks")),
+            chunkingSettings
+        );
 
-        var batches = new EmbeddingRequestChunker<>(List.of(imageInput, textInput), 100).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker<>(
+            List.of(imageInput, textInput),
+            100,
+            ChunkingSettingsTests.createRandomChunkingSettings()
+        ).batchRequestsWithListeners(testListener());
 
         assertThat(batches, hasSize(1));
-        var expectedOutput = List.of(imageString, new InferenceString("text", TEXT), new InferenceString(" chunks", TEXT));
+        var expectedOutput = List.of(
+            new InferenceStringGroup(nonTextString),
+            new InferenceStringGroup("text"),
+            new InferenceStringGroup(" chunks")
+        );
         assertThat(batches.getFirst().batch().inputs().get(), is(expectedOutput));
-        assertThat(batches.getFirst().batch().inputs().get().getFirst(), is(sameInstance(imageString)));
+        assertThat(batches.getFirst().batch().inputs().get().getFirst().inferenceStrings().getFirst(), is(sameInstance(nonTextString)));
+    }
+
+    public void testUsesDefaultChunkingSettingsWhenNoneAreSpecified() {
+        String input = IntStream.range(0, DEFAULT_SETTINGS.maxChunkSize + 1)
+            .mapToObj(i -> "Sentence" + i + ".")
+            .collect(Collectors.joining(" "));
+
+        var chunkedInputsWithNullSettings = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput(input)), 100, null)
+            .batchRequestsWithListeners(testListener())
+            .getFirst()
+            .batch()
+            .inputs()
+            .get();
+
+        var chunkedInputsWithDefaultSettings = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput(input)), 100, DEFAULT_SETTINGS)
+            .batchRequestsWithListeners(testListener())
+            .getFirst()
+            .batch()
+            .inputs()
+            .get();
+
+        // Make sure that chunking actually happened
+        assertThat(chunkedInputsWithNullSettings.size(), greaterThan(1));
+        // Confirm that the default chunking settings were used
+        assertThat(chunkedInputsWithNullSettings, is(chunkedInputsWithDefaultSettings));
     }
 
     private ChunkedResultsListener testListener() {

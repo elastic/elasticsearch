@@ -22,41 +22,23 @@
             "POST",
             "PUT"
           ]
-        },
-        {
-          "path": "/_monitoring/{type}/bulk",
-          "methods": [
-            "POST",
-            "PUT"
-          ],
-          "parts": {
-            "type": {
-              "type": "string",
-              "description": "Default document type for items which don't provide one",
-              "deprecated": {
-                "version": "7.0.0",
-                "description": "Specifying types in urls has been deprecated"
-              }
-            }
-          },
-          "deprecated": {
-            "version": "7.0.0",
-            "description": "Specifying types in urls has been deprecated"
-          }
         }
       ]
     },
     "params": {
       "system_id": {
         "type": "string",
+        "required": true,
         "description": "Identifier of the monitored system"
       },
       "system_api_version": {
         "type": "string",
+        "required": true,
         "description": "API Version of the monitored system"
       },
       "interval": {
         "type": "string",
+        "required": true,
         "description": "Collection interval (e.g., '10s' or '10000ms') of the payload"
       }
     },

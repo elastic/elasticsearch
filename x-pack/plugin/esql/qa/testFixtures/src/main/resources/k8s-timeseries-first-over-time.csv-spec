@@ -48,6 +48,33 @@ tx:long | cluster:keyword | time_bucket:datetime
 749     | staging         | 2024-05-10T00:20:00.000Z
 ;
 
+first_over_time_with_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+
+TS k8s | WHERE pod == "one" 
+| STATS tx = sum(first_over_time(network.bytes_in, 10 minute)) BY cluster, time_bucket = tbucket(5minute) 
+| SORT time_bucket, cluster 
+| LIMIT 20;
+
+tx:long | cluster:keyword | time_bucket:datetime
+354     | prod            | 2024-05-10T00:00:00.000Z
+278     | qa              | 2024-05-10T00:00:00.000Z
+626     | staging         | 2024-05-10T00:00:00.000Z
+485     | prod            | 2024-05-10T00:05:00.000Z
+839     | qa              | 2024-05-10T00:05:00.000Z
+680     | staging         | 2024-05-10T00:05:00.000Z
+262     | prod            | 2024-05-10T00:10:00.000Z
+114     | qa              | 2024-05-10T00:10:00.000Z
+604     | staging         | 2024-05-10T00:10:00.000Z
+354     | prod            | 2024-05-10T00:15:00.000Z
+219     | qa              | 2024-05-10T00:15:00.000Z
+516     | staging         | 2024-05-10T00:15:00.000Z
+953     | prod            | 2024-05-10T00:20:00.000Z
+917     | qa              | 2024-05-10T00:20:00.000Z
+749     | staging         | 2024-05-10T00:20:00.000Z
+;
+
 first_over_time_older_than_10d
 required_capability: ts_command_v0
 TS k8s | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(first_over_time(network.eth0.rx)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;

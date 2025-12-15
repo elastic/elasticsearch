@@ -33,6 +33,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     static final MethodHandle dot7u$mh;
     static final MethodHandle dot7uBulk$mh;
+    static final MethodHandle dot7uBulkWithOffsets$mh;
     static final MethodHandle sqr7u$mh;
     static final MethodHandle cosf32$mh;
     static final MethodHandle dotf32$mh;
@@ -50,63 +51,73 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (caps > 0) {
                 if (caps == 2) {
                     dot7u$mh = downcallHandle(
-                        "dot7u_2",
+                        "vec_dot7u_2",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dot7uBulk$mh = downcallHandle(
-                        "dot7u_bulk_2",
+                        "vec_dot7u_bulk_2",
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
+                    dot7uBulkWithOffsets$mh = downcallHandle(
+                        "vec_dot7u_bulk_offsets_2",
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
+                        LinkerHelperUtil.critical()
+                    );
                     sqr7u$mh = downcallHandle(
-                        "sqr7u_2",
+                        "vec_sqr7u_2",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     cosf32$mh = downcallHandle(
-                        "cosf32_2",
+                        "vec_cosf32_2",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dotf32$mh = downcallHandle(
-                        "dotf32_2",
+                        "vec_dotf32_2",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     sqrf32$mh = downcallHandle(
-                        "sqrf32_2",
+                        "vec_sqrf32_2",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                 } else {
                     dot7u$mh = downcallHandle(
-                        "dot7u",
+                        "vec_dot7u",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dot7uBulk$mh = downcallHandle(
-                        "dot7u_bulk",
+                        "vec_dot7u_bulk",
                         FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS),
                         LinkerHelperUtil.critical()
                     );
+                    dot7uBulkWithOffsets$mh = downcallHandle(
+                        "vec_dot7u_bulk_offsets",
+                        FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS),
+                        LinkerHelperUtil.critical()
+                    );
                     sqr7u$mh = downcallHandle(
-                        "sqr7u",
+                        "vec_sqr7u",
                         FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     cosf32$mh = downcallHandle(
-                        "cosf32",
+                        "vec_cosf32",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     dotf32$mh = downcallHandle(
-                        "dotf32",
+                        "vec_dotf32",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
                     sqrf32$mh = downcallHandle(
-                        "sqrf32",
+                        "vec_sqrf32",
                         FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT),
                         LinkerHelperUtil.critical()
                     );
@@ -120,6 +131,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 }
                 dot7u$mh = null;
                 dot7uBulk$mh = null;
+                dot7uBulkWithOffsets$mh = null;
                 sqr7u$mh = null;
                 cosf32$mh = null;
                 dotf32$mh = null;
@@ -155,7 +167,22 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static void dotProduct7uBulk(MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0, length * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
             dot7uBulk(a, b, length, count, result);
+        }
+
+        static void dotProduct7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            dot7uBulkWithOffsets(a, b, length, pitch, offsets, count, result);
         }
 
         /**
@@ -234,6 +261,22 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static void dot7uBulkWithOffsets(
+            MemorySegment a,
+            MemorySegment b,
+            int length,
+            int pitch,
+            MemorySegment offsets,
+            int count,
+            MemorySegment result
+        ) {
+            try {
+                JdkVectorLibrary.dot7uBulkWithOffsets$mh.invokeExact(a, b, length, pitch, offsets, count, result);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         private static int sqr7u(MemorySegment a, MemorySegment b, int length) {
             try {
                 return (int) JdkVectorLibrary.sqr7u$mh.invokeExact(a, b, length);
@@ -268,6 +311,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         static final MethodHandle DOT_HANDLE_7U;
         static final MethodHandle DOT_HANDLE_7U_BULK;
+        static final MethodHandle DOT_HANDLE_7U_BULK_WITH_OFFSETS;
         static final MethodHandle SQR_HANDLE_7U;
         static final MethodHandle COS_HANDLE_FLOAT32;
         static final MethodHandle DOT_HANDLE_FLOAT32;
@@ -278,12 +322,25 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 var lookup = MethodHandles.lookup();
                 var mt = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                 DOT_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7u", mt);
-                DOT_HANDLE_7U_BULK = lookup.findStatic(
-                    JdkVectorSimilarityFunctions.class,
-                    "dotProduct7uBulk",
-                    MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class)
-                );
                 SQR_HANDLE_7U = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistance7u", mt);
+
+                mt = MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, int.class, int.class, MemorySegment.class);
+                DOT_HANDLE_7U_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProduct7uBulk", mt);
+
+                DOT_HANDLE_7U_BULK_WITH_OFFSETS = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "dotProduct7uBulkWithOffsets",
+                    MethodType.methodType(
+                        void.class,
+                        MemorySegment.class,
+                        MemorySegment.class,
+                        int.class,
+                        int.class,
+                        MemorySegment.class,
+                        int.class,
+                        MemorySegment.class
+                    )
+                );
 
                 mt = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                 COS_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "cosineF32", mt);
@@ -302,6 +359,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle dotProductHandle7uBulk() {
             return DOT_HANDLE_7U_BULK;
+        }
+
+        @Override
+        public MethodHandle dotProductHandle7uBulkWithOffsets() {
+            return DOT_HANDLE_7U_BULK_WITH_OFFSETS;
         }
 
         @Override

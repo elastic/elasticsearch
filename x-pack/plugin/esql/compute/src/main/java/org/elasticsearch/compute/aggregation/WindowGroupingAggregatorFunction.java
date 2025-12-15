@@ -22,7 +22,7 @@ import java.util.stream.IntStream;
 /**
  * A {@link GroupingAggregatorFunction} that wraps another, and apply a window function on the final aggregation.
  */
-record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, AggregatorFunctionSupplier supplier, Duration window)
+public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, AggregatorFunctionSupplier supplier, Duration window)
     implements
         GroupingAggregatorFunction {
 

@@ -1419,6 +1419,11 @@ public class EsqlCapabilities {
         DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS,
 
         /**
+         * Support directIO rescoring and `bfloat16` for `bbq_hnsw` and `bbq_disk`, and `bfloat16` for `hnsw` ans `bbq_flat` index types.
+         */
+        GENERIC_VECTOR_FORMAT,
+
+        /**
          * Support null elements on vector similarity functions
          */
         VECTOR_SIMILARITY_FUNCTIONS_SUPPORT_NULL,

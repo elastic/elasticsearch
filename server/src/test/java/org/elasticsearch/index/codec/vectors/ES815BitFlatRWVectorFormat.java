@@ -15,7 +15,7 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-public class ES815BitFlatRWVectorFormat extends ES815BitFlatVectorFormat {
+class ES815BitFlatRWVectorFormat extends ES815BitFlatVectorFormat {
     private static final FlatVectorsFormat format = new ES815BitFlatRWVectorsFormat();
 
     @Override

@@ -19,7 +19,7 @@ import org.apache.lucene.index.Sorter;
 
 import java.io.IOException;
 
-public class ES813FlatRWVectorFormat extends ES813FlatVectorFormat {
+class ES813FlatRWVectorFormat extends ES813FlatVectorFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {

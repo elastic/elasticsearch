@@ -14,7 +14,7 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
-public class ES815BitFlatRWVectorsFormat extends ES815BitFlatVectorsFormat {
+class ES815BitFlatRWVectorsFormat extends ES815BitFlatVectorsFormat {
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
         return delegate.fieldsWriter(segmentWriteState);

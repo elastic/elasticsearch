@@ -1189,7 +1189,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 );
             };
 
-            if(skipUnavailable) {
+            if (skipUnavailable) {
                 Request limit1 = esqlRequest(q + " | LIMIT 1");
                 verifier.accept(performRequestWithRemoteSearchUser(limit1));
                 verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
@@ -1202,13 +1202,19 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 Request limit1 = esqlRequest(q + " | LIMIT 1");
                 ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit1));
                 assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
-                e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey)
+                );
                 assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
 
                 Request limit0 = esqlRequest(q + " | LIMIT 0");
                 e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit0));
                 assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
-                e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey)
+                );
                 assertThat(e.getMessage(), containsString("Unknown index [my_remote_cluster:employees_nomatch]"));
             }
         }
@@ -1240,7 +1246,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             String remoteExpr = "nomatch";
             String q = Strings.format("FROM %s,%s:%s", localExpr, REMOTE_CLUSTER_ALIAS, remoteExpr);
 
-            if(skipUnavailable) {
+            if (skipUnavailable) {
                 CheckedConsumer<Response, Exception> verifier = resp -> {
                     assertOK(resp);
                     Map<String, Object> map = responseAsMap(resp);
@@ -1271,7 +1277,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit1));
                 assertThat(e.getMessage(), containsString("Unknown index"));
                 assertThat(e.getMessage(), containsString("nomatch"));
-                e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey)
+                );
                 assertThat(e.getMessage(), containsString("Unknown index"));
                 assertThat(e.getMessage(), containsString("nomatch"));
 
@@ -1279,7 +1288,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(limit0));
                 assertThat(e.getMessage(), containsString("Unknown index"));
                 assertThat(e.getMessage(), containsString("nomatch"));
-                e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey));
+                e = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUserViaAPIKey(limit0, remoteSearchUserAPIKey)
+                );
                 assertThat(e.getMessage(), containsString("Unknown index"));
                 assertThat(e.getMessage(), containsString("nomatch"));
             }

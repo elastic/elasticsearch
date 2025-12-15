@@ -32,6 +32,7 @@ public class Clusters {
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
+
         return cluster.build();
     }
 

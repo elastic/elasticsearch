@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,22 +50,18 @@ public record DownsampleShardTaskParams(
     private static final ParseField LABELS = new ParseField("labels");
     private static final ParseField DIMENSIONS = new ParseField("dimensions");
     private static final ParseField MULTI_FIELD_SOURCES = new ParseField("multi_field_sources");
-    public static final ObjectParser<DownsampleShardTaskParams.Builder, Void> PARSER = new ObjectParser<>(NAME);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
-        PARSER.declareObject(
-            DownsampleShardTaskParams.Builder::downsampleConfig,
-            (p, c) -> DownsampleConfig.fromXContent(p),
-            DOWNSAMPLE_CONFIG
-        );
-        PARSER.declareString(DownsampleShardTaskParams.Builder::downsampleIndex, DOWNSAMPLE_INDEX);
-        PARSER.declareLong(DownsampleShardTaskParams.Builder::indexStartTimeMillis, INDEX_START_TIME_MILLIS);
-        PARSER.declareLong(DownsampleShardTaskParams.Builder::indexEndTimeMillis, INDEX_END_TIME_MILLIS);
-        PARSER.declareString(DownsampleShardTaskParams.Builder::shardId, SHARD_ID);
-        PARSER.declareStringArray(DownsampleShardTaskParams.Builder::metrics, METRICS);
-        PARSER.declareStringArray(DownsampleShardTaskParams.Builder::labels, LABELS);
-        PARSER.declareStringArray(DownsampleShardTaskParams.Builder::dimensions, DIMENSIONS);
-        PARSER.declareObject(DownsampleShardTaskParams.Builder::alternativeSources, (p, c) -> p.map(), MULTI_FIELD_SOURCES);
+        PARSER.declareObject(Builder::downsampleConfig, (p, c) -> DownsampleConfig.fromXContent(p), DOWNSAMPLE_CONFIG);
+        PARSER.declareString(Builder::downsampleIndex, DOWNSAMPLE_INDEX);
+        PARSER.declareLong(Builder::indexStartTimeMillis, INDEX_START_TIME_MILLIS);
+        PARSER.declareLong(Builder::indexEndTimeMillis, INDEX_END_TIME_MILLIS);
+        PARSER.declareString(Builder::shardId, SHARD_ID);
+        PARSER.declareStringArray(Builder::metrics, METRICS);
+        PARSER.declareStringArray(Builder::labels, LABELS);
+        PARSER.declareStringArray(Builder::dimensions, DIMENSIONS);
+        PARSER.declareObject(Builder::multiFieldSources, (p, c) -> p.map(), MULTI_FIELD_SOURCES);
     }
 
     DownsampleShardTaskParams(final StreamInput in) throws IOException {
@@ -78,7 +73,7 @@ public record DownsampleShardTaskParams(
             new ShardId(in),
             in.readStringArray(),
             in.readStringArray(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readOptionalStringArray() : new String[] {},
+            in.readOptionalStringArray(),
             in.getTransportVersion().supports(DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES) ? in.readMap(StreamInput::readString) : Map.of()
         );
     }
@@ -110,7 +105,7 @@ public record DownsampleShardTaskParams(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_10_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -122,16 +117,14 @@ public record DownsampleShardTaskParams(
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalStringArray(dimensions);
-        }
+        out.writeOptionalStringArray(dimensions);
         if (out.getTransportVersion().supports(DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES)) {
             out.writeMap(multiFieldSources, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
 
     public static DownsampleShardTaskParams fromXContent(XContentParser parser) throws IOException {
-        final DownsampleShardTaskParams.Builder builder = new DownsampleShardTaskParams.Builder();
+        final Builder builder = new Builder();
         PARSER.parse(parser, builder, null);
         return builder.build();
     }
@@ -179,7 +172,7 @@ public record DownsampleShardTaskParams(
         String[] metrics;
         String[] labels;
         String[] dimensions = Strings.EMPTY_ARRAY;
-        Map<String, String> alternativeSources = Map.of();
+        Map<String, String> multiFieldSources = Map.of();
 
         public Builder downsampleConfig(final DownsampleConfig downsampleConfig) {
             this.downsampleConfig = downsampleConfig;
@@ -222,8 +215,8 @@ public record DownsampleShardTaskParams(
         }
 
         @SuppressWarnings("unchecked")
-        public Builder alternativeSources(final Map<String, ?> alternativeSources) {
-            this.alternativeSources = (Map<String, String>) alternativeSources;
+        public Builder multiFieldSources(final Map<String, ?> multiFieldSources) {
+            this.multiFieldSources = (Map<String, String>) multiFieldSources;
             return this;
         }
 
@@ -237,7 +230,7 @@ public record DownsampleShardTaskParams(
                 metrics,
                 labels,
                 dimensions,
-                alternativeSources
+                multiFieldSources
             );
         }
     }

@@ -26,7 +26,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
 
     private final AggregateMetricDoubleFieldType aggMetricFieldType;
 
-    private final AbstractDownsampleFieldProducer fieldProducer;
+    private final AbstractDownsampleFieldProducer<?> fieldProducer;
 
     AggregateSubMetricFieldValueFetcher(
         MappedFieldType fieldType,
@@ -40,7 +40,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
     }
 
     @Override
-    AbstractDownsampleFieldProducer fieldProducer() {
+    AbstractDownsampleFieldProducer<?> fieldProducer() {
         return fieldProducer;
     }
 
@@ -64,7 +64,7 @@ public final class AggregateSubMetricFieldValueFetcher extends FieldValueFetcher
         return fetchers;
     }
 
-    private AbstractDownsampleFieldProducer createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
+    private AbstractDownsampleFieldProducer<?> createFieldProducer(DownsampleConfig.SamplingMethod samplingMethod) {
         AggregateMetricDoubleFieldMapper.Metric metric = null;
         for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
             NumberFieldMapper.NumberFieldType metricSubField = e.getValue();

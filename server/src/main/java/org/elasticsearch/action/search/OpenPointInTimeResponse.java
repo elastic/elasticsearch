@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,12 +46,10 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBytesReference(pointInTimeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(totalShards);
-            out.writeVInt(successfulShards);
-            out.writeVInt(failedShards);
-            out.writeVInt(skippedShards);
-        }
+        out.writeVInt(totalShards);
+        out.writeVInt(successfulShards);
+        out.writeVInt(failedShards);
+        out.writeVInt(skippedShards);
     }
 
     @Override

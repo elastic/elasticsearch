@@ -28,13 +28,11 @@ import org.apache.lucene.index.Sorter;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.index.codec.vectors.VectorScoringUtils.scoreAndCollectAll;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES813FlatVectorFormat extends KnnVectorsFormat {
@@ -131,38 +129,12 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
 
         @Override
         public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
-        }
-
-        private void collectAllMatchingDocs(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer)
-            throws IOException {
-            OrdinalTranslatedKnnCollector collector = new OrdinalTranslatedKnnCollector(knnCollector, scorer::ordToDoc);
-            
-            DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
-            if (acceptDocsIterator == null) {
-                for (int i = 0; i < scorer.maxOrd(); i++) {
-                    collector.collect(i, scorer.score(i));
-                    collector.incVisitedCount(1);
-                }
-            } else {
-                int doc = acceptDocsIterator.nextDoc();
-                for (int i = 0; i < scorer.maxOrd() && doc != DocIdSetIterator.NO_MORE_DOCS; i++) {
-                    int vectorDoc = scorer.ordToDoc(i);
-                    while (doc < vectorDoc && doc != DocIdSetIterator.NO_MORE_DOCS) {
-                        doc = acceptDocsIterator.nextDoc();
-                    }
-                    if (doc == vectorDoc) {
-                        collector.collect(i, scorer.score(i));
-                        collector.incVisitedCount(1);
-                    }
-                }
-            }
-            assert collector.earlyTerminated() == false;
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
 
         @Override
         public void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-            collectAllMatchingDocs(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
+            scoreAndCollectAll(knnCollector, acceptDocs, reader.getRandomVectorScorer(field, target));
         }
 
         @Override

@@ -156,7 +156,7 @@ This setting is compatible with synthetic `_source`, where the entire `_source` 
 
 ### Rehydration and precision
 
-When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. Internally, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality.
+When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. By default, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality. Additionally, using an `element_type` of `bfloat16` will cause a further loss in precision in restored vectors.
 
 ### Storing original vectors in `_source`
 
@@ -192,7 +192,7 @@ The `dense_vector` type supports quantization to reduce the memory footprint req
 
 * `int8` - Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
 * `int4` - Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
-* `bbq` - Better binary quantization which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
+* `bbq` - [Better binary quantization](/reference/elasticsearch/mapping-reference/bbq.md) which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
 
 When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for more information.
 
@@ -283,11 +283,14 @@ The following mapping parameters are accepted:
 $$$dense-vector-element-type$$$
 
 `element_type`
-:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and `bit`.
+:   (Optional, string) The data type used to encode vectors.
 
 ::::{dropdown} Valid values for element_type
 `float`
 :   indexes a 4-byte floating-point value per dimension. This is the default value.
+
+`bfloat16` {applies_to}`stack: ga 9.3`
+:   indexes a 2-byte floating-point value per dimension. This uses the bfloat16 encoding, _not_ IEEE-754 float16, to maintain the same value range as 4-byte floats. Using `bfloat16` is likely to cause a loss of precision in the stored values compared to `float`.
 
 `byte`
 :   indexes a 1-byte integer value per dimension.
@@ -353,16 +356,16 @@ $$$dense-vector-index-options$$$
     * `int8_hnsw` - The default index type for some float vectors:
       * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions.
       * {applies_to}`stack: ga 9.0` Default for float all vectors.
-      This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-    * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-    * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+      This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float` or `bfloat16`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float` or `bfloat16`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+    * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float` or `bfloat16`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
 
       {applies_to}`stack: ga 9.1` `bbq_hnsw` is the default index type for float vectors with greater than or equal to 384 dimensions.
     * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
-    * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatic scalar quantization. Only supports `element_type` of `float`.
-    * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatic half-byte scalar quantization. Only supports `element_type` of `float`.
-    * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatic binary quantization. Only supports `element_type` of `float`.
-    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded. This requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+    * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatic scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
+    * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatic half-byte scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
+    * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatic binary quantization. Only supports `element_type` of `float` or `bfloat16`.
+    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float` or `bfloat16`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded. This requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
 `m`
 :   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
@@ -390,6 +393,9 @@ $$$dense-vector-index-options$$$
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
     :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
 :::::
+
+`on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
+:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`.
 ::::
 
 

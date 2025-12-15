@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -103,6 +102,14 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     "cpu_usage": {
                         "type": "double",
                         "time_series_metric": "counter"
+                    },
+                    "memory_usage": {
+                        "type": "double",
+                        "time_series_metric": "counter"
+                    },
+                    "memory_usage.free": {
+                        "type": "double",
+                        "time_series_metric": "counter"
                     }
                   }
                 }
@@ -121,6 +128,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .field("attributes.os.name", randomFrom("linux", "windows", "macos"))
                     .field("metrics.cpu_usage", randomDouble())
                     .field("metrics.memory_usage", randomDouble())
+                    .field("metrics.memory_usage.free", randomDouble())
+                    .field("metrics.load", randomDouble())
                     .endObject();
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -138,12 +147,17 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private void downsampleWithSamplingMethod(DownsampleConfig.SamplingMethod method) throws Exception {
-        // TODO: remove when FeatureFlag is removed and add minimum required version to yaml spec
-        assumeTrue("Only when exponential_histogram feature flag is enabled", Build.current().isSnapshot());
         String dataStreamName = "metrics-foo";
         String mapping = """
             {
               "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "timestamp": {
+                  "path": "@timestamp",
+                  "type": "alias"
+                },
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,
@@ -161,6 +175,10 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                 },
                 "metrics.latency": {
                   "type": "exponential_histogram",
+                  "time_series_metric": "histogram"
+                },
+                "metrics.tdigest": {
+                  "type": "histogram",
                   "time_series_metric": "histogram"
                 },
                 "my_labels": {
@@ -212,6 +230,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .array("indices", new int[] { -1, 0, 1, 2, 3, 4, 5, 6 })
                     .array("counts", new int[] { 1, 1, 2, 4, 8, 16, 32, 36 })
                     .endObject()
+                    .endObject()
+
+                    .startObject("metrics.tdigest")
+                    .array("values", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
                     .endObject()
 
                     .startObject("my_labels.my_histogram")

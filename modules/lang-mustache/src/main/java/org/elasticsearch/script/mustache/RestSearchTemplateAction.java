@@ -83,9 +83,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
 
-        if (searchRequest.indicesOptions().resolveCrossProjectIndexExpression() == false
-            && searchTemplateRequest.getProjectRouting() != null) {
-            throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+        if (searchTemplateRequest.getProjectRouting() != null) {
+            if (crossProjectEnabled) {
+                searchRequest.setProjectRouting(searchTemplateRequest.getProjectRouting());
+            } else {
+                throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+            }
         }
 
         searchTemplateRequest.setRequest(searchRequest);

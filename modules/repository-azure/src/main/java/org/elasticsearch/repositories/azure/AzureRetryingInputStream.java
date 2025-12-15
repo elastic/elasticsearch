@@ -88,7 +88,8 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
-            return false;
+            // TODO: work out what is and is not retry-able
+            return true;
         }
     }
 }

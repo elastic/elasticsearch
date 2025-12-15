@@ -445,9 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleIT
   method: testAggregateMethod
   issue: https://github.com/elastic/elasticsearch/issues/139382
-- class: org.elasticsearch.xpack.security.authc.saml.SamlRedirectTests
-  method: testRedirectUrlWithRelayStateAndSigning
-  issue: https://github.com/elastic/elasticsearch/issues/139389
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012

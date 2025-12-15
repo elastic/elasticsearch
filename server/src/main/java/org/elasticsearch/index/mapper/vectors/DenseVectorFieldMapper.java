@@ -138,8 +138,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     public static final int BBQ_MIN_DIMS = 64;
 
-    private static final boolean DEFAULT_HNSW_EARLY_TERMINATION = false;
-
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
      */
@@ -187,7 +185,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final Setting<Boolean> HNSW_EARLY_TERMINATION = Setting.boolSetting(
         "index.dense_vector.hnsw_enable_early_termination",
-        DEFAULT_HNSW_EARLY_TERMINATION,
+        Build.current().isSnapshot(),
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic,
         Setting.Property.Dynamic

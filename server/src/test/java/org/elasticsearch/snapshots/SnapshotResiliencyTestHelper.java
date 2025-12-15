@@ -1214,6 +1214,10 @@ public class SnapshotResiliencyTestHelper {
             return LeaderHeartbeatService.NO_OP;
         }
 
+        protected Reconfigurator createReconfigurator() {
+            return new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings());
+        }
+
         protected PreVoteCollector.Factory createPrevoteCollector() {
             return StatefulPreVoteCollector::new;
         }
@@ -1260,7 +1264,7 @@ public class SnapshotResiliencyTestHelper {
                 createElectionStrategy(),
                 () -> new StatusInfo(HEALTHY, "healthy-info"),
                 new NoneCircuitBreakerService(),
-                new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
+                createReconfigurator(),
                 createLeaderHeartbeatService(),
                 createPrevoteCollector(),
                 CompatibilityVersionsUtils.staticCurrent(),

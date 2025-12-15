@@ -1960,7 +1960,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         fail("Condition wasn't fulfilled.");
     }
 
-    private void setupTestCluster(int masterNodes, int dataNodes) {
+    protected void setupTestCluster(int masterNodes, int dataNodes) {
         setupTestCluster(masterNodes, dataNodes, ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR);
     }
 

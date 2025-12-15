@@ -183,6 +183,7 @@ public class CsvTestsDataLoader {
         "exp_histo_sample.csv"
     ).withSetting("exp_histo_sample-settings.json");
     private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
+    private static final TestDataset HISTOGRAM_STANDARD_INDEX = new TestDataset("histogram_standard_index");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -256,7 +257,8 @@ public class CsvTestsDataLoader {
         Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
-        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX)
+        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX),
+        Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -350,22 +352,33 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, true, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
-                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                StringBuilder jsonBody = new StringBuilder("{");
-                if (indexSettings != null && indexSettings.isEmpty() == false) {
-                    jsonBody.append("\"settings\":");
-                    jsonBody.append(Strings.toString(indexSettings));
-                    jsonBody.append(",");
-                }
-                jsonBody.append("\"mappings\":");
-                jsonBody.append(indexMapping);
-                jsonBody.append("}");
+            loadDataSetIntoEs(
+                client,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true,
+                (restClient, indexName, indexMapping, indexSettings) -> {
+                    // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                    StringBuilder jsonBody = new StringBuilder("{");
+                    if (indexSettings != null && indexSettings.isEmpty() == false) {
+                        jsonBody.append("\"settings\":");
+                        jsonBody.append(Strings.toString(indexSettings));
+                        jsonBody.append(",");
+                    }
+                    jsonBody.append("\"mappings\":");
+                    jsonBody.append(indexMapping);
+                    jsonBody.append("}");
 
-                Request request = new Request("PUT", "/" + indexName);
-                request.setJsonEntity(jsonBody.toString());
-                restClient.performRequest(request);
-            });
+                    Request request = new Request("PUT", "/" + indexName);
+                    request.setJsonEntity(jsonBody.toString());
+                    restClient.performRequest(request);
+                }
+            );
         }
     }
 
@@ -376,6 +389,7 @@ public class CsvTestsDataLoader {
         boolean requiresTimeSeries,
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
@@ -387,6 +401,7 @@ public class CsvTestsDataLoader {
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
                 && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
                 && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
+                && (histogramFieldSupported || containsHistogramFields(dataset) == false)
                 && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
                 testDataSets.add(dataset);
             }
@@ -442,6 +457,27 @@ public class CsvTestsDataLoader {
         return false;
     }
 
+    private static boolean containsHistogramFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode properties = mappingNode.get("properties");
+        if (properties != null) {
+            for (var fieldWithValue : properties.properties()) {
+                JsonNode fieldProperties = fieldWithValue.getValue();
+                if (fieldProperties != null) {
+                    JsonNode typeNode = fieldProperties.get("type");
+                    if (typeNode != null && typeNode.asText().equals("histogram")) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
@@ -454,7 +490,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false, false);
     }
 
     public static void loadDataSetIntoEs(
@@ -465,6 +501,7 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported
     ) throws IOException {
         loadDataSetIntoEs(
@@ -475,6 +512,7 @@ public class CsvTestsDataLoader {
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
             tDigestFieldSupported,
+            histogramFieldSupported,
             bFloat16ElementTypeSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
@@ -490,6 +528,7 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
+        boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported,
         IndexCreator indexCreator
     ) throws IOException {
@@ -504,6 +543,7 @@ public class CsvTestsDataLoader {
             timeSeriesOnly,
             exponentialHistogramFieldSupported,
             tDigestFieldSupported,
+            histogramFieldSupported,
             bFloat16ElementTypeSupported
         )) {
             load(client, dataset, logger, indexCreator);

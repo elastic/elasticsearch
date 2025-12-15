@@ -753,6 +753,11 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             nodeRoleCombinationsToTest.add(List.of(nodeRoleThatDoesNotContainData));
         }
 
+        // Check any subset of roles also does not log snapshot shutting down progress
+        List<String> nodeRoles = randomNonEmptySubsetOf(nodeRolesThatDoNotContainData);
+        nodeRoleCombinationsToTest.add(nodeRoles);
+        logger.info("Testing {} roles", nodeRoles);
+
         // Now test each combination of node roles
         for (List<String> roles : nodeRoleCombinationsToTest) {
             String nodeRolesString = String.join(",", roles);

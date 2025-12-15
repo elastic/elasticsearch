@@ -16,11 +16,11 @@ import java.util.List;
 
 public class EsqlExecutionInfoTests extends ESTestCase {
 
-    static final EsqlExecutionInfo.Cluster localCluster = new EsqlExecutionInfo.Cluster(
+    static final EsqlExecutionInfo.Cluster localCluster = createEsqlExecutionInfoCluster(
         RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
         "test"
     );
-    static final EsqlExecutionInfo.Cluster remoteCluster = new EsqlExecutionInfo.Cluster("remote", "test");
+    static final EsqlExecutionInfo.Cluster remoteCluster = createEsqlExecutionInfoCluster("remote", "test");
 
     public void testHasMetadataInclude() {
         // includeCCSMetadata + non-local clusters will produce true
@@ -50,10 +50,10 @@ public class EsqlExecutionInfoTests extends ESTestCase {
     public void testHasMetadataPartial() {
         EsqlExecutionInfo info = createEsqlExecutionInfo(false);
         String key = randomFrom(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, "remote");
-        info.swapCluster(key, (k, v) -> new EsqlExecutionInfo.Cluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         assertFalse(info.isPartial());
         assertFalse(info.hasMetadataToReport());
-        info.swapCluster(key, (k, v) -> new EsqlExecutionInfo.Cluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.PARTIAL));
         assertTrue(info.isPartial());
         assertFalse(info.hasMetadataToReport());
         info.swapCluster(key, (k, v) -> {
@@ -68,6 +68,43 @@ public class EsqlExecutionInfoTests extends ESTestCase {
         return new EsqlExecutionInfo(
             Predicates.always(),
             includeCCSMetadata ? EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY : EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
+        );
+    }
+
+    public static EsqlExecutionInfo.Cluster createEsqlExecutionInfoCluster(String clusterAlias, String indexExpression) {
+        return new EsqlExecutionInfo.Cluster(
+            clusterAlias,
+            clusterAlias,
+            indexExpression,
+            true,
+            EsqlExecutionInfo.Cluster.Status.RUNNING,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
+    public static EsqlExecutionInfo.Cluster createEsqlExecutionInfoCluster(
+        String clusterAlias,
+        String indexExpression,
+        boolean skipUnavailable,
+        EsqlExecutionInfo.Cluster.Status status
+    ) {
+        return new EsqlExecutionInfo.Cluster(
+            clusterAlias,
+            clusterAlias,
+            indexExpression,
+            skipUnavailable,
+            status,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
         );
     }
 }

@@ -64,6 +64,7 @@ public class EsqlResponseListenerTests extends ESTestCase {
             LOCAL_CLUSTER_ALIAS,
             (k, v) -> new EsqlExecutionInfo.Cluster(
                 LOCAL_CLUSTER_ALIAS,
+                LOCAL_CLUSTER_ALIAS,
                 "idx",
                 false,
                 EsqlExecutionInfo.Cluster.Status.SUCCESSFUL,
@@ -96,6 +97,7 @@ public class EsqlResponseListenerTests extends ESTestCase {
         executionInfo.swapCluster(
             "remote_cluster",
             (k, v) -> new EsqlExecutionInfo.Cluster(
+                "remote_cluster",
                 "remote_cluster",
                 "idx",
                 false,

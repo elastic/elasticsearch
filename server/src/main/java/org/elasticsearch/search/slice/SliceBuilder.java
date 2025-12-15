@@ -44,6 +44,7 @@ import java.util.Objects;
  *  {@link DocValuesSliceQuery} is used to filter the results.
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
+    private static final MatchNoDocsQuery NOT_PART_OF_SLICE = new MatchNoDocsQuery("this shard is not part of the slice");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
@@ -205,7 +206,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             int targetShard = id % numShards;
             if (targetShard != shardIndex) {
                 // the shard is not part of this slice, we can skip it.
-                return new MatchNoDocsQuery("this shard is not part of the slice");
+                return NOT_PART_OF_SLICE;
             }
             // compute the number of slices where this shard appears
             int numSlicesInShard = max / numShards;
@@ -228,7 +229,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         int targetSlice = shardIndex % max;
         if (id != targetSlice) {
             // the shard is not part of this slice, we can skip it.
-            return new MatchNoDocsQuery("this shard is not part of the slice");
+            return NOT_PART_OF_SLICE;
         }
         return new MatchAllDocsQuery();
     }

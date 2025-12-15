@@ -221,9 +221,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
-    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
+
+    public static final boolean DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = true;
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING = Setting.boolSetting(
         "search.default_allow_partial_results",
-        true,
+        DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -415,9 +417,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
 
-        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
+        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING.get(settings);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, this::setDefaultAllowPartialSearchResults);
+            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING, this::setDefaultAllowPartialSearchResults);
 
         maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);
@@ -2226,7 +2228,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips
     ) {
-        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false, false);
+        return getRewriteContext(
+            nowInMillis,
+            minTransportVersion,
+            clusterAlias,
+            resolvedIndices,
+            pit,
+            ccsMinimizeRoundTrips,
+            false,
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
     }
 
     /**
@@ -2240,7 +2252,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain,
-        final boolean isProfile
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
         return indicesService.getRewriteContext(
             nowInMillis,
@@ -2250,7 +2263,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             pit,
             ccsMinimizeRoundTrips,
             isExplain,
-            isProfile
+            isProfile,
+            allowPartialSearchResults
         );
     }
 

@@ -67,6 +67,16 @@ import java.util.stream.Collectors;
  */
 public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
 
+    @Deprecated(forRemoval = true)
+    public boolean onOrAfter(TransportVersion version) {
+        throw new UnsupportedOperationException("use TransportVersion.supports(...) instead");
+    }
+
+    @Deprecated(forRemoval = true)
+    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
+        throw new UnsupportedOperationException("use TransportVersion.supports(...) && TransportVersion.supports(...) == false instead");
+    }
+
     /**
      * Constructs an unnamed transport version.
      */
@@ -276,7 +286,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * Returns {@code true} if the specified version is compatible with this running version of Elasticsearch.
      */
     public static boolean isCompatible(TransportVersion version) {
-        return version.onOrAfter(VersionsHolder.MINIMUM_COMPATIBLE);
+        return version.id >= VersionsHolder.MINIMUM_COMPATIBLE.id;
     }
 
     /**
@@ -349,8 +359,8 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     /**
      * Returns {@code true} if this version is a patch version at or after {@code version}.
      */
-    private boolean isPatchFrom(TransportVersion version) {
-        return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
+    public boolean isPatchFrom(TransportVersion version) {
+        return id >= version.id && id < version.id + 100 - (version.id % 100);
     }
 
     /**
@@ -391,7 +401,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * }
      */
     public boolean supports(TransportVersion version) {
-        if (onOrAfter(version)) {
+        if (id >= version.id) {
             return true;
         }
         TransportVersion nextPatchVersion = version.nextPatchVersion;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 
@@ -23,21 +24,21 @@ public class EsqlExecutionInfoTests extends ESTestCase {
 
     public void testHasMetadataInclude() {
         // includeCCSMetadata + non-local clusters will produce true
-        EsqlExecutionInfo info = new EsqlExecutionInfo(true);
+        EsqlExecutionInfo info = createEsqlExecutionInfo(true);
         assertFalse(info.hasMetadataToReport());
         info.swapCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, (k, v) -> localCluster);
         assertFalse(info.hasMetadataToReport());
         info.swapCluster("remote", (k, v) -> remoteCluster);
         assertTrue(info.hasMetadataToReport());
         // Only remote is enough
-        info = new EsqlExecutionInfo(true);
+        info = createEsqlExecutionInfo(true);
         info.swapCluster("remote", (k, v) -> remoteCluster);
         assertTrue(info.hasMetadataToReport());
     }
 
     public void testHasMetadataIncludeFalse() {
         // If includeCCSMetadata is false, then it should always return false
-        EsqlExecutionInfo info = new EsqlExecutionInfo(false);
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
         assertFalse(info.hasMetadataToReport());
         assertFalse(info.hasMetadataToReport());
         info.swapCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, (k, v) -> localCluster);
@@ -47,7 +48,7 @@ public class EsqlExecutionInfoTests extends ESTestCase {
     }
 
     public void testHasMetadataPartial() {
-        EsqlExecutionInfo info = new EsqlExecutionInfo(false);
+        EsqlExecutionInfo info = createEsqlExecutionInfo(false);
         String key = randomFrom(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, "remote");
         info.swapCluster(key, (k, v) -> new EsqlExecutionInfo.Cluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         assertFalse(info.isPartial());
@@ -63,4 +64,10 @@ public class EsqlExecutionInfoTests extends ESTestCase {
         assertTrue(info.hasMetadataToReport());
     }
 
+    public static EsqlExecutionInfo createEsqlExecutionInfo(boolean includeCCSMetadata) {
+        return new EsqlExecutionInfo(
+            Predicates.always(),
+            includeCCSMetadata ? EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY : EsqlExecutionInfo.IncludeExecutionMetadata.NEVER
+        );
+    }
 }

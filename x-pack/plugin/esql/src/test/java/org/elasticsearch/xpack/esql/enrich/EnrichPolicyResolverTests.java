@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -436,7 +437,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
         }
 
         EnrichResolution resolvePolicies(Collection<String> clusters, Collection<UnresolvedPolicy> unresolvedPolicies) {
-            EsqlExecutionInfo esqlExecutionInfo = new EsqlExecutionInfo(true);
+            EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(true);
             for (String cluster : clusters) {
                 esqlExecutionInfo.swapCluster(cluster, (k, v) -> new EsqlExecutionInfo.Cluster(cluster, "*"));
             }

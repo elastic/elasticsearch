@@ -96,24 +96,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
     private transient boolean inSubplan = false;
 
-    // FOR TESTS ONLY
-    public EsqlExecutionInfo(boolean includeCCSMetadata) {
-        // default all clusters to being skippable on failure
-        this(Predicates.always(), includeCCSMetadata ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER);
-    }
-
-    /**
-     * FOR TESTING use with fromXContent parsing ONLY
-     */
-    EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
-        this(
-            clusterInfo,
-            Predicates.always(),
-            includeCCSMetadata ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER,
-            null
-        );
-    }
-
     /**
      * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.
      * @param includeExecutionMetadata (user defined setting) whether to include the execution/CCS metadata in the HTTP response
@@ -208,8 +190,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         }
     }
 
-    // for testing only - use markEndQuery in production code
-    void overallTook(TimeValue took) {
+    public void overallTook(TimeValue took) {
         this.overallTook = took;
     }
 

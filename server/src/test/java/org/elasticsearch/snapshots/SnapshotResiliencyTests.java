@@ -133,7 +133,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
     @Before
     public void createServices() {
         tempDir = createTempDir();
-        deterministicTaskQueue = new DeterministicTaskQueue();
+        deterministicTaskQueue = createDeterministicTaskQueue();
+    }
+
+    protected DeterministicTaskQueue createDeterministicTaskQueue() {
+        return new DeterministicTaskQueue();
     }
 
     @After

@@ -90,7 +90,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -170,7 +169,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -494,7 +492,7 @@ public class SnapshotResiliencyTestHelper {
         }
 
         public final void init() throws IOException {
-            threadPool = deterministicTaskQueue.getThreadPool(wrapRunnable(), extraExecutorServices());
+            threadPool = deterministicTaskQueue.getThreadPool(wrapRunnable());
             masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
             client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
             this.usageService = new UsageService();
@@ -560,7 +558,10 @@ public class SnapshotResiliencyTestHelper {
 
                 @Override
                 protected void execute(Runnable runnable) {
-                    scheduleNow(DeterministicTaskQueue.onNodeLog(getLocalNode(), runnable));
+                    final Runnable wrappedRunnable = DeterministicTaskQueue.onNodeLog(getLocalNode(), runnable);
+                    if (maybeExecuteTransportRunnable(wrappedRunnable) == false) {
+                        scheduleNow(wrappedRunnable);
+                    }
                 }
 
                 @Override
@@ -1120,6 +1121,15 @@ public class SnapshotResiliencyTestHelper {
 
         protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}
 
+        /**
+         * Maybe execute the given transport runnable inline. If executed, return true, else return false to schedule it.
+         * @param runnable The transport layer runnable, i.e. request and response.
+         * @return true if executed, false to schedule it.
+         */
+        protected boolean maybeExecuteTransportRunnable(Runnable runnable) {
+            return false;
+        }
+
         public void restart() {
             testClusterNodes.disconnectNode(this);
             final ClusterState oldState = this.clusterService.state();
@@ -1186,10 +1196,6 @@ public class SnapshotResiliencyTestHelper {
 
         protected Set<IndexSettingProvider> getIndexSettingProviders() {
             return Set.of();
-        }
-
-        protected Map<String, CachedSupplier<ExecutorService>> extraExecutorServices() {
-            return Map.of();
         }
 
         protected Supplier<CoordinationState.PersistedState> getPersistedStateSupplier(ClusterState initialState, DiscoveryNode node) {

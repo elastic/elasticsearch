@@ -29,12 +29,14 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -252,6 +254,14 @@ public class DeterministicTaskQueue {
     }
 
     /**
+     * Whether the direct executor should be used for the executor with the given name. If yes, tasks submitted to that executor
+     * will be executed immediately inline instead of being scheduled in the deterministic task queue.
+     */
+    protected boolean shouldUseDirectExecutor(String executorName) {
+        return false;
+    }
+
+    /**
      * @return A <code>ThreadPool</code> that uses this task queue.
      */
     public ThreadPool getThreadPool() {
@@ -380,7 +390,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public ExecutorService executor(String name) {
-                return forkingExecutor;
+                return shouldUseDirectExecutor(name) ? EsExecutors.DIRECT_EXECUTOR_SERVICE : forkingExecutor;
             }
 
             @Override
@@ -449,7 +459,69 @@ public class DeterministicTaskQueue {
                 return new ScheduledExecutorService() {
                     @Override
                     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-                        throw new UnsupportedOperationException();
+                        // For GlobalCheckpointListeners#add
+                        final int NOT_STARTED = 0;
+                        final int STARTED = 1;
+                        final int CANCELLED = 2;
+                        final int DONE = 3;
+                        final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+                        final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
+
+                        scheduleAt(currentTimeMillis + new TimeValue(delay, unit).millis(), runnableWrapper.apply(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
+                                    try {
+                                        contextPreservingRunnable.run();
+                                    } finally {
+                                        taskState.compareAndSet(STARTED, DONE);
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public String toString() {
+                                return command.toString();
+                            }
+                        }));
+
+                        return new ScheduledFuture<>() {
+                            @Override
+                            public long getDelay(TimeUnit unit) {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public int compareTo(Delayed o) {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public boolean cancel(boolean mayInterruptIfRunning) {
+                                return taskState.compareAndSet(NOT_STARTED, CANCELLED);
+                            }
+
+                            @Override
+                            public boolean isCancelled() {
+                                return taskState.get() == CANCELLED;
+                            }
+
+                            @Override
+                            public boolean isDone() {
+                                return taskState.get() == DONE;
+                            }
+
+                            @Override
+                            public Object get() throws InterruptedException, ExecutionException {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException,
+                                TimeoutException {
+                                throw new UnsupportedOperationException();
+                            }
+                        };
                     }
 
                     @Override

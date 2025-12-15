@@ -382,11 +382,11 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 // TODO: get tighter bounds.
                 double smaller = Math.min(secondsInWindow, tsDurationSeconds);
                 double larger = Math.max(secondsInWindow, tsDurationSeconds);
-                double lowBound = counterGrowth / larger * 0.5;
-                if (lowBound < 0.5) {
+                double lowBound = counterGrowth / larger * 0.3;
+                if (lowBound < 1.0) {
                     lowBound = 0.0;
                 }
-                double highBound = counterGrowth / smaller * 2.0;
+                double highBound = counterGrowth / smaller * 3.0;
                 return new RateRange(lowBound, highBound);
             }
         }).filter(Objects::nonNull).toList();

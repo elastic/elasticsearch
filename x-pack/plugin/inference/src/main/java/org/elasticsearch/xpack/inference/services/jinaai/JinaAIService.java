@@ -308,7 +308,8 @@ public class JinaAIService extends SenderService {
                 similarityToUse,
                 embeddingSize,
                 maxInputTokens,
-                serviceSettings.getEmbeddingType()
+                serviceSettings.getEmbeddingType(),
+                serviceSettings.dimensionsSetByUser()
             );
 
             return new JinaAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);

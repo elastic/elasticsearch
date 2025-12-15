@@ -938,7 +938,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         if (randomBoolean()) {
             return "-" + randomFrom(authorizedIndices) + (randomBoolean() ? "*" : "");
         } else {
-            return "-" + randomAlphaOfLengthBetween(0, 5) + (randomBoolean() ? "*" : "");
+            return "-" + randomAlphaOfLengthBetween(1, 5) + (randomBoolean() ? "*" : "");
         }
     }
 

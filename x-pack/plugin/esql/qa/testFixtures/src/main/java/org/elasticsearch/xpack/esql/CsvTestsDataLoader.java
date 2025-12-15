@@ -352,22 +352,33 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, false, false, true, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
-                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                StringBuilder jsonBody = new StringBuilder("{");
-                if (indexSettings != null && indexSettings.isEmpty() == false) {
-                    jsonBody.append("\"settings\":");
-                    jsonBody.append(Strings.toString(indexSettings));
-                    jsonBody.append(",");
-                }
-                jsonBody.append("\"mappings\":");
-                jsonBody.append(indexMapping);
-                jsonBody.append("}");
+            loadDataSetIntoEs(
+                client,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true,
+                (restClient, indexName, indexMapping, indexSettings) -> {
+                    // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                    StringBuilder jsonBody = new StringBuilder("{");
+                    if (indexSettings != null && indexSettings.isEmpty() == false) {
+                        jsonBody.append("\"settings\":");
+                        jsonBody.append(Strings.toString(indexSettings));
+                        jsonBody.append(",");
+                    }
+                    jsonBody.append("\"mappings\":");
+                    jsonBody.append(indexMapping);
+                    jsonBody.append("}");
 
-                Request request = new Request("PUT", "/" + indexName);
-                request.setJsonEntity(jsonBody.toString());
-                restClient.performRequest(request);
-            });
+                    Request request = new Request("PUT", "/" + indexName);
+                    request.setJsonEntity(jsonBody.toString());
+                    restClient.performRequest(request);
+                }
+            );
         }
     }
 
@@ -479,7 +490,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false, false);
     }
 
     public static void loadDataSetIntoEs(

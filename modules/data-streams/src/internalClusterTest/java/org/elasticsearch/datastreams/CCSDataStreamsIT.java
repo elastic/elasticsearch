@@ -11,6 +11,8 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
@@ -30,7 +32,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -40,6 +45,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -69,7 +75,10 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return CollectionUtils.concatLists(List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class), super.nodePlugins(clusterAlias));
+        return CollectionUtils.concatLists(
+            List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class, ReindexPlugin.class),
+            super.nodePlugins(clusterAlias)
+        );
     }
 
     @Test
@@ -194,14 +203,109 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         });
     }
 
-    private static String remoteResource(String remoteDS) {
-        return REMOTE_CLUSTER + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + remoteDS;
+    @Test
+    public void testFailureStoreCCSMSearch() throws Exception {
+        String localDS = "logs-local";
+        String remoteDS = "logs-remote";
+        TestClusterInfo testClusterInfo = setupClusters(List.of(localDS), List.of(remoteDS));
+
+        MultiSearchRequest mSearchRequest = new MultiSearchRequest();
+        for (String index : List.of(localDS + "::failures", REMOTE_CLUSTER + ":" + remoteDS + "::failures")) {
+            SearchRequest searchRequest = new SearchRequest(index);
+            if (randomBoolean()) {
+                searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
+            }
+            searchRequest.allowPartialSearchResults(false);
+            if (randomBoolean()) {
+                searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
+            }
+            boolean minimizeRoundTrips = randomBoolean();
+            searchRequest.setCcsMinimizeRoundtrips(minimizeRoundTrips);
+            boolean dfs = randomBoolean();
+            if (dfs) {
+                searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            }
+            if (randomBoolean()) {
+                searchRequest.setPreFilterShardSize(1);
+            }
+            searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+            mSearchRequest.add(searchRequest);
+        }
+
+        assertResponse(client(LOCAL_CLUSTER).multiSearch(mSearchRequest), mResponse -> {
+            assertNotNull(mResponse);
+
+            assertThat(mResponse.getResponses().length, equalTo(2));
+
+            {
+                // First search response has no remote searches and is a regular search response
+                assertFalse(mResponse.getResponses()[0].isFailure());
+                SearchResponse response = mResponse.getResponses()[0].getResponse();
+                assertNotNull(response);
+                Clusters clusters = response.getClusters();
+                assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+
+                assertThat(response.getTotalShards(), equalTo(testClusterInfo.localNumShards));
+                assertThat(response.getSuccessfulShards(), equalTo(testClusterInfo.localNumShards));
+                assertThat(response.getSkippedShards(), equalTo(0));
+                assertThat(response.getFailedShards(), equalTo(0));
+                assertThat(response.getTook().millis(), greaterThan(0L));
+            }
+
+            {
+                // Second search response does have remote searches
+                assertFalse(mResponse.getResponses()[1].isFailure());
+                SearchResponse response = mResponse.getResponses()[1].getResponse();
+                assertNotNull(response);
+                Clusters clusters = response.getClusters();
+                assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+                assertThat(clusters.getTotal(), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+
+                SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+                assertNotNull(remoteClusterSearchInfo);
+                assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo(remoteDS + "::failures"));
+                assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(testClusterInfo.remoteNumShards));
+                assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(testClusterInfo.remoteNumShards));
+                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+                assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+                assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+            }
+        });
+    }
+
+    @Test
+    public void testFailureStoreCCSReindex() throws Exception {
+        String localDS = "logs-local";
+        String remoteDS = "logs-remote";
+        String localIndex = "logs-remote-failures";
+        TestClusterInfo testClusterInfo = setupClusters(List.of(localDS), List.of(remoteDS));
+
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices(REMOTE_CLUSTER + ":" + remoteDS + "::failures");
+        reindexRequest.setDestIndex(localIndex);
+
+        assertResponse(client(LOCAL_CLUSTER).execute(ReindexAction.INSTANCE, reindexRequest), response -> {
+                assertNotNull(response);
+                assertFalse(response.isTimedOut());
+                assertThat(response.getCreated(), greaterThan(0L));
+                assertThat(response.getDeleted(), equalTo(0L));
+                assertThat(response.getBatches(), greaterThan(0));
+                assertThat(response.getBulkFailures().size(), equalTo(0));
+                assertThat(response.getSearchFailures().size(), equalTo(0));
+                assertThat(response.getTook().millis(), greaterThan(0L));
+        });
     }
 
     record TestClusterInfo(int localNumShards, int remoteNumShards, boolean remoteSkipUnavailable) {}
 
     private TestClusterInfo setupClusters(List<String> localStreams, List<String> remoteStreams) throws IOException {
-        cluster(LOCAL_CLUSTER).ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
         int numShardsLocal = randomIntBetween(2, 10);
         for (String localStream : localStreams) {
             setupDataStream(LOCAL_CLUSTER, localStream, numShardsLocal);
@@ -285,7 +389,16 @@ public class CCSDataStreamsIT extends AbstractMultiClustersTestCase {
         for (int i = 0; i < numDocs; i++) {
             client.prepareIndex(index).setOpType(DocWriteRequest.OpType.CREATE).setSource("f", "v").get();
         }
-        client.admin().indices().prepareRefresh(index).get();
+        String fsIndex = null;
+        try {
+            fsIndex = client.execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TimeValue.THIRTY_SECONDS, new String[] { index })
+            ).get().getDataStreams().getFirst().getDataStream().getFailureIndices().getFirst().getName();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+        client.admin().indices().prepareRefresh(fsIndex).get();
         return numDocs;
     }
 }

@@ -21,6 +21,8 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql'))
+
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
 
 def supportedVersion = bwcVersion -> {

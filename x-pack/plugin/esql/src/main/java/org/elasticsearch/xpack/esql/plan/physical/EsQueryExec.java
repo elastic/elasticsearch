@@ -129,7 +129,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {};
+    public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
+        public QueryBuilderAndTags withQuery(QueryBuilder query) {
+            return new QueryBuilderAndTags(query, tags);
+        }
+    };
 
     public EsQueryExec(
         Source source,

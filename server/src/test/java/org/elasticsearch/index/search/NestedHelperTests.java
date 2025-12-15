@@ -13,10 +13,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -105,11 +105,11 @@ public class NestedHelperTests extends MapperServiceTestCase {
     }
 
     public void testMatchNo() {
-        assertFalse(NestedHelper.mightMatchNestedDocs(new MatchNoDocsQuery(), searchExecutionContext));
-        assertFalse(NestedHelper.mightMatchNonNestedDocs(new MatchNoDocsQuery(), "nested1", searchExecutionContext));
-        assertFalse(NestedHelper.mightMatchNonNestedDocs(new MatchNoDocsQuery(), "nested2", searchExecutionContext));
-        assertFalse(NestedHelper.mightMatchNonNestedDocs(new MatchNoDocsQuery(), "nested3", searchExecutionContext));
-        assertFalse(NestedHelper.mightMatchNonNestedDocs(new MatchNoDocsQuery(), "nested_missing", searchExecutionContext));
+        assertFalse(NestedHelper.mightMatchNestedDocs(Queries.NO_DOCS_INSTANCE, searchExecutionContext));
+        assertFalse(NestedHelper.mightMatchNonNestedDocs(Queries.NO_DOCS_INSTANCE, "nested1", searchExecutionContext));
+        assertFalse(NestedHelper.mightMatchNonNestedDocs(Queries.NO_DOCS_INSTANCE, "nested2", searchExecutionContext));
+        assertFalse(NestedHelper.mightMatchNonNestedDocs(Queries.NO_DOCS_INSTANCE, "nested3", searchExecutionContext));
+        assertFalse(NestedHelper.mightMatchNonNestedDocs(Queries.NO_DOCS_INSTANCE, "nested_missing", searchExecutionContext));
     }
 
     public void testTermsQuery() {

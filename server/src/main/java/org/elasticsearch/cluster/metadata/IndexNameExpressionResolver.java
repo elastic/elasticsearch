@@ -1306,6 +1306,8 @@ public class IndexNameExpressionResolver {
                         }
                     }
                 }
+            } else if (indexAbstraction != null && indexAbstraction.getType() == Type.ALIAS) {
+                // TODO: what to do here?
             } else {
                 // Index
                 assert resolvedExpression.selector() == null || IndexComponentSelector.DATA.equals(resolvedExpression.selector())
@@ -1861,6 +1863,8 @@ public class IndexNameExpressionResolver {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
+            } else if (indexAbstraction.getType() == Type.VIEW) {
+                // TODO: determine what we should do here
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {

@@ -202,3 +202,53 @@ setup:
         name: mydatastreamalias
         body:
           query: 'FROM test | WHERE animal == "dog"'
+
+---
+"abstraction-name-conflicts":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      esql.put_view:
+        name: myview
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /Invalid index name \[myview\], already exists as an ESQL view/
+      indices.create:
+        index: myview
+
+  - do:
+      indices.create:
+        index: myindex
+
+  - do:
+      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias/
+      indices.put_alias:
+        index: myindex
+        name: myview
+
+  - do:
+      allowed_warnings:
+        - "index template [mytemplate] has index patterns [myvie*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [mytemplate] will take precedence during new index creation"
+      indices.put_index_template:
+        name: mytemplate
+        body:
+          index_patterns: [myvie*]
+          data_stream: {}
+
+  - do:
+      catch: /data_stream \[myview\] already exists as an ESQL view/
+      indices.create_data_stream:
+        name: myview
+
+  - do:
+      indices.create_data_stream:
+        name: myviewds
+
+  - do:
+      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias/
+      indices.put_alias:
+        index: myviewds
+        name: myview

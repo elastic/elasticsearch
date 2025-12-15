@@ -545,6 +545,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     /**
+     * Returns whether a view exists with provided view name.
+     *
+     * @param viewName The provided view name
+     * @return whether a view exists with provided view name
+     */
+    public boolean hasView(String viewName) {
+        return custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).getView(viewName) != null;
+    }
+
+    /**
      * Returns whether an alias exists with provided alias name.
      *
      * @param aliasName The provided alias name

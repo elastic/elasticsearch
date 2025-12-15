@@ -1128,13 +1128,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().rerankRowLimit());
 
-        return p -> {
-            checkForRemoteClusters(p, source, "RERANK");
-            return applyRerankOptions(
-                new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
-                ctx.commandNamedParameters()
-            );
-        };
+        return p -> applyRerankOptions(
+            new Rerank(source, p, rowLimit, queryText, rerankFields, scoreAttribute),
+            ctx.commandNamedParameters()
+        );
     }
 
     private Rerank applyRerankOptions(Rerank rerank, EsqlBaseParser.CommandNamedParametersContext ctx) {
@@ -1179,10 +1176,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Literal rowLimit = Literal.integer(source, context.inferenceSettings().completionRowLimit());
 
-        return p -> {
-            checkForRemoteClusters(p, source, "COMPLETION");
-            return applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
-        };
+        return p -> applyCompletionOptions(new Completion(source, p, rowLimit, prompt, targetField), ctx.commandNamedParameters());
     }
 
     @Override

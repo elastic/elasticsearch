@@ -240,6 +240,17 @@ public class InetAddressesTests extends ESTestCase {
         }
     }
 
+    public void testScopeIDWithOffsets() {
+        String ipString = "2001:db8::1:0:1:0%5";
+        byte[] bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        int offset = randomInt(8);
+        byte[] bytesWithPadding = new byte[bytes.length + offset];
+        System.arraycopy(bytes, 0, bytesWithPadding, offset, bytes.length);
+        InetAddress addr = InetAddresses.forString(bytesWithPadding, offset, bytes.length);
+        // scope id is ignored
+        assertEquals("2001:db8::1:0:1:0", InetAddresses.toAddrString(addr));
+    }
+
     public void testToUriStringIPv4() {
         String ipStr = "1.2.3.4";
         InetAddress ip = InetAddresses.forString(ipStr);

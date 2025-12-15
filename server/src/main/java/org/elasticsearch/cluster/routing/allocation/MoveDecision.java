@@ -118,6 +118,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
     ) {
         assert canRemainDecision != null;
         assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#createRemainYesDecision instead";
+        assert (targetNode == null) == (moveDecision == AllocationDecision.NO || moveDecision == AllocationDecision.THROTTLED);
         if (nodeDecisions == null && moveDecision == AllocationDecision.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;

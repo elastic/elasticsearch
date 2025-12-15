@@ -630,7 +630,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? clusterAlias : displayClusterAlias);
+            builder.startObject(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) ? displayClusterAlias : clusterAlias);
             {
                 builder.field(STATUS_FIELD.getPreferredName(), getStatus().toString());
                 builder.field(INDICES_FIELD.getPreferredName(), indexExpression);

@@ -78,9 +78,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     public static final String CENTROIDS_NAME = "centroids";
     public static final String COUNTS_NAME = "counts";
-    public static final String SUM_FIELD_NAME = "sum";
-    public static final String MIN_FIELD_NAME = "min";
-    public static final String MAX_FIELD_NAME = "max";
+
     public static final String CONTENT_TYPE = "tdigest";
 
     private static TDigestFieldMapper toType(FieldMapper in) {
@@ -568,22 +566,19 @@ public class TDigestFieldMapper extends FieldMapper {
             return docId -> {
                 if (docValues.advanceExact(docId)) {
                     // we assume the summary sub-
-                    if (minValues != null) {
-                        minValues.advanceExact(docId);
+                    if (minValues != null && minValues.advanceExact(docId)) {
                         min = NumericUtils.sortableLongToDouble(minValues.longValue());
                     } else {
                         min = Double.NaN;
                     }
 
-                    if (maxValues != null) {
-                        maxValues.advanceExact(docId);
+                    if (maxValues != null && maxValues.advanceExact(docId)) {
                         max = NumericUtils.sortableLongToDouble(maxValues.longValue());
                     } else {
                         max = Double.NaN;
                     }
 
-                    if (sumValues != null) {
-                        sumValues.advanceExact(docId);
+                    if (sumValues != null && sumValues.advanceExact(docId)) {
                         sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
                     } else {
                         sum = Double.NaN;

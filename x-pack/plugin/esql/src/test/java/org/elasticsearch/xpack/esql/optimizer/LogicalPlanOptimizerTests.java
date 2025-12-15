@@ -13,13 +13,14 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -67,7 +68,9 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
@@ -148,11 +151,13 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -207,6 +212,8 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAg
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggsTests.aliased;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
+import static org.elasticsearch.xpack.esql.session.EsqlSession.newMainPlan;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -7886,7 +7893,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramSumWithImplicitMergeOverTime() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled());
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7918,7 +7924,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramSumWithImplicitMergeOverTimeAndFilter() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled());
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7951,7 +7956,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramPercentileWithImplicitMergeOverTime() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled());
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -7984,7 +7988,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateHistogramPercentileWithImplicitMergeOverTimeAndFilter() {
-        assumeTrue("exponenial histogram support required", EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.isEnabled());
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
@@ -8054,7 +8057,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS sum(rate(network.total_bytes_in, 1m)) BY TBUCKET(5m)
                 | LIMIT 10
                 """;
-            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
             });
             assertThat(
@@ -8073,7 +8076,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
             });
             assertThat(
@@ -8089,7 +8092,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute))
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(EsqlIllegalArgumentException.class, () -> {
+            var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
             });
             assertThat(
@@ -9574,6 +9577,123 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(attribute.name(), equalTo("@timestamp"));
     }
 
+    /**
+     * <pre>{@code
+     * EsqlProject[[to_long{r}#2754, to_integer{r}#2757]]
+     * \_Eval[[TOLONG(string{f}#2761) AS to_long#2754, TOINTEGER(string{f}#2761) AS to_integer#2757]]
+     *         ^                                       ^
+     *         one argument to_long(value) is rewritten to ToLong
+     *         one argument to_integer(value) is rewritten to ToInteger
+     *
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[base_conversion][base{f}#2762, expect_integer{f}#2764, expect_long{f}..]
+     * }</pre>
+     */
+    public void testToLongAndToIntegerSurrogateFoldsToLongAndToInteger() {
+        LogicalPlan statement = parser.parseQuery("""
+            FROM  base_conversion
+            | EVAL to_long = TO_LONG(string), to_integer = TO_INTEGER(string)
+            | KEEP to_long, to_integer
+            | LIMIT 10
+            """);
+        LogicalPlan analyze = baseConversionAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        assertThat(eval.fields().get(0).child(), instanceOf(ToLong.class));
+        assertThat(eval.fields().get(1).child(), instanceOf(ToInteger.class));
+
+        Limit limit = asLimit(eval.child(), 10, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
+        assertThat(relation.indexPattern(), equalTo("base_conversion"));
+    }
+
+    /**
+     * <pre>{@code
+     * EsqlProject[[to_long{r}#2445, to_integer{r}#2449]]
+     * \_Eval[[TOLONGBASE(string{f}#2453,base{f}#2454) AS to_long#2445, TOINTEGERBASE(string{f}#2453,base{f}#2454) AS to_integer#2449]]
+     *         ^                                                        ^
+     *         two argument to_long(string, base) is rewritten to ToLongBase
+     *         two argument to_integer(string, base) is rewritten to ToIntegerBase
+     *
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[base_conversion][base{f}#2454, expect_integer{f}#2456, expect_long{f}..]
+     * }</pre>
+     */
+    public void testToLongAndToIntegerSurrogateFoldsToLongBaseAndToIntegerBase() {
+        LogicalPlan statement = parser.parseQuery("""
+            FROM  base_conversion
+            | EVAL to_long = TO_LONG(string, base), to_integer = TO_INTEGER(string, base)
+            | KEEP to_long, to_integer
+            | LIMIT 10
+            """);
+        LogicalPlan analyze = baseConversionAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+        assertThat(eval.fields().get(0).child(), instanceOf(ToLongBase.class));
+        assertThat(eval.fields().get(1).child(), instanceOf(ToIntegerBase.class));
+
+        Limit limit = asLimit(eval.child(), 10, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
+        assertThat(relation.indexPattern(), equalTo("base_conversion"));
+    }
+
+    /**
+     * <pre>{@code
+     * EsqlProject[[ubase{r}#1871, to_long{r}#1875, to_integer{r}#1879]]
+     * \_Eval[[TOUNSIGNEDLONG(base{f}#1885) AS ubase#1871,
+     *         TOLONGBASE(string{f}#1884,TOINTEGER(ubase{r}#1871)) AS to_long#1875,
+     *         TOINTEGERBASE(string{f}#1884,TOINTEGER(ubase{r}#1871)) AS to_integer#1879]]
+     *         ^
+     *      when base is not an integer,
+     *      two argument to_long(string, base) is rewritten to ToLongBase(string, ToInteger(base))
+     *      two argument to_integer(string, base) is rewritten to ToIntegerBase(string, ToInteger(base))
+     *
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_EsRelation[base_conversion][base{f}#1885, expect_integer{f}#1887, expect_long{f}..]
+     * }</pre>
+     */
+    public void testToLongSurrogateFoldsToLongBaseWithToInteger() {
+        LogicalPlan statement = parser.parseQuery("""
+            FROM  base_conversion
+            | EVAL ubase = TO_UNSIGNED_LONG(base)
+            | EVAL to_long = TO_LONG(string, ubase), to_integer = TO_INTEGER(string, ubase)
+            | KEEP ubase, to_long, to_integer
+            | LIMIT 10
+            """);
+        LogicalPlan analyze = baseConversionAnalyzer.analyze(statement);
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+
+        Project project = as(plan, Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(3));
+        ToLongBase tolongbase = as(eval.fields().get(1).child(), ToLongBase.class);
+        ToInteger base1tointeger = as(tolongbase.children().get(1), ToInteger.class);
+        ReferenceAttribute ubase1 = as(base1tointeger.children().get(0), ReferenceAttribute.class);
+
+        ToIntegerBase tointegerbase = as(eval.fields().get(2).child(), ToIntegerBase.class);
+        ToInteger base2tointeger = as(tointegerbase.children().get(1), ToInteger.class);
+        ReferenceAttribute ubase2 = as(base2tointeger.children().get(0), ReferenceAttribute.class);
+
+        Limit limit = asLimit(eval.child(), 10, false);
+        assertThat(limit.children(), hasSize(1));
+
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.children(), hasSize(0));
+        assertThat(relation.indexPattern(), equalTo("base_conversion"));
+    }
+
     /*
      * Nested subqueries are not supported yet.
      */
@@ -10176,5 +10296,239 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var relation = as(aggregateInBranch.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("salary"));
         }
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],false,false]
+     * \_Fork[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
+     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38, _fork{r}#39]]
+     *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, _fork{r}#4]]
+     *   | \_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *   |   \_Limit[10[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#6 > 100[INTEGER]]
+     *   |       \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * anguages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, _fork{r}#4]]
+     *     \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *       \_Limit[10[INTEGER],false,false]
+     *         \_Filter[emp_no{f}#17 < 10[INTEGER]]
+     *           \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
+     */
+    public void testPushDownLimitInFork() {
+        var query = """
+            from employees
+             | fork (where emp_no > 100)
+                    (where emp_no < 10)
+             | limit 10
+            """;
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        var fork = as(limit.child(), Fork.class);
+
+        assertThat(fork.children(), hasSize(2));
+
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            var branchEval = as(branchProject.child(), Eval.class);
+            var branchLimit = as(branchEval.child(), Limit.class);
+
+            assertThat(((Literal) branchLimit.limit()).value(), equalTo(10));
+
+            var branchFilter = as(branchLimit.child(), Filter.class);
+            assertThat(branchFilter.child(), instanceOf(EsRelation.class));
+        }
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],false,false]
+     * \_Fork[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
+     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38, _fork{r}#39]]
+     *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
+     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, _fork{r}#4]]
+     *   | \_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *   |   \_Limit[5[INTEGER],false,false]
+     *   |     \_Filter[emp_no{f}#6 > 100[INTEGER]]
+     *   |       \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
+     * anguages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22, _fork{r}#4]]
+     *     \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *       \_Limit[10[INTEGER],false,false]
+     *         \_Filter[emp_no{f}#17 < 10[INTEGER]]
+     *           \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     * }</pre>
+     */
+    public void testPushDownLimitOnlyInOneForkBranch() {
+        var query = """
+            from employees
+             | fork (where emp_no > 100 | limit 5)
+                    (where emp_no < 10 | limit 100)
+             | limit 10
+            """;
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+        var fork = as(limit.child(), Fork.class);
+
+        assertThat(fork.children(), hasSize(2));
+
+        // first branch
+        var firstBranchProject = as(fork.children().getFirst(), Project.class);
+        var firstBranchEval = as(firstBranchProject.child(), Eval.class);
+        var firstBranchLimit = as(firstBranchEval.child(), Limit.class);
+        // Limit stays the same
+        assertThat(((Literal) firstBranchLimit.limit()).value(), equalTo(5));
+
+        var firstBranchFilter = as(firstBranchLimit.child(), Filter.class);
+        assertThat(firstBranchFilter.child(), instanceOf(EsRelation.class));
+
+        // second branch
+        var secondBranchProject = as(fork.children().get(1), Project.class);
+        var secondBranchEval = as(secondBranchProject.child(), Eval.class);
+        var secondBranchLimit = as(secondBranchEval.child(), Limit.class);
+        // Limit outside of fork was pushed down
+        assertThat(((Literal) secondBranchLimit.limit()).value(), equalTo(10));
+
+        var secondBranchFilter = as(secondBranchLimit.child(), Filter.class);
+        assertThat(secondBranchFilter.child(), instanceOf(EsRelation.class));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],true,false]
+     * \_MvExpand[emp_no{r}#33,emp_no{r}#44]
+     *   \_Eval[[1[INTEGER] AS x#7]]
+     *     \_Limit[10[INTEGER],false,false]
+     *       \_Fork[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38, l
+     * anguages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42, _fork{r}#43]]
+     *         |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19, l
+     * anguages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, _fork{r}#4]]
+     *         | \_Eval[[fork1[KEYWORD] AS _fork#4]]
+     *         |   \_Limit[10[INTEGER],false,false]
+     *         |     \_Filter[emp_no{f}#10 > 100[INTEGER]]
+     *         |       \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *         \_Project[[_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30, l
+     * anguages{f}#24, last_name{f}#25, long_noidx{f}#31, salary{f}#26, _fork{r}#4]]
+     *           \_Eval[[fork2[KEYWORD] AS _fork#4]]
+     *             \_Limit[10[INTEGER],false,false]
+     *               \_Filter[emp_no{f}#21 < 10[INTEGER]]
+     *                 \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     * }</pre>
+     */
+    public void testPushDownLimitInForkPastEvalAndMvExpand() {
+        var query = """
+            from employees
+             | fork (where emp_no > 100 | LIMIT 500)
+                    (where emp_no < 10 | LIMIT 500)
+             | eval x = 1
+             | mv_expand emp_no
+             | limit 10
+            """;
+        var plan = optimizedPlan(query);
+        var limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), equalTo(10));
+
+        var mvExpand = as(limit.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+
+        var mvExpandLimit = as(eval.child(), Limit.class);
+        assertThat(((Literal) mvExpandLimit.limit()).value(), equalTo(10));
+
+        var fork = as(mvExpandLimit.child(), Fork.class);
+        assertThat(fork.children(), hasSize(2));
+
+        for (LogicalPlan branch : fork.children()) {
+            var branchProject = as(branch, Project.class);
+            var branchEval = as(branchProject.child(), Eval.class);
+            var branchLimit = as(branchEval.child(), Limit.class);
+
+            assertThat(((Literal) branchLimit.limit()).value(), equalTo(10));
+
+            var branchFilter = as(branchLimit.child(), Filter.class);
+            assertThat(branchFilter.child(), instanceOf(EsRelation.class));
+        }
+    }
+
+    /*
+     * https://github.com/elastic/elasticsearch/issues/138283
+     *
+     * Optimized plan:
+     * Limit[1000[INTEGER],false,false]
+     * \_InlineJoin[LEFT,[],[]]
+     *   |_EsqlProject[[salary{f}#23, languages1{r}#7, languages{f}#21]]
+     *   | \_Eval[[MVAVG(languages{f}#21) AS languages1#7]]
+     *   |   \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *   \_Project[[languages2{r}#14, avg{r}#17]]
+     *     \_Eval[[$$SUM$avg$0{r$}#31 / $$COUNT$avg$1{r$}#32 AS avg#17]]
+     *       \_Aggregate[[],[SUM(languages1{r}#7,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS languages2#14, SUM(salary{f}
+     * #23,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$avg$0#31, COUNT(salary{f}#23,true[BOOLEAN],PT0S[TIME_DURATION])
+     *  AS $$COUNT$avg$1#32]]
+     *         \_StubRelation[[salary{f}#23, languages1{r}#7, avg{r}#10, languages{f}#21]]
+     *
+     * Final plan execution:
+     * Limit[1000[INTEGER],false,false]
+     * \_Eval[[5.5[DOUBLE] AS languages2#14, 1[DOUBLE] AS avg#17]]
+     *   \_EsqlProject[[salary{f}#23, languages1{r}#7, languages{f}#21]]
+     *     \_Eval[[MVAVG(languages{f}#21) AS languages1#7]]
+     *       \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     */
+    public void testDoubleInlineStatsPrunning_With_MV_Functions() {
+        var query = """
+            FROM employees
+            | KEEP languages, salary
+            | INLINE STATS languages1 = MV_AVG(languages), avg = AVG(salary) BY languages
+            | INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
+            """;
+
+        var plan = optimizedPlan(query);
+        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlans = InlineJoin.firstSubPlan(plan, subPlansResults);
+
+        var p = as(plan, Limit.class);
+        var join = as(p.child(), InlineJoin.class);
+        // Left
+        var leftProject = as(join.left(), EsqlProject.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "languages1", "languages")));
+        var leftEval = as(leftProject.child(), Eval.class);
+        var leftRelation = as(leftEval.child(), EsRelation.class);
+        // Right
+        var rightProject = as(join.right(), Project.class);
+        assertMap(Expressions.names(rightProject.projections()), is(List.of("languages2", "avg")));
+        var rightEval = as(rightProject.child(), Eval.class);
+        var aggregate = as(rightEval.child(), Aggregate.class);
+        assertMap(Expressions.names(aggregate.aggregates()), is(List.of("languages2", "$$SUM$avg$0", "$$COUNT$avg$1")));
+        var stub = as(aggregate.child(), StubRelation.class);
+
+        // simulate the result of the first sub-plan execution
+        // not important what the actual values are, just need to have something to feed into the second InlineJoin
+        List<Attribute> schema = rightProject.output(); // [avgByL{r}#5, languages{f}#20]
+        Block[] blocks = new Block[schema.size()];
+        blocks[0] = BlockUtils.constantBlock(
+            TestBlockFactory.getNonBreakingInstance(),
+            new Literal(Source.EMPTY, 5.5, DataType.DOUBLE).value(),
+            1
+        );
+        blocks[1] = BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), new Literal(Source.EMPTY, 1, INTEGER).value(), 1);
+        var resultWrapper = new LocalRelation(subPlans.stubReplacedSubPlan().source(), schema, LocalSupplier.of(new Page(blocks)));
+        subPlansResults.add(resultWrapper);
+        // this is Second InlineJoin stubReplacedSubPlan
+        var newMainPlan = newMainPlan(plan, subPlans, resultWrapper);
+        assertEquals(firstSubPlan(newMainPlan, subPlansResults), null);
+
+        p = as(newMainPlan, Limit.class);
+        var eval = as(p.child(), Eval.class);
+        assertMap(Expressions.names(eval.fields()), is(List.of("languages2", "avg")));
+        leftProject = as(eval.child(), EsqlProject.class);
+        assertMap(Expressions.names(leftProject.projections()), is(List.of("salary", "languages1", "languages")));
+        var mvAvgEval = as(leftProject.child(), Eval.class);
+        assertMap(Expressions.names(mvAvgEval.fields()), is(List.of("languages1")));
+        assertThat(mvAvgEval.fields().getFirst(), instanceOf(Alias.class));
+        var mvAvgAlias = mvAvgEval.fields().getFirst();
+        assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
+        as(leftEval.child(), EsRelation.class);
     }
 }

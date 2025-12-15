@@ -45,8 +45,8 @@ To enforce GPU indexing, set `vectors.indexing.use_gpu: true` in `elasticsearch.
 The node will fail to start if GPU is not detected by {{es}}.
 
 If the node fails to start, check:
-* You have a valid Enterprise license
-* Supported NVIDIA GPU is present; CUDA runtime libraries and drivers are installed (check with `nvidia-smi`)
+* Supported NVIDIA GPU is present
+* CUDA runtime libraries and drivers are installed (check with `nvidia-smi`)
 * `LD_LIBRARY_PATH` includes paths to CUDA and cuVS libraries
 * Supported platform: Linux x86_64 with Java 22 or higher
 

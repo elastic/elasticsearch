@@ -11,7 +11,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -98,7 +97,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
             }
         };
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
-            new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())
+            new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())
         );
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));

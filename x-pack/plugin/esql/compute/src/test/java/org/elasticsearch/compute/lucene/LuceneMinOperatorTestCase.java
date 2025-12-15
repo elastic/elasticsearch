@@ -12,7 +12,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -112,7 +111,7 @@ public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
         final ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         final Query query;
         if (enableShortcut && randomBoolean()) {
-            query = new MatchAllDocsQuery();
+            query = Queries.ALL_DOCS_INSTANCE;
         } else {
             query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD_NAME, Long.MIN_VALUE, Long.MAX_VALUE);
         }

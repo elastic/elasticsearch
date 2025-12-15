@@ -17,7 +17,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -25,6 +24,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -253,7 +253,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
         return toIntervalsSource(
             Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()),
-            new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
+            Queries.ALL_DOCS_INSTANCE, // wildcard queries can be expensive, what should the approximation be?
             context
         );
     }
@@ -262,7 +262,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
         return toIntervalsSource(
             Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()),
-            new MatchAllDocsQuery(), // regexp queries can be expensive, what should the approximation be?
+            Queries.ALL_DOCS_INSTANCE, // regexp queries can be expensive, what should the approximation be?
             context
         );
     }
@@ -277,7 +277,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     ) {
         return toIntervalsSource(
             Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
-            new MatchAllDocsQuery(), // range queries can be expensive, what should the approximation be?
+            Queries.ALL_DOCS_INSTANCE, // range queries can be expensive, what should the approximation be?
             context
         );
     }

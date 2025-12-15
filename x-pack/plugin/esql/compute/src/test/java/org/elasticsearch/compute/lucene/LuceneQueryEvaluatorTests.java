@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -221,7 +220,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
-                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), usesScoring()).get(driverContext),
+                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, Queries.ALL_DOCS_INSTANCE, usesScoring()).get(driverContext),
                 operators,
                 new TestResultPageSinkOperator(results::add)
             );

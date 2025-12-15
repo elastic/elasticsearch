@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
@@ -68,7 +67,7 @@ public class TimeSeriesSourceOperatorTests extends SourceOperatorTestCase {
             readers.add(loadIndex(dir, between(1, 100)));
         }
         try {
-            return simple(List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())));
+            return simple(List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())));
         } catch (Exception e) {
             throw new AssertionError(e);
         }

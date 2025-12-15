@@ -96,7 +96,7 @@ public class LongSwissHashBenchmark {
 
     @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     @Benchmark
-    public int swissTablesBenchmark() {
+    public int swissHashBenchmark() {
         return switch (mode) {
             case "insert" -> doInsert();
             case "lookup" -> doLookup();

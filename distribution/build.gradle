@@ -331,6 +331,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
+    libs project(':libs:swisshash')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')

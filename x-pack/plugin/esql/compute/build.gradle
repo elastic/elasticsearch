@@ -12,12 +12,12 @@ base {
 dependencies {
   compileOnly project(':server')
   compileOnly project('ann')
+  compileOnly project(':libs:swisshash')
   compileOnly project(xpackModule('core'))
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
-  implementation project(':libs:swisshash')
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))

@@ -672,9 +672,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
+        final var restoredIndexGreenListener = waitForGreenAfterRestore(restoreSnapshotResponseListener, "restored_" + index, shards);
+
         final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
-            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+        continueOrDie(restoredIndexGreenListener, ignored -> {
             client().search(
                 new SearchRequest("restored_" + index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener.delegateFailure((l, r) -> {
@@ -1837,8 +1838,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     restoreSnapshotResponseListener
                 )
         );
+
+        return waitForGreenAfterRestore(restoreSnapshotResponseListener, indexName, expectedNumShards);
+    }
+
+    private SubscribableListener<Void> waitForGreenAfterRestore(
+        SubscribableListener<RestoreSnapshotResponse> restoreListener,
+        String indexName,
+        int expectedNumShards
+    ) {
         final SubscribableListener<ClusterHealthResponse> clusterHealthResponseListener = new SubscribableListener<>();
-        continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
+        continueOrDie(restoreListener, restoreSnapshotResponse -> {
             assertEquals(expectedNumShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
 
             client().admin()

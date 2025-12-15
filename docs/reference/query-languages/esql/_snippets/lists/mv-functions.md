@@ -5,6 +5,7 @@
 * [`MV_COUNT`](../../functions-operators/mv-functions.md#esql-mv_count)
 * [`MV_DEDUPE`](../../functions-operators/mv-functions.md#esql-mv_dedupe)
 * [`MV_FIRST`](../../functions-operators/mv-functions.md#esql-mv_first)
+* [`MV_INTERSECTION`](../../functions-operators/mv-functions.md#esql-mv_intersection)
 * [`MV_LAST`](../../functions-operators/mv-functions.md#esql-mv_last)
 * [`MV_MAX`](../../functions-operators/mv-functions.md#esql-mv_max)
 * [`MV_MEDIAN`](../../functions-operators/mv-functions.md#esql-mv_median)

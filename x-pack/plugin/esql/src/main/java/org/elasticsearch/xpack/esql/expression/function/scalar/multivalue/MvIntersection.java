@@ -84,7 +84,7 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
             "long",
             "unsigned_long",
             "version" },
-        description = "Returns a subset of the inputs sets that contains the intersection of values in provided mv arguments.",
+        description = "Returns only the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
         preview = true,
         examples = {
             @Example(file = "mv_intersection", tag = "testMvIntersectWithIntValues"),
@@ -116,7 +116,8 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version", },
+            description = "Multivalue expression. If null, the function returns null."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -138,7 +139,8 @@ public class MvIntersection extends EsqlScalarFunction implements EvaluatorMappe
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version" },
+            description = "Multivalue expression. If null, the function returns null."
         ) Expression field2
     ) {
         super(source, List.of(field1, field2));

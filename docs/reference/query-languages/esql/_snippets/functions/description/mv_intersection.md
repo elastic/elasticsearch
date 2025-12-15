@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns a subset of the inputs sets that contains the intersection of values in provided mv arguments.
+Returns only the values that appear in both input fields. Returns `null` if either field is null or if no values match.
 

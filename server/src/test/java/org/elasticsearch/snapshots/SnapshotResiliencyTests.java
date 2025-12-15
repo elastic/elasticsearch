@@ -1052,10 +1052,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 )
         );
 
+        final var restoredIndexGreenListener = waitForGreenAfterRestore(restoreSnapshotResponseStepListener, restoredIndex, shards);
+
         final SubscribableListener<SearchResponse> searchResponseStepListener = new SubscribableListener<>();
 
-        continueOrDie(restoreSnapshotResponseStepListener, restoreSnapshotResponse -> {
-            assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+        continueOrDie(restoredIndexGreenListener, restoreSnapshotResponse -> {
             client().search(
                 new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
                 searchResponseStepListener

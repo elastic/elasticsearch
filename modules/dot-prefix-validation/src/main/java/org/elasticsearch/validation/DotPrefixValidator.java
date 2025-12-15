@@ -67,24 +67,18 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
-            "\\.enrich-.*",
-            "\\.entities\\.v\\d+\\..*",
-            "\\.fleet-.*",
-            "\\.kibana-reporting-.*",
-            "\\.ml-annotations-.*",
             "\\.ml-anomalies-.*",
-            "\\.ml-notifications-.*",
-            "\\.ml-state.*",
-            "\\.ml-stats-.*",
-            "\\.monitoring-beats-8-.*",
-            "\\.monitoring-ent-search-8-.*",
-            "\\.monitoring-es-8-.*",
-            "\\.monitoring-kibana-8-.*",
-            "\\.monitoring-logstash-8-.*",
-            "\\.search-acl-filter-.*",
-            "\\.slm-history-7-.*",
+            "\\.ml-annotations-\\d+",
+            "\\.ml-state-\\d+",
+            "\\.ml-stats-\\d+",
             "\\.slo-observability\\.sli-v\\d+.*",
-            "\\.slo-observability\\.summary-v\\d+.*"
+            "\\.slo-observability\\.summary-v\\d+.*",
+            "\\.entities\\.v\\d+\\..*",
+            "\\.monitoring-es-8-.*",
+            "\\.monitoring-logstash-8-.*",
+            "\\.monitoring-kibana-8-.*",
+            "\\.monitoring-beats-8-.*",
+            "\\.monitoring-ent-search-8-.*"
         ),
         (patternList) -> patternList.forEach(pattern -> {
             try {
@@ -199,6 +193,8 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         final boolean hasElasticOriginHeader = Optional.ofNullable(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER))
             .map(Strings::hasText)
             .orElse(false);
-        return isSystemContext || isInternalOrigin || hasElasticOriginHeader;
+        final boolean isOperator = "operator".equals(threadContext.getHeader("_security_privilege_category"));
+        return isSystemContext || isInternalOrigin || hasElasticOriginHeader || isOperator;
     }
+
 }

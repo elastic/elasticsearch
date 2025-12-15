@@ -67,18 +67,23 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
-            "\\.ml-anomalies-.*",
-            "\\.ml-annotations-\\d+",
-            "\\.ml-state-\\d+",
-            "\\.ml-stats-\\d+",
-            "\\.slo-observability\\.sli-v\\d+.*",
-            "\\.slo-observability\\.summary-v\\d+.*",
             "\\.entities\\.v\\d+\\..*",
-            "\\.monitoring-es-8-.*",
-            "\\.monitoring-logstash-8-.*",
-            "\\.monitoring-kibana-8-.*",
+            "\\.fleet-.*",
+            "\\.kibana-reporting-.*",
+            "\\.ml-annotations-.*",
+            "\\.ml-anomalies-.*",
+            "\\.ml-notifications-.*",
+            "\\.ml-state.*",
+            "\\.ml-stats-.*",
             "\\.monitoring-beats-8-.*",
-            "\\.monitoring-ent-search-8-.*"
+            "\\.monitoring-ent-search-8-.*",
+            "\\.monitoring-es-8-.*",
+            "\\.monitoring-kibana-8-.*",
+            "\\.monitoring-logstash-8-.*",
+            "\\.search-acl-filter-.*",
+            "\\.slm-history-7-.*",
+            "\\.slo-observability\\.sli-v\\d+.*",
+            "\\.slo-observability\\.summary-v\\d+.*"
         ),
         (patternList) -> patternList.forEach(pattern -> {
             try {

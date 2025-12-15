@@ -472,18 +472,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testIntegerDocValuesConflict {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/139488
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
-  issue: https://github.com/elastic/elasticsearch/issues/139490
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testReductionPlanForTopNWithPushedDownFunctions
-  issue: https://github.com/elastic/elasticsearch/issues/139491
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
-  issue: https://github.com/elastic/elasticsearch/issues/139492
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testReductionPlanForTopNWithPushedDownFunctions
-  issue: https://github.com/elastic/elasticsearch/issues/139493
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139527

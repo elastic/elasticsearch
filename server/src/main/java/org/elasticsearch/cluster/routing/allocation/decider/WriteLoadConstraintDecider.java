@@ -119,6 +119,32 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             }
         }
 
+        var allNodeUsageStats = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
+        var nodeUsageStatsForThreadPools = allNodeUsageStats.get(node.nodeId());
+        if (nodeUsageStatsForThreadPools == null) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "Shard [%s] in index [%s] can be assigned to node [%s]. The node's utilization would become [%s]",
+                shardRouting.shardId(),
+                shardRouting.index(),
+                node.nodeId(),
+                newWriteThreadPoolUtilization
+            );
+        }
+
+        assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
+        assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE) != null;
+        var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+        if (nodeWriteThreadPoolStats.isHotspotting()) {
+            return alloction.decision(
+                Decision.NOT_PREFERRED,
+                NAME,
+                "Node [%s] is currently hotspotting, and does not prefer shards moved onto it",
+                node.nodeId()
+            );
+        }
+
         return allocation.decision(
             Decision.YES,
             NAME,

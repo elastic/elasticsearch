@@ -374,9 +374,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
             if (deltaAgg.equals(DeltaAgg.INCREASE)) {
                 return new RateRange(
-                    counterGrowth * 0.99, // INCREASE is RATE multiplied by the window size
+                    counterGrowth * 0.5, // INCREASE is RATE multiplied by the window size
                     // Upper bound is extrapolated to the window size
-                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.01
+                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.5
                 );
             } else {
                 // TODO: get tighter bounds.

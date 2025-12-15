@@ -559,8 +559,13 @@ public class EsqlFunctionRegistry {
                 defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
                 defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
-                // dense vector function
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
+                // dense vector functions
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
+                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
+                def(DotProduct.class, DotProduct::new, "v_dot_product"),
+                def(L1Norm.class, L1Norm::new, "v_l1_norm"),
+                def(L2Norm.class, L2Norm::new, "v_l2_norm"),
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -574,12 +579,8 @@ public class EsqlFunctionRegistry {
                 def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
                 def(Term.class, bi(Term::new), "term"),
-                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
-                def(DotProduct.class, DotProduct::new, "v_dot_product"),
-                def(L1Norm.class, L1Norm::new, "v_l1_norm"),
-                def(L2Norm.class, L2Norm::new, "v_l2_norm"),
-                def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming") } };
+                // dense vector functions
+                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

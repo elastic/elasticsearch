@@ -2003,7 +2003,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius) that 
+        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius) that
         // `kibana_system` has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(

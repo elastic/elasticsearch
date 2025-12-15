@@ -43,7 +43,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
                 final Long length = end < Long.MAX_VALUE - 1 ? end - start : null;
                 final AzureBlobStore.AzureInputStream inputStream = blobStore.getInputStream(purpose, blob, start, length, version);
                 return new SingleAttemptInputStream<>(inputStream, start, inputStream.getETag());
-            } catch (Exception e) {
+            } catch (IOException e) {
                 if (ExceptionsHelper.unwrap(e, HttpResponseException.class) instanceof HttpResponseException httpResponseException) {
                     final var httpStatusCode = httpResponseException.getResponse().getStatusCode();
                     if (httpStatusCode == RestStatus.NOT_FOUND.getStatus()) {
@@ -53,11 +53,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
                         throw new RequestedRangeNotSatisfiedException(blob, start, end == Long.MAX_VALUE - 1 ? -1 : end - start, e);
                     }
                 }
-                switch (e) {
-                    case RuntimeException runtimeException -> throw runtimeException;
-                    case IOException ioException -> throw ioException;
-                    default -> throw new IOException("Unable to get input stream for blob [" + blob + "]", e);
-                }
+                throw e;
             }
         }
 

@@ -308,7 +308,6 @@ public class MasterService extends AbstractLifecycleComponent {
                             l.onResponse(null);
                         })
                     ) {
-
                         @Override
                         public void onResponse(Void response) {
                             delegate.onResponse(response);
@@ -318,7 +317,6 @@ public class MasterService extends AbstractLifecycleComponent {
                         public String toString() {
                             return "listener for publication of cluster state [" + newClusterStateVersion + "]";
                         }
-
                     },
                     l -> publishClusterStateUpdate(
                         executor,

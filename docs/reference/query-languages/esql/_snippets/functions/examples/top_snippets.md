@@ -7,8 +7,17 @@ stack: preview 9.3.0
 ```
 
 ```esql
-null
+FROM books
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
 ```
+
+| book_no:keyword | title:text | snippets:keyword |
+| --- | --- | --- |
+| 1211 | The brothers Karamazov | null |
+| 1463 | Realms of Tolkien: Images of Middle-earth | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion |
+| 1502 | Selected Passages from Correspondence with Friends | null |
+| 1937 | The Best Short Stories of Dostoevsky (Modern Library) | null |
+| 1985 | Brothers Karamazov | null |
 
 ```{applies_to}
 stack: preview 9.3.0

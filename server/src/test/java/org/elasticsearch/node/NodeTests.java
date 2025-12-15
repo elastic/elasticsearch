@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.node;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -45,6 +46,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -75,6 +77,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -705,13 +708,11 @@ public class NodeTests extends ESTestCase {
             startNode.accept(masterNode);
 
             CountDownLatch reachedBlock = new CountDownLatch(1);
-            CountDownLatch testDone = new CountDownLatch(1);
 
             var transportService = asInstanceOf(MockTransportService.class, masterNode.injector().getInstance(TransportService.class));
             transportService.addRequestHandlingBehavior("internal:discovery/request_peers", (handler, request, channel, task) -> {
                 logger.info("blocking peer discovery");
                 reachedBlock.countDown();
-                testDone.await();
             });
             String masterAddress = masterNode.injector().getInstance(TransportService.class).getLocalNode().getAddress().toString();
 
@@ -719,23 +720,30 @@ public class NodeTests extends ESTestCase {
                 Settings.builder()
                     .put(baseSettings)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    .put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1h")
                     .putList("cluster.initial_master_nodes", "master_node")
                     .put("node.name", "joining_node")
                     .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), masterAddress)
                     .build()
             );
-            try (MockNode joiningNode = new MockNode(nodeSettings, plugins)) {
+            try (MockLog mockLog = MockLog.capture(Node.class); MockNode joiningNode = new MockNode(nodeSettings, plugins)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "aborted initial state log",
+                        Node.class.getName(),
+                        Level.INFO,
+                        "shutdown began while waiting for initial discovery state"
+                    )
+                );
 
                 Thread startupThread = new Thread(() -> startNode.accept(joiningNode));
                 startupThread.start();
-                reachedBlock.await();
+                safeAwait(reachedBlock);
 
-                logger.info("shutting down");
                 joiningNode.prepareForClose();
                 // startup should now complete on its own even though the discover request is blocked
                 startupThread.join();
-
-                testDone.countDown();
+                mockLog.assertAllExpectationsMatched();
             }
         }
 

@@ -411,7 +411,7 @@ public class Node implements Closeable {
 
                 if (shutdownService.isShuttingDown()) {
                     // shutdown started in the middle of startup, so bail early
-                    logger.warn("shutdown began while waiting for initial discovery state");
+                    logger.info("shutdown began while waiting for initial discovery state");
                     return this;
                 }
             }

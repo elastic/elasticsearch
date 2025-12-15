@@ -63,9 +63,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
-  method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
-  issue: https://github.com/elastic/elasticsearch/issues/121625
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
@@ -388,18 +385,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:inlinestats.MvMinMvExpand}
-  issue: https://github.com/elastic/elasticsearch/issues/137679
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/138669
-- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
-  method: testAggregateMetricDoubleInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/138620
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
-  method: testAggregateMetricDoubleInlineStats
-  issue: https://github.com/elastic/elasticsearch/issues/138620
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
@@ -427,12 +415,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchConcurrentStatusIT
   method: testConcurrentStatusFetchWhileTaskCloses
   issue: https://github.com/elastic/elasticsearch/issues/138543
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/139152
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingStandardSource
-  issue: https://github.com/elastic/elasticsearch/issues/139153
 - class: org.elasticsearch.xpack.core.security.authc.AuthenticationTests
   method: testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata
   issue: https://github.com/elastic/elasticsearch/issues/139167
@@ -460,12 +442,54 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/139335
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search/140_pre_filter_search_shards/prefilter on non-indexed date fields}
-  issue: https://github.com/elastic/elasticsearch/issues/139381
 - class: org.elasticsearch.xpack.downsample.DownsampleIT
   method: testAggregateMethod
   issue: https://github.com/elastic/elasticsearch/issues/139382
+- class: org.elasticsearch.xpack.security.authc.saml.SamlRedirectTests
+  method: testRedirectUrlWithRelayStateAndSigning
+  issue: https://github.com/elastic/elasticsearch/issues/139389
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
+  issue: https://github.com/elastic/elasticsearch/issues/138012
+- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayRandom
+  issue: https://github.com/elastic/elasticsearch/issues/139376
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  method: testDownsampleDatastream
+  issue: https://github.com/elastic/elasticsearch/issues/139438
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testIntegerDocValuesConflict {null}
+  issue: https://github.com/elastic/elasticsearch/issues/139450
+- class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
+  method: testIndexTypes
+  issue: https://github.com/elastic/elasticsearch/issues/139455
+- class: org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapperTests
+  method: testSortShortcuts
+  issue: https://github.com/elastic/elasticsearch/issues/139456
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testIntegerDocValuesConflict {STORED}
+  issue: https://github.com/elastic/elasticsearch/issues/139487
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testIntegerDocValuesConflict {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/139488
+- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
+  issue: https://github.com/elastic/elasticsearch/issues/139490
+- class: org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests
+  method: testReductionPlanForTopNWithPushedDownFunctions
+  issue: https://github.com/elastic/elasticsearch/issues/139491
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testReductionPlanForTopNWithPushedDownFunctionsInOrder
+  issue: https://github.com/elastic/elasticsearch/issues/139492
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
+  method: testReductionPlanForTopNWithPushedDownFunctions
+  issue: https://github.com/elastic/elasticsearch/issues/139493
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
+  issue: https://github.com/elastic/elasticsearch/issues/139527
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/139482
 
 # Examples:
 #

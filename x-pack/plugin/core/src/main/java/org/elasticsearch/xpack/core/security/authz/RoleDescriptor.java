@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -60,7 +59,7 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
  */
 public class RoleDescriptor implements ToXContentObject, Writeable {
 
-    public static final TransportVersion SECURITY_ROLE_DESCRIPTION = TransportVersions.V_8_15_0;
+    public static final TransportVersion SECURITY_ROLE_DESCRIPTION = TransportVersion.fromId(8702002);
 
     public static final String ROLE_TYPE = "role";
     private static final Logger logger = LogManager.getLogger(RoleDescriptor.class);

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -66,15 +65,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
         rescoreDocIds = new RescoreDocIds(in);
         aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
-        } else {
-            this.rankDocs = null;
-        }
-        if (in.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
-            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
-            coordinatingTaskId = in.readLong();
-        }
+        this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
     }
 
     @Override
@@ -84,13 +75,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         out.writeOptionalWriteable(shardSearchRequest);
         rescoreDocIds.writeTo(out);
         out.writeOptionalWriteable(aggregatedDfs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalWriteable(rankDocs);
-        }
-        if (out.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
-            out.writeOptionalWriteable(coordinatingNode);
-            out.writeLong(coordinatingTaskId);
-        }
+        out.writeOptionalWriteable(rankDocs);
     }
 
     @Override

@@ -101,7 +101,9 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
         // search#1 - this will record 1 entry for "retriever" in `sections`, and 1 for "knn" under `retrievers`
         {
             performSearch(
-                new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f, null, null, null))
+                new SearchSourceBuilder().retriever(
+                    new KnnRetrieverBuilder("vector", new float[] { 1.0f }, null, 10, 15, 10f, null, null, null)
+                )
             );
         }
 
@@ -149,7 +151,9 @@ public class TextSimilarityRankRetrieverTelemetryTests extends ESIntegTestCase {
         // search#6 - this will record 1 entry for "knn" in `sections`
         {
             performSearch(
-                new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null, null)))
+                new SearchSourceBuilder().knnSearch(
+                    List.of(new KnnSearchBuilder("vector", new float[] { 1.0f }, 10, 15, 10f, null, null, null))
+                )
             );
         }
 

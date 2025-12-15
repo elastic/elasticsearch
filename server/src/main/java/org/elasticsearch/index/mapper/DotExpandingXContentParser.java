@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -22,6 +23,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -51,6 +53,17 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         @Override
         public XContentParser switchParser(XContentParser parser) throws IOException {
             return new WrappingParser(parser, contentPath);
+        }
+
+        @Override
+        public void skipChildren(CheckedConsumer<XContentParser,IOException> skipConsumer) throws IOException {
+            boolean isLeaf = contentPath.isWithinLeafObject();
+            contentPath.setWithinLeafObject(true); // disable dots expansion during skipChildren
+            try {
+                super.skipChildren(skipConsumer);
+            } finally {
+                contentPath.setWithinLeafObject(isLeaf);
+            }
         }
 
         @Override

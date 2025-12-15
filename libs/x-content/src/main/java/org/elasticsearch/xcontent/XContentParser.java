@@ -9,6 +9,7 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -78,6 +79,10 @@ public interface XContentParser extends Closeable {
     }
 
     void skipChildren() throws IOException;
+
+    default void skipChildren(CheckedConsumer<XContentParser, IOException> skipConsumer) throws IOException {
+        skipConsumer.accept(this);
+    }
 
     Token currentToken();
 

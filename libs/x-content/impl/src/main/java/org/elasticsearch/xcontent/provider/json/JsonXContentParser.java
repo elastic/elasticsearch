@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
@@ -34,6 +35,7 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.CharConversionException;
 import java.io.IOException;
 import java.nio.CharBuffer;
+import java.util.function.Consumer;
 
 public class JsonXContentParser extends AbstractXContentParser {
 

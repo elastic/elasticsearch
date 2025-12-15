@@ -331,3 +331,54 @@ teardown:
         index: test
         id: "1"
   - match: { _source.foo: "" }
+
+---
+"Test set processor with more interesting mustache":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "value" : "{{{#id_parts.p1}}}{{{ id_parts.p1 }}}{{{/id_parts.p1}}}|{{{#id_parts.p2}}}{{{ id_parts.p2 }}}{{{/id_parts.p2}}}|{{{#id_parts.p3}}}{{{ id_parts.p3 }}}{{{/id_parts.p3}}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          id_parts:
+            p1: "hello"
+            p2: "world"
+            p3: "goodbye"
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello|world|goodbye" }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          id_parts:
+            p1: "hello"
+            p2: "world"
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello|world|" }

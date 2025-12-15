@@ -14,10 +14,10 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -292,7 +292,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long longValue = parseTerm(value);
             if (longValue == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             return LongPoint.newExactQuery(name(), unsignedToSortableSignedLong(longValue));
         }
@@ -309,7 +309,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             }
             if (upTo == 0) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             if (upTo != lvalues.length) {
                 lvalues = Arrays.copyOf(lvalues, upTo);
@@ -330,15 +330,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
                 Long lt = parseLowerRangeTerm(lowerTerm, includeLower);
-                if (lt == null) return new MatchNoDocsQuery();
+                if (lt == null) return Queries.NO_DOCS_INSTANCE;
                 l = unsignedToSortableSignedLong(lt);
             }
             if (upperTerm != null) {
                 Long ut = parseUpperRangeTerm(upperTerm, includeUpper);
-                if (ut == null) return new MatchNoDocsQuery();
+                if (ut == null) return Queries.NO_DOCS_INSTANCE;
                 u = unsignedToSortableSignedLong(ut);
             }
-            if (l > u) return new MatchNoDocsQuery();
+            if (l > u) return Queries.NO_DOCS_INSTANCE;
 
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {

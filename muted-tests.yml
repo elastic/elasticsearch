@@ -271,9 +271,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/134853
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865

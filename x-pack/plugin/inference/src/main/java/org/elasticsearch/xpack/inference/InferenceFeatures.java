@@ -35,6 +35,8 @@ import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQuery
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRerankingRankFeaturePhaseRankShardContext.RERANK_SEMANTIC_TEXT_CHUNKS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRerankingRankFeaturePhaseRankShardContext.RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG;
 
 /**
  * Provides inference features.
@@ -133,6 +135,9 @@ public class InferenceFeatures implements FeatureSpecification {
             )
         );
         testFeatures.addAll(getFeatures());
+        if (RERANK_SEMANTIC_TEXT_CHUNKS_FEATURE_FLAG.isEnabled()) {
+            testFeatures.add(RERANK_SEMANTIC_TEXT_CHUNKS);
+        }
         return testFeatures;
     }
 }

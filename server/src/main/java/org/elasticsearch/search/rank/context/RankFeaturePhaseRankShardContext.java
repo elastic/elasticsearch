@@ -37,7 +37,7 @@ public abstract class RankFeaturePhaseRankShardContext {
      * The feature data is then stored in a {@link org.elasticsearch.search.rank.feature.RankFeatureDoc} and passed back to the coordinator.
      */
     @Nullable
-    public abstract RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId);
+    public abstract RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId, SearchContext searchContext);
 
     /**
      * Prepares a SearchContext with any additional information needed before executing

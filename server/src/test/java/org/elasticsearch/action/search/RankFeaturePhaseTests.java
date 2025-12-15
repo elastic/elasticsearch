@@ -24,6 +24,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -44,8 +46,9 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,9 +58,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class RankFeaturePhaseTests extends ESTestCase {
+public class RankFeaturePhaseTests extends ESSingleNodeTestCase {
 
     private static final int DEFAULT_RANK_WINDOW_SIZE = 10;
     private static final int DEFAULT_FROM = 0;
@@ -74,10 +78,16 @@ public class RankFeaturePhaseTests extends ESTestCase {
 
     private record ExpectedRankFeatureDoc(int doc, int rank, float score, List<String> featureData) {}
 
+    private SearchContext createSearchContext() {
+        IndexService indexService = createIndex(randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        return new TestSearchContext(indexService);
+    }
+
     public void testRankFeaturePhaseWith1Shard() {
         // request params used within SearchSourceBuilder and *RankContext classes
         AtomicBoolean phaseDone = new AtomicBoolean(false);
         final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+        SearchContext searchContext = createSearchContext();
 
         // create a SearchSource to attach to the request
         SearchSourceBuilder searchSourceBuilder = searchSourceWithRankBuilder(DEFAULT_RANK_BUILDER);
@@ -116,7 +126,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard1Target,
                                 totalHits,
-                                shard1Docs
+                                shard1Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else {
@@ -154,6 +165,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -164,6 +176,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     public void testRankFeaturePhaseWithMultipleShardsOneEmpty() {
         AtomicBoolean phaseDone = new AtomicBoolean(false);
         final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+        SearchContext searchContext = createSearchContext();
 
         // create a SearchSource to attach to the request
         SearchSourceBuilder searchSourceBuilder = searchSourceWithRankBuilder(DEFAULT_RANK_BUILDER);
@@ -224,7 +237,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard1Target,
                                 shard1Results,
-                                shard1Docs
+                                shard1Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 2 })) {
@@ -234,7 +248,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard2Target,
                                 shard2Results,
-                                shard2Docs
+                                shard2Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else if (request.contextId().getId() == 789) {
@@ -281,6 +296,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -291,6 +307,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     public void testRankFeaturePhaseOneShardFails() {
         AtomicBoolean phaseDone = new AtomicBoolean(false);
         final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+        SearchContext searchContext = createSearchContext();
 
         // create a SearchSource to attach to the request
         SearchSourceBuilder searchSourceBuilder = searchSourceWithRankBuilder(DEFAULT_RANK_BUILDER);
@@ -343,7 +360,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard2Target,
                                 shard2Results,
-                                shard2Docs
+                                shard2Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
 
@@ -386,6 +404,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -396,6 +415,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     public void testRankFeaturePhaseExceptionThrownOnPhase() {
         AtomicBoolean phaseDone = new AtomicBoolean(false);
         final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+        SearchContext searchContext = createSearchContext();
 
         // create a SearchSource to attach to the request
         SearchSourceBuilder searchSourceBuilder = searchSourceWithRankBuilder(DEFAULT_RANK_BUILDER);
@@ -435,7 +455,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard1Target,
                                 totalHits,
-                                shard1Docs
+                                shard1Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else {
@@ -482,6 +503,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -495,6 +517,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         final int size = 1;
         AtomicBoolean phaseDone = new AtomicBoolean(false);
         final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+        SearchContext searchContext = createSearchContext();
 
         // build the appropriate RankBuilder
         RankBuilder rankBuilder = rankBuilder(
@@ -569,7 +592,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard1Target,
                                 shard1Results,
-                                shard1Docs
+                                shard1Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11, 2, 200 })) {
@@ -580,7 +604,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard2Target,
                                 shard2Results,
-                                shard2Docs
+                                shard2Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else {
@@ -628,6 +653,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -640,6 +666,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         final int rankWindowSize = 2;
         AtomicBoolean phaseDone = new AtomicBoolean(false);
         final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+        SearchContext searchContext = createSearchContext();
 
         // build the appropriate RankBuilder
         RankBuilder rankBuilder = rankBuilder(
@@ -710,7 +737,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard1Target,
                                 shard1Results,
-                                shard1Docs
+                                shard1Docs,
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11 })) {
@@ -720,7 +748,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                 rankFeatureResult,
                                 shard2Target,
                                 shard2Results,
-                                new ScoreDoc[] { shard2Docs[0] }
+                                new ScoreDoc[] { shard2Docs[0] },
+                                searchContext
                             );
                             listener.onResponse(rankFeatureResult);
                         } else {
@@ -767,6 +796,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 rankFeaturePhase.rankPhaseResults.close();
             }
         } finally {
+            searchContext.close();
             mockSearchPhaseContext.results.close();
             if (mockSearchPhaseContext.searchResponse.get() != null) {
                 mockSearchPhaseContext.searchResponse.get().decRef();
@@ -807,7 +837,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     private RankFeaturePhaseRankShardContext defaultRankFeaturePhaseRankShardContext(String field) {
         return new RankFeaturePhaseRankShardContext(field) {
             @Override
-            public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+            public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId, SearchContext searchContext) {
                 RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
                 for (int i = 0; i < hits.getHits().length; i++) {
                     SearchHit hit = hits.getHits()[i];
@@ -957,7 +987,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
         RankFeatureResult rankFeatureResult,
         SearchShardTarget shardTarget,
         int totalHits,
-        ScoreDoc[] scoreDocs
+        ScoreDoc[] scoreDocs,
+        SearchContext searchContext
     ) {
         rankFeatureResult.setSearchShardTarget(shardTarget);
         // these are the SearchHits generated by the FetchFieldPhase processor
@@ -979,7 +1010,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
             RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = shardRankBuilder.buildRankFeaturePhaseShardContext();
             RankFeatureShardResult rankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext.buildRankFeatureShardResult(
                 hits,
-                shardTarget.getShardId().id()
+                shardTarget.getShardId().id(),
+                searchContext
             );
             rankFeatureResult.shardResult(rankShardResult);
         } finally {

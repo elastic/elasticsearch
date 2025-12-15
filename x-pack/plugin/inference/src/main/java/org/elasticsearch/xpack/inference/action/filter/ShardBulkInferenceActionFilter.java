@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -685,9 +686,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          */
         private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) throws IOException {
             if (response.failures().isEmpty() == false) {
-                for (var failure : response.failures()) {
-                    item.abort(item.index(), failure);
-                }
+                handleInferenceFailures(item, response.failures());
                 return;
             }
 
@@ -741,6 +740,29 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             updateIndexSource(item, inferenceFieldsMap);
+        }
+
+        private void handleInferenceFailures(BulkItemRequest item, List<Exception> failures) {
+            long estimatedFailureBytes = 0;
+            for (Exception failure : failures) {
+                estimatedFailureBytes += estimateThrowableMemoryUsage(failure);
+            }
+
+            try {
+                // TODO: Decrement by source size, since we're not making a copy?
+                coordinatingIndexingPressure.increment(0, estimatedFailureBytes);
+            } catch (EsRejectedExecutionException e) {
+                IndexRequest indexRequest = getIndexRequestOrNull(item.request());
+                item.abort(
+                    item.index(),
+                    new InferenceException("Unable to report failures for document [" + indexRequest.id() + "] due to memory pressure", e)
+                );
+                return;
+            }
+
+            for (var failure : failures) {
+                item.abort(item.index(), failure);
+            }
         }
 
         private void updateIndexSource(BulkItemRequest item, Map<String, Object> inferenceFieldsMap) throws IOException {
@@ -810,6 +832,23 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         builder.endObject();
+    }
+
+    private static long estimateThrowableMemoryUsage(Throwable throwable) {
+        long estimatedMemoryUsageInBytes = 0;
+        estimatedMemoryUsageInBytes += RamUsageEstimator.sizeOf(throwable.getMessage());
+
+        // We use the string representation each stack trace element as a rough estimate of its size
+        for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
+            estimatedMemoryUsageInBytes += RamUsageEstimator.sizeOf(stackTraceElement.toString());
+        }
+
+        Throwable cause = throwable.getCause();
+        if (cause != null && cause != throwable) {
+            estimatedMemoryUsageInBytes += estimateThrowableMemoryUsage(cause);
+        }
+
+        return estimatedMemoryUsageInBytes;
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

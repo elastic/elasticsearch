@@ -14,5 +14,5 @@ module org.elasticsearch.swisshash {
     requires hppc;
     requires org.apache.lucene.core;
 
-    exports org.elasticsearch.swisshash to org.elasticsearch.compute;
+    exports org.elasticsearch.swisshash;
 }

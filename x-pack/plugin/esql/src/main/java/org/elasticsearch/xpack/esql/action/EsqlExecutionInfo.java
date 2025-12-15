@@ -52,6 +52,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // for cross-cluster scenarios where cluster names are shown in API responses, use this string
     // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
     public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
+    public static final String ORIGIN_CLUSTER_NAME_REPRESENTATION = "_origin";
 
     public static final ParseField TOTAL_FIELD = new ParseField("total");
     public static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
@@ -258,13 +259,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /**
      * This creates an initial Cluster object with indexExpression and skipUnavailable.
      */
-    public void initCluster(String clusterAlias, String indexExpression) {
+    public void initCluster(String clusterAlias, String localCusterName, String indexExpression) {
         swapCluster(clusterAlias, (ca, previous) -> {
             var expr = indexExpression;
             if (previous != null) {
                 expr = previous.getIndexExpression() + "," + indexExpression;
             }
-            return new Cluster(clusterAlias, clusterAlias, expr, shouldSkipOnFailure(clusterAlias));
+            var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
+            return new Cluster(clusterAlias, displayClusterAlias, expr, shouldSkipOnFailure(clusterAlias));
         });
     }
 

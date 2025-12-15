@@ -62,7 +62,7 @@ public class LegacySemanticKnnVectorQueryRewriteInterceptorTests extends ESTestC
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(INFERENCE_ID, QUERY);
-        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, 10f, null);
+        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, 10f, null, null);
         if (randomBoolean()) {
             float boost = randomFloatBetween(1, 10, randomBoolean());
             original.boost(boost);
@@ -81,7 +81,7 @@ public class LegacySemanticKnnVectorQueryRewriteInterceptorTests extends ESTestC
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
-        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, 10f, null);
+        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, 10f, null, null);
         if (randomBoolean()) {
             float boost = randomFloatBetween(1, 10, randomBoolean());
             original.boost(boost);
@@ -126,7 +126,7 @@ public class LegacySemanticKnnVectorQueryRewriteInterceptorTests extends ESTestC
     public void testKnnVectorQueryOnNonInferenceFieldRemainsUnchanged() throws IOException {
         QueryRewriteContext context = createQueryRewriteContext(Map.of()); // No inference fields
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
-        QueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, 10f, null);
+        QueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, 10f, null, null);
         QueryBuilder rewritten = original.rewrite(context);
         assertTrue(
             "Expected query to remain knn but was [" + rewritten.getClass().getName() + "]",

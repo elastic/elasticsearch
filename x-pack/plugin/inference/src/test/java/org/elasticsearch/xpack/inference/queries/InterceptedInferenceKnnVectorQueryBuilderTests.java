@@ -60,7 +60,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
 
     @Override
     protected KnnVectorQueryBuilder createQueryBuilder(String field) {
-        return new KnnVectorQueryBuilder(field, new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"), 30, 200, 30f, 0.2f).boost(
+        return new KnnVectorQueryBuilder(field, new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"), 30, 200, 30f, 0.2f, 1f).boost(
             randomFloatBetween(0.1f, 4.0f, true)
         )
             .queryName(randomAlphanumericOfLength(5))
@@ -136,7 +136,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             originalKnn.numCands(),
             originalKnn.visitPercentage(),
             originalKnn.rescoreVectorBuilder(),
-            originalKnn.getVectorSimilarity()
+            originalKnn.getVectorSimilarity(),
+            originalKnn.getPostFilteringThreshold()
         ).boost(originalKnn.boost()).queryName(originalKnn.queryName()).addFilterQueries(originalKnn.filterQueries());
         assertThat(intercepted, equalTo(originalKnnWithQueryVector));
     }
@@ -165,6 +166,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             50,
             500,
             50f,
+            null,
             null
         ).boost(3.0f).queryName("bar").addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, "test-index-*"));
 
@@ -223,6 +225,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             50,
             500,
             50f,
+            null,
             null
         ).boost(3.0f)
             .queryName("bar")
@@ -235,6 +238,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
                             50,
                             500,
                             50f,
+                            null,
                             null
                         )
                     )
@@ -246,6 +250,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
                     50,
                     500,
                     50f,
+                    null,
                     null
                 ).addFilterQuery(
                     new SparseVectorQueryBuilder(
@@ -361,7 +366,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
                 knnQuery.numCands(),
                 knnQuery.visitPercentage(),
                 knnQuery.rescoreVectorBuilder(),
-                knnQuery.getVectorSimilarity()
+                knnQuery.getVectorSimilarity(),
+                knnQuery.getPostFilteringThreshold()
             ).addFilterQueries(rewrittenFilterQueries);
         }
 
@@ -389,7 +395,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
                 knnQuery.numCands(),
                 knnQuery.visitPercentage(),
                 knnQuery.rescoreVectorBuilder(),
-                knnQuery.getVectorSimilarity()
+                knnQuery.getVectorSimilarity(),
+                knnQuery.getPostFilteringThreshold()
             ).boost(knnQuery.boost()).queryName(knnQuery.queryName()).addFilterQueries(rewrittenFilterQueries);
         }
 

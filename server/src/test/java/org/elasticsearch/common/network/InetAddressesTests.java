@@ -235,7 +235,7 @@ public class InetAddressesTests extends ESTestCase {
         for (String ipString : ipStrings) {
             final InetAddress expected = InetAddress.getByName(ipString);
             byte[] bytes = ipString.getBytes(StandardCharsets.UTF_8);
-            int extraLength = randomIntBetween(0, 8);
+            int extraLength = randomInt(8);
             int offset = randomIntBetween(0, extraLength);
             byte[] bytesWithPadding = new byte[bytes.length + extraLength];
             System.arraycopy(bytes, 0, bytesWithPadding, offset, bytes.length);

@@ -91,7 +91,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -316,7 +318,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testStoreParameterDefaultsToFalseWithLatestIndexVersionWhenSyntheticSourceIsEnabled() throws IOException {
+    public void testStoreParameterDefaultsToTrueWithLatestIndexVersionWhenSyntheticSourceIsEnabled() throws IOException {
         var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
 
         var mapping = mapping(b -> {
@@ -331,7 +333,27 @@ public class TextFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source);
         List<IndexableField> fields = doc.rootDoc().getFields("name");
         IndexableFieldType fieldType = fields.get(0).fieldType();
+        assertThat(fieldType.stored(), is(true));
+        List<IndexableField> ignoredSourceFields = doc.rootDoc().getFields("_ignored_source");
+        assertThat(ignoredSourceFields, empty());
+    }
+
+    public void testStoreParameterDefaultsToFalseWithLatestIndexVersion() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        DocumentMapper mapper = createMapperService(mapping).documentMapper();
+
+        var source = source(b -> b.field("name", "quick brown fox"));
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("name");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.stored(), is(false));
+        List<IndexableField> ignoredSourceFields = doc.rootDoc().getFields("_source");
+        assertThat(ignoredSourceFields, hasSize(1));
     }
 
     public void testStoreParameterDefaultsSyntheticSource() throws IOException {

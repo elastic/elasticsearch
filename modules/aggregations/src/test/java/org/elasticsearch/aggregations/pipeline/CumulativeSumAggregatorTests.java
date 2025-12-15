@@ -14,11 +14,11 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -256,7 +256,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         int numValueBuckets = ((maxRandomValue - minRandomValue) / interval) + 1;
         long[] valueCounts = new long[numValueBuckets];
 
-        Query query = new MatchNoDocsQuery();
+        Query query = Queries.NO_DOCS_INSTANCE;
 
         HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(VALUE_FIELD).interval(interval);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(VALUE_FIELD));

@@ -26,8 +26,7 @@ public record JinaAIEmbeddingsRequestEntity(
     InputType inputType,
     JinaAIEmbeddingsTaskSettings taskSettings,
     @Nullable String model,
-    @Nullable JinaAIEmbeddingType embeddingType,
-    Integer dimensions
+    @Nullable JinaAIEmbeddingType embeddingType
 ) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "retrieval.passage";
@@ -39,7 +38,6 @@ public record JinaAIEmbeddingsRequestEntity(
     public static final String TASK_TYPE_FIELD = "task";
     public static final String LATE_CHUNKING = "late_chunking";
     static final String EMBEDDING_TYPE_FIELD = "embedding_type";
-    static final String DIMENSIONS_FIELD = "dimensions";
     // Late chunking models have a token limit of 8000 or ~6000 words (using a rough 1 token:0.75 words ratio). We set the maximum word
     // count with a bit of extra room to 5500 words.
     static final int MAX_WORD_COUNT_FOR_LATE_CHUNKING = 5500;
@@ -69,10 +67,6 @@ public record JinaAIEmbeddingsRequestEntity(
 
         if (taskSettings.getLateChunking() != null) {
             builder.field(LATE_CHUNKING, taskSettings.getLateChunking() && getInputWordCount() <= MAX_WORD_COUNT_FOR_LATE_CHUNKING);
-        }
-
-        if (dimensions != null) {
-            builder.field(DIMENSIONS_FIELD, dimensions);
         }
 
         builder.endObject();

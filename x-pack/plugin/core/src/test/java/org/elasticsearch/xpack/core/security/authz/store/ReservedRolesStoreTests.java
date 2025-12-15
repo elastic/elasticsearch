@@ -2002,8 +2002,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES) that `kibana_system`
-        // has full management access to
+        // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius) that
+        // `kibana_system` has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
             "logs-extrahop.investigation-" + randomAlphaOfLength(randomIntBetween(1, 10)),
@@ -2015,7 +2015,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cyera.classification-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.issue-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.adapter-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 

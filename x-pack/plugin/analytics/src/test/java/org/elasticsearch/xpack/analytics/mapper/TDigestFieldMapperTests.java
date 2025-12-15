@@ -452,7 +452,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
 
     static Map<String, Object> generateRandomFieldValues(int maxVals) {
         Map<String, Object> value = new LinkedHashMap<>();
-        int size = between(1, maxVals);
+        int size = between(0, maxVals);
         TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
         for (int i = 0; i < size; i++) {
             double sample = randomGaussianDouble();
@@ -469,9 +469,11 @@ public class TDigestFieldMapperTests extends MapperTestCase {
         }
         double min = digest.getMin();
         double max = digest.getMax();
-        value.put("min", min);
-        value.put("max", max);
-        value.put("sum", sum);
+        if (size > 0) {
+            value.put("min", min);
+            value.put("max", max);
+            value.put("sum", sum);
+        }
         value.put("centroids", centroids);
         value.put("counts", counts);
 
@@ -509,5 +511,10 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

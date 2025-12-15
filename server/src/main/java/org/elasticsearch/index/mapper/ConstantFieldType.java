@@ -77,7 +77,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(pattern, false, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -91,7 +91,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(pattern, true, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -108,7 +108,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
                 return Queries.newMatchAllQuery();
             }
         }
-        return new MatchNoDocsQuery();
+        return Queries.NO_DOCS_INSTANCE;
     }
 
     @Override
@@ -126,7 +126,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 
@@ -144,7 +144,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
     }
 

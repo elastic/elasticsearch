@@ -84,6 +84,8 @@ public class TextFormatterTests extends ESTestCase {
         null,
         randomBoolean(),
         randomBoolean(),
+        0L,
+        0L,
         new EsqlExecutionInfo(randomBoolean())
     );
 
@@ -188,6 +190,8 @@ public class TextFormatterTests extends ESTestCase {
             null,
             randomBoolean(),
             randomBoolean(),
+            0L,
+            0L,
             new EsqlExecutionInfo(randomBoolean())
         );
 
@@ -231,6 +235,8 @@ public class TextFormatterTests extends ESTestCase {
                         null,
                         randomBoolean(),
                         randomBoolean(),
+                        0L,
+                        0L,
                         new EsqlExecutionInfo(randomBoolean())
                     ),
                     false,

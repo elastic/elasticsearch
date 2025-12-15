@@ -10,7 +10,6 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -40,7 +39,6 @@ import org.elasticsearch.transport.TransportException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,29 +89,7 @@ public class Netty4Utils {
         if (reference.hasArray()) {
             return Unpooled.wrappedBuffer(reference.array(), reference.arrayOffset(), reference.length());
         }
-        return compositeReferenceToByteBuf(reference);
-    }
-
-    private static ByteBuf compositeReferenceToByteBuf(BytesReference reference) {
-        final BytesRefIterator iterator = reference.iterator();
-        // usually we have one, two, or three components from the header, the message, and a buffer
-        final List<ByteBuf> buffers = new ArrayList<>(3);
-        try {
-            BytesRef slice;
-            while ((slice = iterator.next()) != null) {
-                buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
-            }
-
-            if (buffers.size() == 1) {
-                return buffers.get(0);
-            } else {
-                CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
-                composite.addComponents(true, buffers);
-                return composite;
-            }
-        } catch (IOException ex) {
-            throw new AssertionError("no IO happens here", ex);
-        }
+        return fromByteRefIterator(reference.iterator());
     }
 
     /**
@@ -221,6 +197,82 @@ public class Netty4Utils {
                 : future.cause();
         });
         return true;
+    }
+
+    static ByteBuf unpooledFrom(BytesRef ref) {
+        return Unpooled.wrappedBuffer(ref.bytes, ref.offset, ref.length);
+    }
+
+    static ByteBuf compositeOf2(ByteBuf buf1, ByteBuf buf2) {
+        final var c = Unpooled.compositeBuffer(2);
+        c.addComponent(true, buf1);
+        c.addComponent(true, buf2);
+        return c;
+    }
+
+    static ByteBuf compositeOf3(ByteBuf buf1, ByteBuf buf2, ByteBuf buf3) {
+        final var c = Unpooled.compositeBuffer(3);
+        c.addComponent(true, buf1);
+        c.addComponent(true, buf2);
+        c.addComponent(true, buf3);
+        return c;
+    }
+
+    static ByteBuf compositeOf4OrMore(ByteBuf buf1, ByteBuf buf2, ByteBuf buf3, ByteBuf buf4, BytesRefIterator remaining)
+        throws IOException {
+        final var parts = new ArrayList<ByteBuf>(8) {
+            {
+                add(buf1);
+                add(buf2);
+                add(buf3);
+                add(buf4);
+            }
+        };
+        BytesRef slice;
+        while ((slice = remaining.next()) != null) {
+            parts.add(unpooledFrom(slice));
+        }
+        final var composite = Unpooled.compositeBuffer(parts.size());
+        for (var part : parts) {
+            composite.addComponent(true, part);
+        }
+        return composite;
+    }
+
+    static ByteBuf fromByteRefIterator(BytesRefIterator iter) {
+        try {
+            // usually we have one, two, or three components from the header, the message, and a buffer
+            // it is a hot-path and cases of 0,1,2,3 do not allocate extra list to collect all parts from iterator
+            // CompositeByteBuf is fixed size and collecting parts from iterator is necessary
+
+            var slice = iter.next(); // slice might be reused based on iterator API
+            if (slice == null) {
+                return Unpooled.EMPTY_BUFFER;
+            }
+            final var buf1 = unpooledFrom(slice);
+
+            slice = iter.next();
+            if (slice == null) {
+                return buf1;
+            }
+            final var buf2 = unpooledFrom(slice);
+
+            slice = iter.next();
+            if (slice == null) {
+                return compositeOf2(buf1, buf2);
+            }
+            final var buf3 = unpooledFrom(slice);
+
+            slice = iter.next();
+            if (slice == null) {
+                return compositeOf3(buf1, buf2, buf3);
+            }
+            final var buf4 = unpooledFrom(slice);
+
+            return compositeOf4OrMore(buf1, buf2, buf3, buf4, iter);
+        } catch (IOException e) {
+            throw new AssertionError("no IO happens here", e);
+        }
     }
 
     /**

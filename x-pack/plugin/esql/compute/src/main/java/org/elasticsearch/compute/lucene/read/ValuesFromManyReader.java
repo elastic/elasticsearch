@@ -22,7 +22,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -85,7 +85,7 @@ class ValuesFromManyReader extends ValuesReader {
                  * loading in a way that is correct for the mapped field type, and then convert between that type and the desired type.
                  */
                 fieldTypeBuilders[f] = operator.fields[f].info.type().newBlockBuilder(docs.getPositionCount(), operator.blockFactory);
-                buildersAndLoaders.add(new HashMap<>());
+                buildersAndLoaders.add(new LinkedHashMap<>()); // use LinkedHashMap to preserve insertion order
             }
             try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory)) {
                 int p = forwards[offset];
@@ -178,7 +178,13 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         private long estimatedRamBytesUsed() {
-            return this.buildersAndLoaders.stream().flatMap(e -> e.values().stream()).mapToLong(bl -> bl.builder.estimatedBytes()).sum();
+            long sum = 0;
+            for (int i = 0; i < buildersAndLoaders.size(); i++) { // Avoid iterator allocation.
+                for (BlockBuilderAndLoader blockBuilderAndLoader : buildersAndLoaders.get(i).values()) {
+                    sum += blockBuilderAndLoader.builder.estimatedBytes();
+                }
+            }
+            return sum;
         }
     }
 

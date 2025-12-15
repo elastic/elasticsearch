@@ -8,11 +8,14 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
 import java.io.IOException;
 import java.util.List;
@@ -106,8 +109,48 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         return List.of(sums, valueCounts, zeroThresholds, encodedHistograms, minima, maxima);
     }
 
+    public static EncodedHistogramData encode(ExponentialHistogram histogram) {
+        assert histogram != null;
+        // TODO: check and potentially improve performance and correctness before moving out of tech-preview
+        // The current implementation encodes the histogram into the format we use for storage on disk
+        // This format is optimized for minimal memory usage at the cost of encoding speed
+        // In addition, it only support storing the zero threshold as a double value, which is lossy when merging histograms
+        // In practice this currently occurs, as the zero threshold is usually 0.0 and not impacted by merges
+        // And even if it occurs, the error is usually tiny
+        // We should add a dedicated encoding when building a block from computed histograms which do not originate from doc values
+        // That encoding should be optimized for speed and support storing the zero threshold as (scale, index) pair
+        ZeroBucket zeroBucket = histogram.zeroBucket();
+        BytesStreamOutput encodedBytes = new BytesStreamOutput();
+        try {
+            CompressedExponentialHistogram.writeHistogramBytes(
+                encodedBytes,
+                histogram.scale(),
+                histogram.negativeBuckets().iterator(),
+                histogram.positiveBuckets().iterator()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to encode histogram", e);
+        }
+        double sum;
+        if (histogram.valueCount() == 0) {
+            assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
+            sum = Double.NaN; // we store null/NaN for empty histograms to ensure avg is null/0.0 instead of 0.0/0.0
+        } else {
+            sum = histogram.sum();
+        }
+        return new EncodedHistogramData(
+            histogram.valueCount(),
+            sum,
+            histogram.min(),
+            histogram.max(),
+            zeroBucket.zeroThreshold(),
+            encodedBytes.bytes().toBytesRef()
+        );
+    }
+
     @Override
     public ExponentialHistogram getExponentialHistogram(int valueIndex, ExponentialHistogramScratch scratch) {
+        assert isNull(valueIndex) == false : "tried to get histogram at null position " + valueIndex;
         BytesRef bytes = encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch.bytesRefScratch);
         double zeroThreshold = zeroThresholds.getDouble(zeroThresholds.getFirstValueIndex(valueIndex));
         double valueCount = valueCounts.getDouble(valueCounts.getFirstValueIndex(valueIndex));
@@ -124,12 +167,50 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         }
     }
 
+    public static ExponentialHistogramBlock createConstant(ExponentialHistogram histogram, int positionCount, BlockFactory blockFactory) {
+        EncodedHistogramData data = encode(histogram);
+        DoubleBlock minBlock = null;
+        DoubleBlock maxBlock = null;
+        DoubleBlock sumBlock = null;
+        DoubleBlock countBlock = null;
+        DoubleBlock zeroThresholdBlock = null;
+        BytesRefBlock encodedHistogramBlock = null;
+        boolean success = false;
+        try {
+            countBlock = blockFactory.newConstantDoubleBlockWith(data.count, positionCount);
+            if (Double.isNaN(data.min)) {
+                minBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                minBlock = blockFactory.newConstantDoubleBlockWith(data.min, positionCount);
+            }
+            if (Double.isNaN(data.max)) {
+                maxBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                maxBlock = blockFactory.newConstantDoubleBlockWith(data.max, positionCount);
+            }
+            if (Double.isNaN(data.sum)) {
+                sumBlock = (DoubleBlock) blockFactory.newConstantNullBlock(positionCount);
+            } else {
+                sumBlock = blockFactory.newConstantDoubleBlockWith(data.sum, positionCount);
+            }
+            zeroThresholdBlock = blockFactory.newConstantDoubleBlockWith(data.zeroThreshold, positionCount);
+            encodedHistogramBlock = blockFactory.newConstantBytesRefBlockWith(data.encodedHistogram, positionCount);
+            success = true;
+            return new ExponentialHistogramArrayBlock(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock);
+        } finally {
+            if (success == false) {
+                Releasables.close(minBlock, maxBlock, sumBlock, countBlock, zeroThresholdBlock, encodedHistogramBlock);
+            }
+        }
+    }
+
     @Override
-    public Block buildExponentialHistogramComponentBlock(Component component) {
+    public DoubleBlock buildHistogramComponentBlock(Component component) {
         // as soon as we support multi-values, we need to implement this differently,
         // as the sub-blocks will be flattened and the position count won't match anymore
         // we'll likely have to return a "view" on the sub-blocks that implements the multi-value logic
-        Block result = switch (component) {
+        assert doesHaveMultivaluedFields() == false;
+        DoubleBlock result = switch (component) {
             case MIN -> minima;
             case MAX -> maxima;
             case SUM -> sums;
@@ -437,4 +518,6 @@ final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeRefCount
         // this ensures proper equality with null blocks and should be unique enough for practical purposes
         return encodedHistograms.hashCode();
     }
+
+    record EncodedHistogramData(double count, double sum, double min, double max, double zeroThreshold, BytesRef encodedHistogram) {}
 }

@@ -2,25 +2,26 @@
 
 **Supported types**
 
-| field | result |
-| --- | --- |
-| aggregate_metric_double | boolean |
-| boolean | boolean |
-| cartesian_point | boolean |
-| cartesian_shape | boolean |
-| date | boolean |
-| date_nanos | boolean |
-| double | boolean |
-| geo_point | boolean |
-| geo_shape | boolean |
-| geohash | boolean |
-| geohex | boolean |
-| geotile | boolean |
-| integer | boolean |
-| ip | boolean |
-| keyword | boolean |
-| long | boolean |
-| text | boolean |
-| unsigned_long | boolean |
-| version | boolean |
+| field | window | result |
+| --- | --- | --- |
+| aggregate_metric_double | | boolean |
+| boolean | | boolean |
+| cartesian_point | | boolean |
+| cartesian_shape | | boolean |
+| date | | boolean |
+| date_nanos | | boolean |
+| double | | boolean |
+| exponential_histogram | | boolean |
+| geo_point | | boolean |
+| geo_shape | | boolean |
+| geohash | | boolean |
+| geohex | | boolean |
+| geotile | | boolean |
+| integer | | boolean |
+| ip | | boolean |
+| keyword | | boolean |
+| long | | boolean |
+| text | | boolean |
+| unsigned_long | | boolean |
+| version | | boolean |
 

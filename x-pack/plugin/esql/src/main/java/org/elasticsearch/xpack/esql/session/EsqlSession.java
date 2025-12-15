@@ -120,7 +120,7 @@ public class EsqlSession {
         );
     }
 
-    public record ExecutionResult(Versioned<Result> result, ZoneId timezone) {}
+    public record ExecutionResult(Versioned<Result> result, ZoneId zoneId) {}
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
@@ -234,7 +234,8 @@ public class EsqlSession {
             configuration,
             executionInfo,
             request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo,
+            new EsqlCCSUtils.CssPartialErrorsActionListener(
+                executionInfo,
                 listener.map(r -> new ExecutionResult(r, configuration.zoneId()))
             ) {
                 @Override
@@ -275,12 +276,9 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<ExecutionResult>andThen((l, r) -> l.onResponse(
-                            new ExecutionResult(
-                                new Versioned<>(r, minimumVersion),
-                                configuration.zoneId()
-                            )
-                        ))
+                        .<ExecutionResult>andThen(
+                            (l, r) -> l.onResponse(new ExecutionResult(new Versioned<>(r, minimumVersion), configuration.zoneId()))
+                        )
                         .addListener(listener);
                 }
             }

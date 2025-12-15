@@ -72,7 +72,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final long startTimeMillis;
     private final long expirationTimeMillis;
 
-    private final ZoneId queryZoneId;
+    private final ZoneId zoneId;
 
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
@@ -84,9 +84,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable String asyncExecutionId,
         boolean isRunning,
         boolean isAsync,
+        ZoneId zoneId,
         long startTimeMillis,
         long expirationTimeMillis,
-        ZoneId queryZoneId,
         EsqlExecutionInfo executionInfo
     ) {
         this.columns = columns;
@@ -98,9 +98,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isAsync = isAsync;
+        this.zoneId = zoneId;
         this.startTimeMillis = startTimeMillis;
         this.expirationTimeMillis = expirationTimeMillis;
-        this.queryZoneId = queryZoneId;
         this.executionInfo = executionInfo;
     }
 
@@ -112,9 +112,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Nullable Profile profile,
         boolean columnar,
         boolean isAsync,
+        ZoneId zoneId,
         long startTimeMillis,
         long expirationTimeMillis,
-        ZoneId queryZoneId,
         EsqlExecutionInfo executionInfo
     ) {
         this(
@@ -127,9 +127,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             null,
             false,
             isAsync,
+            zoneId,
             startTimeMillis,
             expirationTimeMillis,
-            queryZoneId,
             executionInfo
         );
     }
@@ -163,9 +163,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             expirationTimeMillis = in.readLong();
         }
 
-        ZoneId queryZoneId = ZoneOffset.UTC;
+        ZoneId zoneId = ZoneOffset.UTC;
         if (in.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
-            queryZoneId = in.readZoneId();
+            zoneId = in.readZoneId();
         }
 
         EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
@@ -179,9 +179,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             asyncExecutionId,
             isRunning,
             isAsync,
+            zoneId,
             startTimeMillis,
             expirationTimeMillis,
-            queryZoneId,
             executionInfo
         );
     }
@@ -206,7 +206,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         if (out.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
-            out.writeZoneId(queryZoneId);
+            out.writeZoneId(zoneId);
         }
 
         out.writeOptionalWriteable(executionInfo);
@@ -269,6 +269,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public boolean isAsync() {
         return isAsync;
+    }
+
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     public boolean isPartial() {
@@ -334,7 +338,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             content.add(ResponseXContentUtils.allColumns(columns, "columns"));
         }
         content.add(
-            ChunkedToXContentHelper.array("values", ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns, queryZoneId))
+            ChunkedToXContentHelper.array(
+                "values",
+                ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns, zoneId)
+            )
         );
         if (executionInfo != null && executionInfo.hasMetadataToReport()) {
             content.add(ChunkedToXContentHelper.field("_clusters", executionInfo, params));

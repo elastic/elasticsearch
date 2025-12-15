@@ -17,7 +17,6 @@ import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;

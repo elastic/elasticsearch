@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -94,7 +95,7 @@ public class XContentRowEncoderTests extends ComputeTestCase {
         });
 
         // Create the encoder instance
-        XContentRowEncoder.Factory factory = new XContentRowEncoder.Factory(XContentType.JSON, fields);
+        XContentRowEncoder.Factory factory = new XContentRowEncoder.Factory(XContentType.JSON, ZoneOffset.UTC, fields);
         XContentRowEncoder encoder = factory.get(driverContext);
 
         // Create a page of data to be encoded

@@ -61,20 +61,24 @@ final class ResponseXContentUtils {
         List<Page> pages,
         boolean columnar,
         boolean[] nullColumns,
-        ZoneId queryZoneId
+        ZoneId zoneId
     ) {
         if (pages.isEmpty()) {
             return Collections.emptyIterator();
         } else if (columnar) {
-            return columnarValues(columns, pages, nullColumns, queryZoneId);
+            return columnarValues(columns, pages, nullColumns, zoneId);
         } else {
-            return rowValues(columns, pages, nullColumns, queryZoneId);
+            return rowValues(columns, pages, nullColumns, zoneId);
         }
     }
 
     /** Returns a columnar based representation of the values in the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> columnarValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns,
-                                                         ZoneId queryZoneId) {
+    static Iterator<? extends ToXContent> columnarValues(
+        List<ColumnInfoImpl> columns,
+        List<Page> pages,
+        boolean[] nullColumns,
+        ZoneId zoneId
+    ) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(Iterators.forRange(0, columns.size(), column -> {
             if (nullColumns != null && nullColumns[column]) {
@@ -86,7 +90,7 @@ final class ResponseXContentUtils {
                     PositionToXContent toXContent = PositionToXContent.positionToXContent(
                         columns.get(column),
                         page.getBlock(column),
-                        queryZoneId,
+                        zoneId,
                         scratch
                     );
                     return Iterators.forRange(
@@ -101,8 +105,7 @@ final class ResponseXContentUtils {
     }
 
     /** Returns a row based representation of the values in the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns,
-                                                    ZoneId queryZoneId) {
+    static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns, ZoneId zoneId) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(pages.iterator(), page -> {
             final int columnCount = columns.size();
@@ -110,7 +113,7 @@ final class ResponseXContentUtils {
             final PositionToXContent[] toXContents = new PositionToXContent[columnCount];
             for (int column = 0; column < columnCount; column++) {
                 Block block = page.getBlock(column);
-                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, queryZoneId, scratch);
+                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, zoneId, scratch);
             }
             return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                 builder.startArray();

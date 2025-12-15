@@ -66,6 +66,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         rescoreDocIds = new RescoreDocIds(in);
         aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
         this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
+
+        if (in.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+            coordinatingTaskId = in.readLong();
+        }
     }
 
     @Override
@@ -76,6 +81,11 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         rescoreDocIds.writeTo(out);
         out.writeOptionalWriteable(aggregatedDfs);
         out.writeOptionalWriteable(rankDocs);
+
+        if (out.getTransportVersion().onOrAfter(CHUNKED_FETCH_PHASE)) {
+            out.writeOptionalWriteable(coordinatingNode);
+            out.writeLong(coordinatingTaskId);
+        }
     }
 
     @Override
@@ -129,5 +139,4 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     public void setCoordinatingTaskId(long coordinatingTaskId) {
         this.coordinatingTaskId = coordinatingTaskId;
     }
-
 }

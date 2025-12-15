@@ -1,5 +1,5 @@
 pr: 139113
-summary: "Test: ES|QL with bfloat16"
-area: Relevance
+summary: "[ES|QL]: Update Vector Similarity To Support BFLOAT16"
+area: "ES|QL"
 type: bug
 issues: []

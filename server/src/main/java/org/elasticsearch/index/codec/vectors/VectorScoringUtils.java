@@ -10,11 +10,14 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Utility methods for vector scoring and collection.
@@ -34,40 +37,74 @@ public final class VectorScoringUtils {
      * @throws IOException if an I/O error occurs
      */
     public static void scoreAndCollectAll(KnnCollector knnCollector, AcceptDocs acceptDocs, RandomVectorScorer scorer) throws IOException {
-        // TODO we need to switch from scorer to VectorScorer and values so the filter can be lazily applied
-        // building the bitset eagerly is silly for scoring everything
         if (knnCollector.k() == 0 || scorer == null) {
             return;
         }
-        Bits acceptedOrds = scorer.getAcceptOrds(acceptDocs.bits());
-        int[] ords = new int[BULK_SCORE_BLOCKS];
-        float[] scores = new float[BULK_SCORE_BLOCKS];
-        int numOrds = 0;
-        int numVectors = scorer.maxOrd();
-        for (int i = 0; i < numVectors; i++) {
-            if (acceptedOrds == null || acceptedOrds.get(i)) {
-                if (knnCollector.earlyTerminated()) {
-                    break;
-                }
-                ords[numOrds++] = i;
-                if (numOrds == ords.length) {
-                    knnCollector.incVisitedCount(numOrds);
-                    scorer.bulkScore(ords, scores, numOrds);
-                    for (int j = 0; j < numOrds; j++) {
-                        knnCollector.collect(scorer.ordToDoc(ords[j]), scores[j]);
-                    }
-                    numOrds = 0;
-                }
+        
+        DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
+        
+        if (acceptDocsIterator == null) {
+            for (int i = 0; i < scorer.maxOrd(); i++) {
+                knnCollector.collect(scorer.ordToDoc(i), scorer.score(i));
+                knnCollector.incVisitedCount(1);
             }
-        }
-
-        if (numOrds > 0) {
-            knnCollector.incVisitedCount(numOrds);
-            scorer.bulkScore(ords, scores, numOrds);
-            for (int j = 0; j < numOrds; j++) {
-                knnCollector.collect(scorer.ordToDoc(ords[j]), scores[j]);
+        } else {
+            DocIdSetIterator vectorIterator = new OrdinalToDocIterator(scorer);
+            var conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIterator, acceptDocsIterator));
+            
+            int doc;
+            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                int ord = ((OrdinalToDocIterator) vectorIterator).currentOrd();
+                knnCollector.collect(doc, scorer.score(ord));
+                knnCollector.incVisitedCount(1);
             }
         }
         assert knnCollector.earlyTerminated() == false;
+    }
+
+    /**
+     * Iterator that converts ordinals to document IDs for use with ConjunctionUtils
+     */
+    private static class OrdinalToDocIterator extends DocIdSetIterator {
+        private final RandomVectorScorer scorer;
+        private int currentOrd = -1;
+        private int currentDoc = -1;
+
+        OrdinalToDocIterator(RandomVectorScorer scorer) {
+            this.scorer = scorer;
+        }
+
+        @Override
+        public int docID() {
+            return currentDoc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            currentOrd++;
+            if (currentOrd >= scorer.maxOrd()) {
+                currentDoc = NO_MORE_DOCS;
+            } else {
+                currentDoc = scorer.ordToDoc(currentOrd);
+            }
+            return currentDoc;
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            while (currentDoc < target && currentDoc != NO_MORE_DOCS) {
+                nextDoc();
+            }
+            return currentDoc;
+        }
+
+        @Override
+        public long cost() {
+            return scorer.maxOrd();
+        }
+
+        int currentOrd() {
+            return currentOrd;
+        }
     }
 }

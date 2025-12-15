@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
@@ -58,6 +56,6 @@ public class TestQueryRulesetActionResponseBWCSerializingTests extends AbstractB
 
     @Override
     protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(TransportVersions.V_8_16_0)).collect(Collectors.toList());
+        return getAllBWCVersions().stream().toList();
     }
 }

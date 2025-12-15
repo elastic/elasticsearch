@@ -97,7 +97,7 @@ public class InetAddresses {
                 if (i == offset + length - 1) {
                     return null;  // Filter out strings that end in % and have an empty scope ID.
                 }
-                length = i;
+                length = i - offset;
                 break; // Everything after a '%' is ignored (it's a Scope ID)
             }
         }

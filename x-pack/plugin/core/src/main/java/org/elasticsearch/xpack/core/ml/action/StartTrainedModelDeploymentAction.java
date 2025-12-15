@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -168,29 +167,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                numberOfAllocations = in.readOptionalVInt();
-            } else {
-                numberOfAllocations = in.readVInt();
-            }
+            numberOfAllocations = in.readOptionalVInt();
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                this.priority = in.readEnum(Priority.class);
-            } else {
-                this.priority = Priority.NORMAL;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-            } else {
-                this.adaptiveAllocationsSettings = null;
-            }
+            this.priority = in.readEnum(Priority.class);
+            this.deploymentId = in.readString();
+            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         }
 
         public final void setModelId(String modelId) {
@@ -294,23 +277,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalVInt(numberOfAllocations);
-            } else {
-                out.writeVInt(numberOfAllocations);
-            }
+            out.writeOptionalVInt(numberOfAllocations);
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
             out.writeOptionalWriteable(cacheSize);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                out.writeEnum(priority);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalWriteable(adaptiveAllocationsSettings);
-            }
+            out.writeEnum(priority);
+            out.writeString(deploymentId);
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
 
         @Override
@@ -574,25 +547,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
             this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                this.priority = in.readEnum(Priority.class);
-            } else {
-                this.priority = Priority.NORMAL;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
+            this.priority = in.readEnum(Priority.class);
+            this.deploymentId = in.readString();
 
-            if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-                // We store additional model usage per allocation in the task params.
-                this.perDeploymentMemoryBytes = in.readLong();
-                this.perAllocationMemoryBytes = in.readLong();
-            } else {
-                this.perDeploymentMemoryBytes = 0L;
-                this.perAllocationMemoryBytes = 0L;
-            }
+            // We store additional model usage per allocation in the task params.
+            this.perDeploymentMemoryBytes = in.readLong();
+            this.perAllocationMemoryBytes = in.readLong();
         }
 
         public String getModelId() {
@@ -638,16 +598,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(numberOfAllocations);
             out.writeVInt(queueCapacity);
             out.writeOptionalWriteable(cacheSize);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                out.writeEnum(priority);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
-            if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-                out.writeLong(perDeploymentMemoryBytes);
-                out.writeLong(perAllocationMemoryBytes);
-            }
+            out.writeEnum(priority);
+            out.writeString(deploymentId);
+            out.writeLong(perDeploymentMemoryBytes);
+            out.writeLong(perAllocationMemoryBytes);
         }
 
         @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -3426,18 +3427,30 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMvIntersectionValidatesDataTypesAreEqual() {
-        String[] values = {
-            "[\"one\", \"two\", \"three\", \"four\", \"five\"]",
-            "[1, 2, 3, 4, 5]",
-            "[1, 2, 3, 4, 5]::long",
-            "[1.1, 2.2, 3.3, 4.4, 5.5]" };
-        for (int i = 0; i < values.length; i++) {
-            for (int j = 0; j < values.length; j++) {
+        List<Tuple<String, String>> values = List.of(
+            new Tuple<>("[\"one\", \"two\", \"three\", \"four\", \"five\"]", "keyword"),
+            new Tuple<>("[1, 2, 3, 4, 5]", "integer"),
+            new Tuple<>("[1, 2, 3, 4, 5]::long", "long"),
+            new Tuple<>("[1.1, 2.2, 3.3, 4.4, 5.5]", "double"),
+            new Tuple<>("[false, true, true, false]", "boolean")
+        );
+        for (int i = 0; i < values.size(); i++) {
+            for (int j = 0; j < values.size(); j++) {
                 if (i == j) {
                     continue;
                 }
-                String query = "ROW a = " + values[i] + ", b = " + values[j] + " | EVAL finalValue = MV_INTERSECTION(a, b)";
-                assertThat(error(query, tsdb), containsString(": All child fields must be the same type"));
+
+                String query = "ROW a = "
+                    + values.get(i).v1()
+                    + ", b = "
+                    + values.get(j).v1()
+                    + " | EVAL finalValue = MV_INTERSECTION(a, b)";
+                String expected = "second argument of [MV_INTERSECTION(a, b)] must be ["
+                    + values.get(i).v2()
+                    + "], found value [b] type ["
+                    + values.get(j).v2()
+                    + "]";
+                assertThat(error(query, tsdb), containsString(expected));
             }
         }
     }

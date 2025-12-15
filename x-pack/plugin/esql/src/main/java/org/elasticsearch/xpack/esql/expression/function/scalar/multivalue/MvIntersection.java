@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -46,7 +45,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Adds a function to return a result set with multivalued items that are contained in the input sets.
@@ -201,15 +202,18 @@ public class MvIntersection extends BinaryScalarFunction implements EvaluatorMap
             return new TypeResolution("Unresolved children");
         }
 
-        // ensure all children are the same type
-        ElementType field1Type = PlannerUtils.toElementType(left().dataType());
-        ElementType field2Type = PlannerUtils.toElementType(right().dataType());
-
-        if (field1Type != field2Type && field1Type.equals(ElementType.NULL) == false && field2Type.equals(ElementType.NULL) == false) {
-            return new TypeResolution("All child fields must be the same type");
+        if (left().dataType() != DataType.NULL && right().dataType() != DataType.NULL) {
+            this.dataType = left().dataType().noText();
+            return isType(
+                right(),
+                t -> t.noText() == left().dataType().noText(),
+                sourceText(),
+                SECOND,
+                left().dataType().noText().typeName()
+            );
         }
 
-        Expression evaluatedField = field1Type.equals(ElementType.NULL) ? right() : left();
+        Expression evaluatedField = left().dataType() == DataType.NULL ? right() : left();
 
         this.dataType = evaluatedField.dataType().noText();
 

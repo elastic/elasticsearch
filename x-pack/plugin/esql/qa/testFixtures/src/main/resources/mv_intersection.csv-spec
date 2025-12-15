@@ -78,6 +78,17 @@ finalValue:keyword
 // end::testMvIntersectionWithBytesRefValues-result[]
 ;
 
+testMvIntersectionGeoPoint
+required_capability: fn_mv_intersection
+
+ROW a = ["POINT(42.97109629958868 14.7552534006536)", "POINT(23.23 14.7)"]::geo_point, b = ["POINT(42.97109629958868 14.7552534006536)", "POINT(12.12 11.22)"]::geo_point
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:geo_point
+POINT (42.97109629958868 14.7552534006536)
+;
+
 testMvIntersectionNullReturnedWhenNoIntersection
 required_capability: fn_mv_intersection
 

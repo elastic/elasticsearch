@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.watcher.transport.actions.put;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -47,11 +46,7 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
          */
         @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS);
-            }
+            return new Request(in);
         }
 
         private Request(StreamInput in) throws IOException {

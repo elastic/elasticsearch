@@ -9,8 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -29,7 +29,7 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
 
         assertEquals(new MatchAllDocsQuery(), ft.prefixQuery("ind", null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("other_ind", null, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.prefixQuery("other_ind", null, createContext()));
     }
 
     public void testWildcardQuery() {
@@ -37,8 +37,8 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("iNd*x", null, true, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("Other_ind*x", null, true, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("other_ind*x", null, createContext()));
+        assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("Other_ind*x", null, true, createContext()));
     }
 
     public void testRegexpQuery() {

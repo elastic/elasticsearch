@@ -43,7 +43,6 @@ import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Pruning;
@@ -65,6 +64,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -291,7 +291,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             // QueryPhaseCollector does not propagate Weight#count when a post_filter is provided, hence it forces collection despite
             // the inner TotalHitCountCollector can shortcut
             context.setSize(0);
-            context.parsedPostFilter(new ParsedQuery(new MatchNoDocsQuery()));
+            context.parsedPostFilter(new ParsedQuery(Queries.NO_DOCS_INSTANCE));
             QueryPhase.executeQuery(context);
             assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation());
@@ -299,7 +299,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         try (TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery())) {
             // shortcutTotalHitCount is disabled for filter collectors, hence we collect until track_total_hits
             context.setSize(10);
-            context.parsedPostFilter(new ParsedQuery(new MatchNoDocsQuery()));
+            context.parsedPostFilter(new ParsedQuery(Queries.NO_DOCS_INSTANCE));
             QueryPhase.addCollectorsAndSearch(context, null);
             assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation());

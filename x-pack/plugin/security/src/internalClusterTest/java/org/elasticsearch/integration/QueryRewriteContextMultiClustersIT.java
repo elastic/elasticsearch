@@ -9,7 +9,6 @@ package org.elasticsearch.integration;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
@@ -37,6 +36,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -404,7 +404,7 @@ public class QueryRewriteContextMultiClustersIT extends AbstractMultiClustersTes
         @Override
         protected Query doToQuery(SearchExecutionContext context) {
             assertThat(actionsAcknowledged, is(true));
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
 
         @Override

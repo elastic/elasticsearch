@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -49,17 +48,9 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     public ExactKnnQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.query = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.query = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.query = in.readOptionalWriteable(VectorData::new);
         this.field = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.vectorSimilarity = in.readOptionalFloat();
-        } else {
-            this.vectorSimilarity = null;
-        }
+        this.vectorSimilarity = in.readOptionalFloat();
     }
 
     String getField() {
@@ -81,15 +72,9 @@ public class ExactKnnQueryBuilder extends AbstractQueryBuilder<ExactKnnQueryBuil
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(query);
-        } else {
-            out.writeFloatArray(query.asFloatVector());
-        }
+        out.writeOptionalWriteable(query);
         out.writeString(field);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeOptionalFloat(vectorSimilarity);
-        }
+        out.writeOptionalFloat(vectorSimilarity);
     }
 
     @Override

@@ -25,8 +25,8 @@
   ],
   "examples" : [
     "ROW input=\"Who is Victor Hugo?\"\n| EVAL embedding = TEXT_EMBEDDING(\"Who is Victor Hugo?\", \"test_dense_inference\")",
-    "FROM semantic_text METADATA _score\n| EVAL query_embedding = TEXT_EMBEDDING(\"be excellent to each other\", \"test_dense_inference\")\n| WHERE KNN(semantic_text_dense_field, query_embedding)",
-    "FROM semantic_text METADATA _score\n| WHERE KNN(semantic_text_dense_field, TEXT_EMBEDDING(\"be excellent to each other\", \"test_dense_inference\"))"
+    "FROM dense_vector_text METADATA _score\n| EVAL query_embedding = TEXT_EMBEDDING(\"be excellent to each other\", \"test_dense_inference\")\n| WHERE KNN(text_embedding_field, query_embedding)",
+    "FROM dense_vector_text METADATA _score\n| WHERE KNN(text_embedding_field, TEXT_EMBEDDING(\"be excellent to each other\", \"test_dense_inference\"))"
   ],
   "preview" : true,
   "snapshot_only" : false

@@ -1,0 +1,20 @@
+pr: 138723
+summary: Remove DOC_VALUES_SKIPPER feature flag
+area: Mapping
+type: feature
+issues: []
+highlight:
+  title: Enable doc_values skippers
+  body: |-
+    Doc_values skippers add a sparse index to doc_values fields, allowing efficient
+    querying and filtering on a field without having to build a separate BKD or terms
+    index.  These are now enabled automatically on any field configured with
+    index=false and doc_values=true if the index setting `index.mapping.use_doc_values_skipper`
+    is set to `true` (default `false`, or `true` for TSDB indexes).
+
+    TSDB indexes now default to using skippers in place of indexes for their
+    @timestamp, dimension and  _tsid fields, greatly reducing their on-disk
+    footprint.  To disable skippers in TSDB indexes, set `index.mapping.use_doc_values_skipper`
+    to `false`.
+
+  notable: true

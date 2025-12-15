@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesFie
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -1119,7 +1120,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
                 {
                     // bulk loading binary fixed length field:
-                    var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, randomOffset, false, null, false);
+                    var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, randomOffset, false, null, false, useCustomBinaryFormat);
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -1129,7 +1130,15 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
                 {
                     // bulk loading binary variable length field:
-                    var block = (TestBlock) binaryVariableDV.tryRead(factory, docs, randomOffset, false, null, false);
+                    var block = (TestBlock) binaryVariableDV.tryRead(
+                        factory,
+                        docs,
+                        randomOffset,
+                        false,
+                        null,
+                        false,
+                        useCustomBinaryFormat
+                    );
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -1148,14 +1157,35 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 binaryFixedDV = getDenseBinaryValues(leafReader, binaryFixedField);
                 List<BytesRef> expectedVariableBinaryValues = new ArrayList<>();
                 binaryVariableDV = getDenseBinaryValues(leafReader, binaryVariableField);
+                final var cdvReader = new CustomBinaryDocValuesReader();
                 for (int i = 0; i < docs.count(); i++) {
                     int docId = docs.get(i);
                     counterDV.advanceExact(docId);
                     expectedCounters[i] = counterDV.longValue();
-                    binaryFixedDV.advanceExact(docId);
-                    expectedFixedBinaryValues.add(BytesRef.deepCopyOf(binaryFixedDV.binaryValue()));
-                    binaryVariableDV.advanceExact(docId);
-                    expectedVariableBinaryValues.add(BytesRef.deepCopyOf(binaryVariableDV.binaryValue()));
+                    if (useCustomBinaryFormat) {
+                        binaryFixedDV.advanceExact(docId);
+                        cdvReader.read(binaryFixedDV.binaryValue(), new BytesRefBuilderStub() {
+                            @Override
+                            public BlockLoader.BytesRefBuilder appendBytesRef(BytesRef value) {
+                                expectedFixedBinaryValues.add(BytesRef.deepCopyOf(value));
+                                return this;
+                            }
+                        });
+                        binaryVariableDV.advanceExact(docId);
+                        cdvReader.read(binaryVariableDV.binaryValue(), new BytesRefBuilderStub() {
+                            @Override
+                            public BlockLoader.BytesRefBuilder appendBytesRef(BytesRef value) {
+                                expectedVariableBinaryValues.add(BytesRef.deepCopyOf(value));
+                                return this;
+                            }
+                        });
+                    } else {
+                        binaryFixedDV.advanceExact(docId);
+                        expectedFixedBinaryValues.add(BytesRef.deepCopyOf(binaryFixedDV.binaryValue()));
+                        binaryVariableDV.advanceExact(docId);
+                        expectedVariableBinaryValues.add(BytesRef.deepCopyOf(binaryVariableDV.binaryValue()));
+                    }
+
                 }
                 counterDV = getBaseDenseNumericValues(leafReader, counterField);
                 stringCounterDV = getBaseSortedDocValues(leafReader, counterFieldAsString);
@@ -1171,11 +1201,19 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     assertNotNull(stringBlock);
                     assertEquals(size, stringBlock.size());
 
-                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, false, null, false);
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, false, null, false, useCustomBinaryFormat);
                     assertNotNull(fixedBinaryBlock);
                     assertEquals(size, fixedBinaryBlock.size());
 
-                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryRead(factory, docs, 0, false, null, false);
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryRead(
+                        factory,
+                        docs,
+                        0,
+                        false,
+                        null,
+                        false,
+                        useCustomBinaryFormat
+                    );
                     assertNotNull(variableBinaryBlock);
                     assertEquals(size, variableBinaryBlock.size());
 
@@ -1976,5 +2014,37 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
     public static int randomNumericBlockSize() {
         return random().nextBoolean() ? ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT : ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+    }
+
+    abstract static class BytesRefBuilderStub implements BlockLoader.BytesRefBuilder {
+
+        @Override
+        public BlockLoader.BytesRefBuilder appendBytesRef(BytesRef value) {
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            return this;
+        }
+
+        @Override
+        public void close() {
+        }
     }
 }

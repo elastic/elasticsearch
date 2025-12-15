@@ -15,7 +15,6 @@ import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -263,17 +262,81 @@ public class DeterministicTaskQueue {
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
     public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-        return getThreadPool(runnableWrapper, Map.of());
-    }
-
-    public ThreadPool getThreadPool(
-        Function<Runnable, Runnable> runnableWrapper,
-        Map<String, CachedSupplier<ExecutorService>> predefinedExecutors
-    ) {
         return new ThreadPool() {
             private final Map<String, ThreadPool.Info> infos = new HashMap<>();
 
-            private final Map<String, ForkingExecutorService> executors = ConcurrentCollections.newConcurrentMap();
+            private final ExecutorService forkingExecutor = new ExecutorService() {
+
+                @Override
+                public void shutdown() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public List<Runnable> shutdownNow() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isShutdown() {
+                    return false;
+                }
+
+                @Override
+                public boolean isTerminated() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean awaitTermination(long timeout, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> Future<T> submit(Callable<T> task) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> Future<T> submit(Runnable task, T result1) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Future<?> submit(Runnable task) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void execute(Runnable command) {
+                    scheduleNow(runnableWrapper.apply(command));
+                }
+
+                @Override
+                public String toString() {
+                    return "DeterministicTaskQueue/forkingExecutor";
+                }
+            };
 
             @Override
             public long relativeTimeInNanos() {
@@ -317,12 +380,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public ExecutorService executor(String name) {
-                final CachedSupplier<ExecutorService> supplier = predefinedExecutors.get(name);
-                if (supplier != null) {
-                    return supplier.get();
-                } else {
-                    return executors.computeIfAbsent(name, n -> new ForkingExecutorService(runnableWrapper, n));
-                }
+                return forkingExecutor;
             }
 
             @Override
@@ -343,7 +401,7 @@ public class DeterministicTaskQueue {
 
                     @Override
                     public String toString() {
-                        return command.toString() + " on " + executor.toString();
+                        return command.toString();
                     }
                 }));
 
@@ -388,11 +446,6 @@ public class DeterministicTaskQueue {
 
             @Override
             public ScheduledExecutorService scheduler() {
-                final var predefined = predefinedExecutors.get("scheduler");
-                if (predefined != null) {
-                    return (ScheduledExecutorService) predefined.get();
-                }
-
                 return new ScheduledExecutorService() {
                     @Override
                     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
@@ -481,97 +534,6 @@ public class DeterministicTaskQueue {
                 };
             }
         };
-    }
-
-    private class ForkingExecutorService implements ExecutorService {
-
-        private final Function<Runnable, Runnable> runnableWrapper;
-        private final String originalName;
-
-        private ForkingExecutorService(Function<Runnable, Runnable> runnableWrapper, String originalName) {
-            this.runnableWrapper = runnableWrapper;
-            this.originalName = originalName;
-        }
-
-        @Override
-        public void shutdown() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<Runnable> shutdownNow() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isShutdown() {
-            return false;
-        }
-
-        @Override
-        public boolean isTerminated() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> Future<T> submit(Callable<T> task) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> Future<T> submit(Runnable task, T result1) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Future<?> submit(Runnable task) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void execute(Runnable command) {
-            scheduleNow(runnableWrapper.apply(new Runnable() {
-                @Override
-                public void run() {
-                    command.run();
-                }
-
-                @Override
-                public String toString() {
-                    return command.toString() + " on " + ForkingExecutorService.this;
-                }
-            }));
-        }
-
-        @Override
-        public String toString() {
-            return "DeterministicTaskQueue/forkingExecutor/" + originalName;
-        }
     }
 
     public long getLatestDeferredExecutionTime() {

@@ -140,7 +140,7 @@ public class KnnIndexTester {
             if (GPUSupport.isSupported() == false) {
                 throw new IllegalArgumentException("GPU HNSW index type not supported on this platform");
             }
-            GPUSupport.enableMemoryPooling();
+            GPUSupport.enableMemoryPooling(80);
             if (quantizeBits == 32) {
                 format = new ES92GpuHnswVectorsFormat();
             } else if (quantizeBits == 7) {

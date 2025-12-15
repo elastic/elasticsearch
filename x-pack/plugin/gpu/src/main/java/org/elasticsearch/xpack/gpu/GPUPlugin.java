@@ -45,11 +45,11 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     );
 
     private final GpuMode gpuMode;
-    private final boolean enableMemoryPooling;
+    private final int memoryPoolingPercent;
 
     public GPUPlugin(Settings settings) {
         this.gpuMode = VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
-        this.enableMemoryPooling = VECTORS_INDEXING_USE_GPU_MEMORY_POOLINGNODE_SETTING.get(settings);
+        this.memoryPoolingPercent = VECTORS_INDEXING_GPU_MEMORY_POOLING_PERCENT_NODE_SETTING.get(settings);
     }
 
     /**
@@ -64,11 +64,12 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     /**
      * Node-level setting to control whether to use GPU for vectors indexing across the node.
      * This is a static, node-scoped setting.
-     *
+     * <p>
      * If unset or "auto", an automatic decision is made based on the presence of GPU and necessary libraries.
      * If set to <code>true</code>, GPU must be used for vectors indexing, and if GPU or necessary libraries are not available,
      * the node will refuse to start and throw an exception.
      * If set to <code>false</code>, GPU will not be used for vectors indexing.
+     * </p>
      */
     public static final Setting<GpuMode> VECTORS_INDEXING_USE_GPU_NODE_SETTING = Setting.enumSetting(
         GpuMode.class,
@@ -77,16 +78,18 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> VECTORS_INDEXING_USE_GPU_MEMORY_POOLINGNODE_SETTING = Setting.boolSetting(
-        "vectors.indexing.use_gpu_memory_pooling",
-        true,
+    public static final Setting<Integer> VECTORS_INDEXING_GPU_MEMORY_POOLING_PERCENT_NODE_SETTING = Setting.intSetting(
+        "vectors.indexing.gpu_memory_pooling_percent",
+        0,
+        0,
+        95,
         Setting.Property.NodeScope
     );
 
     @Override
     public List<Setting<?>> getSettings() {
         if (GPU_FORMAT.isEnabled()) {
-            return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING, VECTORS_INDEXING_USE_GPU_MEMORY_POOLINGNODE_SETTING);
+            return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING, VECTORS_INDEXING_GPU_MEMORY_POOLING_PERCENT_NODE_SETTING);
         } else {
             return List.of();
         }
@@ -109,8 +112,8 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        if ((gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) && enableMemoryPooling) {
-            GPUSupport.enableMemoryPooling();
+        if ((gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) && memoryPoolingPercent > 0) {
+            GPUSupport.enableMemoryPooling(memoryPoolingPercent);
         }
         return super.createComponents(services);
     }

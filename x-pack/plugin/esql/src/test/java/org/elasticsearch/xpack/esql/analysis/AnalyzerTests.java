@@ -2059,7 +2059,7 @@ public class AnalyzerTests extends ESTestCase {
             """, """
             Found 6 problems
             line 2:12: argument of [avg(x)] must be [aggregate_metric_double,\
-             exponential_histogram or numeric except unsigned_long or counter types],\
+             exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
@@ -2070,7 +2070,7 @@ public class AnalyzerTests extends ESTestCase {
             line 2:96: first argument of [percentile(x, 10)] must be [exponential_histogram, tdigest or numeric except unsigned_long],\
              found value [x] type [unsigned_long]
             line 2:115: argument of [sum(x)] must be [aggregate_metric_double,\
-             exponential_histogram or numeric except unsigned_long or counter types],\
+             exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]""");
 
         verifyUnsupported("""
@@ -2079,7 +2079,7 @@ public class AnalyzerTests extends ESTestCase {
             """, """
             Found 5 problems
             line 2:10: argument of [avg(x)] must be [aggregate_metric_double,\
-             exponential_histogram or numeric except unsigned_long or counter types],\
+             exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:18: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -2088,7 +2088,7 @@ public class AnalyzerTests extends ESTestCase {
             line 2:59: first argument of [percentile(x, 10)] must be [exponential_histogram, tdigest or numeric except unsigned_long],\
              found value [x] type [version]
             line 2:78: argument of [sum(x)] must be [aggregate_metric_double,\
-             exponential_histogram or numeric except unsigned_long or counter types],\
+             exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]""");
     }
 
@@ -2454,48 +2454,22 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction(
-                "v_cosine(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
-            );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-        }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction(
-                "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
-            );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-        }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction(
-                "v_l1_norm(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
-            );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-        }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction(
-                "v_l2_norm(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
-            );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1, 2, 3));
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
-            }
-        }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorImplicitCastingSimilarityFunction(
-                "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
-            );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(bit_vector, [1, 2])", List.of(1, 2));
-            }
-        }
+        checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction(
+            "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
+            List.of(0.342, 0.164, 0.234)
+        );
+        checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(bit_vector, [1, 2])", List.of(1, 2));
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
@@ -2516,26 +2490,16 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDenseVectorEvalCastingSimilarityFunctions() {
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
-        }
+        checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
     }
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
@@ -2557,18 +2521,10 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testVectorFunctionHexImplicitCastingError() {
         checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_dot_product(\"notcorrect\", 0.342)");
-        }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_l1_norm(\"notcorrect\", 0.342)");
-        }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_l2_norm(\"notcorrect\", 0.342)");
-        }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_hamming(\"notcorrect\", 0.342)");
-        }
+        checkVectorFunctionHexImplicitCastingError("eval s = v_dot_product(\"notcorrect\", 0.342)");
+        checkVectorFunctionHexImplicitCastingError("eval s = v_l1_norm(\"notcorrect\", 0.342)");
+        checkVectorFunctionHexImplicitCastingError("eval s = v_l2_norm(\"notcorrect\", 0.342)");
+        checkVectorFunctionHexImplicitCastingError("eval s = v_hamming(\"notcorrect\", 0.342)");
     }
 
     private void checkVectorFunctionHexImplicitCastingError(String clause) {

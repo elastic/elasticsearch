@@ -29,11 +29,11 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.NullInfoStream;
 import org.apache.lucene.util.InfoStream;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -58,7 +58,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         syntheticRecoverySource ? null : "extra_source",
                         syntheticRecoverySource ? "extra_source_size" : "extra_source",
                         pruneIdField,
-                        MatchNoDocsQuery::new,
+                        () -> Queries.NO_DOCS_INSTANCE,
                         newLogMergePolicy()
                     );
                     iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));

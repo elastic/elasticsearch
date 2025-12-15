@@ -8231,7 +8231,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVectorFunctionsNotPushedInCoordinator() {
-        assumeTrue("requires similarity functions", EsqlCapabilities.Cap.VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN.isEnabled());
         String query = """
             from test_all
             | sort long

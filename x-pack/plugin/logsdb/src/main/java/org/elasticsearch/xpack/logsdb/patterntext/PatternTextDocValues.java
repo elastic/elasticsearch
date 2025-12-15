@@ -27,12 +27,27 @@ public final class PatternTextDocValues extends BinaryDocValues {
         this.argsInfoDocValues = argsInfoDocValues;
     }
 
-    static PatternTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName)
+    static PatternTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName, boolean useBinaryDocValueArgs)
         throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
-        BinaryDocValues argsDocValues = DocValues.getBinary(leafReader, argsFieldName);
+        BinaryDocValues argsDocValues = getArgsDocValues(leafReader, argsFieldName, useBinaryDocValueArgs);
         SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, argsInfoFieldName);
         return new PatternTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
+    }
+
+    /**
+     * Args columns was originally a SortedSetDocValues column and was replaced with BinaryDocValues.
+     * To maintain backwards compatibility, if a BinaryDocValues column does not exist, use the old SortedSetDocValues.
+     * Since pattern_text fields are not multivalued we can wrap the SortedSetDocValues in a BinaryDocValues interface.
+     */
+    private static BinaryDocValues getArgsDocValues(LeafReader leafReader, String argsFieldName, boolean useBinaryDocValueArgs) throws IOException {
+        if (useBinaryDocValueArgs) {
+            return DocValues.getBinary(leafReader, argsFieldName);
+        } else {
+            var sortedSetDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
+            assert sortedSetDocValues != null;
+            return new BinaryDelegatingSingletonSortedSetDocValues(sortedSetDocValues);
+        }
     }
 
     private String getNextStringValue() throws IOException {

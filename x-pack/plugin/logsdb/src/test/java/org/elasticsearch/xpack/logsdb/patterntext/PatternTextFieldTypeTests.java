@@ -42,13 +42,13 @@ import java.util.List;
 public class PatternTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", null));
         assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")), ft.termQueryCaseInsensitive("fOo", null));
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("123"));
@@ -56,7 +56,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         assertEquals(
             new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
             ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
@@ -73,7 +73,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
@@ -84,7 +84,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         assertEquals(
             new ConstantScoreQuery(new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true)),
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
@@ -110,7 +110,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPhraseQuery() throws IOException {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("1", 4, 7));
         Query query = ft.phraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
@@ -118,7 +118,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testMultiPhraseQuery() throws IOException {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("2", 0, 0, 3), new Token("c", 4, 7));
         Query query = ft.multiPhraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
@@ -129,7 +129,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPhrasePrefixQuery() throws IOException {
-        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        MappedFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 0, 0, 3), new Token("c", 4, 7));
         Query query = ft.phrasePrefixQuery(ts, 0, 10, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
@@ -140,14 +140,14 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermIntervals() {
-        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
     }
 
     public void testPrefixIntervals() {
-        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -157,7 +157,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardIntervals() {
-        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -167,7 +167,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpIntervals() {
-        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(regexpIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -177,13 +177,13 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyIntervals() {
-        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
     }
 
     public void testRangeIntervals() {
-        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean());
+        PatternTextFieldType ft = new PatternTextFieldType("field", randomBoolean(), randomBoolean(), randomBoolean());
         IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
         assertThat(rangeIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(

@@ -1,5 +1,7 @@
 rate_of_long_no_grouping
 required_capability: rate_with_interpolation
+required_capability: ts_command_v0
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,1minute)
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, time_bucket
@@ -20,6 +22,8 @@ rate_bytes_in:double | time_bucket:datetime
 
 rate_of_long_grouping
 required_capability: rate_with_interpolation
+required_capability: ts_command_v0
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,5minute)
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
@@ -39,8 +43,10 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_with_window
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
 required_capability: time_series_window_v1
+
 // tag::rate_with_window[]
 TS k8s
 | WHERE TRANGE("2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z")
@@ -71,6 +77,8 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 rate_of_double_no_grouping
 required_capability: rate_with_interpolation
+required_capability: ts_command_v0
+
 TS k8s
 | STATS rate_cost=sum(rate(network.total_cost)) BY time_bucket = bucket(@timestamp,1minute)
 | EVAL rate_cost=ROUND(rate_cost, 6) | KEEP rate_cost, time_bucket
@@ -90,7 +98,9 @@ rate_cost:double | time_bucket:datetime
 ;
 
 rate_with_filtering
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s | WHERE pod == "one"
 | STATS rate_bytes_in = sum(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
@@ -109,7 +119,9 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_with_inline_filtering
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s 
 | STATS rate_bytes_in = sum(rate(network.total_bytes_in)) WHERE pod == "one" BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
@@ -128,7 +140,9 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 eval_on_rate
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_bytes = avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL rate_bytes=ROUND(rate_bytes, 6), rate_kb = rate_bytes / 1024.0
@@ -149,7 +163,9 @@ rate_bytes:double | cluster:keyword | time_bucket:datetime     | rate_kb:double
 ;
 
 rate_of_aggregate_metric
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s-downsampled
 | STATS sum_bytes = sum(rate(network.total_bytes_in)),
         max_bytes = max(rate(network.total_bytes_in)), 
@@ -164,7 +180,9 @@ sum_bytes:double | max_bytes:double | min_bytes:double | avg_bytes:double | time
 ;
 
 rate_of_expression
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in) + 10) BY time_bucket = bucket(@timestamp,1minute)
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, time_bucket
@@ -184,7 +202,9 @@ rate_bytes_in:double | time_bucket:datetime
 ;
 
 rate_combined_avg
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s
 | STATS avg_rate_bytes = avg(rate(network.total_bytes_in)), avg_rate_cost = avg(rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL avg_rate_bytes=ROUND(avg_rate_bytes, 6), avg_rate_cost=ROUND(avg_rate_cost, 6), ratio = avg_rate_bytes / avg_rate_cost
@@ -204,7 +224,9 @@ avg_rate_bytes:double | avg_rate_cost:double | cluster:keyword | time_bucket:dat
 ;
 
 rate_combined_sum
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s
 | STATS sum_rate_bytes = sum(rate(network.total_bytes_in)), sum_rate_cost = sum(rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL sum_rate_bytes=ROUND(sum_rate_bytes, 6), sum_rate_cost=ROUND(sum_rate_cost, 6), ratio = sum_rate_bytes / sum_rate_cost
@@ -224,7 +246,9 @@ sum_rate_bytes:double | sum_rate_cost:double | cluster:keyword | time_bucket:dat
 ;
 
 rate_of_ratio
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_of_ratio = sum(rate(network.total_cost) / rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL rate_of_ratio=ROUND(rate_of_ratio, 6) | KEEP rate_of_ratio, cluster, time_bucket
@@ -243,7 +267,9 @@ rate_of_ratio:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_of_long_grouping_1min_nulls
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,2minute)
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
@@ -263,8 +289,10 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 sum_rate_per_region
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
 required_capability: pack_dimensions_in_ts
+
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, region, time_bucket = bucket(@timestamp,5minute)
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, region, time_bucket
@@ -284,6 +312,7 @@ rate_bytes_in:double | cluster:keyword | region:keyword | time_bucket:datetime
 ;
 
 trange_absolute_with_rate
+required_capability: ts_command_v0
 required_capability: rate_with_interpolation
 required_capability: fn_trange
 

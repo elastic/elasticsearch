@@ -9,7 +9,6 @@ TS k8s
 // end::increase[]
 | SORT increase_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
-// tag::increase-result[]
 increase_bytes_in:double | time_bucket:datetime
 1156.9098342725822       | 2024-05-10T00:19:00.000Z
 1063.7582541086263       | 2024-05-10T00:17:00.000Z
@@ -34,6 +33,7 @@ TS k8s
 | KEEP increase_bytes_in, cluster, time_bucket
 | SORT increase_bytes_in DESC, time_bucket, cluster | LIMIT 10;
 
+// tag::increase-result[]
 increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 4628.220019              | qa              | 2024-05-10T00:15:00.000Z
 4129.646129              | qa              | 2024-05-10T00:05:00.000Z
@@ -42,6 +42,7 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 2260.78709               | prod            | 2024-05-10T00:10:00.000Z
 2150.862794              | staging         | 2024-05-10T00:05:00.000Z
 2049.166973              | staging         | 2024-05-10T00:10:00.000Z
+// end::increase-result[]
 1949.594834              | prod            | 2024-05-10T00:20:00.000Z
 1806.457654              | staging         | 2024-05-10T00:15:00.000Z
 1716.559991              | qa              | 2024-05-10T00:00:00.000Z

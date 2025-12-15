@@ -478,7 +478,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 query.numCands(),
                 version.onOrAfter(KnnVectorQueryBuilder.VISIT_PERCENTAGE) ? query.visitPercentage() : null,
                 query.rescoreVectorBuilder(),
-                query.getVectorSimilarity()
+                query.getVectorSimilarity(),
+                query.getPostFilteringThreshold()
             ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries()).setAutoPrefilteringEnabled(false);
             assertBWCSerialization(query, queryNoAutoPrefiltering, version);
         }

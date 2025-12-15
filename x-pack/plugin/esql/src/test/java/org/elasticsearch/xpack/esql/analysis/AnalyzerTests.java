@@ -2462,7 +2462,12 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
         checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction(
+            "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
+            List.of(0.342, 0.164, 0.234)
+        );
         checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+        checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(float_vector, [0.342, 0.164, 0.234])", List.of(0.342, 0.164, 0.234));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
         checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(bfloat16_vector, [1, 2, 3])", List.of(1, 2, 3));
@@ -2504,10 +2509,11 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(bfloat16_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
-        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(bit_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(bfloat16_vector, query)");
         checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
-        checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
+        checkDenseVectorEvalCastingSimilarityFunction("v_hamming(bit_vector, query)");
     }
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {

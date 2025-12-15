@@ -10314,7 +10314,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             | RENAME language_name AS message
             | ENRICH languages_idx ON message
-            | STATS a = count(to_lower(language_name)), b = count(language_name)
+            | STATS a = COUNT(TO_LOWER(language_name)), b = COUNT(language_name)
             """;
         var plan = optimizedPlan(query);
 

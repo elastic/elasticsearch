@@ -82,6 +82,10 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
         boolean isHotspotting
     ) implements Writeable {
 
+        public ThreadPoolUsageStats(int totalThreadPoolThreads, float averageThreadPoolUtilization, long maxThreadPoolQueueLatencyMillis) {
+            this(totalThreadPoolThreads, averageThreadPoolUtilization, maxThreadPoolQueueLatencyMillis, false);
+        }
+
         public ThreadPoolUsageStats(StreamInput in) throws IOException {
             this(in.readVInt(), in.readFloat(), in.readVLong(), false);
         }

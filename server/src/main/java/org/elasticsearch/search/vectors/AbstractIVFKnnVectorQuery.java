@@ -18,6 +18,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -151,7 +152,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (supplier != null) {
                         var filterCost = Math.toIntExact(supplier.cost());
                         float selectivity = (float) filterCost / floatVectorValues.size();
-                        if (selectivity >= postFilteringThreshold) {
+                        //TODO: is this enough to check if we picked this up from cache?
+                        if ((false == supplier instanceof ConstantScoreScorerSupplier) && selectivity >= postFilteringThreshold) {
                             // for filters with coverage greater than the provided postFilteringThreshold, we:
                             // * oversample by (1 + (1 - selectivity)) * k)
                             // * skip centroid filtering (most centroids will be valid either way)

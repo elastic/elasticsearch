@@ -112,7 +112,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
         for (LogicalPlan forkChild : fork.children()) {
             LogicalPlan newForkChild = maybePushDownLimitToForkBranch(limit, forkChild, ctx);
-            changed = changed || newForkChild != limit;
+            changed = changed || newForkChild != forkChild;
             newForkChildren.add(newForkChild);
         }
 

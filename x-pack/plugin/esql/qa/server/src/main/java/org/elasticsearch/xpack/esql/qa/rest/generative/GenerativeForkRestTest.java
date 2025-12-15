@@ -37,7 +37,14 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query + " | FORK (WHERE true) (WHERE true) | WHERE _fork == \"fork1\" | DROP _fork";
+        boolean addLimitAfterFork = randomBoolean();
+
+        String suffix = " | FORK (WHERE true) (WHERE true) ";
+        suffix = addLimitAfterFork ? suffix + " | LIMIT 100 " : suffix;
+
+        suffix = suffix + "| WHERE _fork == \"fork1\" | DROP _fork";
+
+        String query = testCase.query + suffix;
         doTest(query);
     }
 

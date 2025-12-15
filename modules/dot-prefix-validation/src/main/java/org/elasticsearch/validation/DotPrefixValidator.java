@@ -67,6 +67,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
+            "\\.enrich-.*",
             "\\.entities\\.v\\d+\\..*",
             "\\.fleet-.*",
             "\\.kibana-reporting-.*",

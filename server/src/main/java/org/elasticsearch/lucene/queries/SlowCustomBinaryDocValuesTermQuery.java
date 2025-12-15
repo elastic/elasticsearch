@@ -40,8 +40,8 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
     private final BytesRef term;
 
     public SlowCustomBinaryDocValuesTermQuery(String fieldName, BytesRef term) {
-        this.fieldName = fieldName;
-        this.term = term;
+        this.fieldName = Objects.requireNonNull(fieldName);
+        this.term = Objects.requireNonNull(term);
     }
 
     @Override
@@ -67,7 +67,7 @@ public final class SlowCustomBinaryDocValuesTermQuery extends Query {
 
                     @Override
                     public float matchCost() {
-                        return 1; // because one comparison
+                        return 10; // because one comparison
                     }
                 };
 

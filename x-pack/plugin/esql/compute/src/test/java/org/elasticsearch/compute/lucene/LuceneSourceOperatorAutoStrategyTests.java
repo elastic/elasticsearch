@@ -18,9 +18,9 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -46,7 +46,7 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
             new Object[] {
                 new BoostQuery(new ConstantScoreQuery(new MatchAllDocsQuery()), 0.0F),
                 LuceneSliceQueue.PartitioningStrategy.DOC },
-            new Object[] { new MatchNoDocsQuery(), LuceneSliceQueue.PartitioningStrategy.SHARD },
+            new Object[] { Queries.NO_DOCS_INSTANCE, LuceneSliceQueue.PartitioningStrategy.SHARD },
 
             /*
              * FROM test | WHERE @timestamp > \"2025-01-01T00:00:00Z\" | STATS SUM(b)
@@ -98,7 +98,7 @@ public class LuceneSourceOperatorAutoStrategyTests extends ESTestCase {
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT },
             new Object[] {
                 new BooleanQuery.Builder() // formatter
-                    .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
+                    .add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.SHOULD)
                     .add(new TermQuery(new Term("a", "a")), BooleanClause.Occur.SHOULD)
                     .build(),
                 LuceneSliceQueue.PartitioningStrategy.SEGMENT }

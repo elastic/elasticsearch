@@ -161,8 +161,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         // Search for spatial grid functions in EVALs
         exec.forEachDown(EvalExec.class, evalExec -> {
             for (Alias field : evalExec.fields()) {
-                field.forEachDown(
-                    SpatialGridFunction.class, spatialAggFunc -> {
+                field.forEachDown(SpatialGridFunction.class, spatialAggFunc -> {
                     if (spatialAggFunc.spatialField() instanceof FieldAttribute fieldAttribute
                         && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
                         foundAttributes.add(fieldAttribute);

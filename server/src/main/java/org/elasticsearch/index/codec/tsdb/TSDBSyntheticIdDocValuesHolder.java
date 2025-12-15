@@ -188,6 +188,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * document is found, the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
      * <p>
      * Warning: This method can be slow because it potentially scans many documents in the segment.
+     * </p>
      */
     int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
         final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
@@ -225,6 +226,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * the method returns {@link DocIdSetIterator#NO_MORE_DOCS}.
      * <p>
      * Warning: This method can be slow because it potentially scans many documents in the segment.
+     * </p>
      */
     int findFirstDocWithTsIdOrdinalEqualTo(int tsIdOrd) throws IOException {
         final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
@@ -263,7 +265,7 @@ class TSDBSyntheticIdDocValuesHolder {
      * Skip as many documents as possible after a given document ID to find the first document ID matching the timestamp.
      *
      * @param timestamp the timestamp to match
-     * @param minDocID  the min. document ID
+     * @param minDocID the min. document ID
      * @return a docID to start scanning documents from in order to find the first document ID matching the provided timestamp
      * @throws IOException if any I/O exception occurs
      */

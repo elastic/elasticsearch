@@ -3,10 +3,8 @@ required_capability: increase
 required_capability: rate_with_interpolation
 required_capability: ts_command_v0
 
-// tag::increase[]
 TS k8s
 | STATS increase_bytes_in=avg(increase(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,1minute)
-// end::increase[]
 | SORT increase_bytes_in DESC, time_bucket DESC | LIMIT 10;
 
 increase_bytes_in:double | time_bucket:datetime
@@ -33,7 +31,6 @@ TS k8s
 | KEEP increase_bytes_in, cluster, time_bucket
 | SORT increase_bytes_in DESC, time_bucket, cluster | LIMIT 10;
 
-// tag::increase-result[]
 increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 4628.220019              | qa              | 2024-05-10T00:15:00.000Z
 4129.646129              | qa              | 2024-05-10T00:05:00.000Z
@@ -42,7 +39,6 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 2260.78709               | prod            | 2024-05-10T00:10:00.000Z
 2150.862794              | staging         | 2024-05-10T00:05:00.000Z
 2049.166973              | staging         | 2024-05-10T00:10:00.000Z
-// end::increase-result[]
 1949.594834              | prod            | 2024-05-10T00:20:00.000Z
 1806.457654              | staging         | 2024-05-10T00:15:00.000Z
 1716.559991              | qa              | 2024-05-10T00:00:00.000Z
@@ -89,6 +85,7 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 2453.5                   | prod            | 2024-05-10T00:00:00.000Z
 5828.87                  | qa              | 2024-05-10T00:00:00.000Z
 2591.440476190476        | staging         | 2024-05-10T00:00:00.000Z
+// end::increase-result[]
 7019.4184397163135       | prod            | 2024-05-10T00:10:00.000Z
 7294.064049079755        | qa              | 2024-05-10T00:10:00.000Z
 2523.396021699819        | staging         | 2024-05-10T00:10:00.000Z

@@ -262,6 +262,14 @@ public class DeterministicTaskQueue {
     }
 
     /**
+     * Determine whether the task should be schedule right away instead of after the given delay.
+     * @return true if the task was scheduled right away, false otherwise.
+     */
+    protected boolean shouldScheduleNow(Runnable command, TimeValue delay, Executor executor) {
+        return false;
+    }
+
+    /**
      * @return A <code>ThreadPool</code> that uses this task queue.
      */
     public ThreadPool getThreadPool() {
@@ -395,6 +403,12 @@ public class DeterministicTaskQueue {
 
             @Override
             public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (shouldScheduleNow(command, delay, executor)) {
+                    logger.debug("Replace schedule with scheduleNow for [{}]", command);
+                    scheduleNow(runnableWrapper.apply(command));
+                    return null;
+                }
+
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;

@@ -89,7 +89,12 @@ public interface MatcherWatchdog {
 
         @Override
         public void register(Matcher matcher) {
-            if (maxExecutionTimeMillis > 0) {
+            if (maxExecutionTimeMillis >= 0) {
+                // note: if maxExecutionTimeMillis == 0, the grok pattern matching will still run, since the logic is that it checks
+                // every N iterations to see if the timeout has passed. so a small enough pattern can still actually do useful work
+                // even with a timeout of zero nanoseconds. this is similar to the previous thread-based logic, which would schedule
+                // a thread to check at some interval if the timeout had already passed (so a max time of zero would still result in
+                // one interval's worth of work happening).
                 matcher.setTimeout(maxExecutionTimeMillis * NSEC_PER_MSEC);
             } else {
                 matcher.setTimeout(-1); // disable timeouts

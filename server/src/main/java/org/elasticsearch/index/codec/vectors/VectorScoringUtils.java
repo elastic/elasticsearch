@@ -13,7 +13,6 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
@@ -40,9 +39,9 @@ public final class VectorScoringUtils {
         if (knnCollector.k() == 0 || scorer == null) {
             return;
         }
-        
+
         DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
-        
+
         if (acceptDocsIterator == null) {
             for (int i = 0; i < scorer.maxOrd(); i++) {
                 knnCollector.collect(scorer.ordToDoc(i), scorer.score(i));
@@ -51,7 +50,7 @@ public final class VectorScoringUtils {
         } else {
             DocIdSetIterator vectorIterator = new OrdinalToDocIterator(scorer);
             var conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIterator, acceptDocsIterator));
-            
+
             int doc;
             while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 int ord = ((OrdinalToDocIterator) vectorIterator).currentOrd();

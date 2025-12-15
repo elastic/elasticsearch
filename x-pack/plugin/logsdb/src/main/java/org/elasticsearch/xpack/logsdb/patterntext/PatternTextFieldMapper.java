@@ -238,7 +238,6 @@ public class PatternTextFieldMapper extends FieldMapper {
         this.useBinaryDocValueArgs = builder.useBinaryDocValuesForArgsColumn();
     }
 
-
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), analyzer);

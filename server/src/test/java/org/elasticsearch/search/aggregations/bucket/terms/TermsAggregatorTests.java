@@ -29,7 +29,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
@@ -316,7 +315,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         testCase(
             createIndex,
             (InternalTerms<?, ?> result) -> { assertEquals(0, result.getBuckets().size()); },
-            new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(Queries.NO_DOCS_INSTANCE)
                 .withCheckAggregator(checkTopLevelAggregator(hint == null ? TermsAggregatorFactory.ExecutionMode.MAP : hint))
         );
     }
@@ -446,7 +445,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     }
                     assertEquals(0L, result.getBuckets().get(1).getDocCount());
                 },
-                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(Queries.NO_DOCS_INSTANCE)
                         .withCheckAggregator(checkTopLevelAggregator(executionMode))
                 );
             }
@@ -473,7 +472,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     }
                     assertEquals(0L, result.getBuckets().get(1).getDocCount());
                 },
-                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(Queries.NO_DOCS_INSTANCE)
                         .withCheckAggregator(checkTopLevelAggregator(executionMode))
                 );
             }

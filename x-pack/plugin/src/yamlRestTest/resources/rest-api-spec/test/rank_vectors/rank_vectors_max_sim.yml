@@ -16,10 +16,6 @@ setup:
               vector:
                 type: rank_vectors
                 dims: 5
-              bfloat16_vector:
-                type: rank_vectors
-                dims: 5
-                element_type: bfloat16
               byte_vector:
                 type: rank_vectors
                 dims: 5
@@ -34,7 +30,6 @@ setup:
         id: "1"
         body:
           vector: [[230.0, 300.33, -34.8988, 15.555, -200.0],  [-0.5, 100.0, -13, 14.8, -156.0]]
-          bfloat16_vector: [[230.0, 300.33, -34.8988, 15.555, -200.0],  [-0.5, 100.0, -13, 14.8, -156.0]]
           byte_vector: [[8, 5, -15, 1, -7], [-1, 115, -3, 4, -128]]
           bit_vector: [[8, 5, -15, 1, -7], [-1, 115, -3, 4, -128]]
 
@@ -44,7 +39,6 @@ setup:
         id: "3"
         body:
           vector: [[0.5, 111.3, -13.0, 14.8, -156.0]]
-          bfloat16_vector: [[0.5, 111.3, -13.0, 14.8, -156.0]]
           byte_vector: ["0212fb0084"]
           bit_vector: ["0212fb0084"]
 
@@ -76,28 +70,6 @@ setup:
 
   - match: {hits.hits.1._id: "3"}
   - close_to: {hits.hits.1._score: {value: 68.90001, error: 0.01}}
-
-  - do:
-      headers:
-        Content-Type: application/json
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query:
-            script_score:
-              query: {match_all: {} }
-              script:
-                source: "maxSimDotProduct(params.query_vector, 'bfloat16_vector')"
-                params:
-                  query_vector: [[1, 2, 1, 1, 1]]
-
-  - match: {hits.total: 2}
-
-  - match: {hits.hits.0._id: "1"}
-  - close_to: {hits.hits.0._score: {value: 611.316, error: 1.0}}
-
-  - match: {hits.hits.1._id: "3"}
-  - close_to: {hits.hits.1._score: {value: 68.90001, error: 0.5}}
 
   - do:
       headers:
@@ -184,21 +156,6 @@ setup:
                 source: "maxSimInvHamming(params.query_vector, 'vector')"
                 params:
                   query_vector: [[1, 2, 1, 1, 1]]
-  - do:
-      catch: bad_request
-      headers:
-        Content-Type: application/json
-      search:
-        rest_total_hits_as_int: true
-        body:
-          query:
-            script_score:
-              query: {match_all: {} }
-              script:
-                source: "maxSimInvHamming(params.query_vector, 'bfloat16_vector')"
-                params:
-                  query_vector: [[1, 2, 1, 1, 1]]
-
 
   - do:
       headers:

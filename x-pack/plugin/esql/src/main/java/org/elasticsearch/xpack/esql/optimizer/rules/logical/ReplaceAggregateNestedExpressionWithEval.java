@@ -45,12 +45,16 @@ public final class ReplaceAggregateNestedExpressionWithEval extends Rule<Logical
     public LogicalPlan apply(LogicalPlan plan) {
         return plan.transformDown(p -> switch (p) {
             case InlineJoin inlineJoin -> rule(inlineJoin);
-            // aggs having a StubRelation child are handled in the InlineJoin case above
+            // aggs having a StubRelation child are handled by the InlineJoin case above, only deal with the "stand-alone" Aggregate here.
             case Aggregate agg -> isInlineStats(agg) ? agg : rule(agg, null);
             default -> p;
         });
     }
 
+    /**
+     * Returns {@code true} if the Aggregate has a {@code StubRelation} as (grand)child, meaning it is under a {@code InlineJoin}, i.e.,
+     * part of an {@code INLINE STATS}.
+     */
     private static boolean isInlineStats(Aggregate aggregate) {
         var child = aggregate.child();
         while (child instanceof UnaryPlan unary) {
@@ -60,8 +64,8 @@ public final class ReplaceAggregateNestedExpressionWithEval extends Rule<Logical
     }
 
     /**
-     * The InlineJoin will perform the join on the groupings, so any expressions used within the group part of the aggs will be performed
-     * on the left side. The expressions used within the aggregates part of the aggs will remain on the right side.
+     * The InlineJoin will perform the join on the groupings, so any expressions used within the group part of the Aggregate should be
+     * performed on the left side of the join. The expressions used within the aggregates part of the Aggregate will remain on the right.
      */
     private static LogicalPlan rule(InlineJoin inlineJoin) {
         Holder<Eval> evalHolder = new Holder<>(null);
@@ -72,10 +76,12 @@ public final class ReplaceAggregateNestedExpressionWithEval extends Rule<Logical
             : inlineJoin.replaceRight(newRight);
     }
 
-    private static LogicalPlan rule(Aggregate aggregate, @Nullable Holder<Eval> evalHolder) {
+    private static LogicalPlan rule(Aggregate aggregate, @Nullable Holder<Eval> evalForIJHolder) {
         Map<String, Attribute> evalNames = new HashMap<>();
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
+        // Evaluations needed for expressions within the groupings
+        // "| STATS c = COUNT(*) BY a + 1" --> "| EVAL `a + 1` = a + 1 | STATS s = COUNT(*) BY `a + 1`_ref"
         List<Alias> groupsEvals = new ArrayList<>(newGroupings.size());
         boolean groupingChanged = false;
 
@@ -109,6 +115,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends Rule<Logical
         Holder<Boolean> aggsChanged = new Holder<>(false);
         List<? extends NamedExpression> aggs = aggregate.aggregates();
         List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
+        // Evaluations needed for expressions within the aggs
+        // "| STATS s = SUM(a + 1)" --> "| EVAL `a + 1` = a + 1 | STATS s = SUM(`a + 1`_ref)"
+        // (i.e. not outside, like `| STATS s = SUM(a) + 1`)
         List<Alias> aggsEvals = new ArrayList<>(aggs.size());
 
         // map to track common expressions
@@ -156,20 +165,20 @@ public final class ReplaceAggregateNestedExpressionWithEval extends Rule<Logical
 
         if (groupingChanged || aggsChanged.get()) {
             List<Alias> rightEvals;
-            if (evalHolder != null) { // this is an INLINE STATS scenario, group evals go to the LHS
+            if (evalForIJHolder != null) { // this is an INLINE STATS scenario, group evals go to the LHS
                 if (groupsEvals.size() > 0) {
                     var eval = new Eval(aggregate.source(), aggregate.child(), groupsEvals);
-                    evalHolder.set(eval);
+                    evalForIJHolder.set(eval);
 
                     // update the StubRelation to include the refs that'll come from (to be added to) the LHS Eval
                     aggregate = (Aggregate) aggregate.transformDown(StubRelation.class, sr -> sr.extendWith(eval));
                 }
-                rightEvals = aggsEvals; // aggs evals remain on the RHS
+                rightEvals = aggsEvals; // aggs evals that remain on the RHS, i.e. those that feed into the Aggregate
             } else { // this is a regular STATS scenario, all evals remain on the RHS
                 rightEvals = groupsEvals;
                 rightEvals.addAll(aggsEvals);
             }
-            // add the RHS Eval if needed
+            // add a RHS Eval if needed, going under the Aggregate
             var aggChild = rightEvals.size() > 0 ? new Eval(aggregate.source(), aggregate.child(), rightEvals) : aggregate.child();
 
             var groupings = groupingChanged ? newGroupings : aggregate.groupings();

@@ -22,7 +22,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermQuery;
@@ -922,7 +921,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         debugTestCase(
             builder,
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             buildIndex,
             (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(filters.getBuckets(), hasSize(1));

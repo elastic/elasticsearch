@@ -13,8 +13,8 @@ $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(LongSwissTable)$
-$elseif(BytesRefSwissTable)$
+$if(LongSwissHash)$
+$elseif(BytesRefSwissHash)$
 $else$
 import org.elasticsearch.common.util.$Hash$;
 $endif$
@@ -55,11 +55,11 @@ $if(BytesRef)$
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 $endif$
 import org.elasticsearch.core.ReleasableIterator;
-$if(LongSwissTable)$
-import org.elasticsearch.swisstable.LongSwissTable;
+$if(LongSwissHash)$
+import org.elasticsearch.swisshash.LongSwissHash;
 
-$elseif(BytesRefSwissTable)$
-import org.elasticsearch.swisstable.BytesRefSwissTable;
+$elseif(BytesRefSwissHash)$
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 
 $else$
 $endif$
@@ -75,10 +75,10 @@ $endif$
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;
-$if(LongSwissTable)$
-    final LongSwissTable hash;
-$elseif(BytesRefSwissTable)$
-    final BytesRefSwissTable hash;
+$if(LongSwissHash)$
+    final LongSwissHash hash;
+$elseif(BytesRefSwissHash)$
+    final BytesRefSwissHash hash;
 $else$
     final $Hash$ hash;
 $endif$
@@ -95,10 +95,10 @@ $endif$
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-$if(LongSwissTable)$
-        this.hash = new LongSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker());
-$elseif(BytesRefSwissTable)$
-        this.hash = new BytesRefSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
+$if(LongSwissHash)$
+        this.hash = new LongSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker());
+$elseif(BytesRefSwissHash)$
+        this.hash = new BytesRefSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
 $else$
         this.hash = new $Hash$(1, blockFactory.bigArrays());
 $endif$

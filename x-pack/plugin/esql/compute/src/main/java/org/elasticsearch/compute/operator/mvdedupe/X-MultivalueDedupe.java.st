@@ -10,8 +10,8 @@ package org.elasticsearch.compute.operator.mvdedupe;
 import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$elseif(LongSwissTable)$
-$elseif(BytesRefSwissTable)$
+$elseif(LongSwissHash)$
+$elseif(BytesRefSwissHash)$
 $else$
 import org.elasticsearch.common.util.LongHash;
 $endif$
@@ -28,11 +28,11 @@ $else$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 $endif$
-$if(LongSwissTable)$
-import org.elasticsearch.swisstable.LongSwissTable;
+$if(LongSwissHash)$
+import org.elasticsearch.swisshash.LongSwissHash;
 
-$elseif(BytesRefSwissTable)$
-import org.elasticsearch.swisstable.BytesRefSwissTable;
+$elseif(BytesRefSwissHash)$
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 
 $else$
 $endif$
@@ -230,9 +230,9 @@ $endif$
      * to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefSwissTable hash) {
-$elseif(LongSwissTable)$
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongSwissTable hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefSwissHash hash) {
+$elseif(LongSwissHash)$
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongSwissHash hash) {
 $else$
     public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHash hash) {
 $endif$
@@ -274,9 +274,9 @@ $endif$
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefSwissTable hash) {
-$elseif(LongSwissTable)$
-    public IntBlock hashLookup(BlockFactory blockFactory, LongSwissTable hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefSwissHash hash) {
+$elseif(LongSwissHash)$
+    public IntBlock hashLookup(BlockFactory blockFactory, LongSwissHash hash) {
 $else$
     public IntBlock hashLookup(BlockFactory blockFactory, LongHash hash) {
 $endif$
@@ -502,9 +502,9 @@ $endif$
      * Writes an already deduplicated {@link #work} to a hash.
      */
 $if(BytesRef)$
-    private void hashAddUniquedWork(BytesRefSwissTable hash, IntBlock.Builder builder) {
-$elseif(LongSwissTable)$
-    private void hashAddUniquedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(BytesRefSwissHash hash, IntBlock.Builder builder) {
+$elseif(LongSwissHash)$
+    private void hashAddUniquedWork(LongSwissHash hash, IntBlock.Builder builder) {
 $else$
     private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
 $endif$
@@ -523,9 +523,9 @@ $endif$
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
 $if(BytesRef)$
-    private void hashAddSortedWork(BytesRefSwissTable hash, IntBlock.Builder builder) {
-$elseif(LongSwissTable)$
-    private void hashAddSortedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(BytesRefSwissHash hash, IntBlock.Builder builder) {
+$elseif(LongSwissHash)$
+    private void hashAddSortedWork(LongSwissHash hash, IntBlock.Builder builder) {
 $else$
     private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
 $endif$
@@ -549,9 +549,9 @@ $endif$
      * Looks up an already deduplicated {@link #work} to a hash.
      */
 $if(BytesRef)$
-    private void hashLookupUniquedWork(BytesRefSwissTable hash, IntBlock.Builder builder) {
-$elseif(LongSwissTable)$
-    private void hashLookupUniquedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(BytesRefSwissHash hash, IntBlock.Builder builder) {
+$elseif(LongSwissHash)$
+    private void hashLookupUniquedWork(LongSwissHash hash, IntBlock.Builder builder) {
 $else$
     private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
 $endif$
@@ -614,9 +614,9 @@ $endif$
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
 $if(BytesRef)$
-    private void hashLookupSortedWork(BytesRefSwissTable hash, IntBlock.Builder builder) {
-$elseif(LongSwissTable)$
-    private void hashLookupSortedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(BytesRefSwissHash hash, IntBlock.Builder builder) {
+$elseif(LongSwissHash)$
+    private void hashLookupSortedWork(LongSwissHash hash, IntBlock.Builder builder) {
 $else$
     private void hashLookupSortedWork(LongHash hash, IntBlock.Builder builder) {
 $endif$
@@ -741,9 +741,9 @@ $if(BytesRef)$
 $endif$
 
 $if(BytesRef)$
-    private void hashAdd(IntBlock.Builder builder, BytesRefSwissTable hash, BytesRef v) {
-$elseif(LongSwissTable)$
-    private void hashAdd(IntBlock.Builder builder, LongSwissTable hash, $type$ v) {
+    private void hashAdd(IntBlock.Builder builder, BytesRefSwissHash hash, BytesRef v) {
+$elseif(LongSwissHash)$
+    private void hashAdd(IntBlock.Builder builder, LongSwissHash hash, $type$ v) {
 $else$
     private void hashAdd(IntBlock.Builder builder, LongHash hash, $type$ v) {
 $endif$
@@ -755,9 +755,9 @@ $endif$
     }
 
 $if(BytesRef)$
-    private long hashLookup(BytesRefSwissTable hash, BytesRef v) {
-$elseif(LongSwissTable)$
-    private long hashLookup(LongSwissTable hash, $type$ v) {
+    private long hashLookup(BytesRefSwissHash hash, BytesRef v) {
+$elseif(LongSwissHash)$
+    private long hashLookup(LongSwissHash hash, $type$ v) {
 $else$
     private long hashLookup(LongHash hash, $type$ v) {
 $endif$
@@ -769,9 +769,9 @@ $endif$
     }
 
 $if(BytesRef)$
-    private void hashLookupSingle(IntBlock.Builder builder, BytesRefSwissTable hash, BytesRef v) {
-$elseif(LongSwissTable)$
-    private void hashLookupSingle(IntBlock.Builder builder, LongSwissTable hash, $type$ v) {
+    private void hashLookupSingle(IntBlock.Builder builder, BytesRefSwissHash hash, BytesRef v) {
+$elseif(LongSwissHash)$
+    private void hashLookupSingle(IntBlock.Builder builder, LongSwissHash hash, $type$ v) {
 $else$
     private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, $type$ v) {
 $endif$

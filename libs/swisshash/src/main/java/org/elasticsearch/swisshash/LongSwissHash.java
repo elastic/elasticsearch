@@ -7,7 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisstable;
+package org.elasticsearch.swisshash;
+
+import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.VectorSpecies;
 
 import com.carrotsearch.hppc.BitMixer;
 
@@ -16,8 +19,6 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -57,10 +58,11 @@ import java.util.Objects;
  * uses a {@link #keyPages} to store the actual values, and the hash table
  * slots store the {@code id} which indexes into the {@link #keyPages}.
  */
-public final class LongSwissTable extends SwissTable implements Releasable {
-    private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
+public final class LongSwissHash extends SwissHash implements Releasable {
 
-    private static final int BYTE_VECTOR_LANES = VECTOR_UTILS.byteVectorLanes();
+    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
+
+    private static final int BYTE_VECTOR_LANES = BS.vectorByteSize();
 
     private static final int PAGE_SHIFT = 14;
 
@@ -103,8 +105,8 @@ public final class LongSwissTable extends SwissTable implements Releasable {
     private BigCore bigCore;
     private final List<Releasable> toClose = new ArrayList<>();
 
-    public LongSwissTable(PageCacheRecycler recycler, CircuitBreaker breaker) {
-        super(recycler, breaker, INITIAL_CAPACITY, LongSwissTable.SmallCore.FILL_FACTOR);
+    public LongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
+        super(recycler, breaker, INITIAL_CAPACITY, LongSwissHash.SmallCore.FILL_FACTOR);
         boolean success = false;
         try {
             smallCore = new SmallCore();
@@ -118,7 +120,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
     }
 
     private byte[] grabKeyPage() {
-        breaker.addEstimateBytesAndMaybeBreak(PageCacheRecycler.PAGE_SIZE_IN_BYTES, "LongSwissTable-keyPage");
+        breaker.addEstimateBytesAndMaybeBreak(PageCacheRecycler.PAGE_SIZE_IN_BYTES, "LongSwissHash-keyPage");
         toClose.add(() -> breaker.addWithoutBreaking(-PageCacheRecycler.PAGE_SIZE_IN_BYTES));
         Recycler.V<byte[]> page = recycler.bytePage(false);
         toClose.add(page);
@@ -181,7 +183,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
         return smallCore != null ? smallCore.status() : bigCore.status();
     }
 
-    public abstract class Itr extends SwissTable.Itr {
+    public abstract class Itr extends SwissHash.Itr {
         /**
          * The key the iterator current points to.
          */
@@ -224,9 +226,9 @@ public final class LongSwissTable extends SwissTable implements Releasable {
     }
 
     /**
-     * Open addressed hash table the probes by triangle numbers. Empty
-     * {@code id}s are encoded as {@code -1}. This hash table can't
-     * grow, and is instead replaced by a {@link BigCore}.
+     * Open addressed hash table twith linear probing. Empty {@code id}s are
+     * encoded as {@code -1}. This hash table can't grow, and is instead
+     * replaced by a {@link BigCore}.
      *
      * <p> This uses one page from the {@link PageCacheRecycler} for the
      * {@code ids}.
@@ -250,7 +252,6 @@ public final class LongSwissTable extends SwissTable implements Releasable {
         }
 
         int find(final long key, final int hash) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             for (;;) {
                 int id = id(slot);
@@ -260,13 +261,11 @@ public final class LongSwissTable extends SwissTable implements Releasable {
                 if (key(id) == key) {
                     return id;
                 }
-                slotIncrement++;
-                slot = slot(slot + slotIncrement);
+                slot = slot(slot + 1);
             }
         }
 
         int add(final long key, final int hash) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             for (;;) {
                 final int idOffset = idOffset(slot);
@@ -276,8 +275,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
                     if (currentKey == key) {
                         return currentId;
                     }
-                    slotIncrement++;
-                    slot = slot(slot + slotIncrement);
+                    slot = slot(slot + 1);
                 } else {
                     int id = size;
                     INT_HANDLE.set(idPage, idOffset, id);
@@ -350,7 +348,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
     }
 
     /**
-     * A SwissTable inspired hashtable. This differs from the normal SwissTable
+     * A SwissHash inspired hashtable. This differs from the normal SwissHash
      * in because it's adapted to Elasticsearch's {@link PageCacheRecycler}.
      * The keys and ids are stored many {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES}
      * arrays, with the keys separated from the values. This is mostly so that we
@@ -360,11 +358,11 @@ public final class LongSwissTable extends SwissTable implements Releasable {
     final class BigCore extends Core {
         static final float FILL_FACTOR = 0.85F;
 
-        private static final byte CONTROL_EMPTY = (byte) 0b1111_1111;
+        private static final byte EMPTY = (byte) 0x80; // empty slot
 
         /**
-         * The "control" bytes from the SwissTable algorithm. This will contain
-         * {@link #CONTROL_EMPTY} for empty entries and {@code 0b0aaa_aaaa} for
+         * The "control" bytes from the SwissHash algorithm. This will contain
+         * {@link #EMPTY} for empty entries and {@code 0b0aaa_aaaa} for
          * filled entries, where {@code aaa_aaaa} are the top seven bits of the
          * hash. These are tests by SIMD instructions as a quick first pass to
          * check many entries at once.
@@ -399,10 +397,10 @@ public final class LongSwissTable extends SwissTable implements Releasable {
 
         BigCore() {
             int controlLength = capacity + BYTE_VECTOR_LANES;
-            breaker.addEstimateBytesAndMaybeBreak(controlLength, "LongSwissTable-bigCore");
+            breaker.addEstimateBytesAndMaybeBreak(controlLength, "LongSwissHash-bigCore");
             toClose.add(() -> breaker.addWithoutBreaking(-controlLength));
             controlData = new byte[controlLength];
-            Arrays.fill(controlData, (byte) 0xFF);
+            Arrays.fill(controlData, EMPTY);
 
             boolean success = false;
             try {
@@ -446,52 +444,61 @@ public final class LongSwissTable extends SwissTable implements Releasable {
          *       continue probing.</li>
          * </ol>
          *
-         * <p> We probe via triangle numbers, adding 1, then 2, then 3, then 4, etc.
-         * That'll help protect us from chunky hashes. And it's simple math. And it'll
-         * hit all the buckets (<a href="https://fgiesen.wordpress.com/2015/02/22/triangular-numbers-mod-2n/">proof</a>).
-         * The probe loop doesn't stop if it never finds an EMPTY flag. But it'll always
-         * find one because we keep a load factor lower than 100%.
+         * <p> We probe with linear probing.  The probe loop doesn't stop if it
+         * never finds an EMPTY flag. But it'll always find one because we keep
+         * a load factor lower than 100%.
          */
         private int find(final long key, final int hash, final byte control) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
-            int slot = slot(hash);
+            int group = hash & mask;
             for (;;) {
-                long candidateMatches = controlMatches(slot, control);
-                int first;
-                while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
-                    final int checkSlot = slot(slot + first);
+                ByteVector vec = ByteVector.fromArray(BS, controlData, group);
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
                     final int id = id(checkSlot);
                     if (key(id) == key) {
                         return id;
                     }
-                    // Clear the first set bit and try again
-                    candidateMatches &= ~(1L << first);
+                    matches &= matches - 1; // clear the first set bit and try again
                 }
-                if (controlMatches(slot, CONTROL_EMPTY) != 0) {
+                long empty = vec.eq(EMPTY).toLong();
+                if (empty != 0) {
                     return -1;
                 }
-                slotIncrement += BYTE_VECTOR_LANES;
-                slot = slot(slot + slotIncrement);
+                group = slot(group + BYTE_VECTOR_LANES);
             }
         }
 
         private int add(final long key, final int hash) {
+            maybeGrow();
+            return bigCore.addImpl(key, hash);
+        }
+
+        private int addImpl(final long key, final int hash) {
             final byte control = control(hash);
-            final int found = find(key, hash, control);
-            if (found >= 0) {
-                return found;
+            int group = hash & mask;
+            for (;;) {
+                ByteVector vec = ByteVector.fromArray(BS, controlData, group);
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
+                    final int id = id(checkSlot);
+                    if (key(id) == key) {
+                        return id;
+                    }
+                    matches &= matches - 1; // clear the first set bit and try again
+                }
+                long empty = vec.eq(EMPTY).toLong();
+                if (empty != 0) {
+                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
+                    final int id = size;
+                    setKey(id, key);
+                    bigCore.insertAtSlot(insertSlot, control, id);
+                    size++;
+                    return id;
+                }
+                group = (group + BYTE_VECTOR_LANES) & mask;
             }
-
-            if (size >= nextGrowSize) {
-                assert size == nextGrowSize;
-                grow();
-            }
-
-            final int id = size;
-            setKey(id, key);
-            bigCore.insert(hash, control, id);
-            size++;
-            return id;
         }
 
         /**
@@ -500,24 +507,26 @@ public final class LongSwissTable extends SwissTable implements Releasable {
          * because we know all keys are unique.
          */
         private void insert(final int hash, final byte control, final int id) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
-            int slot = slot(hash);
+            int group = hash & mask;
             for (;;) {
-                long empty = controlMatches(slot, CONTROL_EMPTY);
-                if (VectorComparisonUtils.anyTrue(empty)) {
-                    final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
-                    final int idOffset = idOffset(insertSlot);
-                    INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
-                    controlData[insertSlot] = control;
-                    // mirror only if slot is within the first group size, to handle wraparound loads
-                    if (insertSlot < BYTE_VECTOR_LANES) {
-                        controlData[insertSlot + capacity] = control;
-                    }
+                long empty = ByteVector.fromArray(BS, controlData, group).eq(EMPTY).toLong();
+                if (empty != 0) {
+                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
+                    insertAtSlot(insertSlot, control, id);
                     return;
                 }
-                slotIncrement += BYTE_VECTOR_LANES;
-                slot = slot(slot + slotIncrement);
+                group = slot(group + BYTE_VECTOR_LANES);
                 insertProbes++;
+            }
+        }
+
+        private void insertAtSlot(final int insertSlot, final byte control, final int id) {
+            final int idOffset = idOffset(insertSlot);
+            INT_HANDLE.set(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK, id);
+            controlData[insertSlot] = control;
+            // mirror only if slot is within the first group size, to handle wraparound loads
+            if (insertSlot < BYTE_VECTOR_LANES) {
+                controlData[insertSlot + capacity] = control;
             }
         }
 
@@ -546,6 +555,13 @@ public final class LongSwissTable extends SwissTable implements Releasable {
             };
         }
 
+        private void maybeGrow() {
+            if (size >= nextGrowSize) {
+                assert size == nextGrowSize;
+                grow();
+            }
+        }
+
         private void grow() {
             int oldCapacity = growTracking();
             try {
@@ -560,7 +576,7 @@ public final class LongSwissTable extends SwissTable implements Releasable {
         private void rehash(final int oldCapacity, BigCore newBigCore) {
             int slot = 0;
             while (slot < oldCapacity) {
-                long empty = controlMatches(slot, CONTROL_EMPTY);
+                long empty = ByteVector.fromArray(BS, controlData, slot).eq(EMPTY).toLong();
                 for (int i = 0; i < BYTE_VECTOR_LANES && slot + i < oldCapacity; i++) {
                     if ((empty & (1L << i)) != 0) {
                         continue;
@@ -572,16 +588,6 @@ public final class LongSwissTable extends SwissTable implements Releasable {
                 }
                 slot += BYTE_VECTOR_LANES;
             }
-        }
-
-        /**
-         * Checks the control byte at {@code slot} and the next few bytes ahead
-         * of {@code slot} for the control bits. The extra probed bytes is as
-         * many as will fit in your widest simd instruction. So, 32 or 64 will
-         * be common.
-         */
-        private long controlMatches(final int slot, final byte control) {
-            return VECTOR_UTILS.equalMask(controlData, slot, control);
         }
 
         private long key(final int id) {

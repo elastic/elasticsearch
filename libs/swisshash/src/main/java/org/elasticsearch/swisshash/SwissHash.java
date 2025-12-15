@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisstable;
+package org.elasticsearch.swisshash;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -24,12 +24,25 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Superclass of table to assign {@code int} ids to various key types,
  * vending the ids in order they are added.
  */
-public abstract class SwissTable {
+public abstract class SwissHash {
+
+    static {
+        SwissHash.class.getModule().addReads(lookupVectorModule());
+    }
+
+    private static Module lookupVectorModule() {
+        return Optional.ofNullable(SwissHash.class.getModule().getLayer())
+            .orElse(ModuleLayer.boot())
+            .findModule("jdk.incubator.vector")
+            .orElseThrow(() -> new AssertionError("vector module not found"));
+    }
+
     protected final PageCacheRecycler recycler;
     protected final CircuitBreaker breaker;
 
@@ -39,7 +52,7 @@ public abstract class SwissTable {
     protected int size;
     protected int growCount;
 
-    protected SwissTable(PageCacheRecycler recycler, CircuitBreaker breaker, int initialCapacity, float smallCoreFillFactor) {
+    protected SwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, int initialCapacity, float smallCoreFillFactor) {
         this.breaker = Objects.requireNonNull(breaker);
         this.recycler = recycler == null ? PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler;
 
@@ -51,7 +64,7 @@ public abstract class SwissTable {
     }
 
     /**
-     * How many entries are in the {@link LongSwissTable}.
+     * How many entries are in the {@link LongSwissHash}.
      */
     public final int size() {
         return size;
@@ -68,7 +81,7 @@ public abstract class SwissTable {
     public abstract Itr iterator();
 
     /**
-     * Performance information about the {@link SwissTable} hopefully useful for debugging.
+     * Performance information about the {@link SwissHash} hopefully useful for debugging.
      */
     public abstract static class Status implements NamedWriteable, ToXContentObject {
         private final int growCount;
@@ -88,21 +101,21 @@ public abstract class SwissTable {
         }
 
         /**
-         * The number of times this {@link SwissTable} has grown.
+         * The number of times this {@link SwissHash} has grown.
          */
         public int growCount() {
             return growCount;
         }
 
         /**
-         * The size of the {@link SwissTable}.
+         * The size of the {@link SwissHash}.
          */
         public int capacity() {
             return capacity;
         }
 
         /**
-         * Number of entries added to the {@link SwissTable}.
+         * Number of entries added to the {@link SwissHash}.
          */
         public int size() {
             return size;
@@ -158,7 +171,7 @@ public abstract class SwissTable {
 
     static class BigCoreStatus extends Status {
         /**
-         * The number of times and {@link LongSwissTable#add} operation needed to probe additional
+         * The number of times and {@link LongSwissHash#add} operation needed to probe additional
          * entries. If all is right with the world this should be {@code 0}, meaning
          * every entry found an empty slot within {@code SIMD_WIDTH} slots from its
          * natural positions. Such hashes will never have to probe on read. More
@@ -234,7 +247,7 @@ public abstract class SwissTable {
         final List<Releasable> toClose = new ArrayList<>();
 
         byte[] grabPage() {
-            breaker.addEstimateBytesAndMaybeBreak(PageCacheRecycler.PAGE_SIZE_IN_BYTES, "SwissTable.Core");
+            breaker.addEstimateBytesAndMaybeBreak(PageCacheRecycler.PAGE_SIZE_IN_BYTES, "SwissHash.Core");
             toClose.add(() -> breaker.addWithoutBreaking(-PageCacheRecycler.PAGE_SIZE_IN_BYTES));
             Recycler.V<byte[]> page = recycler.bytePage(false);
             toClose.add(page);
@@ -259,13 +272,13 @@ public abstract class SwissTable {
     }
 
     /**
-     * Iterates the entries in the {@link SwissTable}.
+     * Iterates the entries in the {@link SwissHash}.
      */
     public abstract class Itr {
         protected int keyId = -1;
 
         /**
-         * Advance to the next entry in the {@link SwissTable}, returning {@code false}
+         * Advance to the next entry in the {@link SwissHash}, returning {@code false}
          * if there aren't any more entries..
          */
         public abstract boolean next();

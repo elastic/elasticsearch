@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.swisstable.BytesRefSwissTable;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 
 import java.util.Arrays;
 import java.util.List;
@@ -61,7 +61,7 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefSwissTable hash;
+    private final BytesRefSwissHash hash;
     private final int nullTrackingBytes;
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final List<GroupSpec> specs;
@@ -70,7 +70,7 @@ final class PackedValuesBlockHash extends BlockHash {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.hash = new BytesRefSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
+        this.hash = new BytesRefSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker(), blockFactory.bigArrays());
         this.nullTrackingBytes = (specs.size() + 7) / 8;
         bytes.grow(nullTrackingBytes);
     }

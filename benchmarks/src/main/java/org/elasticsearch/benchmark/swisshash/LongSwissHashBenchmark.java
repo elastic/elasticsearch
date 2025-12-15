@@ -7,14 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.swisstable;
+package org.elasticsearch.benchmark.swisshash;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.swisstable.LongSwissTable;
+import org.elasticsearch.swisshash.LongSwissHash;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
@@ -31,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @Warmup(iterations = 3, time = 2)
 @Measurement(iterations = 5, time = 3)
 @Fork(value = 1)
-public class LongSwissTableBenchmark {
+public class LongSwissHashBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
@@ -56,7 +56,7 @@ public class LongSwissTableBenchmark {
     long[] lookupKeys;
     int[] ids;
 
-    LongSwissTable ord;
+    LongSwissHash ord;
     LongHash longHash;
 
     @Setup(Level.Trial)
@@ -64,7 +64,7 @@ public class LongSwissTableBenchmark {
         PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("dummy");
 
-        ord = new LongSwissTable(recycler, breaker);
+        ord = new LongSwissHash(recycler, breaker);
         longHash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         keys = generateKeys(uniqueKeys);
         lookupKeys = keys.clone();

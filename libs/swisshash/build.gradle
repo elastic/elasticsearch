@@ -6,17 +6,36 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
 apply plugin: 'elasticsearch.build'
 
 dependencies {
   implementation project(':server')
   implementation 'com.carrotsearch:hppc:0.8.1'
   implementation project(':libs:x-content')
-  implementation project(':libs:simdvec')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'swisshash'
   }
 }
 
+tasks.named('compileJava').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.swisshash=jdk.incubator.vector'
+  options.compilerArgs -= '-Werror'
+}
 
+tasks.named('test').configure {
+  jvmArgs '--add-modules=jdk.incubator.vector'
+}
+
+tasks.named('javadoc').configure {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
+  options.addStringOption("-add-reads", "org.elasticsearch.swisshash=jdk.incubator.vector")
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  ignoreMissingClasses = true
+}

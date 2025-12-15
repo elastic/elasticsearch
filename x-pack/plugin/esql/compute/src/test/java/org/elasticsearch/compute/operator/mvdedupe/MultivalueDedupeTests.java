@@ -29,8 +29,8 @@ import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.swisstable.BytesRefSwissTable;
-import org.elasticsearch.swisstable.LongSwissTable;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongSwissHash;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -309,7 +309,7 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertBytesRefHash(Set<BytesRef> previousValues, RandomBlock b) {
         var bf = blockFactory();
-        try (var hash = new BytesRefSwissTable(PageCacheRecycler.NON_RECYCLING_INSTANCE, bf.breaker(), bf.bigArrays())) {
+        try (var hash = new BytesRefSwissHash(PageCacheRecycler.NON_RECYCLING_INSTANCE, bf.breaker(), bf.bigArrays())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hashAdd(blockFactory(), hash);
             try (IntBlock ords = hashes.ords()) {
@@ -334,7 +334,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     private void assertIntHash(Set<Integer> previousValues, RandomBlock b) {
-        try (LongSwissTable hash = new LongSwissTable(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory().breaker())) {
+        try (LongSwissHash hash = new LongSwissHash(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory().breaker())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hashAdd(blockFactory(), hash);
             try (IntBlock ords = hashes.ords()) {
@@ -360,12 +360,12 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertLongHash(Set<Long> previousValues, RandomBlock b) {
         BlockFactory blockFactory = blockFactory();
-        try (LongSwissTable hash = new LongSwissTable(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker())) {
+        try (LongSwissHash hash = new LongSwissHash(PageCacheRecycler.NON_RECYCLING_INSTANCE, blockFactory.breaker())) {
             previousValues.forEach(hash::add);
             MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hashAdd(blockFactory, hash);
 
             Map<Long, Long> idToKey = new HashMap<>();
-            LongSwissTable.Itr itr = hash.iterator();
+            LongSwissHash.Itr itr = hash.iterator();
             while (itr.next()) {
                 idToKey.put((long) itr.id(), itr.key());
             }

@@ -20,7 +20,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
-import org.elasticsearch.swisstable.LongSwissTable;
+import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.BitSet;
 
@@ -30,7 +30,7 @@ import java.util.BitSet;
  */
 final class IntBlockHash extends BlockHash {
     private final int channel;
-    final LongSwissTable hash;
+    final LongSwissHash hash;
     /**
      * Have we seen any {@code null} values?
      * <p>
@@ -43,7 +43,7 @@ final class IntBlockHash extends BlockHash {
     IntBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new LongSwissTable(blockFactory.bigArrays().recycler(), blockFactory.breaker());
+        this.hash = new LongSwissHash(blockFactory.bigArrays().recycler(), blockFactory.breaker());
     }
 
     @Override

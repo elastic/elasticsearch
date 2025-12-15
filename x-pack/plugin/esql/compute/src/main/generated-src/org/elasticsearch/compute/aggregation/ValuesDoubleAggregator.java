@@ -32,7 +32,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.swisstable.LongSwissTable;
+import org.elasticsearch.swisshash.LongSwissHash;
 // end generated imports
 
 /**

@@ -7,13 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.swisstable {
+module org.elasticsearch.swisshash {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
-    requires org.elasticsearch.simdvec;
     requires org.elasticsearch.xcontent;
     requires hppc;
     requires org.apache.lucene.core;
 
-    exports org.elasticsearch.swisstable to org.elasticsearch.compute;
+    exports org.elasticsearch.swisshash to org.elasticsearch.compute;
 }

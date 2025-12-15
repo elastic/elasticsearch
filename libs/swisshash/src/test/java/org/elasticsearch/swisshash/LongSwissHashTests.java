@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisstable;
+package org.elasticsearch.swisshash;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -35,13 +35,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LongSwissTableTests extends ESTestCase {
+public class LongSwissHashTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (AddType addType : AddType.values()) {
             params.add(new Object[] { addType, "tiny", 5, 0, 1, 1 });
-            params.add(new Object[] { addType, "small", LongSwissTable.INITIAL_CAPACITY / 2, 0, 1, 1 });
+            params.add(new Object[] { addType, "small", LongSwissHash.INITIAL_CAPACITY / 2, 0, 1, 1 });
             params.add(new Object[] { addType, "two key pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES, 1, 2, 1 });
             params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 2, 4, 2 });
             params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 16, 8 });
@@ -62,7 +62,7 @@ public class LongSwissTableTests extends ESTestCase {
     private final int expectedKeyPageCount;
     private final int expectedIdPageCount;
 
-    public LongSwissTableTests(
+    public LongSwissHashTests(
         @Name("addType") AddType addType,
         @Name("name") String name,
         @Name("count") int count,
@@ -84,7 +84,7 @@ public class LongSwissTableTests extends ESTestCase {
 
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
+        try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             assertThat(hash.size(), equalTo(0));
 
             switch (addType) {
@@ -124,7 +124,7 @@ public class LongSwissTableTests extends ESTestCase {
             assertThat("Only currently used pages are open", recycler.open, hasSize(expectedKeyPageCount + expectedIdPageCount));
 
             Long[] iterated = new Long[count];
-            for (LongSwissTable.Itr itr = hash.iterator(); itr.next();) {
+            for (LongSwissHash.Itr itr = hash.iterator(); itr.next();) {
                 assertThat(iterated[itr.id()], nullValue());
                 iterated[itr.id()] = itr.key();
             }
@@ -150,7 +150,7 @@ public class LongSwissTableTests extends ESTestCase {
         }
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(breakAt));
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
+            try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
                 switch (addType) {
                     case SINGLE_VALUE -> {
                         for (int i = 0; i < v.length; i++) {
@@ -183,8 +183,8 @@ public class LongSwissTableTests extends ESTestCase {
     private void testSameBucketCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
-            // mask must match the table mask used by LongSwissTable
+        try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
+            // mask must match the table mask used by LongSwissHash
             int mask = 0xFFFF; // oversized; we only need lower bits locked
             long base = randomLong();
 
@@ -218,7 +218,7 @@ public class LongSwissTableTests extends ESTestCase {
     private void testSameControlDataCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
+        try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
             long[] keys = makeSameControlDataKeys(control, count);
             Map<Long, Integer> expected = new HashMap<>();
@@ -246,7 +246,7 @@ public class LongSwissTableTests extends ESTestCase {
     public void testEmpty() {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
+        try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             assertThat(hash.size(), equalTo(0));
             assertFalse(hash.iterator().next());
         }
@@ -265,7 +265,7 @@ public class LongSwissTableTests extends ESTestCase {
     private void testWorstCaseCollisionClusterImpl(int count) {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (LongSwissTable hash = new LongSwissTable(recycler, breaker)) {
+        try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             // Pick a fixed 7-bit metadata and fixed low bits.
             int control = randomIntBetween(1, 120);
             long fixedBucketBits = randomLong() & 0xFFFF; // lock bucket range
@@ -321,22 +321,22 @@ public class LongSwissTableTests extends ESTestCase {
         return result;
     }
 
-    private void assertStatus(LongSwissTable hash) {
-        SwissTable.Status status = hash.status();
+    private void assertStatus(LongSwissHash hash) {
+        SwissHash.Status status = hash.status();
         assertThat(status.size(), equalTo(count));
         if (expectedGrowCount == 0) {
             assertThat(status.growCount(), equalTo(0));
-            assertThat(status.capacity(), equalTo(LongSwissTable.INITIAL_CAPACITY));
-            assertThat(status.nextGrowSize(), equalTo((int) (LongSwissTable.INITIAL_CAPACITY * LongSwissTable.SmallCore.FILL_FACTOR)));
+            assertThat(status.capacity(), equalTo(LongSwissHash.INITIAL_CAPACITY));
+            assertThat(status.nextGrowSize(), equalTo((int) (LongSwissHash.INITIAL_CAPACITY * LongSwissHash.SmallCore.FILL_FACTOR)));
         } else {
             assertThat(status.growCount(), equalTo(expectedGrowCount));
-            assertThat(status.capacity(), equalTo(LongSwissTable.INITIAL_CAPACITY << expectedGrowCount));
+            assertThat(status.capacity(), equalTo(LongSwissHash.INITIAL_CAPACITY << expectedGrowCount));
             assertThat(
                 status.nextGrowSize(),
-                equalTo((int) ((LongSwissTable.INITIAL_CAPACITY << expectedGrowCount) * LongSwissTable.BigCore.FILL_FACTOR))
+                equalTo((int) ((LongSwissHash.INITIAL_CAPACITY << expectedGrowCount) * LongSwissHash.BigCore.FILL_FACTOR))
             );
 
-            SwissTable.BigCoreStatus s = (SwissTable.BigCoreStatus) status;
+            SwissHash.BigCoreStatus s = (SwissHash.BigCoreStatus) status;
             assertThat(s.keyPages(), equalTo(expectedKeyPageCount));
             assertThat(s.idPages(), equalTo(expectedIdPageCount));
         }

@@ -13,7 +13,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.swisstable.LongSwissTable;
+import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.Arrays;
 
@@ -181,7 +181,7 @@ public class MultivalueDedupeInt {
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongSwissTable hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongSwissHash hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -215,7 +215,7 @@ public class MultivalueDedupeInt {
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, LongSwissTable hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, LongSwissHash hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -389,7 +389,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(LongSwissHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -404,7 +404,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(LongSwissHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -424,7 +424,7 @@ public class MultivalueDedupeInt {
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(LongSwissHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -483,7 +483,7 @@ public class MultivalueDedupeInt {
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork(LongSwissTable hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(LongSwissHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -581,15 +581,15 @@ public class MultivalueDedupeInt {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hashAdd(IntBlock.Builder builder, LongSwissTable hash, int v) {
+    private void hashAdd(IntBlock.Builder builder, LongSwissHash hash, int v) {
         appendFound(builder, hash.add(v));
     }
 
-    private long hashLookup(LongSwissTable hash, int v) {
+    private long hashLookup(LongSwissHash hash, int v) {
         return hash.find(v);
     }
 
-    private void hashLookupSingle(IntBlock.Builder builder, LongSwissTable hash, int v) {
+    private void hashLookupSingle(IntBlock.Builder builder, LongSwissHash hash, int v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);

@@ -7,7 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisstable;
+package org.elasticsearch.swisshash;
+
+import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.VectorSpecies;
 
 import com.carrotsearch.hppc.BitMixer;
 
@@ -20,8 +23,6 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.VectorComparisonUtils;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -59,16 +60,16 @@ import java.util.Objects;
  * uses a {@link BytesRefArray} to store the actual bytes, and the hash table
  * slots store the {@code id} which indexes into the {@link BytesRefArray}.
  */
-public final class BytesRefSwissTable extends SwissTable implements Accountable, Releasable {
+public final class BytesRefSwissHash extends SwissHash implements Accountable, Releasable {
 
     // base size of the bytes ref hash
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefSwissTable.class)
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefSwissHash.class)
         // spare BytesRef
         + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
 
-    private static final VectorComparisonUtils VECTOR_UTILS = ESVectorUtil.getVectorComparisonUtils();
+    private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_PREFERRED;
 
-    private static final int BYTE_VECTOR_LANES = VECTOR_UTILS.byteVectorLanes();
+    private static final int BYTE_VECTOR_LANES = BS.vectorByteSize();
 
     private static final int PAGE_SHIFT = 14;
 
@@ -76,7 +77,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
 
     private static final int ID_AND_HASH_SIZE = Long.BYTES;
 
-    // We use a smaller initial capacity than LongSwissTable because we don't store keys in pages,
+    // We use a smaller initial capacity than LongSwissHash because we don't store keys in pages,
     // but we want to be consistent with the page-based sizing logic.
     // PAGE_SIZE / ID_AND_HASH_SIZE = 16384 / 8 = 2048.
     static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / ID_AND_HASH_SIZE;
@@ -103,21 +104,21 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
     private BigCore bigCore;
 
     /**
-     * Creates a new {@link BytesRefSwissTable} that manages its own {@link BytesRefArray}.
+     * Creates a new {@link BytesRefSwissHash} that manages its own {@link BytesRefArray}.
      */
-    public BytesRefSwissTable(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
+    public BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BigArrays bigArrays) {
         this(recycler, breaker, new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays), true);
     }
 
     /**
-     * Creates a new {@link BytesRefSwissTable} that uses the provided {@link BytesRefArray}.
-     * This allows multiple {@link BytesRefSwissTable} to share the same key storage and ID space.
+     * Creates a new {@link BytesRefSwissHash} that uses the provided {@link BytesRefArray}.
+     * This allows multiple {@link BytesRefSwissHash} to share the same key storage and ID space.
      */
-    public BytesRefSwissTable(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
+    public BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs) {
         this(recycler, breaker, bytesRefs, false);
     }
 
-    private BytesRefSwissTable(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
+    private BytesRefSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, BytesRefArray bytesRefs, boolean ownsBytesRefs) {
         super(recycler, breaker, INITIAL_CAPACITY, SmallCore.FILL_FACTOR);
         this.bytesRefs = bytesRefs;
         this.ownsBytesRefs = ownsBytesRefs;
@@ -174,7 +175,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         return smallCore != null ? smallCore.status() : bigCore.status();
     }
 
-    public abstract class Itr extends SwissTable.Itr {
+    public abstract class Itr extends SwissHash.Itr {
         /**
          * The key the iterator current points to.
          */
@@ -244,7 +245,6 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         }
 
         int find(final BytesRef key, final int hash) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             for (;;) {
                 long value = (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
@@ -255,13 +255,11 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
                 if (matches(key, id)) {
                     return id;
                 }
-                slotIncrement++;
-                slot = slot(slot + slotIncrement);
+                slot = slot(slot + 1);
             }
         }
 
         int add(final BytesRef key, final int hash) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
             int slot = slot(hash);
             for (;;) {
                 final int offset = idAndHashOffset(slot);
@@ -271,8 +269,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
                     if (hash(value) == hash && matches(key, id)) {
                         return id;
                     }
-                    slotIncrement++;
-                    slot = slot(slot + slotIncrement);
+                    slot = slot(slot + 1);
                 } else {
                     final int nextId = (int) bytesRefs.size();
                     bytesRefs.append(key);
@@ -321,7 +318,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         }
 
         private void rehash(int oldCapacity) {
-            for (int slot = 0; slot < oldCapacity; slot++) {  // TODO consider size
+            for (int slot = 0; slot < oldCapacity; slot++) {
                 final long value = idAndHash(slot);
                 final int id = id(value);
                 if (id < 0) {
@@ -338,7 +335,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
     }
 
     /**
-     * A SwissTable inspired hashtable. This differs from the normal SwissTable
+     * A SwissHash inspired hashtable. This differs from the normal SwissHash
      * in because it's adapted to Elasticsearch's {@link PageCacheRecycler}.
      * The ids are stored many {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES}
      * arrays.
@@ -346,10 +343,10 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
     final class BigCore extends Core {
         static final float FILL_FACTOR = 0.85F;
 
-        private static final byte CONTROL_EMPTY = (byte) 0b1111_1111;
+        private static final byte EMPTY = (byte) 0x80; // empty slot
 
         /**
-         * The "control" bytes from the SwissTable algorithm.
+         * The "control" bytes from the SwissHash algorithm.
          */
         private final byte[] controlData;
 
@@ -364,10 +361,10 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
 
         BigCore() {
             int controlLength = capacity + BYTE_VECTOR_LANES;
-            breaker.addEstimateBytesAndMaybeBreak(controlLength, "BytesRefSwissTable-bigCore");
+            breaker.addEstimateBytesAndMaybeBreak(controlLength, "BytesRefSwissHash-bigCore");
             toClose.add(() -> breaker.addWithoutBreaking(-controlLength));
             controlData = new byte[controlLength];
-            Arrays.fill(controlData, (byte) 0xFF);
+            Arrays.fill(controlData, EMPTY);
 
             boolean success = false;
             try {
@@ -387,46 +384,59 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         }
 
         private int find(final BytesRef key, final int hash, final byte control) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
-            int slot = slot(hash);
+            int group = hash & mask;
             for (;;) {
-                long candidateMatches = controlMatches(slot, control);
-                int first;
-                while ((first = VectorComparisonUtils.firstSet(candidateMatches)) != -1) {
-                    final int checkSlot = slot(slot + first);
+                ByteVector vec = ByteVector.fromArray(BS, controlData, group);
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int first = Long.numberOfTrailingZeros(matches);
+                    final int checkSlot = slot(group + first);
                     final long value = idAndHash(checkSlot);
                     final int id = id(value);
                     if (hash(value) == hash && matches(key, id)) {
                         return id;
                     }
-                    // Clear the first set bit and try again
-                    candidateMatches &= ~(1L << first);
+                    matches &= matches - 1; // clear the first set bit and try again
                 }
-                if (controlMatches(slot, CONTROL_EMPTY) != 0) {
+                long empty = vec.eq(EMPTY).toLong();
+                if (empty != 0) {
                     return -1;
                 }
-                slotIncrement += BYTE_VECTOR_LANES;
-                slot = slot(slot + slotIncrement);
+                group = slot(group + BYTE_VECTOR_LANES);
             }
         }
 
         private int add(final BytesRef key, final int hash) {
+            maybeGrow();
+            return bigCore.addImpl(key, hash);
+        }
+
+        private int addImpl(final BytesRef key, final int hash) {
             final byte control = control(hash);
-            final int found = find(key, hash, control);
-            if (found >= 0) {
-                return found;
+            int group = hash & mask;
+            for (;;) {
+                ByteVector vec = ByteVector.fromArray(BS, controlData, group);
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
+                    final long value = idAndHash(checkSlot);
+                    final int id = id(value);
+                    if (hash(value) == hash && matches(key, id)) {
+                        return id;
+                    }
+                    matches &= matches - 1; // clear the first set bit and try again
+                }
+                long empty = vec.eq(EMPTY).toLong();
+                if (empty != 0) {
+                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
+                    final int id = (int) bytesRefs.size();
+                    bytesRefs.append(key);
+                    bigCore.insertAtSlot(insertSlot, hash, control, id);
+                    size++;
+                    return id;
+                }
+                group = (group + BYTE_VECTOR_LANES) & mask;
             }
-
-            if (size >= nextGrowSize) {
-                assert size == nextGrowSize;
-                grow();
-            }
-
-            final int id = (int) bytesRefs.size();
-            bytesRefs.append(key);
-            bigCore.insert(hash, control, id);
-            size++;
-            return id;
         }
 
         /**
@@ -435,25 +445,27 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
          * because we know all keys are unique.
          */
         private void insert(final int hash, final byte control, final int id) {
-            int slotIncrement = 0; // increment for probing by triangle numbers
-            int slot = slot(hash);
+            int group = slot(hash);
             for (;;) {
-                long empty = controlMatches(slot, CONTROL_EMPTY);
+                long empty = ByteVector.fromArray(BS, controlData, group).eq(EMPTY).toLong();
                 if (empty != 0L) {
-                    final int insertSlot = slot(slot + VectorComparisonUtils.firstSet(empty));
-                    final int offset = idAndHashOffset(insertSlot);
-                    final long value = ((long) id << 32) | Integer.toUnsignedLong(hash);
-                    LONG_HANDLE.set(idAndHashPages[offset >> PAGE_SHIFT], offset & PAGE_MASK, value);
-                    controlData[insertSlot] = control;
-                    // mirror only if slot is within the first group size, to handle wraparound loads
-                    if (insertSlot < BYTE_VECTOR_LANES) {
-                        controlData[insertSlot + capacity] = control;
-                    }
+                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
+                    insertAtSlot(insertSlot, hash, control, id);
                     return;
                 }
-                slotIncrement += BYTE_VECTOR_LANES;
-                slot = slot(slot + slotIncrement);
+                group = slot(group + BYTE_VECTOR_LANES);
                 insertProbes++;
+            }
+        }
+
+        private void insertAtSlot(final int insertSlot, final int hash, final byte control, final int id) {
+            final long value = ((long) id << 32) | Integer.toUnsignedLong(hash);
+            final int offset = idAndHashOffset(insertSlot);
+            LONG_HANDLE.set(idAndHashPages[offset >> PAGE_SHIFT], offset & PAGE_MASK, value);
+            controlData[insertSlot] = control;
+            // mirror only if slot is within the first group size, to handle wraparound loads
+            if (insertSlot < BYTE_VECTOR_LANES) {
+                controlData[insertSlot + capacity] = control;
             }
         }
 
@@ -482,6 +494,13 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
             };
         }
 
+        private void maybeGrow() {
+            if (size >= nextGrowSize) {
+                assert size == nextGrowSize;
+                grow();
+            }
+        }
+
         private void grow() {
             int oldCapacity = growTracking();
             try {
@@ -495,7 +514,7 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
         private void rehash(final int oldCapacity) {
             int slot = 0;
             while (slot < oldCapacity) {
-                long empty = controlMatches(slot, CONTROL_EMPTY);
+                long empty = ByteVector.fromArray(BS, controlData, slot).eq(EMPTY).toLong();
                 for (int i = 0; i < BYTE_VECTOR_LANES && slot + i < oldCapacity; i++) {
                     if ((empty & (1L << i)) != 0L) {
                         continue;
@@ -509,16 +528,6 @@ public final class BytesRefSwissTable extends SwissTable implements Accountable,
                 }
                 slot += BYTE_VECTOR_LANES;
             }
-        }
-
-        /**
-         * Checks the control byte at {@code slot} and the next few bytes ahead
-         * of {@code slot} for the control bits. The extra probed bytes is as
-         * many as will fit in your widest simd instruction. So, 32 or 64 will
-         * be common.
-         */
-        private long controlMatches(final int slot, final byte control) {
-            return VECTOR_UTILS.equalMask(controlData, slot, control);
         }
 
         private long idAndHash(final int slot) {

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.swisstable;
+package org.elasticsearch.swisshash;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -34,13 +34,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BytesRefSwissTableTests extends ESTestCase {
+public class BytesRefSwissHashTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         // name, count, expectedGrowCount, expectedIdPageCount
         params.add(new Object[] { "tiny", 5, 0, 1 });
-        params.add(new Object[] { "small", BytesRefSwissTable.INITIAL_CAPACITY / 2, 0, 1 });
+        params.add(new Object[] { "small", BytesRefSwissHash.INITIAL_CAPACITY / 2, 0, 1 });
         params.add(new Object[] { "two idAndHash pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Long.BYTES, 1, 2 });
         params.add(new Object[] { "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 4, 16 });
         params.add(new Object[] { "huge", 100_000, 6, 64 });
@@ -52,7 +52,7 @@ public class BytesRefSwissTableTests extends ESTestCase {
     private final int expectedGrowCount;
     private final int expectedIdPageCount;
 
-    public BytesRefSwissTableTests(
+    public BytesRefSwissHashTests(
         @Name("name") String name,
         @Name("count") int count,
         @Name("expectedGrowCount") int expectedGrowCount,
@@ -73,7 +73,7 @@ public class BytesRefSwissTableTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         BytesRef scratch = new BytesRef();
 
-        try (BytesRefSwissTable hash = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
             assertThat(hash.size(), equalTo(0));
 
             for (int i = 0; i < v.length; i++) {
@@ -101,10 +101,10 @@ public class BytesRefSwissTableTests extends ESTestCase {
 
             assertStatus(hash);
             // Note: we cannot easily assert recycler.open size because BigArrays (BytesRefArray) usage
-            // is mixed with SwissTable's usage. SwissTable uses explicit pages for IDs.
+            // is mixed with SwissHash's usage. SwissHash uses explicit pages for IDs.
 
             BytesRef[] iterated = new BytesRef[count];
-            for (BytesRefSwissTable.Itr itr = hash.iterator(); itr.next();) {
+            for (BytesRefSwissHash.Itr itr = hash.iterator(); itr.next();) {
                 assertThat(iterated[itr.id()], nullValue());
                 iterated[itr.id()] = BytesRef.deepCopyOf(itr.key(scratch));
             }
@@ -131,8 +131,8 @@ public class BytesRefSwissTableTests extends ESTestCase {
 
         try (
             BytesRefArray sharedArray = new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays);
-            BytesRefSwissTable leftHash = new BytesRefSwissTable(recycler, breaker, sharedArray);
-            BytesRefSwissTable rightHash = new BytesRefSwissTable(recycler, breaker, sharedArray)
+            BytesRefSwissHash leftHash = new BytesRefSwissHash(recycler, breaker, sharedArray);
+            BytesRefSwissHash rightHash = new BytesRefSwissHash(recycler, breaker, sharedArray)
         ) {
             assertThat(leftHash.size(), equalTo(0));
             assertThat(rightHash.size(), equalTo(0));
@@ -180,7 +180,7 @@ public class BytesRefSwissTableTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (BytesRefSwissTable hash = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
+            try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
                 for (int i = 0; i < v.length; i++) {
                     hash.add(v[i]);
                 }
@@ -194,26 +194,26 @@ public class BytesRefSwissTableTests extends ESTestCase {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        try (BytesRefSwissTable hash = new BytesRefSwissTable(recycler, breaker, bigArrays)) {
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
             assertThat(hash.size(), equalTo(0));
             assertFalse(hash.iterator().next());
         }
     }
 
-    private void assertStatus(BytesRefSwissTable hash) {
-        SwissTable.Status status = hash.status();
+    private void assertStatus(BytesRefSwissHash hash) {
+        SwissHash.Status status = hash.status();
 
         if (expectedGrowCount == 0) {
             // In small core, capacity is fixed.
             assertThat(status.growCount(), equalTo(0));
-            assertThat(status.capacity(), equalTo(BytesRefSwissTable.INITIAL_CAPACITY));
+            assertThat(status.capacity(), equalTo(BytesRefSwissHash.INITIAL_CAPACITY));
         } else {
             assertThat(status.growCount(), equalTo(expectedGrowCount));
-            assertThat(status.capacity(), equalTo(BytesRefSwissTable.INITIAL_CAPACITY << expectedGrowCount));
+            assertThat(status.capacity(), equalTo(BytesRefSwissHash.INITIAL_CAPACITY << expectedGrowCount));
 
-            SwissTable.BigCoreStatus s = (SwissTable.BigCoreStatus) status;
+            SwissHash.BigCoreStatus s = (SwissHash.BigCoreStatus) status;
             assertThat(s.idPages(), equalTo(expectedIdPageCount));
-            // We don't assert keyPages because BytesRefSwissTable doesn't track them (BytesRefArray does)
+            // We don't assert keyPages because BytesRefSwissHash doesn't track them (BytesRefArray does)
         }
     }
 

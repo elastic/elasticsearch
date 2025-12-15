@@ -17,7 +17,7 @@ dependencies {
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
   api project(':libs:exponential-histogram')
-  implementation project(':libs:swisstable')
+  implementation project(':libs:swisshash')
 
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
@@ -80,8 +80,8 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "boolean" : Name == "Boolean" ? "true" : "",
     "BytesRef": Name == "BytesRef" ? "true" : "",
     "Ip"      : Name == "Ip" ? "true" : "",
-    "LongSwissTable" : Hash == "LongSwissTable" ? "true" : "",
-    "BytesRefSwissTable" : Hash == "BytesRefSwissTable" ? "true" : "",
+    "LongSwissHash" : Hash == "LongSwissHash" ? "true" : "",
+    "BytesRefSwissHash" : Hash == "BytesRefSwissHash" ? "true" : "",
   ]
 }
 
@@ -115,9 +115,9 @@ def addOccurrence(props, Occurrence) {
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongSwissTable")
+  var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongSwissHash")
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
-  var longProperties = prop("Long", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongSwissTable")
+  var longProperties = prop("Long", "Long", "long", "Long", "LONG", "Long.BYTES", "LongArray", "LongSwissHash")
   var doubleProperties = prop("Double", "Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "Boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "")
   var bytesRefProperties = prop(
@@ -128,7 +128,7 @@ tasks.named('stringTemplates').configure {
     "BYTES_REF",
     "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF",
     "BytesRefArray",
-    "BytesRefSwissTable"
+    "BytesRefSwissHash"
   )
   var ipProperties = prop("Ip", "BytesRef", "BytesRef", "", "BYTES_REF", "16", "", "")
 

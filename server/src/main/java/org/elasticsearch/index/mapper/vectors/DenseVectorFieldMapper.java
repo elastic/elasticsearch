@@ -230,7 +230,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
     public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
     public static final int BBQ_DIMS_DEFAULT_THRESHOLD = 384; // Lower bound for dimensions for using bbq_hnsw as default index options
-    public static final float BBQ_IVF_DEFAULT_POST_FILTERING_THRESHOLD = 0.75f; // Default threshold for IVF post filtering in BBQ
+    public static final float BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD = 0.75f; // Default threshold for IVF post filtering in BBQ
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -2885,7 +2885,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                float filterThreshold = postFilteringThreshold == null ? BBQ_IVF_DEFAULT_POST_FILTERING_THRESHOLD : postFilteringThreshold;
+                float filterThreshold = postFilteringThreshold == null ? BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD : postFilteringThreshold;
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),

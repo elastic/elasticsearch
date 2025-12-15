@@ -14,6 +14,8 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD;
+
 public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase {
 
     @Override
@@ -26,7 +28,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiv
             childFilter,
             parentBitSet,
             0,
-            AbstractIVFKnnVectorQuery.DEFAULT_POST_FILTERING_THRESHOLD
+            BBQ_DISK_DEFAULT_POST_FILTERING_THRESHOLD
         );
     }
 

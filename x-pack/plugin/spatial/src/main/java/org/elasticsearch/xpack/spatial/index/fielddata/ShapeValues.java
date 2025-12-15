@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.SpatialPoint;
@@ -170,7 +170,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         /**
          * Determine the {@link GeoRelation} between the current shape and a {@link Component2D}. It only supports
-         * simple geometries, therefore it will fail if the LatLonGeometry is a {@link org.apache.lucene.geo.Rectangle}
+         * simple geometries, therefore it will fail if the LatLonGeometry is a {@link Rectangle}
          * that crosses the dateline.
          */
         public GeoRelation relate(Component2D component2D) throws IOException {
@@ -208,7 +208,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_12_0;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

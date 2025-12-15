@@ -17,6 +17,7 @@ dependencies {
   api project(":server")
   api project(":libs:cli")
   api project(":libs:entitlement:bridge")
+  api project(':libs:swisshash')
   api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
     exclude group: "junit", module: "junit"
   }

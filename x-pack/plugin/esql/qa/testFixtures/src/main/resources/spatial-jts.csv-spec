@@ -59,14 +59,14 @@ required_capability: st_simplify
 
 FROM airports
 | SORT name
-| STATS count = COUNT(location), points = VALUES(location)
+| STATS count = COUNT(location), points = MV_SORT(VALUES(location))
 | EVAL result = ST_SIMPLIFY(points, 1)
 | EVAL result_length = LENGTH(TO_STRING(result))
 | KEEP count, result_length
 ;
 
 count:long | result_length:i
-891        | 37442
+891        | 22295
 ;
 
 stSimplifyNoSimplification

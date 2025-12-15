@@ -514,7 +514,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity,
-            postFilteringThreshold
+                postFilteringThreshold
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         boolean changed = false;
@@ -540,7 +540,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity,
-            postFilteringThreshold
+                postFilteringThreshold
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {

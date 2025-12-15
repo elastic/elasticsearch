@@ -21,12 +21,12 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -63,7 +63,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoResults() throws Exception {
-        TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
+        TopHits result = (TopHits) testCase(Queries.NO_DOCS_INSTANCE, topHits("_name").sort("string", SortOrder.DESC));
         SearchHits searchHits = result.getHits();
         assertEquals(0L, searchHits.getTotalHits().value());
         assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));

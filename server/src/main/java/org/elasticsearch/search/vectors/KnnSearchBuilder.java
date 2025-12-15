@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,6 +35,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.POST_FILTERING_THRESHOLD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -119,7 +119,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
-    private static final TransportVersion POST_FILTERING_THRESHOLD = TransportVersion.fromName("post_filtering_threshold");
 
     final String field;
     final VectorData queryVector;
@@ -359,11 +358,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.visitPercentage = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.queryVector = in.readOptionalWriteable(VectorData::new);
-        } else {
-            this.queryVector = VectorData.fromFloats(in.readFloatArray());
-        }
+        this.queryVector = in.readOptionalWriteable(VectorData::new);
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
         this.queryName = in.readOptionalString();
@@ -653,11 +648,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalWriteable(queryVector);
-        } else {
-            out.writeFloatArray(queryVector.asFloatVector());
-        }
+        out.writeOptionalWriteable(queryVector);
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
         out.writeOptionalString(queryName);

@@ -208,7 +208,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                     dataNodeResult.profileResult()
                 );
 
-                listener.onResponse(new Response(finalResult));
+                ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
             } catch (Exception e) {
                 listener.onFailure(e);
             } finally {

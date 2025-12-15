@@ -449,8 +449,12 @@ public class IndexNameExpressionResolver {
         return resources;
     }
 
-    public static InvalidIndexNameException invalidExpression(boolean isExclusion) {
-        return new InvalidIndexNameException("", (isExclusion ? "exclusion" : "expression") + " cannot be empty");
+    public static InvalidIndexNameException invalidExpression() {
+        return new InvalidIndexNameException("", "expression cannot be empty");
+    }
+
+    public static InvalidIndexNameException invalidExclusion() {
+        return new InvalidIndexNameException("", "exclusion cannot be empty");
     }
 
     /**
@@ -461,7 +465,7 @@ public class IndexNameExpressionResolver {
      */
     private static void validateResourceExpression(Context context, boolean isExclusion, String current, String[] expressions) {
         if (Strings.isEmpty(current)) {
-            throw invalidExpression(isExclusion);
+            throw isExclusion ? invalidExclusion() : invalidExpression();
         }
         // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
         // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,

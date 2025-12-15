@@ -32,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
@@ -136,6 +137,10 @@ public class KnnIndexTester {
                 args.onDiskRescore()
             );
         } else if (args.indexType() == IndexType.GPU_HNSW) {
+            if (GPUSupport.isSupported() == false) {
+                throw new IllegalArgumentException("GPU HNSW index type not supported on this platform");
+            }
+            GPUSupport.enableMemoryPooling();
             if (quantizeBits == 32) {
                 format = new ES92GpuHnswVectorsFormat();
             } else if (quantizeBits == 7) {

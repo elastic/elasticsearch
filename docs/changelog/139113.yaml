@@ -1,0 +1,5 @@
+pr: 139113
+summary: "Test: ES|QL with bfloat16"
+area: Relevance
+type: bug
+issues: []

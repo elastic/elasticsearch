@@ -23,7 +23,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -56,7 +55,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         @Override
-        public void skipChildren(CheckedConsumer<XContentParser,IOException> skipConsumer) throws IOException {
+        public void skipChildren(CheckedConsumer<XContentParser, IOException> skipConsumer) throws IOException {
             boolean isLeaf = contentPath.isWithinLeafObject();
             contentPath.setWithinLeafObject(true); // disable dots expansion during skipChildren
             try {

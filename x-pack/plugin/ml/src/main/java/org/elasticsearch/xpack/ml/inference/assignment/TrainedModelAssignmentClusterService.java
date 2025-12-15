@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -724,7 +725,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             logger.warn("[{}] {}", modelId, msg);
             Exception detail = new IllegalStateException(msg);
             throw new ElasticsearchStatusException(
-                "Could not start deployment because no ML nodes with sufficient capacity were found",
+                Strings.format(
+                    "Could not start deployment because no ML nodes with sufficient capacity were found. If you can, consider "
+                        + "setting `xpack.ml.use_auto_machine_memory_percent` to true: %s",
+                    ReferenceDocs.MACHINE_LEARNING_SETTINGS
+                ),
                 RestStatus.TOO_MANY_REQUESTS,
                 detail
             );

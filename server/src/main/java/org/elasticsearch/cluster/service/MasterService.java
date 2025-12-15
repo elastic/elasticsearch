@@ -97,6 +97,12 @@ public class MasterService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING = Setting.intSetting(
+        "cluster.service.master_service_execution_history_size",
+        200,
+        Setting.Property.NodeScope
+    );
+
     public static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
     public static final String STATE_UPDATE_ACTION_NAME = "publish_cluster_state_update";
@@ -124,8 +130,8 @@ public class MasterService extends AbstractLifecycleComponent {
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
     private final StarvationWatcher starvationWatcher = new StarvationWatcher();
 
-    private static final int MAX_EXECUTION_HISTORY_SIZE = 200;
-    private final Deque<ExecutionHistoryEntry> executionHistory = new ArrayDeque<>(MAX_EXECUTION_HISTORY_SIZE);
+    private final int maxExecutionHistorySize;
+    private final Deque<ExecutionHistoryEntry> executionHistory;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -145,6 +151,9 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
         this.unbatchedExecutor = new UnbatchedExecutor();
+
+        this.maxExecutionHistorySize = MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING.get(settings);
+        this.executionHistory = new ArrayDeque<>(maxExecutionHistorySize);
     }
 
     private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
@@ -299,6 +308,7 @@ public class MasterService extends AbstractLifecycleComponent {
                             l.onResponse(null);
                         })
                     ) {
+
                         @Override
                         public void onResponse(Void response) {
                             delegate.onResponse(response);
@@ -308,6 +318,7 @@ public class MasterService extends AbstractLifecycleComponent {
                         public String toString() {
                             return "listener for publication of cluster state [" + newClusterStateVersion + "]";
                         }
+
                     },
                     l -> publishClusterStateUpdate(
                         executor,
@@ -1199,7 +1210,7 @@ public class MasterService extends AbstractLifecycleComponent {
             if (logger.isInfoEnabled()) {
                 final var descriptionBuilder = new StringBuilder(
                     "recent cluster state updates while pending task queue has been nonempty (max "
-                ).append(MAX_EXECUTION_HISTORY_SIZE).append(", starting with the most recent): ");
+                ).append(maxExecutionHistorySize).append(", starting with the most recent): ");
                 Strings.collectionToDelimitedStringWithLimit(
                     (Iterable<String>) (() -> Iterators.map(executionHistory.iterator(), ExecutionHistoryEntry::getDescription)),
                     ", ",
@@ -1373,7 +1384,7 @@ public class MasterService extends AbstractLifecycleComponent {
             var batch = queue.queue.poll();
             if (batch != null) {
                 currentlyExecutingBatch = batch;
-                while (executionHistory.size() >= MAX_EXECUTION_HISTORY_SIZE) {
+                while (executionHistory.size() >= maxExecutionHistorySize) {
                     executionHistory.removeLast();
                 }
                 executionHistory.addFirst(new ExecutionHistoryEntry(batch.queueName(), queue.priority()));

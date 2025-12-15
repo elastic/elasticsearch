@@ -13,11 +13,9 @@ highlight:
     Windows can be specified in all supported time series aggregations, as a second argument. For instance, the
     following ES|QL query calculates the average rate of requests per host every minute, using a 10-minute window:
 
-    ```
     TS metrics
     | WHERE TRANGE(1h)
     | STATS avg(rate(requests, 10m)) BY TBUCKET(1m), host
-    ```
 
     Acceptable window values are currently limited to multiples of the time bucket value (e.g. `BUCKET` or `TBUCKET`),
     as specified in the BY-clause. If no window is provided, it's implicitly set to match the time bucket value,

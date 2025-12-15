@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
 
 /**
  * A request to execute search against one or more indices (or all).
@@ -337,7 +338,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         boolean scroll = scroll() != null;
-        boolean allowPartialSearchResults = allowPartialSearchResults() != null && allowPartialSearchResults();
+
+        boolean allowPartialSearchResults = allowPartialSearchResults() == null
+            ? DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+            : allowPartialSearchResults();
 
         if (source != null) {
             validationException = source.validate(validationException, scroll, allowPartialSearchResults);

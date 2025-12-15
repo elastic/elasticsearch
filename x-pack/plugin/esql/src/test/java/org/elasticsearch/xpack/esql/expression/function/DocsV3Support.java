@@ -622,6 +622,7 @@ public abstract class DocsV3Support {
                     trueValue.type(),
                     "The value that’s returned when no condition evaluates to `true`.",
                     true,
+                    null,
                     true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
@@ -1382,6 +1383,18 @@ public abstract class DocsV3Support {
                         builder.field("optional", arg.optional());
                         String cleanedParamDesc = removeAppliesToBlocks(arg.description());
                         builder.field("description", cleanedParamDesc);
+                        if (arg.hint != null) {
+                            builder.startObject("hint");
+                            builder.field("entityType", arg.hint.entityType());
+                            if (arg.hint.constraints() != null && arg.hint.constraints().size() > 0) {
+                                builder.startObject("constraints");
+                                for (Map.Entry<String, String> constraint : arg.hint.constraints().entrySet()) {
+                                    builder.field(constraint.getKey(), constraint.getValue());
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
                         builder.endObject();
                     }
                     builder.endArray();

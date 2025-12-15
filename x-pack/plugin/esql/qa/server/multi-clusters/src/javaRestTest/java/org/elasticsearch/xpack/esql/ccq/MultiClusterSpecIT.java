@@ -48,6 +48,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
@@ -55,7 +57,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_ST
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -80,6 +84,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     private static TestFeatureService remoteFeaturesService;
     private static RestClient remoteClusterClient;
     private static DataLocation dataLocation = null;
+
+    private static final Set<String> LOCAL_ONLY_INFERENCE_CAPABILITIES = Set.of(
+        RERANK.capabilityName(),
+        COMPLETION.capabilityName(),
+        TEXT_EMBEDDING_FUNCTION.capabilityName()
+    );
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -133,8 +143,15 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 .filter(c -> c.equals("metadata_fields_remote_test") == false)
                 .toList();
         }
+        // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
-        checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
+
+        // Filter out capabilities that are required only on the local cluster and then check the remaining on the remote cluster.
+        List<String> remoteCapabilities = testCase.requiredCapabilities.stream()
+            .filter(c -> LOCAL_ONLY_INFERENCE_CAPABILITIES.contains(c) == false)
+            .toList();
+        checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, remoteCapabilities);
+
         // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
         // because they may produce inconsistent results with multiple clusters.
         assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
@@ -167,13 +184,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Tests that do SORT before LOOKUP JOIN - not supported in CCS
         assumeFalse("LOOKUP JOIN after SORT not yet supported in CCS", testName.contains("OnTheCoordinator"));
 
-        assumeFalse("FORK not yet supported with CCS", testCase.requiredCapabilities.contains(FORK_V9.capabilityName()));
-
-        // And convertToRemoteIndices does not generate correct queries with subqueries in the FROM command yet
-        assumeFalse(
-            "Subqueries in FROM command not yet supported in CCS",
-            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
-        );
+        if (testCase.requiredCapabilities.contains(FORK_V9.capabilityName())) {
+            assumeTrue(
+                "FORK not yet supported with CCS",
+                hasCapabilities(adminClient(), List.of(ENABLE_FORK_FOR_REMOTE_INDICES_V2.capabilityName()))
+            );
+        }
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -230,10 +246,12 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         .collect(Collectors.toSet());
 
     /**
-     * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk and _query requests.
+     * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,
+     *  and _inference requests :
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
      *   prevent the splitting of bulk requests.
      * - '_query' requests are dispatched to the local cluster only, as we are testing cross-cluster queries.
+     * - '_inference' requests are dispatched to the local cluster only, as inference endpoints are not available on remote clusters.
      */
     static RestClient twoClients(RestClient localClient, RestClient remoteClient) throws IOException {
         RestClient twoClients = mock(RestClient.class);
@@ -244,6 +262,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             Request request = invocation.getArgument(0);
             String endpoint = request.getEndpoint();
             if (endpoint.startsWith("/_query")) {
+                return localClient.performRequest(request);
+            } else if (endpoint.startsWith("/_inference")) {
                 return localClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk") && METADATA_INDICES.stream().anyMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
                 return remoteClient.performRequest(request);
@@ -298,6 +318,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
         }
+        if (testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+            return convertSubqueryToRemoteIndices(testCase);
+        }
         String query = testCase.query;
         // If true, we're using *:index, otherwise we're using *:index,index
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
@@ -337,8 +360,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsInferenceTestService() {
+    protected boolean supportsSemanticTextInference() {
         return false;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestServiceOnLocalCluster() {
+        return Clusters.localClusterSupportsInferenceTestService();
     }
 
     @Override
@@ -362,14 +390,36 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         try {
             return RestEsqlTestCase.hasCapabilities(
                 client(),
-                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.capabilityName())
+                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
             )
                 && RestEsqlTestCase.hasCapabilities(
                     remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V7.capabilityName())
+                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
                 );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    protected boolean supportsTDigestField() {
+        try {
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V3.capabilityName()))
+                && RestEsqlTestCase.hasCapabilities(
+                    remoteClusterClient(),
+                    List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_SUPPORT_V3.capabilityName())
+                );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Convert index patterns and subqueries in FROM commands to use remote indices for a given test case.
+     */
+    private static CsvSpecReader.CsvTestCase convertSubqueryToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
+        String query = testCase.query;
+        testCase.query = EsqlTestUtils.convertSubqueryToRemoteIndices(query);
+        return testCase;
     }
 }

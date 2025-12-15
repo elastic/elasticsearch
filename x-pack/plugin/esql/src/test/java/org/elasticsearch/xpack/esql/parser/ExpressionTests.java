@@ -60,7 +60,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ExpressionTests extends ESTestCase {
-    private final EsqlParser parser = new EsqlParser();
 
     public void testBooleanLiterals() {
         assertEquals(Literal.TRUE, whereExpression("true"));
@@ -662,7 +661,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private LogicalPlan parse(String s) {
-        return parser.createStatement(s);
+        return EsqlParser.INSTANCE.parseQuery(s);
     }
 
     private Literal l(Object value, DataType type) {

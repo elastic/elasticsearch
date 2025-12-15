@@ -96,11 +96,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosDecimal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosOctal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongSurrogate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
@@ -209,6 +213,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
@@ -434,7 +439,8 @@ public class EsqlFunctionRegistry {
                 def(Trim.class, Trim::new, "trim"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode") },
+                def(UrlDecode.class, UrlDecode::new, "url_decode"),
+                def(Chunk.class, bi(Chunk::new), "chunk") },
             // date
             new FunctionDefinition[] {
                 def(DateDiff.class, tric(DateDiff::new), "date_diff"),
@@ -493,8 +499,8 @@ public class EsqlFunctionRegistry {
                 def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
                 def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
                 def(ToIp.class, ToIp::new, "to_ip"),
-                def(ToInteger.class, ToInteger::new, "to_integer", "to_int"),
-                def(ToLong.class, ToLong::new, "to_long"),
+                def(ToIntegerSurrogate.class, ToIntegerSurrogate::new, "to_integer", "to_int"),
+                def(ToLongSurrogate.class, ToLongSurrogate::new, "to_long"),
                 def(ToRadians.class, ToRadians::new, "to_radians"),
                 def(ToString.class, ToString::new, "to_string", "to_str"),
                 def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
@@ -521,7 +527,7 @@ public class EsqlFunctionRegistry {
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
-            // fulltext functions
+            // search functions
             new FunctionDefinition[] {
                 def(Decay.class, quad(Decay::new), "decay"),
                 def(Kql.class, bic(Kql::new), "kql"),
@@ -530,30 +536,36 @@ public class EsqlFunctionRegistry {
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bic(QueryString::new), "qstr"),
                 def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
-                def(Score.class, uni(Score::new), "score") },
+                def(Score.class, uni(Score::new), "score"),
+                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") },
             // time-series functions
             new FunctionDefinition[] {
                 defTS3(Rate.class, Rate::new, "rate"),
-                defTS(Irate.class, bi(Irate::new), "irate"),
-                defTS(Idelta.class, bi(Idelta::new), "idelta"),
-                defTS(Delta.class, bi(Delta::new), "delta"),
-                defTS(Increase.class, bi(Increase::new), "increase"),
-                defTS(Deriv.class, bi(Deriv::new), "deriv"),
+                defTS3(Irate.class, Irate::new, "irate"),
+                defTS3(Idelta.class, Idelta::new, "idelta"),
+                defTS3(Delta.class, Delta::new, "delta"),
+                defTS3(Increase.class, Increase::new, "increase"),
+                defTS3(Deriv.class, Deriv::new, "deriv"),
                 def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
                 def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
                 def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),
-                def(StdDevOverTime.class, uni(StdDevOverTime::new), "stddev_over_time"),
-                def(VarianceOverTime.class, uni(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
+                def(StdDevOverTime.class, bi(StdDevOverTime::new), "stddev_over_time"),
+                def(VarianceOverTime.class, bi(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
                 def(CountOverTime.class, bi(CountOverTime::new), "count_over_time"),
                 def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
-                def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
-                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
+                def(PresentOverTime.class, bi(PresentOverTime::new), "present_over_time"),
+                def(AbsentOverTime.class, bi(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, bi(AvgOverTime::new), "avg_over_time"),
                 defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
                 defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
-                // dense vector function
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
+                // dense vector functions
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
+                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
+                def(DotProduct.class, DotProduct::new, "v_dot_product"),
+                def(L1Norm.class, L1Norm::new, "v_l1_norm"),
+                def(L2Norm.class, L2Norm::new, "v_l2_norm"),
+                def(Hamming.class, Hamming::new, "v_hamming") } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -567,13 +579,8 @@ public class EsqlFunctionRegistry {
                 def(AllLast.class, bi(AllLast::new), "all_last"),
                 def(Last.class, bi(Last::new), "last"),
                 def(Term.class, bi(Term::new), "term"),
-                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
-                def(DotProduct.class, DotProduct::new, "v_dot_product"),
-                def(L1Norm.class, L1Norm::new, "v_l1_norm"),
-                def(L2Norm.class, L2Norm::new, "v_l2_norm"),
-                def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(Hamming.class, Hamming::new, "v_hamming"),
-                def(Chunk.class, bi(Chunk::new), "chunk") } };
+                // dense vector functions
+                def(Magnitude.class, Magnitude::new, "v_magnitude") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -604,24 +611,45 @@ public class EsqlFunctionRegistry {
     }
 
     public static class ArgSignature {
+
+        public record Hint(String entityType, Map<String, String> constraints) {}
+
         protected final String name;
         protected final String[] type;
         protected final String description;
         protected final boolean optional;
         protected final boolean variadic;
         protected final DataType targetDataType;
+        protected final Hint hint;
 
-        public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
+        public ArgSignature(
+            String name,
+            String[] type,
+            String description,
+            boolean optional,
+            boolean variadic,
+            Hint hint,
+            DataType targetDataType
+        ) {
             this.name = name;
             this.type = type;
             this.description = description;
             this.optional = optional;
             this.variadic = variadic;
             this.targetDataType = targetDataType;
+            this.hint = hint;
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, Hint hint, boolean variadic) {
+            this(name, type, description, optional, variadic, hint, UNSUPPORTED);
+        }
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
+            this(name, type, description, optional, variadic, null, targetDataType);
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic) {
-            this(name, type, description, optional, variadic, UNSUPPORTED);
+            this(name, type, description, optional, variadic, null, UNSUPPORTED);
         }
 
         public String name() {
@@ -804,7 +832,14 @@ public class EsqlFunctionRegistry {
         String[] type = removeUnderConstruction(param.type());
         String desc = param.description().replace('\n', ' ');
         DataType targetDataType = getTargetType(type);
-        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, targetDataType);
+        ArgSignature.Hint hint = null;
+        if (param.hint() != null && param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE) {
+            Map<String, String> constraints = Arrays.stream(param.hint().constraints())
+                .collect(Collectors.toMap(Param.Hint.Constraint::name, Param.Hint.Constraint::value));
+            hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
+        }
+
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, hint, targetDataType);
     }
 
     public static ArgSignature mapParam(MapParam mapParam) {
@@ -951,6 +986,12 @@ public class EsqlFunctionRegistry {
         names.put(ToIpLeadingZerosRejected.class, "TO_IP");
         names.put(ToIpLeadingZerosDecimal.class, "TO_IP");
         names.put(ToIpLeadingZerosOctal.class, "TO_IP");
+
+        names.put(ToLongBase.class, "TO_LONG");
+        names.put(ToLong.class, "TO_LONG");
+
+        names.put(ToIntegerBase.class, "TO_INTEGER");
+        names.put(ToInteger.class, "TO_INTEGER");
     }
 
     protected interface FunctionBuilder {

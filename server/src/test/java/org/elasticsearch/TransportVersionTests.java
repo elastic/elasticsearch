@@ -25,7 +25,6 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -39,7 +38,11 @@ public class TransportVersionTests extends ESTestCase {
             TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
-        TransportVersion newer = TransportVersionUtils.randomVersionBetween(random(), older, TransportVersion.current());
+        TransportVersion newer = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersionUtils.getNextVersion(older),
+            TransportVersion.current()
+        );
         assertThat(older.before(newer), is(true));
         assertThat(older.before(older), is(false));
         assertThat(newer.before(older), is(false));
@@ -195,7 +198,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
-            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+            if (tv.onOrAfter(TransportVersion.fromId(8_84_10_00)) && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "
                         + tv
@@ -415,15 +418,6 @@ public class TransportVersionTests extends ESTestCase {
                 "Unknown transport version [brand_new_version_unrelated_to_others]. "
                     + "If this is a new transport version, run './gradlew generateTransportVersion'."
             )
-        );
-    }
-
-    public void testTransportVersionsLocked() {
-        assertThat(
-            "TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName "
-                + "and generateTransportVersion gradle task",
-            TransportVersions.DEFINED_VERSIONS.getLast().id(),
-            equalTo(8_797_0_05)
         );
     }
 }

@@ -25,8 +25,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.telemetry.InstrumentType;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -60,9 +58,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
     private final String modeKey = RemoteClusterSettings.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
-    private final Settings settings = Settings.builder().put(modeKey, "proxy").build();
+    private final String proxyAddressKey = ProxyConnectionStrategySettings.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias)
+        .getKey();
+    private final Settings settings = Settings.builder().put(modeKey, "proxy").put(proxyAddressKey, "localhost:8080").build();
     private final ConnectionProfile profile = RemoteConnectionStrategy.buildConnectionProfile(
-        RemoteClusterSettings.toConfig("cluster", settings),
+        RemoteClusterSettings.toConfig(clusterAlias, settings),
         TransportSettings.DEFAULT_PROFILE
     );
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -277,7 +277,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
-                        proxyStrategyConfig(clusterAlias, numOfConnections, address1.toString()),
+                        proxyStrategyConfig(clusterAlias, numOfConnections, address1.toString(), "localhost"),
                         localService,
                         remoteConnectionManager
                     )
@@ -291,7 +291,9 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         allOf(
                             containsString("Unable to open any proxy connections"),
                             containsString('[' + clusterAlias + ']'),
-                            containsString("at address [" + address1 + "]")
+                            containsString("at address [" + address1 + "]"),
+                            containsString("configuredAddress=[" + address1 + "]"),
+                            containsString("configuredServerName=[localhost]")
                         )
                     );
                     assertThat(exception.getSuppressed(), hasItemInArray(instanceOf(ConnectTransportException.class)));
@@ -359,44 +361,6 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertTrue(strategy.assertNoRunningConnections());
                 }
             }
-        }
-    }
-
-    public void testStrategySpecificConnectionErrorMetricAttributesAreAdded() {
-        try (
-            MockTransportService transport1 = startTransport("remote", VersionInformation.CURRENT, TransportVersion.current());
-            MockTransportService localService = MockTransportService.createNewService(
-                Settings.EMPTY,
-                VersionInformation.CURRENT,
-                TransportVersion.current(),
-                threadPool
-            )
-        ) {
-            final var address1 = transport1.boundAddress().publishAddress();
-            localService.addSendBehavior(address1, (connection, requestId, action, request, options) -> {
-                throw new ElasticsearchException("non-retryable");
-            });
-            localService.start();
-            localService.acceptIncomingRequests();
-
-            final var cfg = proxyStrategyConfig(clusterAlias, 1, address1.toString(), "address1_server_name");
-            final var connectFuture = new PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus>();
-            localService.getRemoteClusterService().updateRemoteCluster(cfg, false, connectFuture);
-            final var exception = expectThrows(ElasticsearchException.class, connectFuture::actionGet);
-            assertThat(exception.getMessage(), containsString("non-retryable"));
-
-            assert localService.getTelemetryProvider() != null;
-            final var meterRegistry = localService.getTelemetryProvider().getMeterRegistry();
-            assert meterRegistry instanceof RecordingMeterRegistry;
-            final var metricRecorder = ((RecordingMeterRegistry) meterRegistry).getRecorder();
-            metricRecorder.collect();
-            final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
-            final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_COUNTER, counterName);
-            assertFalse(measurements.isEmpty());
-            final var measurement = measurements.getLast();
-            assertThat(measurement.getLong(), equalTo(1L));
-            assertThat(measurement.attributes().get("endpoint"), equalTo(address1.toString()));
-            assertThat(measurement.attributes().get("server_name"), equalTo("address1_server_name"));
         }
     }
 
@@ -775,9 +739,15 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
         String proxyAddress,
         String proxyServerName
     ) {
-        return new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
-            .proxyAddress(proxyAddress)
-            .serverName(proxyServerName)
-            .build();
+        final var builder = new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(
+            maxNumConnections
+        );
+        if (proxyAddress != null && proxyAddress.isEmpty() == false) {
+            builder.proxyAddress(proxyAddress);
+        }
+        if (proxyServerName != null && proxyServerName.isEmpty() == false) {
+            builder.serverName(proxyServerName);
+        }
+        return builder.build();
     }
 }

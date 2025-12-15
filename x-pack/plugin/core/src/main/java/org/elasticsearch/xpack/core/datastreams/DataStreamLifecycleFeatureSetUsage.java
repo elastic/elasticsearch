@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,7 +53,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_9_X;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -113,47 +112,22 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
         }
 
         public static LifecycleStats read(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                return new LifecycleStats(
-                    in.readVLong(),
-                    in.readBoolean(),
-                    RetentionStats.read(in),
-                    RetentionStats.read(in),
-                    in.readMap(GlobalRetentionStats::new)
-                );
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                var dataStreamsWithLifecyclesCount = in.readVLong();
-                var minDataRetention = in.readVLong();
-                var maxDataRetention = in.readVLong();
-                var avgDataRetention = in.readDouble();
-                var defaultRolledOverUsed = in.readBoolean();
-                return new LifecycleStats(
-                    dataStreamsWithLifecyclesCount,
-                    defaultRolledOverUsed,
-                    new RetentionStats(dataStreamsWithLifecyclesCount, avgDataRetention, minDataRetention, maxDataRetention),
-                    RetentionStats.NO_DATA,
-                    Map.of()
-                );
-            } else {
-                return INITIAL;
-            }
+            return new LifecycleStats(
+                in.readVLong(),
+                in.readBoolean(),
+                RetentionStats.read(in),
+                RetentionStats.read(in),
+                in.readMap(GlobalRetentionStats::new)
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeVLong(dataStreamsWithLifecyclesCount);
-                out.writeBoolean(defaultRolloverUsed);
-                dataRetentionStats.writeTo(out);
-                effectiveRetentionStats.writeTo(out);
-                out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeVLong(dataStreamsWithLifecyclesCount);
-                out.writeVLong(dataRetentionStats.minMillis() == null ? 0 : dataRetentionStats.minMillis());
-                out.writeVLong(dataRetentionStats.maxMillis() == null ? 0 : dataRetentionStats.maxMillis());
-                out.writeDouble(dataRetentionStats.avgMillis() == null ? 0 : dataRetentionStats.avgMillis());
-                out.writeBoolean(defaultRolloverUsed);
-            }
+            out.writeVLong(dataStreamsWithLifecyclesCount);
+            out.writeBoolean(defaultRolloverUsed);
+            dataRetentionStats.writeTo(out);
+            effectiveRetentionStats.writeTo(out);
+            out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
         }
 
         @Override

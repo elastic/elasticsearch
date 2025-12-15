@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -69,22 +71,23 @@ import java.util.Set;
  * to be serialized between nodes and is only used locally.
  */
 public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    AggregateExec,
+    UnaryExec,
     LocalPhysicalOptimizerContext> {
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
-        var foundAttributes = new HashSet<FieldAttribute>();
+    protected PhysicalPlan rule(UnaryExec planNode, LocalPhysicalOptimizerContext ctx) {
+        var foundAttributes = findAttributesFromAggregatesAndEvals(planNode, ctx);
+        if (foundAttributes.isEmpty()) {
+            return planNode;
+        }
 
-        PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
+        return planNode.transformDown(UnaryExec.class, exec -> {
             if (exec instanceof AggregateExec agg) {
                 var orderedAggregates = new ArrayList<NamedExpression>();
                 var changedAggregates = false;
                 for (NamedExpression aggExpr : agg.aggregates()) {
                     if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
-                        if (af.field() instanceof FieldAttribute fieldAttribute
-                            && allowedForDocValues(fieldAttribute, ctx.searchStats(), agg, foundAttributes)) {
-                            // We need to both mark the field to load differently, and change the spatial function to know to use it
-                            foundAttributes.add(fieldAttribute);
+                        if (af.field() instanceof FieldAttribute fieldAttribute && foundAttributes.contains(fieldAttribute)) {
+                            // We need to both mark the field to load differently and change the spatial function to know to use it
                             changedAggregates = true;
                             orderedAggregates.add(
                                 as.replaceChild(af.withFieldExtractPreference(MappedFieldType.FieldExtractPreference.DOC_VALUES))
@@ -135,9 +138,46 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                     exec = fieldExtractExec.withDocValuesAttributes(docValuesAttributes);
                 }
             }
+            if (exec instanceof TopNExec topNExec) {
+                exec = topNExec.withDocValuesAttributes(new HashSet<>(foundAttributes));
+            }
             return exec;
         });
-        return plan;
+    }
+
+    private Set<FieldAttribute> findAttributesFromAggregatesAndEvals(UnaryExec exec, LocalPhysicalOptimizerContext ctx) {
+        var foundAttributes = new HashSet<FieldAttribute>();
+        // Search for STATS with spatial aggregations
+        exec.forEachDown(AggregateExec.class, agg -> {
+            for (NamedExpression aggExpr : agg.aggregates()) {
+                if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
+                    if (af.field() instanceof FieldAttribute fieldAttribute
+                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), agg, foundAttributes)) {
+                        foundAttributes.add(fieldAttribute);
+                    }
+                }
+            }
+        });
+        // Search for spatial grid functions in EVALs
+        exec.forEachDown(EvalExec.class, evalExec -> {
+            for (Alias field : evalExec.fields()) {
+                field.forEachDown(
+                    SpatialGridFunction.class, spatialAggFunc -> {
+                    if (spatialAggFunc.spatialField() instanceof FieldAttribute fieldAttribute
+                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
+                        foundAttributes.add(fieldAttribute);
+                    }
+                });
+            }
+        });
+        // Remove any fields that will be returned to the coordinator, since we must use source for those
+        exec.output().forEach(attribute -> {
+            if (attribute instanceof FieldAttribute fieldAttribute) {
+                // Any field that will be returned to the coordinator cannot be loaded from doc-values
+                foundAttributes.remove(fieldAttribute);
+            }
+        });
+        return foundAttributes;
     }
 
     private BinarySpatialFunction withDocValues(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
@@ -171,7 +211,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
     private boolean allowedForDocValues(
         FieldAttribute fieldAttribute,
         SearchStats stats,
-        AggregateExec agg,
+        UnaryExec exec,
         Set<FieldAttribute> foundAttributes
     ) {
         if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
@@ -183,7 +223,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);
         candidateDocValuesAttributes.add(fieldAttribute);
         var spatialRelatesAttributes = new HashSet<FieldAttribute>();
-        agg.forEachExpressionDown(SpatialRelatesFunction.class, relatesFunction -> {
+        exec.forEachExpressionDown(SpatialRelatesFunction.class, relatesFunction -> {
             candidateDocValuesAttributes.forEach(candidate -> {
                 if (hasFieldAttribute(relatesFunction, Set.of(candidate))) {
                     spatialRelatesAttributes.add(candidate);

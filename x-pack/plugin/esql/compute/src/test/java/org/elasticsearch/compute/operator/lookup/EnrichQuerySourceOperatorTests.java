@@ -119,6 +119,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     128,
                     queryList,
                     inputPage,
+                    BlockOptimization.NONE,
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     warnings()
@@ -187,6 +188,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     maxPageSize,
                     queryList,
                     inputPage,
+                    BlockOptimization.RANGE,
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     warnings()
@@ -243,6 +245,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     128,
                     queryList,
                     inputPage,
+                    BlockOptimization.NONE,
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     warnings()

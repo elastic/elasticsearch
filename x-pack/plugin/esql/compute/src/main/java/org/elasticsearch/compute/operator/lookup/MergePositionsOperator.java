@@ -9,9 +9,11 @@ package org.elasticsearch.compute.operator.lookup;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
@@ -51,7 +53,11 @@ public final class MergePositionsOperator implements Operator {
     private boolean finished = false;
     private final int positionChannel;
     private final EnrichResultBuilder[] builders;
-    private final IntBlock selectedPositions;
+    private final BlockFactory blockFactory;
+    private final BlockOptimization optimizationState;
+    private final Page inputPage;
+    private IntBlock selectedPositions;
+    boolean selectedPositionsNeedsRelease = false;
 
     private Page outputPage;
 
@@ -59,7 +65,8 @@ public final class MergePositionsOperator implements Operator {
         int positionChannel,
         int[] mergingChannels,
         ElementType[] mergingTypes,
-        IntBlock selectedPositions,
+        BlockOptimization optimizationState,
+        Page inputPage,
         BlockFactory blockFactory
     ) {
         if (mergingChannels.length != mergingTypes.length) {
@@ -71,6 +78,9 @@ public final class MergePositionsOperator implements Operator {
             );
         }
         this.positionChannel = positionChannel;
+        this.blockFactory = blockFactory;
+        this.optimizationState = optimizationState;
+        this.inputPage = inputPage;
         this.builders = new EnrichResultBuilder[mergingTypes.length];
         try {
             for (int i = 0; i < mergingTypes.length; i++) {
@@ -81,8 +91,6 @@ public final class MergePositionsOperator implements Operator {
                 Releasables.close(Releasables.wrap(builders));
             }
         }
-        selectedPositions.mustIncRef();
-        this.selectedPositions = selectedPositions;
     }
 
     @Override
@@ -108,7 +116,7 @@ public final class MergePositionsOperator implements Operator {
         final Block[] blocks = new Block[builders.length];
         try {
             for (int i = 0; i < builders.length; i++) {
-                blocks[i] = builders[i].build(selectedPositions);
+                blocks[i] = builders[i].build(getSelectedPositions());
             }
             outputPage = new Page(blocks);
         } finally {
@@ -131,20 +139,32 @@ public final class MergePositionsOperator implements Operator {
         return page;
     }
 
-    /**
-     * Get the selected positions block (may be a range block or dictionary ordinals).
-     * Exposed for testing to verify optimization behavior.
-     */
     public IntBlock getSelectedPositions() {
+        if (selectedPositions == null) {
+            if (optimizationState == BlockOptimization.DICTIONARY) {
+                Block inputBlock = inputPage.getBlock(0);
+                OrdinalBytesRefBlock ordinalsBytesRefBlock = ((BytesRefBlock) inputBlock).asOrdinals();
+                selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
+            } else if (optimizationState == BlockOptimization.RANGE) {
+                Block inputBlock = inputPage.getBlock(0);
+                selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock();
+                selectedPositionsNeedsRelease = true;
+            } else {
+                throw new IllegalStateException("Unknown optimization state: " + optimizationState);
+            }
+        }
         return selectedPositions;
     }
 
     @Override
     public void close() {
-        Releasables.close(Releasables.wrap(builders), selectedPositions, () -> {
+        Releasables.close(Releasables.wrap(builders), () -> {
             if (outputPage != null) {
                 outputPage.releaseBlocks();
             }
         });
+        if (selectedPositionsNeedsRelease) {
+            Releasables.close(selectedPositions);
+        }
     }
 }

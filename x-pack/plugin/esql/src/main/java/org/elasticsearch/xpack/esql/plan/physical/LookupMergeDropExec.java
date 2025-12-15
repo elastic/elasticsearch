@@ -11,14 +11,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.esql.enrich.AbstractLookupService.LOOKUP_POSITIONS_FIELD;
 
 /**
  * Physical plan node representing the merge/drop step of a lookup operation.
@@ -31,18 +34,21 @@ public class LookupMergeDropExec extends UnaryExec {
     private final List<NamedExpression> extractFields;
     private final ElementType[] mergingTypes;
     private final int[] mergingChannels;
+    private final boolean includePositions;
 
     public LookupMergeDropExec(
         Source source,
         PhysicalPlan child,
         List<NamedExpression> extractFields,
         ElementType[] mergingTypes,
-        int[] mergingChannels
+        int[] mergingChannels,
+        boolean includePositions
     ) {
         super(source, child);
         this.extractFields = extractFields;
         this.mergingTypes = mergingTypes;
         this.mergingChannels = mergingChannels;
+        this.includePositions = includePositions;
     }
 
     @Override
@@ -52,12 +58,12 @@ public class LookupMergeDropExec extends UnaryExec {
 
     @Override
     protected NodeInfo<LookupMergeDropExec> info() {
-        return NodeInfo.create(this, LookupMergeDropExec::new, child(), extractFields, mergingTypes, mergingChannels);
+        return NodeInfo.create(this, LookupMergeDropExec::new, child(), extractFields, mergingTypes, mergingChannels, includePositions);
     }
 
     @Override
     public LookupMergeDropExec replaceChild(PhysicalPlan newChild) {
-        return new LookupMergeDropExec(source(), newChild, extractFields, mergingTypes, mergingChannels);
+        return new LookupMergeDropExec(source(), newChild, extractFields, mergingTypes, mergingChannels, includePositions);
     }
 
     public List<NamedExpression> extractFields() {
@@ -84,7 +90,22 @@ public class LookupMergeDropExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        return Stream.concat(child().output().stream(), extractFields.stream().map(NamedExpression::toAttribute)).toList();
+        if (includePositions) {
+            // For lookup joins: output includes positions + extractFields
+            // Positions is an IntBlock created by EnrichQuerySourceOperator but not exposed as an attribute
+            // Create a synthetic positions attribute
+            List<Attribute> result = new ArrayList<>(1 + extractFields.size());
+            FieldAttribute positionsAttribute = new FieldAttribute(Source.EMPTY, LOOKUP_POSITIONS_FIELD.getName(), LOOKUP_POSITIONS_FIELD);
+            result.add(positionsAttribute);
+            // Add extractFields
+            for (NamedExpression extractField : extractFields) {
+                result.add(extractField.toAttribute());
+            }
+            return result;
+        } else {
+            // For enrich lookups: output is only extractFields (MergePositionsOperator drops positions)
+            return extractFields.stream().map(NamedExpression::toAttribute).toList();
+        }
     }
 
     @Override
@@ -95,7 +116,8 @@ public class LookupMergeDropExec extends UnaryExec {
         LookupMergeDropExec lookupMergeDropExec = (LookupMergeDropExec) o;
         return Objects.equals(extractFields, lookupMergeDropExec.extractFields)
             && java.util.Arrays.equals(mergingTypes, lookupMergeDropExec.mergingTypes)
-            && java.util.Arrays.equals(mergingChannels, lookupMergeDropExec.mergingChannels);
+            && java.util.Arrays.equals(mergingChannels, lookupMergeDropExec.mergingChannels)
+            && includePositions == lookupMergeDropExec.includePositions;
     }
 
     @Override
@@ -104,7 +126,8 @@ public class LookupMergeDropExec extends UnaryExec {
             super.hashCode(),
             extractFields,
             java.util.Arrays.hashCode(mergingTypes),
-            java.util.Arrays.hashCode(mergingChannels)
+            java.util.Arrays.hashCode(mergingChannels),
+            includePositions
         );
     }
 }

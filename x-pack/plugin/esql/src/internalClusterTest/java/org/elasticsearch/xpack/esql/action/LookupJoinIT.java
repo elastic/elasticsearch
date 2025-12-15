@@ -18,6 +18,8 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -31,14 +33,11 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
-import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URL;
@@ -48,10 +47,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -59,10 +59,30 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
     value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE",
     reason = "debug lookup join expression resolution"
 )
+
+/**
+ * This test is used to test LOOKUP JOIN and ENRICH functionality in ESQL.
+ * It is similar to the csv-spec tests, but loads only the needed indices and policies
+ * for the current specific test case and on demand.
+ * This allows rapid debugging of certain test cases without waiting for all indices to load
+ */
 public class LookupJoinIT extends AbstractEsqlIntegTestCase {
 
+    private static final Logger logger = LogManager.getLogger(LookupJoinIT.class);
+
+    // Index name constants
     private static final String EMPLOYEES_INDEX = "employees";
     private static final String AGES_INDEX = "ages";
+    private static final String BOOKS_INDEX = "books";
+    private static final String DATE_NANOS_INDEX = "date_nanos";
+    private static final String LANGUAGES_INDEX = "languages";
+    private static final String LANGUAGES_LOOKUP_INDEX = "languages_lookup";
+    private static final String LANGUAGES_MIXED_NUMERICS_INDEX = "languages_mixed_numerics";
+    private static final String MESSAGE_TYPES_LOOKUP_INDEX = "message_types_lookup";
+
+    // Enrich policy name constants
+    private static final String AGES_POLICY = "ages_policy";
+    private static final String LANGUAGES_POLICY = "languages_policy";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -125,274 +145,118 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             .build();
     }
 
-    @Before
-    public void setupEnrichPolicy() {
-        // Load ages data and enrich policy before any test runs
-        if (indexExists(AGES_INDEX) == false) {
-            loadAgesData();
-        }
-        ensureAgesEnrichPolicy();
-    }
+    /**
+     * Ensures the specified indices exist, loading them if they don't.
+     * Uses CsvTestsDataLoader.CSV_DATASET_MAP to get index definitions.
+     * Only loads the indices that are explicitly requested.
+     */
+    private void ensureIndices(List<String> indexNames) throws IOException {
+        RestClient restClient = getRestClient();
 
-    private void ensureIndicesAndData() {
-        if (indexExists(EMPLOYEES_INDEX) == false) {
-            loadEmployeesData();
-        } else {
-            // Index exists, but verify it has data
-            refresh(EMPLOYEES_INDEX);
-            ensureGreen(EMPLOYEES_INDEX);
-        }
-    }
+        for (String indexName : indexNames) {
+            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET_MAP.get(indexName);
+            if (dataset == null) {
+                throw new IllegalArgumentException("No definition found for index: " + indexName);
+            }
 
-    private void ensureAgesEnrichPolicy() {
-        // Check if policy already exists
-        boolean policyExists = false;
-        try {
-            var response = client().execute(
-                GetEnrichPolicyAction.INSTANCE,
-                new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "ages_policy")
-            ).actionGet();
-            var policies = response.getPolicies();
-            policyExists = policies.stream().anyMatch(p -> p.getName().equals("ages_policy"));
-        } catch (Exception e) {
-            // Policy doesn't exist, will create it
-        }
-
-        if (policyExists == false) {
-            // Create the policy fresh
-            loadAgesEnrichPolicy();
-
-            // Verify the policy was created successfully and is accessible
-            try {
-                var response = client().execute(
-                    GetEnrichPolicyAction.INSTANCE,
-                    new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "ages_policy")
-                ).actionGet();
-                var policies = response.getPolicies();
-                boolean verified = policies.stream().anyMatch(p -> p.getName().equals("ages_policy"));
-                if (verified == false) {
-                    throw new AssertionError("Enrich policy was loaded but verification failed");
+            if (indexExists(indexName) == false) {
+                // Read mapping file
+                URL mappingResource = CsvTestsDataLoader.class.getResource("/" + dataset.mappingFileName());
+                if (mappingResource == null) {
+                    throw new IllegalArgumentException("Cannot find mapping resource for " + indexName + ": " + dataset.mappingFileName());
                 }
-            } catch (Exception e) {
-                throw new AssertionError("Failed to verify enrich policy was created: " + e.getMessage(), e);
+                String mappingContent = CsvTestsDataLoader.readTextFile(mappingResource);
+
+                // Read settings file (same logic as TestDataset.readSettingsFile())
+                Settings indexSettings = Settings.EMPTY;
+                String settingFileName = dataset.settingFileName();
+                if (settingFileName != null) {
+                    String settingName = "/" + settingFileName;
+                    indexSettings = Settings.builder()
+                        .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
+                        .build();
+                }
+                // Ensure standard settings for test indices
+                indexSettings = Settings.builder()
+                    .put(indexSettings)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build();
+
+                // Create index - let exceptions propagate so test fails immediately
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, mappingContent, null);
+
+                // Load CSV data if available
+                if (dataset.dataFileName() != null) {
+                    URL csvResource = CsvTestsDataLoader.class.getResource("/data/" + dataset.dataFileName());
+                    if (csvResource == null) {
+                        throw new IllegalArgumentException("Cannot find CSV resource for " + indexName + ": " + dataset.dataFileName());
+                    }
+                    CsvTestsDataLoader.loadCsvData(restClient, indexName, csvResource, dataset.allowSubFields(), logger);
+                }
+
+                refresh(indexName);
+                ensureGreen(indexName);
+            } else {
+                // Index exists, but verify it's ready
+                refresh(indexName);
+                ensureGreen(indexName);
             }
         }
     }
 
-    private void loadEmployeesData() {
-        try {
-            RestClient restClient = getRestClient();
-            org.elasticsearch.logging.Logger logger = org.elasticsearch.logging.LogManager.getLogger(CsvTestsDataLoader.class);
-
-            loadSingleDataset(
-                restClient,
-                logger,
-                EMPLOYEES_INDEX,
-                "mapping-default.json",
-                "employees.csv",
-                Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build()
-            );
-            // Refresh the index to make data available
-            refresh(EMPLOYEES_INDEX);
-            ensureGreen(EMPLOYEES_INDEX);
-        } catch (IOException e) {
-            throw new AssertionError("Failed to load employees CSV data", e);
-        }
-    }
-
-    private void loadAgesData() {
-        try {
-            RestClient restClient = getRestClient();
-            org.elasticsearch.logging.Logger logger = org.elasticsearch.logging.LogManager.getLogger(CsvTestsDataLoader.class);
-
-            loadSingleDataset(
-                restClient,
-                logger,
-                AGES_INDEX,
-                "mapping-ages.json",
-                "ages.csv",
-                Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build()
-            );
-            // Refresh the index to make data available for enrich policy execution
-            refresh(AGES_INDEX);
-        } catch (IOException e) {
-            throw new AssertionError("Failed to load ages CSV data", e);
-        }
-    }
-
-    private void loadAgesEnrichPolicy() {
-        // Ensure ages index exists and is ready
-        if (indexExists(AGES_INDEX) == false) {
-            throw new AssertionError("Ages index does not exist");
-        }
-
-        // Ensure ages index is refreshed before creating enrich policy
-        refresh(AGES_INDEX);
-        ensureGreen(AGES_INDEX);
-
-        EnrichPolicy policy = new EnrichPolicy(
-            "range",
-            null, // query
-            List.of(AGES_INDEX), // indices
-            "age_range", // match_field
-            List.of("description") // enrich_fields
-        );
-
-        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "ages_policy", policy))
-            .actionGet();
-
-        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "ages_policy"))
-            .actionGet();
-
-        ensureGreen(); // Wait for enrich index to be ready
-    }
-
     /**
-     * Loads a single dataset following the CsvTestsDataLoader.load() pattern.
-     * Creates the index and loads CSV data using the public loadCsvData() method.
+     * Ensures the specified enrich policies exist, creating and executing them if they don't.
+     * Uses CsvTestsDataLoader.ENRICH_POLICIES to get policy definitions.
      */
-    private void loadSingleDataset(
-        RestClient restClient,
-        org.elasticsearch.logging.Logger logger,
-        String indexName,
-        String mappingFileName,
-        String csvFileName,
-        Settings indexSettings
-    ) throws IOException {
-        URL mappingResource = CsvTestsDataLoader.class.getResource("/" + mappingFileName);
-        URL csvResource = CsvTestsDataLoader.class.getResource("/data/" + csvFileName);
-        if (mappingResource == null || csvResource == null) {
-            throw new IllegalArgumentException("Cannot find resources for " + indexName);
+    private void ensureEnrichPolicies(List<String> policyNames) throws IOException {
+        RestClient restClient = getRestClient();
+
+        // Build a map of policy name to EnrichConfig for quick lookup
+        Map<String, CsvTestsDataLoader.EnrichConfig> policyMap = CsvTestsDataLoader.ENRICH_POLICIES.stream()
+            .collect(Collectors.toMap(CsvTestsDataLoader.EnrichConfig::policyName, Function.identity()));
+
+        for (String policyName : policyNames) {
+            CsvTestsDataLoader.EnrichConfig config = policyMap.get(policyName);
+            if (config == null) {
+                throw new IllegalArgumentException("No definition found for enrich policy: " + policyName);
+            }
+
+            // Check if policy already exists
+            var response = client().execute(
+                GetEnrichPolicyAction.INSTANCE,
+                new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName)
+            ).actionGet();
+            var existingPolicies = response.getPolicies();
+            boolean policyExists = existingPolicies.stream().anyMatch(p -> p.getName().equals(policyName));
+
+            // Check if enrich index exists (the alias .enrich-{policy_name})
+            boolean enrichIndexExists = indexExists(".enrich-" + policyName);
+
+            if (policyExists == false) {
+                // Use CsvTestsDataLoader to load the enrich policy (it handles both creation and execution)
+                CsvTestsDataLoader.loadEnrichPolicy(restClient, policyName, config.policyFileName(), logger);
+                ensureGreen(); // Wait for enrich index to be ready
+            }
+            if (enrichIndexExists == false) {
+                client().execute(
+                    ExecuteEnrichPolicyAction.INSTANCE,
+                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName)
+                ).actionGet();
+                ensureGreen(); // Wait for enrich index to be ready
+            }
         }
-
-        String mappingContent = CsvTestsDataLoader.readTextFile(mappingResource);
-        ESRestTestCase.createIndex(restClient, indexName, indexSettings, mappingContent, null);
-
-        // Use the public loadCsvData() method to reuse existing CSV parsing logic
-        CsvTestsDataLoader.loadCsvData(restClient, indexName, csvResource, false, logger);
     }
 
     private EsqlQueryResponse runQuery(String query) {
         return run(syncEsqlQueryRequest(query));
     }
 
-    /**
-     * Verifies that the query results match the expected data.
-     * @param actualValues The actual results from the query
-     * @param expectedRows Expected rows, where each row is an array of expected values in column order
-     */
-    private void verifyResults(List<List<Object>> actualValues, Object[]... expectedRows) {
-        if (actualValues.size() != expectedRows.length) {
-            fail(
-                String.format(
-                    Locale.ROOT,
-                    "Result count mismatch.%nExpected: %d rows%nActual: %d rows%n%nExpected results:%n%s%n%nActual results:%n%s",
-                    expectedRows.length,
-                    actualValues.size(),
-                    formatRows(expectedRows),
-                    formatRows(actualValues)
-                )
-            );
-        }
-        for (int i = 0; i < expectedRows.length; i++) {
-            List<Object> actualRow = actualValues.get(i);
-            Object[] expectedRow = expectedRows[i];
-            if (actualRow.size() != expectedRow.length) {
-                fail(
-                    String.format(
-                        Locale.ROOT,
-                        "Row %d column count mismatch.%nExpected: %d columns%nActual: %d "
-                            + "columns%n%nExpected row %d: %s%nActual row %d: %s%n%nAll "
-                            + "expected results:%n%s%n%nAll actual results:%n%s",
-                        i,
-                        expectedRow.length,
-                        actualRow.size(),
-                        i,
-                        formatRow(expectedRow),
-                        i,
-                        formatRow(actualRow),
-                        formatRows(expectedRows),
-                        formatRows(actualValues)
-                    )
-                );
-            }
-            for (int j = 0; j < expectedRow.length; j++) {
-                if (Objects.equals(actualRow.get(j), expectedRow[j]) == false) {
-                    fail(
-                        String.format(
-                            Locale.ROOT,
-                            "Row %d, column %d mismatch.%nExpected: %s%nActual: %s%n%n"
-                                + "Expected row %d: %s%nActual row %d: %s%n%nAll expected results:"
-                                + "%n%s%n%nAll actual results:%n%s",
-                            i,
-                            j,
-                            expectedRow[j],
-                            actualRow.get(j),
-                            i,
-                            formatRow(expectedRow),
-                            i,
-                            formatRow(actualRow),
-                            formatRows(expectedRows),
-                            formatRows(actualValues)
-                        )
-                    );
-                }
-            }
-        }
-    }
-
-    private String formatRows(Object[]... rows) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < rows.length; i++) {
-            sb.append("Row ").append(i).append(": ").append(formatRow(rows[i])).append("\n");
-        }
-        return sb.toString();
-    }
-
-    private String formatRows(List<List<Object>> rows) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < rows.size(); i++) {
-            sb.append("Row ").append(i).append(": ").append(formatRow(rows.get(i))).append("\n");
-        }
-        return sb.toString();
-    }
-
-    private String formatRow(Object[] row) {
-        return java.util.Arrays.toString(row);
-    }
-
-    private String formatRow(List<Object> row) {
-        return row.toString();
-    }
-
     // Test case ported from enrichAgesStatsYear in enrich.csv-spec
-
-    public void testEnrichAgesStatsYear() {
-        ensureIndicesAndData();
-
-        // First, verify there's data in the employees index
-        String simpleQuery = String.format(Locale.ROOT, "FROM %s | LIMIT 10", EMPLOYEES_INDEX);
-        try (EsqlQueryResponse simpleResponse = runQuery(simpleQuery)) {
-            List<List<Object>> simpleValues = getValuesList(simpleResponse);
-            if (simpleValues.isEmpty()) {
-                throw new AssertionError("No data found in employees index - simple SELECT returned 0 rows");
-            }
-        }
-
-        // Verify enrich policy exists before running query
-        try {
-            var response = client().execute(
-                GetEnrichPolicyAction.INSTANCE,
-                new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "ages_policy")
-            ).actionGet();
-            var policies = response.getPolicies();
-            boolean policyExists = policies.stream().anyMatch(p -> p.getName().equals("ages_policy"));
-            if (policyExists == false) {
-                throw new AssertionError("Enrich policy ages_policy does not exist before query execution");
-            }
-        } catch (Exception e) {
-            throw new AssertionError("Failed to verify enrich policy exists before query: " + e.getMessage(), e);
-        }
+    public void testEnrichAgesStatsYear() throws IOException {
+        // Required indices and enrich policies for this test
+        ensureIndices(List.of(EMPLOYEES_INDEX, AGES_INDEX));
+        ensureEnrichPolicies(List.of(AGES_POLICY));
 
         String query = String.format(Locale.ROOT, """
             FROM %s
@@ -406,16 +270,98 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             """, EMPLOYEES_INDEX);
 
         try (EsqlQueryResponse response = runQuery(query)) {
-            List<List<Object>> values = getValuesList(response);
-            verifyResults(
-                values,
-                new Object[] { 1965L, "Middle-aged", 1L },
-                new Object[] { 1964L, "Middle-aged", 4L },
-                new Object[] { 1963L, "Middle-aged", 7L },
-                new Object[] { 1962L, "Senior", 6L },
-                new Object[] { 1961L, "Senior", 8L },
-                new Object[] { 1960L, "Senior", 8L }
+            assertValues(
+                response.values(),
+                List.of(
+                    List.of(1965L, "Middle-aged", 1L),
+                    List.of(1964L, "Middle-aged", 4L),
+                    List.of(1963L, "Middle-aged", 7L),
+                    List.of(1962L, "Senior", 6L),
+                    List.of(1961L, "Senior", 8L),
+                    List.of(1960L, "Senior", 8L)
+                )
             );
+        }
+    }
+
+    // Test ported from csv-spec:lookup-join.FloatJoinScaledFloat
+    // Tests LOOKUP JOIN with mixed numeric fields, specifically float to scaled_float conversion
+    public void testFloatJoinScaledFloat() throws IOException {
+        // Required indices and enrich policies for this test
+        ensureIndices(List.of(LANGUAGES_MIXED_NUMERICS_INDEX));
+
+        // Run the query
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | WHERE language_code_float IS NOT NULL
+            | EVAL language_code_scaled_float = language_code_float
+            | LOOKUP JOIN %s ON language_code_scaled_float
+            | SORT language_code_scaled_float, language_name
+            | KEEP language_code_scaled_float, language_name
+            """, LANGUAGES_MIXED_NUMERICS_INDEX, LANGUAGES_MIXED_NUMERICS_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(
+                response.values(),
+                List.of(
+                    List.of(-3.4028234663852886E38, "min_long"),
+                    List.of(-3.4028234663852886E38, "min_long_minus_1"),
+                    List.of(-9.223372036854776E18, "min_long"),
+                    List.of(-9.223372036854776E18, "min_long"),
+                    List.of(-9.223372036854776E18, "min_long_minus_1"),
+                    List.of(-9.223372036854776E18, "min_long_minus_1"),
+                    List.of(-2.147483648E9, "min_int"),
+                    List.of(-2.147483648E9, "min_int"),
+                    List.of(-65505.0, "min_half_float_minus_1"),
+                    List.of(-65504.0, "min_half_float"),
+                    List.of(-32769.0, "min_short_minus_1"),
+                    List.of(-32768.0, "min_short"),
+                    List.of(-129.0, "min_byte_minus_1"),
+                    List.of(-128.0, "min_byte"),
+                    List.of(1.0, "English"),
+                    List.of(2.0, "French"),
+                    List.of(3.0, "Spanish"),
+                    List.of(4.0, "German"),
+                    List.of(127.0, "max_byte"),
+                    List.of(128.0, "max_byte_plus_1"),
+                    List.of(32767.0, "max_short"),
+                    List.of(32768.0, "max_short_plus_1"),
+                    List.of(65504.0, "max_half_float"),
+                    List.of(65505.0, "max_half_float_plus_1"),
+                    List.of(2.147483648E9, "max_int_plus_1"),
+                    List.of(2.147483648E9, "max_int_plus_1"),
+                    List.of(2.147483648E9, "max_int_plus_1"),
+                    List.of(9.223372036854776E18, "max_long"),
+                    List.of(9.223372036854776E18, "max_long"),
+                    List.of(9.223372036854776E18, "max_long"),
+                    List.of(9.223372036854776E18, "max_long_minus_1"),
+                    List.of(9.223372036854776E18, "max_long_minus_1"),
+                    List.of(9.223372036854776E18, "max_long_minus_1"),
+                    List.of(9.223372036854776E18, "max_long_plus_1"),
+                    List.of(9.223372036854776E18, "max_long_plus_1"),
+                    List.of(9.223372036854776E18, "max_long_plus_1"),
+                    List.of(3.4028234663852886E38, "max_long"),
+                    List.of(3.4028234663852886E38, "max_long_minus_1"),
+                    List.of(3.4028234663852886E38, "max_long_plus_1")
+                )
+            );
+        }
+    }
+
+    // Test ported from csv-spec:lookup-join.lookupMessageFromRowWithShadowing
+    // Tests LOOKUP JOIN with shadowing - the type field gets replaced by the lookup result
+    public void testLookupMessageFromRowWithShadowing() throws IOException {
+        // Required indices and enrich policies for this test
+        ensureIndices(List.of(MESSAGE_TYPES_LOOKUP_INDEX));
+
+        // Run the query
+        String query = String.format(Locale.ROOT, """
+            ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
+            | LOOKUP JOIN %s ON message
+            """, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(response.values(), List.of(List.of("left", "Connected to 10.1.0.1", "right", "Success")));
         }
     }
 }

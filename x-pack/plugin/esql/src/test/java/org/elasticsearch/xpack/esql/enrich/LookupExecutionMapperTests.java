@@ -11,24 +11,38 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
@@ -36,27 +50,27 @@ import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.LookupMergeDropExec;
-import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -65,44 +79,185 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.IntStream;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class LookupExecutionMapperTests extends ESTestCase {
     private BlockFactory blockFactory;
     private BigArrays bigArrays;
     private List<Releasable> releasables;
-    private Directory testDirectory;
-    private DirectoryReader testReader;
-    private MapperService mapperService;
+    private ClusterService clusterService;
+    private TransportService transportService;
+    private IndicesService indicesService;
+    private IndexNameExpressionResolver indexNameExpressionResolver;
+    private ThreadPool threadPool;
+
+    /**
+     * Testable concrete implementation of AbstractLookupService that captures LookupQueryPlan
+     * instead of starting a driver, allowing tests to inspect the operators.
+     */
+    private static class TestLookupService extends AbstractLookupService<
+        TestLookupService.TestRequest,
+        TestLookupService.TestTransportRequest> {
+        private AbstractLookupService.LookupQueryPlan capturedPlan;
+
+        TestLookupService(
+            ClusterService clusterService,
+            IndicesService indicesService,
+            AbstractLookupService.LookupShardContextFactory lookupShardContextFactory,
+            TransportService transportService,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            BigArrays bigArrays,
+            BlockFactory blockFactory,
+            boolean mergePages,
+            ProjectResolver projectResolver
+        ) {
+            super(
+                "test-lookup-action",
+                clusterService,
+                indicesService,
+                lookupShardContextFactory,
+                transportService,
+                indexNameExpressionResolver,
+                bigArrays,
+                blockFactory,
+                mergePages,
+                (in, bf) -> {
+                    throw new UnsupportedOperationException("Not used in tests");
+                },
+                projectResolver
+            );
+        }
+
+        @Override
+        protected TestTransportRequest transportRequest(TestRequest request, ShardId shardId) {
+            return new TestTransportRequest(request, shardId);
+        }
+
+        @Override
+        protected LookupEnrichQueryGenerator queryList(
+            TestTransportRequest request,
+            SearchExecutionContext context,
+            AliasFilter aliasFilter,
+            Warnings warnings
+        ) {
+            return mock(LookupEnrichQueryGenerator.class);
+        }
+
+        @Override
+        protected AbstractLookupService.LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
+            return new AbstractLookupService.LookupResponse(blockFactory) {
+                @Override
+                public void writeTo(StreamOutput out) {
+                    throw new UnsupportedOperationException("Not used in tests");
+                }
+
+                @Override
+                protected List<Page> takePages() {
+                    return pages;
+                }
+
+                @Override
+                protected void innerRelease() {}
+            };
+        }
+
+        @Override
+        protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+
+        @Override
+        protected void startDriver(
+            TestTransportRequest request,
+            CancellableTask task,
+            ActionListener<List<Page>> listener,
+            LookupQueryPlan lookupQueryPlan
+        ) {
+            // Capture the plan instead of starting the driver
+            // We don't want to actually execute the plan in this test class
+            this.capturedPlan = lookupQueryPlan;
+            // Immediately respond with empty pages to satisfy the listener
+            listener.onResponse(List.of());
+        }
+
+        AbstractLookupService.LookupQueryPlan getCapturedPlan() {
+            return capturedPlan;
+        }
+
+        static class TestRequest extends AbstractLookupService.Request {
+            TestRequest(Page inputPage, List<NamedExpression> extractFields, Source source) {
+                super("test-session", "test-index", "test-index", DataType.KEYWORD, inputPage, extractFields, source);
+            }
+        }
+
+        static class TestTransportRequest extends AbstractLookupService.TransportRequest {
+            TestTransportRequest(TestRequest request, ShardId shardId) {
+                super(request.sessionId, shardId, request.indexPattern, request.inputPage, null, request.extractFields, request.source);
+            }
+
+            @Override
+            protected String extraDescription() {
+                return "";
+            }
+        }
+    }
 
     @Before
-    public void setup() throws IOException {
+    public void setup() {
         blockFactory = TestBlockFactory.getNonBreakingInstance();
         bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
         releasables = new ArrayList<>();
 
-        // Create a minimal index for testing
-        testDirectory = newDirectory();
-        try (RandomIndexWriter writer = new RandomIndexWriter(random(), testDirectory)) {
-            writer.commit();
-        }
-        testReader = DirectoryReader.open(testDirectory);
-        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-        };
-        String mapping = "{\n  \"doc\": { \"properties\": { \"field1\": { \"type\": \"keyword\" } } }\n}";
-        mapperService = mapperHelper.createMapperService(mapping);
-        releasables.add(() -> {
-            try {
-                org.elasticsearch.core.IOUtils.close(testReader, mapperService, testDirectory);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        // Create minimal mocks for services - we only need these because AbstractLookupService constructor requires them
+        // but startDriver is overridden to do nothing, so they don't need to be fully functional
+        clusterService = mock(ClusterService.class);
+        ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        ClusterState clusterState = ClusterStateCreationUtils.state(projectId, "test-index", 1, 1);
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        indicesService = mock(IndicesService.class);
+        when(indicesService.buildAliasFilter(any(), any(), any())).thenReturn(AliasFilter.EMPTY);
+
+        indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(indexNameExpressionResolver.resolveExpressions(any(), any())).thenReturn(Set.of(new ResolvedExpression("test-index")));
+
+        // Create mock transport service - only needed for constructor, startDriver does nothing
+        // Since we override startDriver to do nothing, we don't need a real thread pool
+        // But TransportService requires a ThreadPool, so we create a minimal one
+        threadPool = new TestThreadPool(
+            getTestClass().getSimpleName(),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                1,
+                1024,
+                "esql",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
+        MockTransport mockTransport = new MockTransport();
+        transportService = mockTransport.createTransportService(
+            Settings.EMPTY,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> null,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            Set.of()
+        );
+        releasables.add(transportService);
+        releasables.add(mockTransport);
+        releasables.add(() -> terminate(threadPool));
     }
 
     @After
@@ -110,378 +265,192 @@ public class LookupExecutionMapperTests extends ESTestCase {
         Releasables.close(releasables);
         blockFactory = null;
         bigArrays = null;
+        clusterService = null;
+        transportService = null;
+        indicesService = null;
+        indexNameExpressionResolver = null;
+        threadPool = null;
     }
 
-    /**
-     * Creates a physical plan matching the structure from createLookupPhysicalPlan():
-     * OutputExec -> LookupMergeDropExec -> (FieldExtractExec?) -> ParameterizedQueryExec
-     */
-    private PhysicalPlan createLookupPhysicalPlan(List<NamedExpression> extractFields) {
-        // Create doc attribute
-        FieldAttribute docAttribute = new FieldAttribute(
-            Source.EMPTY,
-            null,
-            null,
-            EsQueryExec.DOC_ID_FIELD.getName(),
-            EsQueryExec.DOC_ID_FIELD
-        );
-        List<Attribute> sourceOutput = List.of(docAttribute);
+    public void testLookupJoinNoMerge() throws Exception {
+        // Test lookup join with mergePages=false and no extract fields
+        Page inputPage = createBytesRefPage("a", "b");
 
-        // Create ParameterizedQueryExec
-        LookupEnrichQueryGenerator queryList = mock(LookupEnrichQueryGenerator.class);
-        ParameterizedQueryExec source = new ParameterizedQueryExec(Source.EMPTY, sourceOutput, queryList);
-
-        PhysicalPlan plan = source;
-
-        // Add FieldExtractExec if we have extract fields
-        if (extractFields.isEmpty() == false) {
-            List<Attribute> extractAttributes = new ArrayList<>();
-            for (NamedExpression extractField : extractFields) {
-                extractAttributes.add(extractField.toAttribute());
-            }
-            plan = new FieldExtractExec(Source.EMPTY, plan, extractAttributes, MappedFieldType.FieldExtractPreference.NONE);
-        }
-
-        // Add LookupMergeDropExec
-        final ElementType[] mergingTypes = new ElementType[extractFields.size()];
-        for (int i = 0; i < extractFields.size(); i++) {
-            mergingTypes[i] = org.elasticsearch.xpack.esql.planner.PlannerUtils.toElementType(extractFields.get(i).dataType());
-        }
-        final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 2).toArray();
-        plan = new LookupMergeDropExec(Source.EMPTY, plan, extractFields, mergingTypes, mergingChannels);
-
-        // Add OutputExec
-        plan = new OutputExec(Source.EMPTY, plan, page -> {});
-
-        return plan;
-    }
-
-    public void testEnrichLookupNoMerge() throws IOException {
-        // Test enrich lookup with mergePages=false and no extract fields (lookup join case)
-        LookupExecutionMapper mapper = new LookupExecutionMapper(
-            blockFactory,
-            bigArrays,
-            new LocalCircuitBreaker.SizeSettings(Settings.EMPTY),
-            false
-        );
-
-        BytesRefBlock inputBlock = blockFactory.newBytesRefBlockBuilder(2)
-            .appendBytesRef(new BytesRef("a"))
-            .appendBytesRef(new BytesRef("b"))
-            .build();
-        Page inputPage = new Page(inputBlock);
-
-        // No extract fields - just lookup join
+        // No extract fields
         List<NamedExpression> extractFields = Collections.emptyList();
-        PhysicalPlan plan = createLookupPhysicalPlan(extractFields);
+        boolean isEnrich = false;
 
-        AbstractLookupService.TransportRequest request = createMockRequest(inputPage, extractFields);
-        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-
-        AbstractLookupService.LookupQueryPlan queryPlan = mapper.map(request, plan, shardContext, releasables);
+        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
         // Expected: EnrichQuerySourceOperator -> ProjectOperator -> OutputOperator
-        verifyCompletePlan(queryPlan, List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class));
-
-        // Verify EnrichQuerySourceOperator
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-
-        // Verify ProjectOperator
-        ProjectOperator projectOp = (ProjectOperator) queryPlan.operators().get(0);
-        verifyProjectOperator(projectOp, extractFields.size());
-
-        // Verify OutputOperator
-        verifyOutputOperator(queryPlan);
+        verifyCompletePlan(
+            queryPlan,
+            List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
+            extractFields,
+            isEnrich,
+            null,
+            null
+        );
     }
 
-    public void testEnrichLookupDictionaryOptimization() throws IOException {
-        LookupExecutionMapper mapper = new LookupExecutionMapper(
-            blockFactory,
-            bigArrays,
-            new LocalCircuitBreaker.SizeSettings(Settings.EMPTY),
-            true
-        );
-
+    public void testEnrichDictionaryOptimization() throws Exception {
         // Create a BytesRefBlock with ordinals for dictionary optimization
-        BytesRefVector dictionary = blockFactory.newBytesRefVectorBuilder(2)
-            .appendBytesRef(new BytesRef("a"))
-            .appendBytesRef(new BytesRef("b"))
-            .build();
-        IntBlock ordinals = blockFactory.newIntBlockBuilder(3).appendInt(0).appendInt(1).appendInt(0).build();
-        OrdinalBytesRefBlock ordinalBlock = new OrdinalBytesRefBlock(ordinals, dictionary);
-        Page inputPage = new Page(ordinalBlock);
+        Page inputPage = createOrdinalBytesRefPage(new String[] { "a", "b" }, new int[] { 0, 1, 0 });
 
         List<NamedExpression> extractFields = List.of(
             createFieldAttribute("field1", DataType.KEYWORD),
             createFieldAttribute("field2", DataType.INTEGER)
         );
-        PhysicalPlan plan = createLookupPhysicalPlan(extractFields);
+        boolean isEnrich = true;
 
-        AbstractLookupService.TransportRequest request = createMockRequest(inputPage, extractFields);
-        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-
-        AbstractLookupService.LookupQueryPlan queryPlan = mapper.map(request, plan, shardContext, releasables);
+        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
         // Expected: EnrichQuerySourceOperator -> ValuesSourceReaderOperator -> MergePositionsOperator -> OutputOperator
         verifyCompletePlan(
             queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, MergePositionsOperator.class, OutputOperator.class)
+            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, MergePositionsOperator.class, OutputOperator.class),
+            extractFields,
+            isEnrich,
+            null,
+            new MergePositionsDetails(3, BlockOptimization.DICTIONARY, 2)
         );
-
-        // Verify EnrichQuerySourceOperator with dictionary optimization
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-        verifyDictionaryOptimization(sourceOp, 2);
-
-        // Verify ValuesSourceReaderOperator
-        ValuesSourceReaderOperator valuesOp = verifyValuesSourceReaderOperator(queryPlan, 0);
-
-        // Verify MergePositionsOperator with dictionary ordinals
-        MergePositionsOperator mergeOp = (MergePositionsOperator) queryPlan.operators().get(1);
-        verifyMergePositionsOperator(mergeOp, 3, false); // 3 positions, not range block
-
-        // Verify OutputOperator
-        verifyOutputOperator(queryPlan);
     }
 
-    public void testEnrichLookupRangeBlockOptimization() throws IOException {
-        LookupExecutionMapper mapper = new LookupExecutionMapper(
-            blockFactory,
-            bigArrays,
-            new LocalCircuitBreaker.SizeSettings(Settings.EMPTY),
-            true
-        );
-
-        BytesRefBlock inputBlock = blockFactory.newBytesRefBlockBuilder(3)
-            .appendBytesRef(new BytesRef("a"))
-            .appendBytesRef(new BytesRef("b"))
-            .appendBytesRef(new BytesRef("c"))
-            .build();
-        Page inputPage = new Page(inputBlock);
+    public void testEnrichRangeBlockOptimization() throws Exception {
+        Page inputPage = createBytesRefPage("a", "b", "c");
 
         List<NamedExpression> extractFields = List.of(
             createFieldAttribute("field1", DataType.KEYWORD),
             createFieldAttribute("field2", DataType.INTEGER),
             createFieldAttribute("field3", DataType.LONG)
         );
-        PhysicalPlan plan = createLookupPhysicalPlan(extractFields);
+        boolean isEnrich = true;
 
-        AbstractLookupService.TransportRequest request = createMockRequest(inputPage, extractFields);
-        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-
-        AbstractLookupService.LookupQueryPlan queryPlan = mapper.map(request, plan, shardContext, releasables);
+        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
         // Expected: EnrichQuerySourceOperator -> ValuesSourceReaderOperator -> MergePositionsOperator -> OutputOperator
         verifyCompletePlan(
             queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, MergePositionsOperator.class, OutputOperator.class)
+            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, MergePositionsOperator.class, OutputOperator.class),
+            extractFields,
+            isEnrich,
+            inputPage,
+            new MergePositionsDetails(3, BlockOptimization.RANGE, 0)
         );
-
-        // Verify EnrichQuerySourceOperator with range block optimization (no optimization on input page)
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-        verifyNoPageOptimization(sourceOp, inputBlock);
-
-        // Verify ValuesSourceReaderOperator
-        ValuesSourceReaderOperator valuesOp = verifyValuesSourceReaderOperator(queryPlan, 0);
-
-        // Verify MergePositionsOperator with range block
-        MergePositionsOperator mergeOp = (MergePositionsOperator) queryPlan.operators().get(1);
-        verifyMergePositionsOperator(mergeOp, 3, true); // 3 positions, range block
-
-        // Verify OutputOperator
-        verifyOutputOperator(queryPlan);
     }
 
-    public void testLookupJoinNoExtraFields() throws IOException {
+    public void testLookupJoinNoExtraFields() throws Exception {
         // Test lookup join where we don't need to get extra fields (no extract fields, no merge)
         // This is the simplest lookup join case - just joining without extracting additional fields
-        LookupExecutionMapper mapper = new LookupExecutionMapper(
-            blockFactory,
-            bigArrays,
-            new LocalCircuitBreaker.SizeSettings(Settings.EMPTY),
-            false
-        );
-
-        BytesRefBlock inputBlock = blockFactory.newBytesRefBlockBuilder(3)
-            .appendBytesRef(new BytesRef("key1"))
-            .appendBytesRef(new BytesRef("key2"))
-            .appendBytesRef(new BytesRef("key3"))
-            .build();
-        Page inputPage = new Page(inputBlock);
+        Page inputPage = createBytesRefPage("key1", "key2", "key3");
 
         // No extract fields - pure lookup join without extra field extraction
         List<NamedExpression> extractFields = Collections.emptyList();
-        PhysicalPlan plan = createLookupPhysicalPlan(extractFields);
+        boolean isEnrich = false;
 
-        AbstractLookupService.TransportRequest request = createMockRequest(inputPage, extractFields);
-        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-
-        AbstractLookupService.LookupQueryPlan queryPlan = mapper.map(request, plan, shardContext, releasables);
+        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
         // Expected: EnrichQuerySourceOperator -> ProjectOperator -> OutputOperator
         // No ValuesSourceReaderOperator (no extract fields), no MergePositionsOperator (no merge)
-        verifyCompletePlan(queryPlan, List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class));
-
-        // Verify EnrichQuerySourceOperator
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-
-        // Verify ProjectOperator - should just drop doc block (projection = [1] since no extract fields)
-        ProjectOperator projectOp = (ProjectOperator) queryPlan.operators().get(0);
-        verifyProjectOperator(projectOp, 0); // 0 extract fields
-
-        // Verify OutputOperator
-        verifyOutputOperator(queryPlan);
+        verifyCompletePlan(
+            queryPlan,
+            List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
+            extractFields,
+            isEnrich,
+            null,
+            null
+        );
     }
 
-    public void testEnrichLookupNoMergeWithExtractFields() throws IOException {
-        // Test enrich lookup with mergePages=false but with extract fields (uses ProjectOperator, not MergePositionsOperator)
-        LookupExecutionMapper mapper = new LookupExecutionMapper(
-            blockFactory,
-            bigArrays,
-            new LocalCircuitBreaker.SizeSettings(Settings.EMPTY),
-            false
-        );
-
-        BytesRefBlock inputBlock = blockFactory.newBytesRefBlockBuilder(2)
-            .appendBytesRef(new BytesRef("a"))
-            .appendBytesRef(new BytesRef("b"))
-            .build();
-        Page inputPage = new Page(inputBlock);
+    public void testLookupJoinWithExtractFields() throws Exception {
+        // Test lookup join with mergePages=false but with extract fields (uses ProjectOperator, not MergePositionsOperator)
+        Page inputPage = createBytesRefPage("a", "b");
 
         List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
-        PhysicalPlan plan = createLookupPhysicalPlan(extractFields);
+        boolean isEnrich = false;
 
-        AbstractLookupService.TransportRequest request = createMockRequest(inputPage, extractFields);
-        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-
-        AbstractLookupService.LookupQueryPlan queryPlan = mapper.map(request, plan, shardContext, releasables);
+        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
         // Expected: EnrichQuerySourceOperator -> ValuesSourceReaderOperator -> ProjectOperator -> OutputOperator
         verifyCompletePlan(
             queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class, OutputOperator.class)
+            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class, OutputOperator.class),
+            extractFields,
+            isEnrich,
+            null,
+            null
         );
-
-        // Verify EnrichQuerySourceOperator
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-
-        // Verify ValuesSourceReaderOperator
-        ValuesSourceReaderOperator valuesOp = verifyValuesSourceReaderOperator(queryPlan, 0);
-
-        // Verify ProjectOperator
-        ProjectOperator projectOp = (ProjectOperator) queryPlan.operators().get(1);
-        verifyProjectOperator(projectOp, extractFields.size());
-
-        // Verify OutputOperator
-        verifyOutputOperator(queryPlan);
     }
 
-    public void testEnrichLookupMergeWithEmptyExtractFields() throws IOException {
-        // Test enrich lookup with mergePages=true but empty extract fields
+    public void testEnrichMergeWithEmptyExtractFields() throws Exception {
+        // Test enrich with mergePages=true but empty extract fields
         // This is an edge case: when mergingChannels is empty, we should use dropDocBlockOperator instead of MergePositionsOperator
-        LookupExecutionMapper mapper = new LookupExecutionMapper(
-            blockFactory,
-            bigArrays,
-            new LocalCircuitBreaker.SizeSettings(Settings.EMPTY),
-            true
-        );
+        Page inputPage = createBytesRefPage("a", "b");
 
-        BytesRefBlock inputBlock = blockFactory.newBytesRefBlockBuilder(2)
-            .appendBytesRef(new BytesRef("a"))
-            .appendBytesRef(new BytesRef("b"))
-            .build();
-        Page inputPage = new Page(inputBlock);
-
-        // Empty extract fields - but mergePages=true
+        // Empty extract fields
         List<NamedExpression> extractFields = Collections.emptyList();
-        PhysicalPlan plan = createLookupPhysicalPlan(extractFields);
+        boolean isEnrich = true;
 
-        AbstractLookupService.TransportRequest request = createMockRequest(inputPage, extractFields);
-        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-
-        AbstractLookupService.LookupQueryPlan queryPlan = mapper.map(request, plan, shardContext, releasables);
+        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
         // Expected: EnrichQuerySourceOperator -> ProjectOperator -> OutputOperator
         // Even though mergePages=true, empty mergingChannels means we use dropDocBlockOperator (ProjectOperator) instead of
         // MergePositionsOperator
-        verifyCompletePlan(queryPlan, List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class));
-
-        // Verify EnrichQuerySourceOperator
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-
-        // Verify ProjectOperator - should drop doc block (projection = [1] since no extract fields)
-        ProjectOperator projectOp = (ProjectOperator) queryPlan.operators().get(0);
-        verifyProjectOperator(projectOp, 0); // 0 extract fields
-
-        // Verify OutputOperator
-        verifyOutputOperator(queryPlan);
-    }
-
-    public void testEnrichLookupWithEmptyInputPage() throws IOException {
-        // Test enrich lookup with empty input page (0 positions) - edge case
-        // This verifies that the mapper handles empty input correctly, especially for range block creation
-        LookupExecutionMapper mapper = new LookupExecutionMapper(
-            blockFactory,
-            bigArrays,
-            new LocalCircuitBreaker.SizeSettings(Settings.EMPTY),
-            true
-        );
-
-        // Create empty input page (0 positions)
-        BytesRefBlock inputBlock = blockFactory.newBytesRefBlockBuilder(0).build();
-        Page inputPage = new Page(inputBlock);
-
-        List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
-        PhysicalPlan plan = createLookupPhysicalPlan(extractFields);
-
-        AbstractLookupService.TransportRequest request = createMockRequest(inputPage, extractFields);
-        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
-
-        AbstractLookupService.LookupQueryPlan queryPlan = mapper.map(request, plan, shardContext, releasables);
-        MatcherAssert.assertThat(queryPlan, notNullValue());
-
-        // Verify complete plan structure
-        // Expected: EnrichQuerySourceOperator -> ValuesSourceReaderOperator -> MergePositionsOperator -> OutputOperator
-        // Even with empty input, the plan structure should be correct
         verifyCompletePlan(
             queryPlan,
-            List.of(EnrichQuerySourceOperator.class, ValuesSourceReaderOperator.class, MergePositionsOperator.class, OutputOperator.class)
+            List.of(EnrichQuerySourceOperator.class, ProjectOperator.class, OutputOperator.class),
+            extractFields,
+            isEnrich,
+            null,
+            null
         );
+    }
 
-        // Verify EnrichQuerySourceOperator
-        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
-        verifyNoPageOptimization(sourceOp, inputBlock);
+    public void testEnrichWithAllNullInputPage() throws Exception {
+        // Test enrich with input page where all values are null
+        // doLookup() returns early for null input blocks without generating operators
+        Page inputPage = createAllNullBytesRefPage(3);
 
-        // Verify ValuesSourceReaderOperator
-        ValuesSourceReaderOperator valuesOp = verifyValuesSourceReaderOperator(queryPlan, 0);
+        List<NamedExpression> extractFields = List.of(createFieldAttribute("field1", DataType.KEYWORD));
+        boolean isEnrich = true;
 
-        // Verify MergePositionsOperator with empty range block (0 positions)
-        MergePositionsOperator mergeOp = (MergePositionsOperator) queryPlan.operators().get(1);
-        verifyMergePositionsOperator(mergeOp, 0, true); // 0 positions, range block
-
-        // Verify OutputOperator
-        verifyOutputOperator(queryPlan);
+        // With all null values, doLookup() returns early without calling startDriver()
+        // Therefore, no operators should be generated
+        AbstractLookupService.LookupQueryPlan queryPlan = generateQueryPlan(inputPage, extractFields, isEnrich);
+        assertNull("No operators should be generated for all-null input page", queryPlan);
     }
 
     // Verification helper methods
 
     /**
-     * Verifies the complete plan structure with all operators.
+     * Verifies the complete plan structure with all operators and performs detailed verification.
      * @param queryPlan The query plan to verify
      * @param expectedOperators List of expected operator types in order: [source, intermediate1, intermediate2, ..., output]
+     * @param extractFields Extract fields for OutputOperator and ProjectOperator verification
+     * @param isEnrich Whether this is an enrich operation (affects OutputOperator columns)
+     * @param inputPage Optional input page for optimization verification
+     * @param mergePositionsDetails Optional details for MergePositionsOperator verification
      */
-    private void verifyCompletePlan(AbstractLookupService.LookupQueryPlan queryPlan, List<Class<? extends Operator>> expectedOperators) {
+    private void verifyCompletePlan(
+        AbstractLookupService.LookupQueryPlan queryPlan,
+        List<Class<? extends Operator>> expectedOperators,
+        List<NamedExpression> extractFields,
+        boolean isEnrich,
+        Page inputPage,
+        MergePositionsDetails mergePositionsDetails
+    ) {
         if (expectedOperators.size() < 2) {
             throw new IllegalArgumentException("Expected operators list must have at least 2 elements (source and output)");
         }
@@ -509,7 +478,48 @@ public class LookupExecutionMapperTests extends ESTestCase {
             queryPlan.outputOperator(),
             instanceOf(expectedOperators.get(expectedOperators.size() - 1))
         );
+
+        // Perform detailed verification based on operator types
+        EnrichQuerySourceOperator sourceOp = verifyEnrichQuerySourceOperator(queryPlan);
+
+        // Verify input page optimization if provided
+        if (inputPage != null) {
+            verifyNoPageOptimization(sourceOp, inputPage.getBlock(0));
+        }
+
+        // Verify intermediate operators
+        int operatorIndex = 0;
+        for (int i = 1; i < expectedOperators.size() - 1; i++) {
+            Class<? extends Operator> expectedType = expectedOperators.get(i);
+            Operator operator = actualOperators.get(operatorIndex);
+
+            if (expectedType == ValuesSourceReaderOperator.class) {
+                verifyValuesSourceReaderOperator(queryPlan, operatorIndex);
+            } else if (expectedType == MergePositionsOperator.class) {
+                if (mergePositionsDetails != null) {
+                    verifyMergePositionsOperator(
+                        (MergePositionsOperator) operator,
+                        sourceOp,
+                        mergePositionsDetails.positionCount,
+                        mergePositionsDetails.blockOptimization,
+                        mergePositionsDetails.dictionarySize
+                    );
+                }
+            } else if (expectedType == ProjectOperator.class) {
+                verifyProjectOperator((ProjectOperator) operator, extractFields.size());
+            }
+
+            operatorIndex++;
+        }
+
+        // Always verify OutputOperator
+        verifyOutputOperator(queryPlan, extractFields, isEnrich);
     }
+
+    /**
+     * Details for MergePositionsOperator verification.
+     */
+    private record MergePositionsDetails(int positionCount, BlockOptimization blockOptimization, int dictionarySize) {}
 
     /**
      * Verifies EnrichQuerySourceOperator and returns it.
@@ -547,8 +557,19 @@ public class LookupExecutionMapperTests extends ESTestCase {
 
     /**
      * Verifies MergePositionsOperator with range block or dictionary ordinals.
+     * @param mergeOp The MergePositionsOperator to verify
+     * @param sourceOp The EnrichQuerySourceOperator to verify optimization state
+     * @param expectedPositionCount Expected number of positions
+     * @param expectedOptimizationState Expected optimization state (DICTIONARY or RANGE)
+     * @param expectedDictionarySize Expected dictionary size (only used for DICTIONARY optimization)
      */
-    private void verifyMergePositionsOperator(MergePositionsOperator mergeOp, int expectedPositionCount, boolean isRangeBlock) {
+    private void verifyMergePositionsOperator(
+        MergePositionsOperator mergeOp,
+        EnrichQuerySourceOperator sourceOp,
+        int expectedPositionCount,
+        BlockOptimization expectedOptimizationState,
+        int expectedDictionarySize
+    ) {
         MatcherAssert.assertThat(mergeOp, notNullValue());
         IntBlock selectedPositions = mergeOp.getSelectedPositions();
         MatcherAssert.assertThat(selectedPositions, notNullValue());
@@ -558,7 +579,35 @@ public class LookupExecutionMapperTests extends ESTestCase {
             is(expectedPositionCount)
         );
 
-        if (isRangeBlock) {
+        if (expectedOptimizationState == BlockOptimization.DICTIONARY) {
+            // Verify dictionary optimization was applied to the input page
+            Page optimizedPage = sourceOp.getInputPage();
+            Block optimizedBlock = optimizedPage.getBlock(0);
+            MatcherAssert.assertThat(
+                "Optimized block should be a BytesRefBlock (dictionary block)",
+                optimizedBlock,
+                instanceOf(BytesRefBlock.class)
+            );
+            MatcherAssert.assertThat(
+                "Dictionary block should have dictionary size positions",
+                optimizedBlock.getPositionCount(),
+                is(expectedDictionarySize)
+            );
+
+            // Verify the dictionary values are present
+            BytesRefBlock dictBlock = (BytesRefBlock) optimizedBlock;
+            BytesRef value1 = new BytesRef();
+            BytesRef value2 = new BytesRef();
+            dictBlock.getBytesRef(0, value1);
+            dictBlock.getBytesRef(1, value2);
+            // The dictionary should contain "a" and "b" (order may vary)
+            MatcherAssert.assertThat(
+                "Dictionary block should contain expected values",
+                (value1.utf8ToString().equals("a") && value2.utf8ToString().equals("b"))
+                    || (value1.utf8ToString().equals("b") && value2.utf8ToString().equals("a")),
+                is(true)
+            );
+        } else if (expectedOptimizationState == BlockOptimization.RANGE) {
             // Verify it's a range block (vector with sequential values 0, 1, 2, ...)
             IntVector selectedPositionsVector = selectedPositions.asVector();
             MatcherAssert.assertThat("Selected positions should be a vector (range block)", selectedPositionsVector, notNullValue());
@@ -566,46 +615,10 @@ public class LookupExecutionMapperTests extends ESTestCase {
                 MatcherAssert.assertThat("Range block position " + i + " should be " + i, selectedPositionsVector.getInt(i), is(i));
             }
         } else {
-            // Dictionary ordinals case - just verify it exists and has correct count
-            // The actual values come from the dictionary ordinals
+            throw new IllegalArgumentException("Unsupported optimization state: " + expectedOptimizationState);
         }
     }
 
-    /**
-     * Verifies dictionary optimization was applied to the input page.
-     */
-    private void verifyDictionaryOptimization(EnrichQuerySourceOperator sourceOp, int expectedDictionarySize) {
-        Page optimizedPage = sourceOp.getInputPage();
-        Block optimizedBlock = optimizedPage.getBlock(0);
-        MatcherAssert.assertThat(
-            "Optimized block should be a BytesRefBlock (dictionary block)",
-            optimizedBlock,
-            instanceOf(BytesRefBlock.class)
-        );
-        MatcherAssert.assertThat(
-            "Dictionary block should have dictionary size positions",
-            optimizedBlock.getPositionCount(),
-            is(expectedDictionarySize)
-        );
-
-        // Verify the dictionary values are present
-        BytesRefBlock dictBlock = (BytesRefBlock) optimizedBlock;
-        BytesRef value1 = new BytesRef();
-        BytesRef value2 = new BytesRef();
-        dictBlock.getBytesRef(0, value1);
-        dictBlock.getBytesRef(1, value2);
-        // The dictionary should contain "a" and "b" (order may vary)
-        MatcherAssert.assertThat(
-            "Dictionary block should contain expected values",
-            (value1.utf8ToString().equals("a") && value2.utf8ToString().equals("b"))
-                || (value1.utf8ToString().equals("b") && value2.utf8ToString().equals("a")),
-            is(true)
-        );
-    }
-
-    /**
-     * Verifies that no page optimization was applied (input page is original).
-     */
     private void verifyNoPageOptimization(EnrichQuerySourceOperator sourceOp, Block expectedInputBlock) {
         Page sourceInputPage = sourceOp.getInputPage();
         MatcherAssert.assertThat(
@@ -615,36 +628,130 @@ public class LookupExecutionMapperTests extends ESTestCase {
         );
     }
 
-    /**
-     * Verifies OutputOperator.
-     */
-    private void verifyOutputOperator(AbstractLookupService.LookupQueryPlan queryPlan) {
+    private void verifyOutputOperator(
+        AbstractLookupService.LookupQueryPlan queryPlan,
+        List<NamedExpression> extractFields,
+        boolean isEnrich
+    ) {
         OutputOperator outputOp = queryPlan.outputOperator();
         MatcherAssert.assertThat(outputOp, notNullValue());
         MatcherAssert.assertThat(outputOp, instanceOf(OutputOperator.class));
+
+        // Build expected columns: for lookup joins (!isEnrich) with no extractFields, include positions
+        List<String> expectedColumns = new ArrayList<>();
+        if (isEnrich == false) {
+            expectedColumns.add("$$Positions$$");
+        }
+        expectedColumns.addAll(extractFields.stream().map(NamedExpression::name).toList());
+
+        // Verify columns
+        List<String> actualColumns = outputOp.getColumns();
+        MatcherAssert.assertThat("OutputOperator columns should match expected columns", actualColumns, is(expectedColumns));
     }
 
-    // Helper methods
+    /**
+     * Creates a Page with a BytesRefBlock containing the specified string values.
+     */
+    private Page createBytesRefPage(String... values) {
+        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length);
+        for (String value : values) {
+            builder.appendBytesRef(new BytesRef(value));
+        }
+        BytesRefBlock inputBlock = builder.build();
+        return new Page(inputBlock);
+    }
 
-    private AbstractLookupService.TransportRequest createMockRequest(Page inputPage, List<NamedExpression> extractFields) {
-        return new LookupFromIndexService.TransportRequest(
-            "test-session",
-            new ShardId("test", "n/a", 0),
-            "test-index",
-            inputPage,
-            null,
-            extractFields,
-            Collections.emptyList(),
-            Source.EMPTY,
-            null,
-            null
+    /**
+     * Creates a Page with an OrdinalBytesRefBlock (dictionary optimization).
+     * @param dictionary The dictionary values
+     * @param ordinals The ordinal indices into the dictionary
+     */
+    private Page createOrdinalBytesRefPage(String[] dictionary, int[] ordinals) {
+        BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(dictionary.length);
+        for (String value : dictionary) {
+            dictBuilder.appendBytesRef(new BytesRef(value));
+        }
+        BytesRefVector dictionaryVector = dictBuilder.build();
+
+        IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(ordinals.length);
+        for (int ordinal : ordinals) {
+            ordinalsBuilder.appendInt(ordinal);
+        }
+        IntBlock ordinalsBlock = ordinalsBuilder.build();
+
+        OrdinalBytesRefBlock ordinalBlock = new OrdinalBytesRefBlock(ordinalsBlock, dictionaryVector);
+        return new Page(ordinalBlock);
+    }
+
+    /**
+     * Creates a Page with a BytesRefBlock containing all null values.
+     * @param positionCount The number of null positions to create
+     */
+    private Page createAllNullBytesRefPage(int positionCount) {
+        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positionCount);
+        for (int i = 0; i < positionCount; i++) {
+            builder.appendNull();
+        }
+        BytesRefBlock inputBlock = builder.build();
+        return new Page(inputBlock);
+    }
+
+    /**
+     * Executes doLookup() and returns the captured LookupQueryPlan.
+     * This is the common pattern used by all test cases.
+     */
+    private AbstractLookupService.LookupQueryPlan generateQueryPlan(Page inputPage, List<NamedExpression> extractFields, boolean isEnrich)
+        throws Exception {
+        AbstractLookupService.LookupShardContext shardContext = createMockShardContext();
+        TestLookupService testService = createTestService(isEnrich, shardContext);
+
+        TestLookupService.TestRequest request = new TestLookupService.TestRequest(inputPage, extractFields, Source.EMPTY);
+        TestLookupService.TestTransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
+
+        testService.doLookup(transportRequest, null, ActionListener.wrap(pages -> {}, e -> {}));
+
+        return testService.getCapturedPlan();
+    }
+
+    private TestLookupService createTestService(boolean mergePages, AbstractLookupService.LookupShardContext shardContext) {
+        AbstractLookupService.LookupShardContextFactory factory = shardId -> shardContext;
+        // Use TestProjectResolvers which provides a proper implementation
+        ProjectResolver projectResolver = TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID);
+        return new TestLookupService(
+            clusterService,
+            indicesService,
+            factory,
+            transportService,
+            indexNameExpressionResolver,
+            bigArrays,
+            blockFactory,
+            mergePages,
+            projectResolver
         );
     }
 
     private AbstractLookupService.LookupShardContext createMockShardContext() throws IOException {
+        // Create resources lazily when needed
+        Directory directory = newDirectory();
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            writer.commit();
+        }
+        DirectoryReader reader = DirectoryReader.open(directory);
         MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
         };
-        SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(testReader));
+        String mapping = "{\n  \"doc\": { \"properties\": { \"field1\": { \"type\": \"keyword\" } } }\n}";
+        MapperService mapperService = mapperHelper.createMapperService(mapping);
+        SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+
+        // Add cleanup to releasables
+        releasables.add(() -> {
+            try {
+                org.elasticsearch.core.IOUtils.close(reader, mapperService, directory);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
         EsPhysicalOperationProviders.DefaultShardContext shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
@@ -665,4 +772,5 @@ public class LookupExecutionMapperTests extends ESTestCase {
             new EsField(name, type, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
         );
     }
+
 }

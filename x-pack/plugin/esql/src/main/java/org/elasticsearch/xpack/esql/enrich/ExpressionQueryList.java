@@ -266,14 +266,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * The query is a conjunction of all queries from the input lists at the same position.
      * If a pre-join filter exists, it is also added to the query.
      * @param position The position of the query to return.
+     * @param inputPage The input page containing the values for the query lists.
      * @return The query at the given position, or null if any of the match fields are null.
      */
     @Override
     public Query getQuery(int position, Page inputPage) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (int i = 0; i < queryLists.size(); i++) {
-            QueryList queryList = queryLists.get(i);
-            // Each QueryList already has its channelOffset stored, so it will extract the correct Block from the Page
+        for (QueryList queryList : queryLists) {
             Query q = queryList.getQuery(position, inputPage);
             if (q == null) {
                 // if any of the matchFields are null, it means there is no match for this position
@@ -297,10 +296,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public int getPositionCount(Page inputPage) {
-        // Each QueryList already has its channelOffset stored, so it will extract the correct Block from the Page
         int positionCount = queryLists.get(0).getPositionCount(inputPage);
-        for (int i = 1; i < queryLists.size(); i++) {
-            QueryList queryList = queryLists.get(i);
+        for (QueryList queryList : queryLists) {
             if (queryList.getPositionCount(inputPage) != positionCount) {
                 throw new IllegalArgumentException(
                     "All QueryLists must have the same position count, expected: "

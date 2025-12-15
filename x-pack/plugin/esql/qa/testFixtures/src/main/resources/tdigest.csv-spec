@@ -1,5 +1,5 @@
 load
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | WHERE STARTS_WITH(instance, "hand-rolled")
@@ -13,7 +13,7 @@ FROM tdigest_standard_index
 
 
 allAggsUngrouped
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -33,7 +33,7 @@ min:double | max:double | p90:double | sum:double  | avg:double
 
 
 allAggsGrouped
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -57,7 +57,7 @@ instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
 
 
 ungroupedPercentiles
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -73,7 +73,7 @@ p0:double | p50:double | p95:double | p100:double
 
 
 groupedPercentiles
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -92,7 +92,7 @@ instance-2       | 2.2E-4    | 0.0        | 0.1       | 2.744054
 
 
 percentileOnEmptyTDigest
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -107,7 +107,7 @@ NULL
 
 
 allAggsFiltered
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | STATS min = MIN(responseTime) WHERE instance == "instance-0",
@@ -126,7 +126,7 @@ min:double | max:double | p95:double | sum:double | avg:double
 
 
 allAggsGroupedFiltered
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -150,7 +150,7 @@ instance-2       | null       | null       | null       | null       | 0.008197
 
 
 allAggsGroupedEmptyGroups
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 
 FROM tdigest_standard_index 
  | STATS min = MIN(responseTime) WHERE instance == "idontexist" ,
@@ -168,7 +168,7 @@ NULL       | NULL       | NULL       | NULL       | NULL
 
 
 timeseriesAllAggsUngrouped
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 required_capability: ts_command_v0
 
 TS tdigest_timeseries_index 
@@ -183,7 +183,7 @@ min:double | max:double | p90:double | sum:double  | avg:double
 ;
 
 timeseriesAllAggsGrouped
-required_capability: tdigest_field_type_support_v3
+required_capability: tdigest_field_type_support_v4
 required_capability: ts_command_v0
 
 TS tdigest_timeseries_index 

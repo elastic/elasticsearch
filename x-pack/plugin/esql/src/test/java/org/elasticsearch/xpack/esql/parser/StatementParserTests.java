@@ -4233,9 +4233,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             report.humanReadable(true).prettyPrint();
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
-                namesAndAliases.removeAll(List.of("geohash", "geotile", "geohex"));
+                namesAndAliases.removeAll(List.of("date_range"));
             }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {

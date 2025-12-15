@@ -30,14 +30,14 @@ public class TransportReadinessAction extends TransportAction<ReadinessRequest, 
     public static final ActionType<ReadinessResponse> TYPE = new ActionType<>("cluster:internal/readiness");
     private final BooleanSupplier isReady;
 
+    TransportReadinessAction(ActionFilters actionFilters, TaskManager taskManager, Executor executor, BooleanSupplier isReady) {
+        super(TYPE.name(), actionFilters, taskManager, executor);
+        this.isReady = isReady;
+    }
+
     @Inject
     public TransportReadinessAction(ActionFilters actionFilters, TaskManager taskManager, ReadinessService readinessService) {
         this(actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE, readinessService::ready);
-    }
-
-    public TransportReadinessAction(ActionFilters actionFilters, TaskManager taskManager, Executor executor, BooleanSupplier isReady) {
-        super(TYPE.name(), actionFilters, taskManager, executor);
-        this.isReady = isReady;
     }
 
     @Override

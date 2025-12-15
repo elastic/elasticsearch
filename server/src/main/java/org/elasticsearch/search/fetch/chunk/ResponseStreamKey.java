@@ -31,8 +31,7 @@ public final class ResponseStreamKey {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ResponseStreamKey that = (ResponseStreamKey) o;
-        return coordinatingTaskId == that.coordinatingTaskId
-            && shardId.equals(that.shardId);
+        return coordinatingTaskId == that.coordinatingTaskId && shardId.equals(that.shardId);
     }
 
     @Override

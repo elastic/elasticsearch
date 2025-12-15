@@ -8,7 +8,6 @@ dependencies {
   implementation project(":libs:x-content")
   implementation project(':client:rest')
   implementation project(':libs:logging')
-  implementation project(":libs:swisshash")
   implementation project(':test:framework')
   api(testArtifact(project(xpackModule('esql-core'))))
   implementation project(':server')

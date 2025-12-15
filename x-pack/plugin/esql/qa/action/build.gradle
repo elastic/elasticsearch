@@ -6,7 +6,6 @@ description = 'Tests for requests made through the Node Client request API'
 dependencies {
     api project(":test:framework")
     api project(':server')
-    api project(":libs:swisshash")
     compileOnly project(path: xpackModule('core'))
 
     testImplementation(testArtifact(project(xpackModule('core'))))

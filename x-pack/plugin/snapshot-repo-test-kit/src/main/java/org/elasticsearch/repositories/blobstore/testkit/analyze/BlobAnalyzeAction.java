@@ -185,7 +185,7 @@ public class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.
         Setting.Property.NodeScope,
         Setting.Property.Deprecated
     );
-    private volatile boolean enableEarlyCopy = true;
+    private final boolean enableEarlyCopy = true;
 
     private static final Logger logger = LogManager.getLogger(BlobAnalyzeAction.class);
 

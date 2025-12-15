@@ -68,7 +68,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -334,9 +336,12 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         SecurityMocks.mockGetRequest(client, SecuritySystemIndices.SECURITY_TOKENS_ALIAS, tokenDocId.get(), tokenSource.get());
 
         final TransportRequest request = AuthenticateRequest.INSTANCE;
+        CountDownLatch latch = new CountDownLatch(1);
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
+        ActionListener.runAfter(future, latch::countDown);
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
+        latch.await(1, TimeUnit.SECONDS);
         final SecondaryAuthentication secondaryAuthentication = future.result();
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());

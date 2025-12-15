@@ -57,6 +57,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
@@ -72,6 +73,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -568,59 +570,72 @@ public class TokenService {
         }
         final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), getTokenDocumentId(tokenId)).request();
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("get token from id", tokenId, ex));
+
+        CheckedConsumer<GetResponse, Exception> checkedConsumer = response -> {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+            if (response.isExists() == false) {
+                // The chances of a random token string decoding to something that we can read is minimal, so
+                // we assume that this was a token we have created but is now expired/revoked and deleted
+                logger.trace("The token [{}] probably expired and has already been deleted", tokenId);
+                listener.onResponse(null);
+                return;
+            }
+            Map<String, Object> accessSource = (Map<String, Object>) response.getSource().get("access_token");
+            Map<String, Object> refreshSource = (Map<String, Object>) response.getSource().get("refresh_token");
+            boolean versionGetForRefresh = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
+            if (accessSource == null) {
+                onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
+            } else if (accessSource.containsKey("user_token") == false) {
+                onFailure.accept(new IllegalStateException("token document is missing the user_token field"));
+            } else if (versionGetForRefresh && accessSource.containsKey("token") == false) {
+                onFailure.accept(new IllegalStateException("token document is missing the user_token.token field"));
+            } else if (versionGetForRefresh && refreshSource != null && refreshSource.containsKey("token") == false) {
+                onFailure.accept(new IllegalStateException("token document is missing the refresh_token.token field"));
+            } else if (storedAccessToken != null && storedAccessToken.equals(accessSource.get("token")) == false) {
+                logger.error("The stored access token [{}] for token doc id [{}] could not be verified", storedAccessToken, tokenId);
+                listener.onResponse(null);
+            } else if (storedRefreshToken != null
+                && (refreshSource == null || storedRefreshToken.equals(refreshSource.get("token")) == false)) {
+                    logger.error("The stored refresh token [{}] for token doc id [{}] could not be verified", storedRefreshToken, tokenId);
+                    listener.onResponse(null);
+                } else {
+                    listener.onResponse(new Doc(response));
+                }
+        };
+
+        Consumer<Exception> exceptionConsumer = e -> {
+            // if the index or the shard is not there / available we assume that
+            // the token is not valid
+            if (isShardNotAvailableException(e)) {
+                logger.warn("failed to get token doc [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
+            } else {
+                logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
+            }
+            listener.onFailure(e);
+        };
+
+        // this wrapper handles a situation where the current flow (executing on the generic thread)
+        // finds itself unintentionally forking over to a transport_worker thread, which is a consequence of using
+        // client::get when calling executeAsyncWithOrigin (see NodeClient issue: https://github.com/elastic/elasticsearch/issues/97916).
+        // If you follow the implementation of client::get within NodeClient, you'll spot the execution happening on a transport thread.
+        // The wrapper below handles this situation by introducing a second fork to make sure post-processing of the GetResponse
+        // returns to the generic thread pool.
+        CheckedConsumer<GetResponse, Exception> wrappedCheckedConsumer = resp -> client.threadPool().generic().execute(() -> {
+            try {
+                checkedConsumer.accept(resp);
+            } catch (Exception e) {
+                // reuse the exception consumer already defined
+                exceptionConsumer.accept(e);
+            }
+        });
+
         projectSecurityIndex.checkIndexVersionThenExecute(
             ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenId, ex)),
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 getRequest,
-                ActionListener.<GetResponse>wrap(response -> {
-                    if (response.isExists() == false) {
-                        // The chances of a random token string decoding to something that we can read is minimal, so
-                        // we assume that this was a token we have created but is now expired/revoked and deleted
-                        logger.trace("The token [{}] probably expired and has already been deleted", tokenId);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    Map<String, Object> accessSource = (Map<String, Object>) response.getSource().get("access_token");
-                    Map<String, Object> refreshSource = (Map<String, Object>) response.getSource().get("refresh_token");
-                    boolean versionGetForRefresh = tokenVersion.onOrAfter(VERSION_GET_TOKEN_DOC_FOR_REFRESH);
-                    if (accessSource == null) {
-                        onFailure.accept(new IllegalStateException("token document is missing the access_token field"));
-                    } else if (accessSource.containsKey("user_token") == false) {
-                        onFailure.accept(new IllegalStateException("token document is missing the user_token field"));
-                    } else if (versionGetForRefresh && accessSource.containsKey("token") == false) {
-                        onFailure.accept(new IllegalStateException("token document is missing the user_token.token field"));
-                    } else if (versionGetForRefresh && refreshSource != null && refreshSource.containsKey("token") == false) {
-                        onFailure.accept(new IllegalStateException("token document is missing the refresh_token.token field"));
-                    } else if (storedAccessToken != null && storedAccessToken.equals(accessSource.get("token")) == false) {
-                        logger.error(
-                            "The stored access token [{}] for token doc id [{}] could not be verified",
-                            storedAccessToken,
-                            tokenId
-                        );
-                        listener.onResponse(null);
-                    } else if (storedRefreshToken != null
-                        && (refreshSource == null || storedRefreshToken.equals(refreshSource.get("token")) == false)) {
-                            logger.error(
-                                "The stored refresh token [{}] for token doc id [{}] could not be verified",
-                                storedRefreshToken,
-                                tokenId
-                            );
-                            listener.onResponse(null);
-                        } else {
-                            listener.onResponse(new Doc(response));
-                        }
-                }, e -> {
-                    // if the index or the shard is not there / available we assume that
-                    // the token is not valid
-                    if (isShardNotAvailableException(e)) {
-                        logger.warn("failed to get token doc [{}] because index [{}] is not available", tokenId, tokensIndex.aliasName());
-                    } else {
-                        logger.error(() -> "failed to get token doc [" + tokenId + "]", e);
-                    }
-                    listener.onFailure(e);
-                }),
+                ActionListener.<GetResponse>wrap(wrappedCheckedConsumer, exceptionConsumer),
                 client::get
             )
         );
@@ -949,6 +964,130 @@ public class TokenService {
                     tokensIndexManager.aliasName()
                 )
             );
+
+            CheckedConsumer<BulkResponse, Exception> checkedConsumer = bulkResponse -> {
+                ArrayList<String> retryTokenDocIds = new ArrayList<>();
+                ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
+                ArrayList<String> previouslyInvalidated = new ArrayList<>();
+                ArrayList<String> invalidated = new ArrayList<>();
+                if (null != previousResult) {
+                    failedRequestResponses.addAll((previousResult.getErrors()));
+                    previouslyInvalidated.addAll(previousResult.getPreviouslyInvalidatedTokens());
+                    invalidated.addAll(previousResult.getInvalidatedTokens());
+                }
+                for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                    if (bulkItemResponse.isFailed()) {
+                        Throwable cause = bulkItemResponse.getFailure().getCause();
+                        final String failedTokenDocId = getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId());
+                        if (isShardNotAvailableException(cause)) {
+                            retryTokenDocIds.add(failedTokenDocId);
+                        } else {
+                            traceLog("invalidate access token", failedTokenDocId, cause);
+                            failedRequestResponses.add(new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause));
+                        }
+                    } else {
+                        UpdateResponse updateResponse = bulkItemResponse.getResponse();
+                        if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+                            logger.debug(() -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId()));
+                            invalidated.add(updateResponse.getGetResult().getId());
+                        } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
+                            previouslyInvalidated.add(updateResponse.getGetResult().getId());
+                        }
+                    }
+                }
+                if (retryTokenDocIds.isEmpty() == false && backoff.hasNext()) {
+                    logger.debug(
+                        "failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
+                        retryTokenDocIds.size(),
+                        tokenIds.size()
+                    );
+                    final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(
+                        invalidated,
+                        previouslyInvalidated,
+                        failedRequestResponses,
+                        RestStatus.OK
+                    );
+                    client.threadPool()
+                        .schedule(
+                            () -> indexInvalidation(
+                                retryTokenDocIds,
+                                tokensIndexManager,
+                                backoff,
+                                srcPrefix,
+                                incompleteResult,
+                                refreshPolicy,
+                                listener
+                            ),
+                            backoff.next(),
+                            client.threadPool().generic()
+                        );
+                } else {
+                    if (retryTokenDocIds.isEmpty() == false) {
+                        logger.warn(
+                            "failed to invalidate [{}] tokens out of [{}] after all retries",
+                            retryTokenDocIds.size(),
+                            tokenIds.size()
+                        );
+                        for (String retryTokenDocId : retryTokenDocIds) {
+                            failedRequestResponses.add(
+                                new ElasticsearchException(
+                                    "Error invalidating [{}] with doc id [{}] after retries exhausted",
+                                    srcPrefix,
+                                    retryTokenDocId
+                                )
+                            );
+                        }
+                    }
+                    final TokensInvalidationResult result = new TokensInvalidationResult(
+                        invalidated,
+                        previouslyInvalidated,
+                        failedRequestResponses,
+                        RestStatus.OK
+                    );
+                    listener.onResponse(result);
+                }
+            };
+            Consumer<Exception> exceptionConsumer = e -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                traceLog("invalidate tokens", cause);
+                if (isShardNotAvailableException(cause) && backoff.hasNext()) {
+                    logger.debug("failed to invalidate tokens, retrying ");
+                    client.threadPool()
+                        .schedule(
+                            () -> indexInvalidation(
+                                tokenIds,
+                                tokensIndexManager,
+                                backoff,
+                                srcPrefix,
+                                previousResult,
+                                refreshPolicy,
+                                listener
+                            ),
+                            backoff.next(),
+                            client.threadPool().generic()
+                        );
+                } else {
+                    listener.onFailure(e);
+                }
+            };
+
+            // this wrapper handles a situation where the current flow (executing on the generic thread)
+            // finds itself unintentionally forking over to a transport_worker thread, which is a consequence of using
+            // client::bulk when calling executeAsyncWithOrigin
+            // (see NodeClient issue: https://github.com/elastic/elasticsearch/issues/97916). If you follow the implementation of
+            // client::bulk within NodeClient, you'll spot the execution happening on a transport thread.
+            // The wrapper below handles this situation by introducing a second fork to make sure post-processing of the BulkResponse
+            // returns us to the generic thread pool.
+            CheckedConsumer<BulkResponse, Exception> wrappedCheckedConsumer = bulkItemResponses -> client.threadPool()
+                .generic()
+                .execute(() -> {
+                    try {
+                        checkedConsumer.accept(bulkItemResponses);
+                    } catch (Exception e) {
+                        // re-use the exception consumer
+                        exceptionConsumer.accept(e);
+                    }
+                });
             bulkRequestBuilder.setRefreshPolicy(refreshPolicy);
             tokensIndexManager.forCurrentProject()
                 .prepareIndexIfNeededThenExecute(
@@ -957,114 +1096,7 @@ public class TokenService {
                         client.threadPool().getThreadContext(),
                         SECURITY_ORIGIN,
                         bulkRequestBuilder.request(),
-                        ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                            ArrayList<String> retryTokenDocIds = new ArrayList<>();
-                            ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
-                            ArrayList<String> previouslyInvalidated = new ArrayList<>();
-                            ArrayList<String> invalidated = new ArrayList<>();
-                            if (null != previousResult) {
-                                failedRequestResponses.addAll((previousResult.getErrors()));
-                                previouslyInvalidated.addAll(previousResult.getPreviouslyInvalidatedTokens());
-                                invalidated.addAll(previousResult.getInvalidatedTokens());
-                            }
-                            for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                                if (bulkItemResponse.isFailed()) {
-                                    Throwable cause = bulkItemResponse.getFailure().getCause();
-                                    final String failedTokenDocId = getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId());
-                                    if (isShardNotAvailableException(cause)) {
-                                        retryTokenDocIds.add(failedTokenDocId);
-                                    } else {
-                                        traceLog("invalidate access token", failedTokenDocId, cause);
-                                        failedRequestResponses.add(
-                                            new ElasticsearchException("Error invalidating " + srcPrefix + ": ", cause)
-                                        );
-                                    }
-                                } else {
-                                    UpdateResponse updateResponse = bulkItemResponse.getResponse();
-                                    if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                                        logger.debug(
-                                            () -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId())
-                                        );
-                                        invalidated.add(updateResponse.getGetResult().getId());
-                                    } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
-                                        previouslyInvalidated.add(updateResponse.getGetResult().getId());
-                                    }
-                                }
-                            }
-                            if (retryTokenDocIds.isEmpty() == false && backoff.hasNext()) {
-                                logger.debug(
-                                    "failed to invalidate [{}] tokens out of [{}], retrying to invalidate these too",
-                                    retryTokenDocIds.size(),
-                                    tokenIds.size()
-                                );
-                                final TokensInvalidationResult incompleteResult = new TokensInvalidationResult(
-                                    invalidated,
-                                    previouslyInvalidated,
-                                    failedRequestResponses,
-                                    RestStatus.OK
-                                );
-                                client.threadPool()
-                                    .schedule(
-                                        () -> indexInvalidation(
-                                            retryTokenDocIds,
-                                            tokensIndexManager,
-                                            backoff,
-                                            srcPrefix,
-                                            incompleteResult,
-                                            refreshPolicy,
-                                            listener
-                                        ),
-                                        backoff.next(),
-                                        client.threadPool().generic()
-                                    );
-                            } else {
-                                if (retryTokenDocIds.isEmpty() == false) {
-                                    logger.warn(
-                                        "failed to invalidate [{}] tokens out of [{}] after all retries",
-                                        retryTokenDocIds.size(),
-                                        tokenIds.size()
-                                    );
-                                    for (String retryTokenDocId : retryTokenDocIds) {
-                                        failedRequestResponses.add(
-                                            new ElasticsearchException(
-                                                "Error invalidating [{}] with doc id [{}] after retries exhausted",
-                                                srcPrefix,
-                                                retryTokenDocId
-                                            )
-                                        );
-                                    }
-                                }
-                                final TokensInvalidationResult result = new TokensInvalidationResult(
-                                    invalidated,
-                                    previouslyInvalidated,
-                                    failedRequestResponses,
-                                    RestStatus.OK
-                                );
-                                listener.onResponse(result);
-                            }
-                        }, e -> {
-                            Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            traceLog("invalidate tokens", cause);
-                            if (isShardNotAvailableException(cause) && backoff.hasNext()) {
-                                logger.debug("failed to invalidate tokens, retrying ");
-                                client.threadPool()
-                                    .schedule(
-                                        () -> indexInvalidation(
-                                            tokenIds,
-                                            tokensIndexManager,
-                                            backoff,
-                                            srcPrefix,
-                                            previousResult,
-                                            refreshPolicy,
-                                            listener
-                                        ),
-                                        backoff.next(),
-                                        client.threadPool().generic()
-                                    );
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        }),
+                        ActionListener.<BulkResponse>wrap(wrappedCheckedConsumer, exceptionConsumer),
                         client::bulk
                     )
                 );

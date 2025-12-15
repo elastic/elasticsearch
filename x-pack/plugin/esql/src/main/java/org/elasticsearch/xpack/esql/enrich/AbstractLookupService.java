@@ -128,17 +128,6 @@ import java.util.stream.IntStream;
 public abstract class AbstractLookupService<R extends AbstractLookupService.Request, T extends AbstractLookupService.TransportRequest> {
 
     /**
-     * Field for DocID in lookup operations. Contains a DocVector.
-     */
-    public static final EsField LOOKUP_DOC_ID_FIELD = new EsField(
-        "$$DocID$$",
-        DataType.DOC_DATA_TYPE,
-        Map.of(),
-        false,
-        EsField.TimeSeriesFieldType.NONE
-    );
-
-    /**
      * Field for Positions in lookup operations. Contains an IntBlock of positions.
      */
     public static final EsField LOOKUP_POSITIONS_FIELD = new EsField(

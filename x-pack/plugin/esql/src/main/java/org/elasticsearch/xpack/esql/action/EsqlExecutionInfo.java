@@ -216,7 +216,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndPreAnalysis() {
         assert preAnalysisTimeSpanBuilder != null : "markBeginPreAnalysis should have been called";
-        assert preAnalysisTimeSpan == null : "markEndPreAnalysis should be called just once";
+        // This method may be called more than once, when we perform another preanalysis with index filtering deactivated
+        // We pick the longer span possible, with the last stop
         preAnalysisTimeSpan = preAnalysisTimeSpanBuilder.stop();
     }
 
@@ -229,8 +230,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * are part of each individual plan profiling
      */
     public void markBeginAnalysis() {
-        assert analysisTimeSpanBuilder == null : "markBeginAnalysis should only be called once";
-        analysisTimeSpanBuilder = TimeSpan.start();
+        if (analysisTimeSpanBuilder == null) {
+            // This method may be called more than once, when we perform another preanalysis with index filtering deactivated
+            // We pick the longer span possible, with the first start
+            analysisTimeSpanBuilder = TimeSpan.start();
+        }
     }
 
     /**
@@ -238,8 +242,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * Both main indices and lookup indices will be included in this phase
      */
     public void markEndAnalysis() {
-        assert analysisTimeSpanBuilder != null : "markBeginAnalysis should have been called";
-        assert analysisTimeSpan == null : "markEndAnalysis should be called just once";
+        // this method may be called more than once, when we perform another preanalysis with index filtering deactivated.
+        // We pick the longer span possible, with the last stop
         analysisTimeSpan = analysisTimeSpanBuilder.stop();
     }
 

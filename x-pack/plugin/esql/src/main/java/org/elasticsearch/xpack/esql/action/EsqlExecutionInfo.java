@@ -515,7 +515,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public Cluster(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
-            this.displayClusterAlias = in.readOptionalString();
+            this.displayClusterAlias = in.getTransportVersion().supports(EXECUTION_CLUSTER_NAME_VERSION) ? in.readOptionalString() : null;
             this.indexExpression = in.readString();
             this.status = Cluster.Status.valueOf(in.readString().toUpperCase(Locale.ROOT));
             this.totalShards = in.readOptionalInt();
@@ -530,7 +530,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterAlias);
-            out.writeOptionalString(displayClusterAlias);
+            if (out.getTransportVersion().supports(EXECUTION_CLUSTER_NAME_VERSION)) {
+                out.writeOptionalString(displayClusterAlias);
+            }
             out.writeString(indexExpression);
             out.writeString(status.toString());
             out.writeOptionalInt(totalShards);
@@ -630,7 +632,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) ? displayClusterAlias : clusterAlias);
+            builder.startObject(displayClusterAlias != null ? displayClusterAlias : clusterAlias);
             {
                 builder.field(STATUS_FIELD.getPreferredName(), getStatus().toString());
                 builder.field(INDICES_FIELD.getPreferredName(), indexExpression);

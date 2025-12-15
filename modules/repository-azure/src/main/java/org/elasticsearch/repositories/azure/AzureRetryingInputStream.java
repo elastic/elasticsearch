@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.core.exception.HttpResponseException;
+import com.azure.core.http.policy.RetryStrategy;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -82,9 +83,15 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
             return blob;
         }
 
+        /**
+         * The range of errors that are retried in Azure is quite liberal by default. This
+         * is overridden in {@link com.azure.core.http.policy.ExponentialBackoff}, but in
+         * our configuration it ends up using the default.
+         *
+         * @see RetryStrategy#shouldRetryException(Throwable)
+         */
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
-            // TODO: work out what is and is not retry-able
             return true;
         }
     }

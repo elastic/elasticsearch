@@ -152,7 +152,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (supplier != null) {
                         var filterCost = Math.toIntExact(supplier.cost());
                         float selectivity = (float) filterCost / floatVectorValues.size();
-                        //TODO: is this enough to check if we picked this up from cache?
+                        // TODO: is this enough to check if we picked this up from cache?
                         if ((false == supplier instanceof ConstantScoreScorerSupplier) && selectivity >= postFilteringThreshold) {
                             // for filters with coverage greater than the provided postFilteringThreshold, we:
                             // * oversample by (1 + (1 - selectivity)) * k)

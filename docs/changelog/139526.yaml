@@ -1,0 +1,5 @@
+pr: 139526
+summary: Fix `index.mapping.use_doc_values_skippers` defaults in serverless
+area: Mapping
+type: bug
+issues: []

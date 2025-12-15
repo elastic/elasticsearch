@@ -1,0 +1,5 @@
+pr: 139319
+summary: FIPS 140-3 support with BC FIPS 2.0.x libraries
+area: Security
+type: enhancement
+issues: []

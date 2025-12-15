@@ -618,8 +618,8 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteClusters = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
-        final boolean canIncludeDescription = version.onOrAfter(SECURITY_ROLE_DESCRIPTION);
+        final boolean canIncludeRemoteClusters = version.supports(ROLE_REMOTE_CLUSTER_PRIVS);
+        final boolean canIncludeDescription = version.supports(SECURITY_ROLE_DESCRIPTION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);

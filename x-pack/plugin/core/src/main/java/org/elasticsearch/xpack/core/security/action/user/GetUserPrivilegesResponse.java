@@ -51,7 +51,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         application = in.readCollectionAsImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
         runAs = in.readCollectionAsImmutableSet(StreamInput::readString);
         remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
-        if (in.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (in.getTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions = new RemoteClusterPermissions(in);
         } else {
             remoteClusterPermissions = RemoteClusterPermissions.NONE;
@@ -120,7 +120,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(application);
         out.writeStringCollection(runAs);
         out.writeCollection(remoteIndex);
-        if (out.getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (out.getTransportVersion().supports(ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         } else if (hasRemoteClusterPrivileges()) {
             throw new IllegalArgumentException(

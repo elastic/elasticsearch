@@ -21,6 +21,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.IntFunction;
 
+/**
+ * A DirectoryReader that caches NumericDocValues per field.
+ */
 class CachedDirectoryReader extends FilterDirectoryReader {
     CachedDirectoryReader(DirectoryReader in) throws IOException {
         super(in, new SubReaderWrapper() {
@@ -68,11 +71,6 @@ class CachedDirectoryReader extends FilterDirectoryReader {
             if (terms == null) {
                 return null;
             }
-            // Return a FilterTerms that always creates a fresh TermsEnum iterator
-            // We cache the Terms object itself for performance, but always create fresh TermsEnum
-            // instances because TermsEnum maintains position state and reusing it causes incorrect
-            // results when the same field is accessed multiple times with different conditions
-            // (e.g., in OR NOT expressions like: OR NOT (other1 != "omicron" AND other1 != "nu"))
             return new FilterTerms(terms) {
                 @Override
                 public TermsEnum iterator() throws IOException {

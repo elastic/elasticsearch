@@ -75,11 +75,12 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
      * @param averageThreadPoolUtilization Percent of thread pool threads that are in use, averaged over some period of time.
      * @param maxThreadPoolQueueLatencyMillis The max time any task has spent in the thread pool queue. Zero if no task is queued.
      */
-    public record ThreadPoolUsageStats(int totalThreadPoolThreads, float averageThreadPoolUtilization, long maxThreadPoolQueueLatencyMillis,
+    public record ThreadPoolUsageStats(
+        int totalThreadPoolThreads,
+        float averageThreadPoolUtilization,
+        long maxThreadPoolQueueLatencyMillis,
         boolean isHotspotting
-    )
-        implements
-            Writeable {
+    ) implements Writeable {
 
         public ThreadPoolUsageStats(StreamInput in) throws IOException {
             this(in.readVInt(), in.readFloat(), in.readVLong(), false);

@@ -623,7 +623,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 ipAddress = ipAddress.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            return new IpLookup(il.source(), il.child(), ipAddress, targetField, il.databaseFile());
+            return new IpLookup(
+                il.source(),
+                il.child(),
+                ipAddress,
+                targetField,
+                il.databaseFile(),
+                il.geoLocationFieldTemplates(),
+                il.resolvedGeoLocationFields()
+            );
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {

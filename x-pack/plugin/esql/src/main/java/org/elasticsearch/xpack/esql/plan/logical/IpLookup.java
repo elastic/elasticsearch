@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -18,8 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,8 +25,6 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,8 +42,6 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "IpLookup", IpLookup::new);
 
-    public static final String DATABASE_FILE_OPTION = "database_file";
-
     private final Expression ipAddress;
     private final Attribute targetField;
     private final String databaseFile;
@@ -56,41 +49,11 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
     private final Map<String, DataType> geoLocationFieldTemplates;
 
     /**
-     * Initial plan node constructor. Only use this constructor when first creating the node. Any further construction for purposes like
-     * renaming fields or replacing child node or deserialization should use the private constructor. This constructor calculates the
-     * geolocation attributes that this node will output, so they should not be re-calculated later.
-     * @param source the source information
-     * @param child the child logical plan
-     * @param ipAddress the IP address expression
-     * @param targetField the root to use for all generated fields
-     * @param databaseFile the database file name to use for ip lookup
-     */
-    public IpLookup(Source source, LogicalPlan child, Expression ipAddress, Attribute targetField, String databaseFile) {
-        super(source, child);
-        this.ipAddress = ipAddress;
-        this.targetField = targetField;
-        this.databaseFile = databaseFile;
-        // TODO - verify databaseFile exists and is accessible
-        this.geoLocationFieldTemplates = getGeoLocationFieldTemplates(databaseFile);
-        this.resolvedGeoLocationFields = geoLocationFieldTemplates.entrySet()
-            .stream()
-            .map(
-                entry -> (Attribute) new ReferenceAttribute(
-                    source,
-                    null,
-                    targetField.name() + "." + entry.getKey(),
-                    entry.getValue(),
-                    Nullability.TRUE,
-                    null,
-                    false
-                )
-            )
-            .toList();
-    }
-
-    /**
-     * Private constructor used for rebuilding the node with new field names, for deserialization and for child replacement.
-     * This constructor allows creation of a new instance while preserving the geoLocationFieldTemplates and resolvedGeoLocationFields.
+     * There is seemingly a lot of redundancy in the parameters to this constructor: the {@code targetField} and {@code databaseFile} are
+     * sufficient for the computation of the {@code geoLocationFieldTemplates}, which in turn are sufficient to compute the
+     * {@code resolvedGeoLocationFields}. However, these values are all passed in to avoid recomputation when performing operations like
+     * serialization/deserialization, renaming of the generated fields or replacing the child plan. When such are performed, newly generated
+     * fields may be considered as different attributes, thus causing failures during local plan optimization.
      * @param source the source information
      * @param child the child logical plan
      * @param ipAddress the IP address expression
@@ -99,7 +62,7 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
      * @param geoLocationFieldTemplates the geolocation field templates - name and data type
      * @param resolvedGeoLocationFields the resolved geolocation fields as attributes
      */
-    private IpLookup(
+    public IpLookup(
         Source source,
         LogicalPlan child,
         Expression ipAddress,
@@ -145,27 +108,6 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
         out.writeNamedWriteableCollection(resolvedGeoLocationFields);
     }
 
-    // This is a stub that defines the schema contract for different database types.
-    // Using LinkedHashMap to preserve order for consistent column output.
-    private static Map<String, DataType> getGeoLocationFieldTemplates(String databaseName) {
-        LinkedHashMap<String, DataType> fields = new LinkedHashMap<>();
-        if ("GeoLite2-City.mmdb".equals(databaseName) || databaseName == null) {
-            // Default contract for City databases
-            fields.putLast("continent_name", DataType.KEYWORD);
-            fields.putLast("country_iso_code", DataType.KEYWORD);
-            fields.putLast("region_name", DataType.KEYWORD);
-            fields.putLast("city_name", DataType.KEYWORD);
-            fields.putLast("location", DataType.GEO_POINT);
-        } else if ("GeoLite2-Country.mmdb".equals(databaseName)) {
-            fields.putLast("continent_name", DataType.KEYWORD);
-            fields.putLast("country_iso_code", DataType.KEYWORD);
-        } else {
-            // In a real implementation, more database types would be supported.
-            throw new EsqlIllegalArgumentException("Unsupported GeoIP database file: [" + databaseName + "]");
-        }
-        return Collections.unmodifiableMap(fields);
-    }
-
     @Override
     public String getWriteableName() {
         return ENTRY.name;
@@ -183,12 +125,12 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
         return databaseFile;
     }
 
-    public List<Attribute> resolvedGeoLocationFields() {
-        return resolvedGeoLocationFields;
-    }
-
     public Map<String, DataType> geoLocationFieldTemplates() {
         return geoLocationFieldTemplates;
+    }
+
+    public List<Attribute> resolvedGeoLocationFields() {
+        return resolvedGeoLocationFields;
     }
 
     @Override
@@ -253,7 +195,16 @@ public class IpLookup extends UnaryPlan implements PostAnalysisVerificationAware
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, IpLookup::new, child(), ipAddress, targetField, databaseFile);
+        return NodeInfo.create(
+            this,
+            IpLookup::new,
+            child(),
+            ipAddress,
+            targetField,
+            databaseFile,
+            geoLocationFieldTemplates,
+            resolvedGeoLocationFields
+        );
     }
 
     @Override

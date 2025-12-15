@@ -26,7 +26,8 @@ import java.util.Map;
 
 public class IpLookupEvaluator implements ColumnExtractOperator.Evaluator {
 
-    public static final String DEFAULT_GEOIP_DATABASE_MMDB = "GeoLite2-City.mmdb";
+    public static final String DATABASE_FILE_OPTION = "database_file";
+    public static final String DEFAULT_DATABASE_FILE = "GeoLite2-City.mmdb";
 
     private final String databaseFile;
     private final Map<String, DataType> geoLocationFieldTemplates;
@@ -35,7 +36,7 @@ public class IpLookupEvaluator implements ColumnExtractOperator.Evaluator {
     public IpLookupEvaluator(String databaseFile, Map<String, DataType> geoLocationFieldTemplates, DataType inputType) {
         // todo - instead of keeping the databaseFile string, we should resolve the DB reader here and keep it for lookups
         if (databaseFile == null || databaseFile.isBlank()) {
-            databaseFile = DEFAULT_GEOIP_DATABASE_MMDB;
+            databaseFile = DEFAULT_DATABASE_FILE;
         }
         this.databaseFile = databaseFile;
         this.geoLocationFieldTemplates = geoLocationFieldTemplates;
@@ -139,6 +140,25 @@ public class IpLookupEvaluator implements ColumnExtractOperator.Evaluator {
             }
             i++;
         }
+    }
+
+    // This is a stub that defines the schema contract for different database types.
+    // Using LinkedHashMap to preserve order for consistent column output.
+    public static Map<String, DataType> getGeoLocationFieldTemplates(String databaseName) {
+        LinkedHashMap<String, DataType> fields = new LinkedHashMap<>();
+        if ("GeoLite2-City.mmdb".equals(databaseName) || databaseName == null) {
+            fields.putLast("continent_name", DataType.KEYWORD);
+            fields.putLast("country_iso_code", DataType.KEYWORD);
+            fields.putLast("region_name", DataType.KEYWORD);
+            fields.putLast("city_name", DataType.KEYWORD);
+            fields.putLast("location", DataType.GEO_POINT);
+        } else if ("GeoLite2-Country.mmdb".equals(databaseName)) {
+            fields.putLast("continent_name", DataType.KEYWORD);
+            fields.putLast("country_iso_code", DataType.KEYWORD);
+        } else {
+            throw new EsqlIllegalArgumentException("Unsupported GeoIP database file: [" + databaseName + "]");
+        }
+        return fields;
     }
 
     private static Map<String, Object> lookupGeoData(String ip) {

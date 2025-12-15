@@ -2044,7 +2044,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
 
         @Override
-        public void close() {
-        }
+        public void close() {}
     }
 }

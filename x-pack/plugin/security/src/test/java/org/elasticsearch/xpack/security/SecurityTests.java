@@ -959,7 +959,7 @@ public class SecurityTests extends ESTestCase {
             );
 
             ActionModule actionModule = new ActionModule(
-                settingsModule.getSettings(),
+                TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settingsModule.getIndexScopedSettings(),

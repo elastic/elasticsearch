@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -113,7 +114,7 @@ public class ActionModuleTests extends ESTestCase {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(
-            settings.getSettings(),
+            TestEnvironment.newEnvironment(settings.getSettings()),
             TestIndexNameExpressionResolver.newInstance(),
             null,
             settings.getIndexScopedSettings(),
@@ -180,7 +181,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                settings.getSettings(),
+                TestEnvironment.newEnvironment(settings.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settings.getIndexScopedSettings(),
@@ -240,7 +241,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                settings.getSettings(),
+                TestEnvironment.newEnvironment(settings.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settings.getIndexScopedSettings(),
@@ -293,7 +294,7 @@ public class ActionModuleTests extends ESTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new ActionModule(
-                    settingsModule.getSettings(),
+                    TestEnvironment.newEnvironment(settingsModule.getSettings()),
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                     null,
                     settingsModule.getIndexScopedSettings(),
@@ -337,7 +338,7 @@ public class ActionModuleTests extends ESTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new ActionModule(
-                    settingsModule.getSettings(),
+                    TestEnvironment.newEnvironment(settingsModule.getSettings()),
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                     null,
                     settingsModule.getIndexScopedSettings(),

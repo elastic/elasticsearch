@@ -242,6 +242,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
@@ -268,6 +269,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
+import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.readiness.TransportReadinessAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -481,7 +484,7 @@ public class ActionModule extends AbstractModule {
     private final ClusterService clusterService;
 
     public ActionModule(
-        Settings settings,
+        Environment env,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexScopedSettings indexScopedSettings,
@@ -502,7 +505,7 @@ public class ActionModule extends AbstractModule {
         IncrementalBulkService bulkService,
         ProjectIdResolver projectIdResolver
     ) {
-        this.settings = settings;
+        this.settings = env.settings();
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexScopedSettings = indexScopedSettings;
@@ -650,6 +653,10 @@ public class ActionModule extends AbstractModule {
             }
         }
         ActionRegistry actions = new ActionRegistry();
+
+        if (ReadinessService.enabled(environment)) {
+            actions.register(TransportReadinessAction.TYPE, TransportReadinessAction.class);
+        }
 
         actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
         actions.register(TransportNodeUsageStatsForThreadPoolsAction.TYPE, TransportNodeUsageStatsForThreadPoolsAction.class);

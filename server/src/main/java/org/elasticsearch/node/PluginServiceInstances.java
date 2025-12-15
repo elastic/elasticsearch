@@ -33,6 +33,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -61,5 +62,6 @@ public record PluginServiceInstances(
     SlowLogFieldProvider slowLogFieldProvider,
     IndexingPressure indexingPressure,
     LinkedProjectConfigService linkedProjectConfigService,
-    ProjectRoutingResolver projectRoutingResolver
+    ProjectRoutingResolver projectRoutingResolver,
+    RemoteTransportClient remoteTransportClient
 ) implements Plugin.PluginServices {}

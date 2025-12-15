@@ -27,7 +27,7 @@ FROM tdigest_standard_index
 ;
 
 min:double | max:double | p90:double | sum:double  | avg:double
-2.17E-4    | 6.786232   | 0.06       | 1536.648714 | 0.0993245
+2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
 ;
 
 
@@ -39,19 +39,19 @@ FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
  | STATS min = MIN(responseTime),
          max = MAX(responseTime),
-         p90 = PERCENTILE(responseTime,90),
+         p99 = PERCENTILE(responseTime,99),
          sum = SUM(responseTime),
          avg = AVG(responseTime) 
          BY instance
- | EVAL p75 = ROUND(p75, 2), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
- | KEEP instance, min, max, p75, sum, avg
+ | EVAL p99 = ROUND(p99, 1), sum = ROUND(sum, 7), avg = ROUND(avg, 7) // rounding to avoid floating point precision issues
+ | KEEP instance, min, max, p99, sum, avg
  | SORT instance
 ;
 
-instance:keyword | min:double | max:double | p75:double | sum:double  | avg:double
-instance-0       | 2.4E-4     | 6.786232   | 0.26       | 1472.744209 | 0.1665812
-instance-1       | 2.17E-4    | 3.190723   | 0.0        | 36.198484   | 0.011138
-instance-2       | 2.2E-4     | 2.744054   | 0.0        | 27.706021   | 0.008197
+instance:keyword | min:double | max:double | p99:double | sum:double  | avg:double
+instance-0       | 2.4E-4     | 6.786232   | 1.0       | 1472.744209 | 0.1665812
+instance-1       | 2.17E-4    | 3.190723   | 0.1        | 36.198484   | 0.011138
+instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
 ;
 
 

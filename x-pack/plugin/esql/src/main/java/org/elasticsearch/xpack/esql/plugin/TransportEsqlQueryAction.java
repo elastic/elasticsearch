@@ -171,7 +171,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceService(client),
+            new InferenceService(client, clusterService),
             blockFactoryProvider,
             new PlannerSettings(clusterService),
             new CrossProjectModeDecider(clusterService.getSettings())
@@ -247,7 +247,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (plan, configuration, foldCtx, resultListener) -> computeService.execute(
+        PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
             flags,
@@ -255,6 +255,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             configuration,
             foldCtx,
             executionInfo,
+            planTimeProfile,
             resultListener
         );
         planExecutor.esql(

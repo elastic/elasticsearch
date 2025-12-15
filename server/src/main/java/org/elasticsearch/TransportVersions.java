@@ -57,22 +57,12 @@ public class TransportVersions {
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_11_X = def(8_512_0_01);
-    public static final TransportVersion V_8_12_0 = def(8_560_0_00);
-    public static final TransportVersion V_8_12_1 = def(8_560_0_01);
     public static final TransportVersion V_8_13_0 = def(8_595_0_00);
     public static final TransportVersion V_8_13_4 = def(8_595_0_01);
     public static final TransportVersion V_8_14_0 = def(8_636_0_01);
     public static final TransportVersion V_8_15_0 = def(8_702_0_02);
     public static final TransportVersion V_8_15_2 = def(8_702_0_03);
     public static final TransportVersion V_8_16_0 = def(8_772_0_01);
-    public static final TransportVersion V_8_16_1 = def(8_772_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
-    public static final TransportVersion V_8_17_0 = def(8_797_0_02);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
-    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_5 = def(8_797_0_05);
 
     /*
      * STOP! READ THIS FIRST! No, really,

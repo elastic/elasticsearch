@@ -24,6 +24,7 @@ import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -36,13 +37,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -124,9 +128,13 @@ public class EsqlQueryLogTests extends ESTestCase {
                 long planningTook = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK));
                 long planningTookMillisExpected = planningTook / 1_000_000;
                 long planningTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS));
+                long preAnalysisTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS));
+                long analysisTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS));
                 assertThat(planningTook, is(actualPlanningTook[i]));
                 assertThat(planningTookMillis, is(planningTookMillisExpected));
                 assertThat(took, greaterThan(planningTook));
+                assertThat(preAnalysisTookMillis, greaterThanOrEqualTo(0L));
+                assertThat(analysisTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
@@ -187,6 +195,8 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(tookMillis, is(tookMillisExpected));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK), is(nullValue()));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS), is(nullValue()));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PREANALYSIS_TOOK_MILLIS), is(nullValue()));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ANALYSIS_TOOK_MILLIS), is(nullValue()));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
@@ -205,6 +215,16 @@ public class EsqlQueryLogTests extends ESTestCase {
             @Override
             public TimeValue planningTookTime() {
                 return new TimeValue(planningTookNanos, TimeUnit.NANOSECONDS);
+            }
+
+            @Override
+            public TimeSpan analysisTimeSpan() {
+                return TimeSpan.start().stop();
+            }
+
+            @Override
+            public TimeSpan preAnalysisTimeSpan() {
+                return TimeSpan.start().stop();
             }
         };
         return info;

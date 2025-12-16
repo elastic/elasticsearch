@@ -15,5 +15,7 @@ public class EsqlCorePlugin extends Plugin implements ExtensiblePlugin {
 
     // Note, there is also a feature flag for the field type in the analytics plugin, but for visibility reasons we need
     // another one here.
-    public static final FeatureFlag T_DIGEST_ESQL_SUPPORT = new FeatureFlag("esql_t_digest_support");
+    // this feature flag corresponds to the ES support for the dedicated t-digest field type,
+    // The ESQL T-Digest type is supported even without it (e.g. via type conversions)
+    public static final FeatureFlag T_DIGEST_FIELD_SUPPORT = new FeatureFlag("esql_t_digest_support");
 }

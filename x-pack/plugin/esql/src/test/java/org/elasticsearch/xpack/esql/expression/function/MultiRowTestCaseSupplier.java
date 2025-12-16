@@ -518,10 +518,8 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> tdigestCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
-            addSuppliers(cases, minRows, maxRows, "empty T-Digest", DataType.TDIGEST, TDigestHolder::empty);
-            addSuppliers(cases, minRows, maxRows, "random T-Digest", DataType.TDIGEST, EsqlTestUtils::randomTDigest);
-        }
+        addSuppliers(cases, minRows, maxRows, "empty T-Digest", DataType.TDIGEST, TDigestHolder::empty);
+        addSuppliers(cases, minRows, maxRows, "random T-Digest", DataType.TDIGEST, EsqlTestUtils::randomTDigest);
         return cases;
     }
 

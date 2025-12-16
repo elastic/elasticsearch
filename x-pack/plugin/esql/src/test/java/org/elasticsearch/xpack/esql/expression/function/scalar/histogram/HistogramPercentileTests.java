@@ -63,9 +63,7 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
 
         List<TestCaseSupplier.TypedDataSupplier> histogramInputs = new ArrayList<>();
         histogramInputs.addAll(TestCaseSupplier.exponentialHistogramCases());
-        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
-            histogramInputs.addAll(TestCaseSupplier.tdigestCases());
-        }
+        histogramInputs.addAll(TestCaseSupplier.tdigestCases());
 
         TestCaseSupplier.casesCrossProduct((histogramObj, percentileObj) -> {
             Number percentile = (Number) percentileObj;

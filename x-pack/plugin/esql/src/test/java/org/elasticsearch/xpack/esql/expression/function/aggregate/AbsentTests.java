@@ -81,11 +81,9 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.TEXT,
             DataType.UNSIGNED_LONG,
             DataType.VERSION,
-            DataType.EXPONENTIAL_HISTOGRAM
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST
         );
-        if (EsqlCorePlugin.T_DIGEST_ESQL_SUPPORT.isEnabled()) {
-            types = Stream.concat(types.stream(), Stream.of(DataType.TDIGEST)).toList();
-        }
         for (var dataType : types) {
             suppliers.add(
                 new TestCaseSupplier(
